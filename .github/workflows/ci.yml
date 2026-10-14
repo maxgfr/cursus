@@ -1,0 +1,28 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      FC_RUNS: '1000'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: astral-sh/setup-uv@v6
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install --with-deps chromium webkit
+      - run: docker version
+      - run: bun run check:all
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: report
+          path: |
+            playwright-report/
+            coverage/
+          if-no-files-found: ignore

@@ -1,0 +1,24 @@
+name: Catalog
+on:
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - run: bun install --frozen-lockfile
+      - run: bun run catalog
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: catalog-refresh
+          title: 'chore: refresh AI model catalog'
+          commit-message: 'chore: refresh AI model catalog'
+          body: Weekly refresh of the AI model catalog.

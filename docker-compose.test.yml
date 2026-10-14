@@ -1,0 +1,20 @@
+services:
+  s3:
+    image: cgr.dev/chainguard/minio@sha256:2136d593beacf4461187035eca949fe49abd589d5079735025c711ca58fee0c8
+    command: ["server", "/data", "--address", ":9000", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: cursus
+      MINIO_ROOT_PASSWORD: cursus-secret
+    ports:
+      - "9000:9000"
+    tmpfs:
+      - /data:uid=65532,gid=65532
+    healthcheck:
+      test:
+        - CMD
+        - bash
+        - -c
+        - "exec 3<>/dev/tcp/127.0.0.1/9000 && printf 'GET /minio/health/live HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && read -r -u 3 status && [[ $$status == *' 200 '* ]]"
+      interval: 2s
+      timeout: 3s
+      retries: 30
