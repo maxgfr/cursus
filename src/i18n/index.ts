@@ -1,31 +1,12 @@
-import { ai as deAi } from './de/ai.ts'
-import { anki as deAnki } from './de/anki.ts'
-import { common as deCommon } from './de/common.ts'
-import { course as deCourse } from './de/course.ts'
-import { errors as deErrors } from './de/errors.ts'
-import { review as deReview } from './de/review.ts'
-import { settings as deSettings } from './de/settings.ts'
-import { sync as deSync } from './de/sync.ts'
-import { today as deToday } from './de/today.ts'
-import { ai } from './en/ai.ts'
-import { anki } from './en/anki.ts'
-import { common } from './en/common.ts'
-import { course } from './en/course.ts'
-import { errors } from './en/errors.ts'
-import { review } from './en/review.ts'
-import { settings } from './en/settings.ts'
-import { sync } from './en/sync.ts'
-import { today } from './en/today.ts'
-import { ai as frAi } from './fr/ai.ts'
-import { anki as frAnki } from './fr/anki.ts'
-import { common as frCommon } from './fr/common.ts'
-import { course as frCourse } from './fr/course.ts'
-import { errors as frErrors } from './fr/errors.ts'
-import { review as frReview } from './fr/review.ts'
-import { settings as frSettings } from './fr/settings.ts'
-import { sync as frSync } from './fr/sync.ts'
-import { today as frToday } from './fr/today.ts'
-import { pseudoCatalog } from './pseudo.ts'
+import type { ai } from './en/ai.ts'
+import type { anki } from './en/anki.ts'
+import type { common } from './en/common.ts'
+import type { course } from './en/course.ts'
+import type { errors } from './en/errors.ts'
+import type { review } from './en/review.ts'
+import type { settings } from './en/settings.ts'
+import type { sync } from './en/sync.ts'
+import type { today } from './en/today.ts'
 
 export interface Plural {
   readonly one: string
@@ -39,45 +20,133 @@ export type Shape<T> = {
   readonly [K in keyof T]: T[K] extends string ? string : T[K] extends Plural ? Plural : never
 }
 
-export const en = { common, today, course, review, ai, settings, sync, anki, errors } as const
-
-type Source = typeof en
+/** The source language: English defines every key (and its types); it loads like any other locale. */
+type Source = {
+  readonly common: typeof common
+  readonly today: typeof today
+  readonly course: typeof course
+  readonly review: typeof review
+  readonly ai: typeof ai
+  readonly settings: typeof settings
+  readonly sync: typeof sync
+  readonly anki: typeof anki
+  readonly errors: typeof errors
+}
+const NAMESPACES: readonly Namespace[] = [
+  'common',
+  'today',
+  'course',
+  'review',
+  'ai',
+  'settings',
+  'sync',
+  'anki',
+  'errors',
+]
 export type Namespace = keyof Source
 export type Catalog = { readonly [N in Namespace]: Shape<Source[N]> }
-
-export const de: Catalog = {
-  common: deCommon,
-  today: deToday,
-  course: deCourse,
-  review: deReview,
-  ai: deAi,
-  settings: deSettings,
-  sync: deSync,
-  anki: deAnki,
-  errors: deErrors,
-}
-
-export const fr: Catalog = {
-  common: frCommon,
-  today: frToday,
-  course: frCourse,
-  review: frReview,
-  ai: frAi,
-  settings: frSettings,
-  sync: frSync,
-  anki: frAnki,
-  errors: frErrors,
-}
 
 export const LOCALES = ['en', 'de', 'fr'] as const
 export type BaseLocale = (typeof LOCALES)[number]
 export type Locale = BaseLocale | 'pseudo'
 
-export const catalogs: { readonly [L in Locale]: Catalog } = {
-  en,
-  de,
-  fr,
-  pseudo: pseudoCatalog(en),
+/**
+ * No catalog ships in the initial bundle: the one locale in use is fetched once, while the library opens
+ * (the other languages never weigh on a device that does not use them).
+ */
+const loaded = new Map<Locale, Catalog>()
+
+const loaders: { readonly [L in Locale]: () => Promise<Catalog> } = {
+  en: async () => {
+    const [common, today, course, review, ai, settings, sync, anki, errors] = await Promise.all([
+      import('./en/common.ts'),
+      import('./en/today.ts'),
+      import('./en/course.ts'),
+      import('./en/review.ts'),
+      import('./en/ai.ts'),
+      import('./en/settings.ts'),
+      import('./en/sync.ts'),
+      import('./en/anki.ts'),
+      import('./en/errors.ts'),
+    ])
+    return {
+      common: common.common,
+      today: today.today,
+      course: course.course,
+      review: review.review,
+      ai: ai.ai,
+      settings: settings.settings,
+      sync: sync.sync,
+      anki: anki.anki,
+      errors: errors.errors,
+    }
+  },
+  de: async () => {
+    const [common, today, course, review, ai, settings, sync, anki, errors] = await Promise.all([
+      import('./de/common.ts'),
+      import('./de/today.ts'),
+      import('./de/course.ts'),
+      import('./de/review.ts'),
+      import('./de/ai.ts'),
+      import('./de/settings.ts'),
+      import('./de/sync.ts'),
+      import('./de/anki.ts'),
+      import('./de/errors.ts'),
+    ])
+    return {
+      common: common.common,
+      today: today.today,
+      course: course.course,
+      review: review.review,
+      ai: ai.ai,
+      settings: settings.settings,
+      sync: sync.sync,
+      anki: anki.anki,
+      errors: errors.errors,
+    }
+  },
+  fr: async () => {
+    const [common, today, course, review, ai, settings, sync, anki, errors] = await Promise.all([
+      import('./fr/common.ts'),
+      import('./fr/today.ts'),
+      import('./fr/course.ts'),
+      import('./fr/review.ts'),
+      import('./fr/ai.ts'),
+      import('./fr/settings.ts'),
+      import('./fr/sync.ts'),
+      import('./fr/anki.ts'),
+      import('./fr/errors.ts'),
+    ])
+    return {
+      common: common.common,
+      today: today.today,
+      course: course.course,
+      review: review.review,
+      ai: ai.ai,
+      settings: settings.settings,
+      sync: sync.sync,
+      anki: anki.anki,
+      errors: errors.errors,
+    }
+  },
+  pseudo: async () => {
+    const [{ pseudoCatalog }, en] = await Promise.all([import('./pseudo.ts'), loadCatalog('en')])
+    return pseudoCatalog(en)
+  },
+}
+
+/** The catalog of a locale once loaded. */
+export function loadedCatalog(locale: Locale): Catalog | undefined {
+  return loaded.get(locale)
+}
+
+/** Fetches a locale's catalog (once); a translator for it can then be created synchronously. */
+export async function loadCatalog(locale: Locale): Promise<Catalog> {
+  const have = loaded.get(locale)
+  if (have) return have
+  const catalog = await loaders[locale]()
+  loaded.set(locale, catalog)
+  return catalog
 }
 
 type KeysOf<N extends Namespace> = Extract<keyof Source[N], string>
@@ -114,7 +183,7 @@ export function lookup(catalog: Catalog, key: string): Message | undefined {
 }
 
 function isNamespace(value: string): value is Namespace {
-  return Object.hasOwn(en, value)
+  return NAMESPACES.some((n) => n === value)
 }
 
 /** BCP-47 tag used by Intl for a locale (pseudo formats like English). */
@@ -122,13 +191,16 @@ export function intlTag(locale: Locale): BaseLocale {
   return locale === 'pseudo' ? 'en' : locale
 }
 
+/** A translator for a loaded locale (see `loadCatalog`). */
 export function createTranslator(locale: Locale): Translate {
-  const catalog = catalogs[locale]
+  const catalog = loaded.get(locale)
+  if (catalog === undefined) throw new Error(`i18n: catalog "${locale}" is not loaded`)
   const tag = intlTag(locale)
   const rules = new Intl.PluralRules(tag)
   const numbers = new Intl.NumberFormat(tag)
   const translate = (key: string, params?: Params): string => {
-    const message = lookup(catalog, key) ?? lookup(en, key)
+    const english = loaded.get('en')
+    const message = lookup(catalog, key) ?? (english === undefined ? undefined : lookup(english, key))
     if (message === undefined) throw new Error(`i18n: unknown key "${key}"`)
     let template: string
     if (typeof message === 'string') {

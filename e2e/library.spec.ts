@@ -1,0 +1,339 @@
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import AxeBuilder from '@axe-core/playwright'
+import { expect, type Page, test } from '@playwright/test'
+
+test.use({ serviceWorkers: 'block' })
+
+const FIXTURES = join(import.meta.dirname, 'fixtures')
+
+function watchErrors(page: Page): string[] {
+  const errors: string[] = []
+  page.on('console', (m) => {
+    if (m.type() === 'error') errors.push(m.text())
+  })
+  page.on('pageerror', (e) => errors.push(e.message))
+  return errors
+}
+
+async function openToday(page: Page) {
+  await page.goto('./#/')
+  await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible()
+}
+
+async function createCourse(page: Page, title: string) {
+  await page.getByRole('button', { name: 'New course' }).first().click()
+  const dialog = page.getByRole('dialog', { name: 'New course' })
+  await dialog.getByLabel('Course name').fill(title)
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
+}
+
+async function typeInto(page: Page, label: string, text: string) {
+  const box = page.getByRole('textbox', { name: label })
+  await box.click()
+  await page.keyboard.type(text)
+}
+
+/** Contrast is measured on the settled screen, not mid-fade (a sheet entering, a button enabling). */
+async function settle(page: Page) {
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          document
+            .getAnimations()
+            .filter(
+              (a) => a.playState === 'running' && a.effect?.getComputedTiming().endTime !== Number.POSITIVE_INFINITY,
+            ).length,
+      ),
+    )
+    .toBe(0)
+}
+
+async function seriousViolations(page: Page): Promise<string[]> {
+  await settle(page)
+  return serious(await new AxeBuilder({ page }).analyze())
+}
+
+/** Axe scoped to the open modal: the dimmed page behind it is inert and not what is checked. */
+async function dialogViolations(page: Page): Promise<string[]> {
+  await settle(page)
+  return serious(await new AxeBuilder({ page }).include('dialog[open]').analyze())
+}
+
+function serious(r: Awaited<ReturnType<AxeBuilder['analyze']>>): string[] {
+  return r.violations
+    .filter((v) => v.impact === 'serious' || v.impact === 'critical')
+    .map((v) => `${v.id} ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)
+}
+
+test('Today: first-launch state, "+" action, due counts and the exam countdown', async ({ page }) => {
+  const errors = watchErrors(page)
+  await openToday(page)
+  await expect(page.getByRole('heading', { name: 'Start with a course' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'New here? Set up Cursus' })).toBeVisible()
+
+  // The header "+" opens the same sheet as the empty state's action.
+  await expect(page.getByRole('button', { name: 'New course' })).toHaveCount(2)
+  await page.getByRole('button', { name: 'New course' }).first().click()
+  const dialog = page.getByRole('dialog', { name: 'New course' })
+  await dialog.getByLabel('Course name').fill('Physiology')
+  expect(await dialogViolations(page)).toEqual([])
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Physiology' })).toBeVisible()
+
+  // Exam in 12 days, set from the course settings.
+  const exam = await page.evaluate(() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 12)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  })
+  await page.getByRole('button', { name: 'Course settings' }).click()
+  const settings = page.getByRole('dialog', { name: 'Course settings' })
+  await settings.getByLabel('Exam date').fill(exam)
+  expect(await dialogViolations(page)).toEqual([])
+  await settings.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByText('D-12')).toBeVisible()
+
+  // One card makes one new card due today.
+  await page.getByRole('button', { name: 'New card' }).click()
+  await typeInto(page, 'Front', 'What does the sinoatrial node do?')
+  await page.goto('./#/')
+  await expect(page.getByRole('heading', { name: 'Due today' })).toBeVisible()
+  await expect(page.getByText(/≈ \d+/)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Start' })).toBeVisible()
+  const row = page.getByRole('main').getByRole('link', { name: /Physiology/ })
+  await expect(row).toContainText('D-12')
+  await expect(row).toContainText('Exam in 12 days')
+  await expect(row).toContainText('1 due')
+  expect(await seriousViolations(page)).toEqual([])
+  expect(errors).toEqual([])
+})
+
+test('Course settings: a past exam date does not block renaming the course', async ({ page }) => {
+  const errors = watchErrors(page)
+  await page.clock.install({ time: new Date('2026-08-20T10:00:00') })
+  await openToday(page)
+  await createCourse(page, 'Anatomy')
+  await page.getByRole('button', { name: 'Course settings' }).click()
+  const settings = page.getByRole('dialog', { name: 'Course settings' })
+  await settings.getByLabel('Exam date').fill('2026-09-01')
+  await settings.getByRole('button', { name: 'Save' }).click()
+  await expect(settings).toBeHidden()
+
+  // The exam is over: the stored date is now in the past, and the course is renamed.
+  await page.clock.setSystemTime(new Date('2026-10-14T10:00:00'))
+  await page.getByRole('button', { name: 'Course settings' }).click()
+  await expect(settings.getByLabel('Exam date')).toHaveValue('2026-09-01')
+  await settings.getByLabel('Course name').fill('Anatomy I')
+  await settings.getByRole('button', { name: 'Save' }).click()
+  await expect(settings).toBeHidden()
+  await expect(page.getByRole('heading', { level: 1, name: 'Anatomy I' })).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test('Courses list has its own "+" and lists every course', async ({ page }) => {
+  const errors = watchErrors(page)
+  await page.goto('./#/courses')
+  await expect(page.getByRole('heading', { level: 1, name: 'Courses' })).toBeVisible()
+  await createCourse(page, 'Organic chemistry')
+  await page.goto('./#/courses')
+  await expect(page.getByRole('main').getByRole('link', { name: /Organic chemistry/ })).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test('Sources: a note, a PDF opened natively, a photo and a pasted text', async ({ page }) => {
+  const errors = watchErrors(page)
+  await openToday(page)
+  await createCourse(page, 'Biology')
+  await page.getByRole('radio', { name: 'Sources' }).check()
+
+  await page.getByRole('button', { name: 'Write a note' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Untitled note' })).toBeVisible()
+  await typeInto(page, 'Source', 'Mitochondria make ATP.')
+  await page.waitForTimeout(300)
+  await page.reload()
+  await expect(page.getByRole('textbox', { name: 'Source' })).toContainText('Mitochondria make ATP.')
+  await page.getByRole('link', { name: 'Back' }).click()
+
+  await page.getByRole('radio', { name: 'Sources' }).check()
+  await page.getByLabel('Import PDF').setInputFiles(join(FIXTURES, 'sample.pdf'))
+  await expect(page.getByRole('heading', { level: 1, name: 'sample' })).toBeVisible()
+  const open = page.getByRole('link', { name: 'Open PDF' })
+  await expect(open).toHaveAttribute('href', /^blob:/)
+  await expect(open).toHaveAttribute('target', '_blank')
+  const pdf = await open.evaluate(async (a) => {
+    const blob = await (await fetch((a as HTMLAnchorElement).href)).blob()
+    return { type: blob.type, size: blob.size }
+  })
+  expect(pdf.type).toBe('application/pdf')
+  expect(pdf.size).toBe((await readFile(join(FIXTURES, 'sample.pdf'))).length)
+  await page.getByRole('link', { name: 'Back' }).click()
+
+  await page.getByRole('radio', { name: 'Sources' }).check()
+  await page.getByLabel('Take a photo').setInputFiles(join(FIXTURES, 'large.png'))
+  await expect(page.getByRole('heading', { level: 1, name: 'large' })).toBeVisible()
+  const img = page.getByRole('img', { name: 'large' })
+  await expect(img).toBeVisible()
+  expect(await img.evaluate((el) => (el as HTMLImageElement).naturalWidth)).toBe(2048)
+  await page.getByRole('link', { name: 'Back' }).click()
+
+  // ⌘V of plain text on the Sources tab becomes a note.
+  await page.getByRole('radio', { name: 'Sources' }).check()
+  await expect(page.getByText(/Tip: paste/)).toBeVisible()
+  await page.evaluate(() => {
+    const data = new DataTransfer()
+    data.setData('text/plain', 'Ribosomes build proteins.')
+    document.body.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true }))
+  })
+  await expect(page.getByRole('heading', { level: 1, name: 'Pasted note' })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Source' })).toContainText('Ribosomes build proteins.')
+  await page.getByRole('link', { name: 'Back' }).click()
+  await page.getByRole('radio', { name: 'Sources' }).check()
+  for (const name of ['Untitled note', 'sample', 'large', 'Pasted note']) {
+    await expect(page.getByRole('main').getByRole('link', { name: new RegExp(name) })).toBeVisible()
+  }
+  expect(await seriousViolations(page)).toEqual([])
+  expect(errors).toEqual([])
+})
+
+test('Card editor: the cloze assistant hides phrases and previews one card each', async ({ page }) => {
+  const errors = watchErrors(page)
+  await openToday(page)
+  await createCourse(page, 'Cells')
+  await page.getByRole('button', { name: 'New card' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Card' })).toBeVisible()
+  await page.getByRole('radio', { name: 'Cloze' }).check()
+  await typeInto(page, 'Text', 'The nucleus holds the DNA.')
+  const phrase = page.getByLabel('Word or phrase to hide')
+  await phrase.fill('nucleus')
+  await page.getByRole('button', { name: 'Hide it' }).click()
+  await phrase.fill('DNA')
+  await page.getByLabel('Hint (optional)').fill('molecule')
+  await page.getByRole('button', { name: 'Hide it' }).click()
+  await expect(page.getByRole('textbox', { name: 'Text' })).toContainText(
+    'The {{c1::nucleus}} holds the {{c2::DNA::molecule}}.',
+  )
+  const preview = page.getByRole('list', { name: '2 cards from this text' })
+  await expect(preview.getByRole('listitem')).toHaveText([
+    '1The [...] holds the DNA.',
+    '2The nucleus holds the [molecule].',
+  ])
+  await phrase.fill('ribosome')
+  await page.getByRole('button', { name: 'Hide it' }).click()
+  await expect(page.getByText('This phrase isn’t in the text.')).toBeVisible()
+  expect(await seriousViolations(page)).toEqual([])
+
+  await page.getByRole('link', { name: 'Back' }).click()
+  await expect(page.getByRole('main').getByRole('link', { name: /The \{\{c1::nucleus/ })).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test('Trash: restore, then delete forever with the history caveat explained', async ({ page }) => {
+  const errors = watchErrors(page)
+  await openToday(page)
+  await createCourse(page, 'Law')
+  await page.getByRole('button', { name: 'New card' }).click()
+  await typeInto(page, 'Front', 'Consideration')
+  await page.getByRole('button', { name: 'Move to trash' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Law' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /No cards yet/ })).toBeVisible()
+
+  await page.goto('./#/trash')
+  await expect(page.getByText(/your sync history still keeps a copy/)).toBeVisible()
+  await page.getByRole('button', { name: 'Restore Consideration' }).click()
+  await expect(page.getByRole('heading', { name: /The trash is empty/ })).toBeVisible()
+  await page.goto('./#/')
+  await page.getByRole('main').getByRole('link', { name: /Law/ }).click()
+  await expect(page.getByRole('main').getByRole('link', { name: /Consideration/ })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Course settings' }).click()
+  const settings = page.getByRole('dialog', { name: 'Course settings' })
+  await settings.getByRole('button', { name: 'Delete course' }).click()
+  await expect(settings.getByText(/goes to the trash/)).toBeVisible()
+  expect(await dialogViolations(page)).toEqual([])
+  await settings.getByRole('button', { name: 'Delete course' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Courses' })).toBeVisible()
+
+  await page.goto('./#/trash')
+  await expect(page.getByRole('button', { name: 'Restore Law' })).toBeVisible()
+  expect(await seriousViolations(page)).toEqual([])
+  await page.getByRole('button', { name: 'Delete Law forever' }).click()
+  const confirm = page.getByRole('dialog', { name: 'Delete forever?' })
+  await expect(confirm).toContainText('1 item will disappear')
+  await expect(confirm).toContainText('never rewrites your sync history')
+  expect(await dialogViolations(page)).toEqual([])
+  await confirm.getByRole('button', { name: 'Delete forever' }).click()
+  await expect(page.getByRole('heading', { name: /The trash is empty/ })).toBeVisible()
+  await page.goto('./#/courses')
+  await expect(page.getByRole('main').getByRole('link', { name: /Law/ })).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+
+test('History: replay to an earlier version, then restore it forward', async ({ page }) => {
+  const errors = watchErrors(page)
+  await openToday(page)
+  await createCourse(page, 'History of art')
+  await page.getByRole('radio', { name: 'Sources' }).check()
+  await page.getByRole('button', { name: 'Write a note' }).click()
+  const editor = page.getByRole('textbox', { name: 'Source' })
+  await typeInto(page, 'Source', 'Version one.')
+
+  // Opening History seals what was typed, so each visit records a version.
+  await page.getByRole('link', { name: 'History', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'History' })).toBeVisible()
+  await expect(page.getByText('1 version', { exact: true })).toBeVisible()
+  await page.getByRole('link', { name: 'Back' }).click()
+  await editor.click()
+  await page.keyboard.press('ControlOrMeta+a')
+  await page.keyboard.type('Version two.')
+  await page.waitForTimeout(50)
+  await page.getByRole('link', { name: 'History', exact: true }).click()
+  await expect(page.getByText('2 versions', { exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'This is the current text' })).toBeDisabled()
+
+  await page.getByRole('button', { name: /Version one\./ }).click()
+  await expect(page.locator('pre')).toHaveText('Version one.')
+  const restore = page.getByRole('button', { name: 'Restore this version' })
+  await expect(restore).toBeEnabled()
+  // Let the button's colour transition settle before measuring contrast.
+  await page.evaluate(() => Promise.all(document.getAnimations().map((a) => a.finished)))
+  expect(await seriousViolations(page)).toEqual([])
+  await restore.click()
+  await expect(page.getByRole('status').filter({ hasText: 'Restored.' })).toBeVisible()
+  await page.getByRole('link', { name: 'Back' }).click()
+  await expect(editor).toHaveText('Version one.')
+  expect(errors).toEqual([])
+})
+
+test('Onboarding: install first, Safari tab warning, storage health and an explicit demo course', async ({
+  page,
+  browserName,
+}) => {
+  const errors = watchErrors(page)
+  await page.goto('./#/onboarding')
+  await expect(page.getByRole('heading', { level: 1, name: 'Welcome to Cursus' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Install Cursus first' })).toBeVisible()
+  // A Safari tab keeps its own replica: warn there, and only there.
+  const warning = page.getByRole('alert').filter({ hasText: 'You’re in a Safari tab.' })
+  await expect(warning).toHaveCount(browserName === 'webkit' ? 1 : 0)
+
+  await expect(page.getByRole('heading', { name: 'Storage on this device' })).toBeVisible()
+  await expect(page.getByTestId('storage-persisted')).toHaveText(/Yes, persistent|Best effort/)
+  await expect(page.getByTestId('storage-usage')).toHaveText(/ of |Not reported/)
+
+  // Nothing is seeded: no course exists until the demo is asked for.
+  await page.goto('./#/courses')
+  await expect(page.getByRole('heading', { name: /No courses yet/ })).toBeVisible()
+  await page.goto('./#/onboarding')
+  expect(await seriousViolations(page)).toEqual([])
+  await page.getByRole('button', { name: 'Try a demo course' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Demo: Cell biology' })).toBeVisible()
+  await expect(page.getByRole('main').getByRole('link')).toHaveCount(4) // back link + 3 cards
+  await page.goto('./#/')
+  await expect(page.getByRole('heading', { name: 'Due today' })).toBeVisible()
+  await expect(page.getByRole('main').getByRole('link', { name: /Demo: Cell biology/ })).toContainText('3 due')
+  expect(errors).toEqual([])
+})

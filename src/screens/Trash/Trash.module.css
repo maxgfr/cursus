@@ -1,0 +1,20 @@
+.rowActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+.purge {
+  color: var(--danger);
+}
+
+.confirm {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.note {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+}

@@ -3,6 +3,7 @@ import type { SyncEngineImpl } from '../core/sync/engine'
 import type { SyncScheduler } from '../core/sync/scheduler'
 import type { EngineStatus } from '../core/sync/status'
 import type { SyncSummary } from '../ui/components/Badges.tsx'
+import type { OAuthOutcome } from './destinations.ts'
 import { summarize } from './syncSummary.ts'
 import { useRuntime, useSaveState } from './workspaceContext.tsx'
 
@@ -19,6 +20,9 @@ export interface SyncValue {
   scheduler: SyncScheduler | null
   /** A failure starting the engine (shown as "needs attention"). */
   error: unknown
+  /** Back from a provider's consent page: the destination connected at boot, or why it failed. */
+  oauth: OAuthOutcome | null
+  dismissOAuth(): void
   /**
    * Installs the UI that asks before merging a different workspace into a non-empty library.
    * Until one is installed, the answer is no: a CRDT merge cannot be undone.
@@ -46,6 +50,7 @@ function useOnline(): boolean {
 interface Started {
   engine: SyncEngineImpl
   scheduler: SyncScheduler
+  oauth: OAuthOutcome | null
 }
 
 // One engine per page, even under StrictMode's double effects.
@@ -59,6 +64,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<EngineStatus | null>(null)
   const [started, setStarted] = useState<Started | null>(null)
   const [error, setError] = useState<unknown>(null)
+  const [oauth, setOAuth] = useState<OAuthOutcome | null>(null)
   const confirmer = useRef<ConfirmWorkspace | null>(null)
   // Bumped on every local change; `stale` holds until a refresh started after it has finished.
   const localEpoch = useRef(0)
@@ -68,12 +74,16 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     let live = true
     let unsubscribe = () => {}
     starting ??= (async (): Promise<Started> => {
-      const [{ createSyncEngine }, { createScheduler, browserTimers }, { blobStore }] = await Promise.all([
-        import('../core/sync/engine'),
+      const [
+        { createAppEngine, bootDestinations, pendingOAuthKey, clearOAuthParam },
+        { createScheduler, browserTimers },
+        { blobStore },
+      ] = await Promise.all([
+        import('./destinations.ts'),
         import('../core/sync/scheduler'),
         import('../core/log/blobs'),
       ])
-      const engine = createSyncEngine({
+      const engine = createAppEngine({
         store: rt.store,
         log: rt.log,
         blobs: blobStore(rt.store),
@@ -96,12 +106,18 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       scheduler.start()
       scheduler.trigger('startup')
       rt.onSealed(() => scheduler.trigger('sealed'))
-      return { engine, scheduler }
+      // Sync runs from launch: every remembered destination rejoins, and a pending OAuth return is
+      // finished here, whatever screen the app opened on.
+      const oauthKey = pendingOAuthKey()
+      clearOAuthParam()
+      const oauth = await bootDestinations(rt, engine, scheduler, oauthKey)
+      return { engine, scheduler, oauth }
     })()
     starting.then(
       (s) => {
         if (!live) return
         setStarted(s)
+        setOAuth(s.oauth)
         setStatus(s.engine.status())
         unsubscribe = s.engine.subscribe(setStatus)
       },
@@ -163,11 +179,13 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       engine: started?.engine ?? null,
       scheduler: started?.scheduler ?? null,
       error,
+      oauth,
+      dismissOAuth: () => setOAuth(null),
       setWorkspaceConfirmer: (fn) => {
         confirmer.current = fn
       },
     }),
-    [status, online, save, error, started, stale],
+    [status, online, save, error, started, stale, oauth],
   )
   return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>
 }

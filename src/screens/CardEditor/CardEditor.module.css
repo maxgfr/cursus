@@ -9,3 +9,63 @@
   font-size: var(--text-footnote);
   font-weight: 600;
 }
+
+.assistant {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-surface);
+  background: var(--surface);
+  box-shadow: var(--lift);
+}
+
+.assistant .label {
+  padding-inline: 0;
+}
+
+.help {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+}
+
+.clozeForm {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}
+
+.clozeForm > :not(button) {
+  width: 100%;
+}
+
+.preview {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.previewItem {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+  padding-top: var(--space-2);
+  border-top: var(--hairline-width) solid var(--hairline);
+  overflow-wrap: anywhere;
+}
+
+.previewIndex {
+  flex: none;
+  color: var(--ink-3);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+}

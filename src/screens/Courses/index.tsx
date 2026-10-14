@@ -1,31 +1,38 @@
-import { BookOpen } from 'lucide-react'
-import { to } from '../../app/routes.ts'
+import { BookOpen, Plus } from 'lucide-react'
+import { useState } from 'react'
 import { useT } from '../../i18n/react.tsx'
-import { CountPill, CourseDot } from '../../ui/components/Badges.tsx'
+import { Button } from '../../ui/components/Button.tsx'
 import { EmptyState } from '../../ui/components/EmptyState.tsx'
-import { ListGroup, ListRow } from '../../ui/components/List.tsx'
+import { IconButton } from '../../ui/components/IconButton.tsx'
+import { ListGroup } from '../../ui/components/List.tsx'
 import { useStudy } from '../../ui/data/useStudy.ts'
 import { Screen } from '../../ui/shell/Screen.tsx'
+import { CourseRows } from '../Today/CourseRows.tsx'
+import { NewCourseSheet } from '../Today/NewCourseSheet.tsx'
 
 export default function Courses() {
   const t = useT()
   const { courses } = useStudy()
+  const [adding, setAdding] = useState(false)
   return (
-    <Screen title={t('common.navCourses')}>
+    <Screen
+      title={t('common.navCourses')}
+      trailing={<IconButton icon={Plus} label={t('today.addCourse')} onClick={() => setAdding(true)} />}
+    >
+      <NewCourseSheet open={adding} onClose={() => setAdding(false)} />
       {courses.length === 0 ? (
-        <EmptyState icon={BookOpen} title={t('today.noCourses')} />
+        <EmptyState
+          icon={BookOpen}
+          title={t('today.noCourses')}
+          action={
+            <Button variant="primary" icon={<Plus size={18} aria-hidden="true" />} onClick={() => setAdding(true)}>
+              {t('today.addCourse')}
+            </Button>
+          }
+        />
       ) : (
         <ListGroup title={t('common.navCourses')} hideTitle>
-          {courses.map((c) => (
-            <ListRow
-              key={c.id}
-              href={to.course(c.id)}
-              leading={<CourseDot hue={c.hue} />}
-              title={c.title}
-              subtitle={t('course.cardCount', { count: c.total })}
-              trailing={<CountPill count={c.due} label={t('common.dueBadge', { count: c.due })} />}
-            />
-          ))}
+          <CourseRows courses={courses} />
         </ListGroup>
       )}
     </Screen>

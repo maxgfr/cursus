@@ -1,0 +1,65 @@
+.sections {
+  display: grid;
+  gap: var(--space-8);
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--space-3);
+}
+
+.tile {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border-radius: var(--radius-surface);
+  background: var(--surface);
+  box-shadow: var(--lift);
+}
+
+.tileLabel {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+}
+
+.tileValue {
+  font-size: var(--text-title);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tileHint {
+  color: var(--ink-3);
+  font-size: var(--text-caption);
+}
+
+.chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 4.5rem;
+  padding: var(--space-3) var(--space-4) 0;
+}
+
+.bar {
+  flex: 1;
+  min-height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent);
+}
+
+.barEmpty {
+  background: var(--hairline);
+}
+
+.count {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}

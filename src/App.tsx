@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef } from 'react'
 import { useLocation } from 'wouter'
 import { HashRouter, Routes } from './app/router.tsx'
 import { isFocusRoute } from './app/routes.ts'
@@ -13,6 +13,56 @@ import { EmptyState } from './ui/components/EmptyState.tsx'
 import { useStudy } from './ui/data/useStudy.ts'
 import { Screen } from './ui/shell/Screen.tsx'
 import { Shell } from './ui/shell/Shell.tsx'
+
+// Not needed to paint Today: fetched right after it.
+const Notices = lazy(() => import('./app/Notices.tsx'))
+
+const isPaletteKey = (e: KeyboardEvent) =>
+  (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k'
+
+let paletteReady: (() => void) | null = null
+const LazyPalette = lazy(() =>
+  import('./ui/CommandPalette.tsx').then(({ CommandPalette }) => ({
+    default: function ReadyPalette() {
+      // Runs after the palette's own effects: its ⌘K listener is in place.
+      useEffect(() => paletteReady?.(), [])
+      return <CommandPalette />
+    },
+  })),
+)
+
+/**
+ * ⌘K / Ctrl+K works from the first paint: a tiny listener holds a press made while the palette's code
+ * is still loading, then replays it to the palette once it listens.
+ */
+function Palette() {
+  const pressed = useRef<{ metaKey: boolean; ctrlKey: boolean } | null>(null)
+  const ready = useRef(false)
+  const onKey = useCallback((e: KeyboardEvent) => {
+    if (ready.current || !isPaletteKey(e)) return
+    e.preventDefault()
+    pressed.current = { metaKey: e.metaKey, ctrlKey: e.ctrlKey }
+  }, [])
+  useEffect(() => {
+    document.addEventListener('keydown', onKey)
+    paletteReady = () => {
+      ready.current = true
+      document.removeEventListener('keydown', onKey)
+      const p = pressed.current
+      pressed.current = null
+      if (p) document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', bubbles: true, cancelable: true, ...p }))
+    }
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      paletteReady = null
+    }
+  }, [onKey])
+  return (
+    <Suspense fallback={null}>
+      <LazyPalette />
+    </Suspense>
+  )
+}
 
 /** Applies the appearance preference; "system" leaves it to prefers-color-scheme. */
 function ThemeSync() {
@@ -75,7 +125,13 @@ export function App() {
             <ThemeSync />
             <AppShell />
             <SaveBanner />
+            <Palette />
+            {/* Separate boundaries: one chunk loading never holds back another. */}
+            {/* Eager: storage persistence is asked for and the service worker registered at launch. */}
             <UpdateToast />
+            <Suspense fallback={null}>
+              <Notices />
+            </Suspense>
           </SyncProvider>
         </WorkspaceProvider>
       </HashRouter>

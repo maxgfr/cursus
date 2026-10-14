@@ -1,36 +1,44 @@
 import { useEffect, useState } from 'react'
+import { useRuntime } from '../../app/workspaceContext.tsx'
 import { useT } from '../../i18n/react.tsx'
+import { type PwaUpdate, requestPersistence, startPwa } from '../../pwa/index.ts'
 import { Toast } from '../../ui/components/Toast.tsx'
 
-/** Fired by the PWA layer (S-026) when a new service worker waits; `detail.apply()` updates. */
-export const UPDATE_EVENT = 'cursus:update-ready'
-
-export interface UpdateReadyDetail {
-  apply: () => void
-}
-
-function isUpdateEvent(e: Event): e is CustomEvent<UpdateReadyDetail> {
-  return e instanceof CustomEvent && typeof (e.detail as Partial<UpdateReadyDetail> | null)?.apply === 'function'
-}
-
+/** Starts the PWA layer and offers a waiting update (sealing first). */
 export default function UpdateToast() {
   const t = useT()
-  const [pending, setPending] = useState<UpdateReadyDetail | null>(null)
+  const rt = useRuntime()
+  const [pending, setPending] = useState<PwaUpdate | null>(null)
+  const [applying, setApplying] = useState(false)
+
   useEffect(() => {
-    const on = (e: Event) => {
-      if (isUpdateEvent(e)) setPending(e.detail)
-    }
-    window.addEventListener(UPDATE_EVENT, on)
-    return () => window.removeEventListener(UPDATE_EVENT, on)
-  }, [])
-  if (!pending) return null
-  return (
-    <Toast
-      message={t('common.updateReady')}
-      actions={[
-        { label: t('common.dismiss'), onClick: () => setPending(null) },
-        { label: t('common.updateNow'), onClick: () => pending.apply() },
-      ]}
-    />
-  )
+    void startPwa({ onUpdate: setPending, seal: () => rt.seal() })
+    void requestPersistence()
+  }, [rt])
+
+  if (pending) {
+    return (
+      <Toast
+        message={applying ? t('common.updating') : t('common.updateReady')}
+        actions={
+          applying
+            ? []
+            : [
+                { label: t('common.dismiss'), onClick: () => setPending(null) },
+                {
+                  label: t('common.updateNow'),
+                  onClick: () => {
+                    setApplying(true)
+                    pending.apply().catch((e: unknown) => {
+                      setApplying(false)
+                      console.error('update failed', e)
+                    })
+                  },
+                },
+              ]
+        }
+      />
+    )
+  }
+  return null
 }

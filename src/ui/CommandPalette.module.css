@@ -1,0 +1,81 @@
+.input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  border: var(--hairline-width) solid var(--hairline-strong);
+  border-radius: var(--radius-control);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: max(16px, var(--text-body));
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.list {
+  display: grid;
+  gap: 1px;
+  max-height: min(55dvh, 26rem);
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.group {
+  padding: var(--space-3) var(--space-3) var(--space-1);
+  color: var(--ink-3);
+  font-size: var(--text-caption);
+  font-weight: 600;
+}
+
+.option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.option[aria-selected="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.optionIcon {
+  flex: none;
+  color: var(--ink-3);
+}
+
+.option[aria-selected="true"] .optionIcon {
+  color: var(--accent-ink);
+}
+
+.optionTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  padding: var(--space-4) var(--space-3);
+  color: var(--ink-2);
+}
+
+.hint {
+  color: var(--ink-3);
+  font-size: var(--text-caption);
+}
+
+@media (pointer: coarse) {
+  .hint {
+    display: none;
+  }
+}

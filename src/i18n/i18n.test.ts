@@ -3,15 +3,18 @@ import { formatDuration, formatRelative, formatUsd } from './format.ts'
 import {
   applyDocumentLocale,
   type Catalog,
-  catalogs,
   createTranslator,
-  de,
   detectLocale,
-  en,
-  fr,
+  loadCatalog,
   type Message,
 } from './index.ts'
 import { pseudoize } from './pseudo.ts'
+
+// Catalogs load on demand (only the locale in use is fetched by the app).
+const en = await loadCatalog('en')
+const de = await loadCatalog('de')
+const fr = await loadCatalog('fr')
+const catalogs = { en, de, fr, pseudo: await loadCatalog('pseudo') }
 
 function flatten(catalog: Catalog): Map<string, Message> {
   const out = new Map<string, Message>()

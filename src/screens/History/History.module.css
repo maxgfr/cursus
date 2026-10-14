@@ -1,0 +1,40 @@
+.note {
+  padding-inline: var(--space-4);
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+}
+
+.chosen {
+  color: var(--accent-ink);
+  font-size: var(--text-caption);
+  font-weight: 600;
+}
+
+.preview {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  padding: var(--space-4);
+  border-radius: var(--radius-surface);
+  background: var(--surface);
+  box-shadow: var(--lift);
+}
+
+.preview .note {
+  padding-inline: 0;
+}
+
+.label {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+  font-weight: 600;
+}
+
+.text {
+  width: 100%;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-footnote);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

@@ -10,4 +10,37 @@ export const today = {
   noCourses: 'No courses yet. Create one to start studying.',
   streak: { one: '{count}-day streak', other: '{count}-day streak' },
   examIn: { one: 'Exam in {count} day', other: 'Exam in {count} days' },
+  examCountdown: 'D-{count}',
+  examToday: 'Exam today',
+  setupLink: 'New here? Set up Cursus',
+  installTitle: 'Install Cursus first',
+  installed: 'Running as the installed app.',
+  installBody:
+    'Add Cursus to your Home Screen or Dock before you start. On iPhone and iPad, a Safari tab and the installed app keep separate copies of your library.',
+  safariTabTitle: 'You’re in a Safari tab.',
+  safariTabBody:
+    'What you add here stays in this tab, not in the installed app. Install first: Share, then Add to Home Screen (or Add to Dock on a Mac).',
+  storageTitle: 'Storage on this device',
+  storageKept: 'Kept under storage pressure',
+  storagePersisted: 'Yes, persistent',
+  storageBestEffort: 'Best effort',
+  storageUsed: 'Space used',
+  storageUnknown: 'Not reported by this browser',
+  storageUsage: '{used} of {quota} ({percent})',
+  storageHint:
+    'Without persistent storage the browser may clear your library when space runs low. Add a sync destination too.',
+  storageAsk: 'Ask to keep my data',
+  demoTitle: 'Try it with a demo course',
+  demoBody:
+    'Adds a small course with a note and three cards, so you can see a review before adding your own. Delete it any time.',
+  demoAction: 'Try a demo course',
+  demoCourse: 'Demo: Cell biology',
+  demoNoteTitle: 'The cell in five lines',
+  demoNoteBody:
+    '# The cell\n\n- The **nucleus** holds the DNA.\n- **Mitochondria** produce most of the cell’s ATP.\n- **Ribosomes** build proteins.\n- The **cell membrane** controls what goes in and out.\n',
+  demoQ1: 'Which organelle produces most of the cell’s ATP?',
+  demoA1: 'The mitochondria.',
+  demoQ2: 'What do ribosomes build?',
+  demoA2: 'Proteins.',
+  demoCloze: 'The {{c1::nucleus}} holds the cell’s {{c2::DNA}}.',
 } as const

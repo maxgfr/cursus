@@ -1,14 +1,239 @@
-import { Sparkles } from 'lucide-react'
-import { paths } from '../../app/routes.ts'
-import { useT } from '../../i18n/react.tsx'
-import { EmptyState } from '../../ui/components/EmptyState.tsx'
+import { Trash2 } from 'lucide-react'
+import { type FormEvent, useCallback, useEffect, useId, useState } from 'react'
+import { Link } from 'wouter'
+import { paths, to } from '../../app/routes.ts'
+import { useWorkspace } from '../../app/workspaceContext.tsx'
+import { generateCards } from '../../core/ai/features/generateCards'
+import type { CardDraft } from '../../core/ai/schemas'
+import { formatUsd } from '../../i18n/format.ts'
+import { useLocale, useT } from '../../i18n/react.tsx'
+import { Button, buttonClass } from '../../ui/components/Button.tsx'
+import { Field } from '../../ui/components/Field.tsx'
+import { IconButton } from '../../ui/components/IconButton.tsx'
+import { Segmented } from '../../ui/components/Segmented.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
+import styles from '../Understand/shared/ai.module.css'
+import { useAiModel } from '../Understand/shared/aiConfig.ts'
+import {
+  Citation,
+  emptySelection,
+  NoModel,
+  type Selection,
+  SourcePicker,
+  useChunkLoader,
+} from '../Understand/shared/SourcePicker.tsx'
+import { estimateCost, PASTED } from '../Understand/shared/sources.ts'
+import { dedupeDrafts } from './dedupe.ts'
+
+interface Draft extends CardDraft {
+  key: string
+}
+
+const COUNTS = ['5', '10', '20'] as const
 
 export default function Generate() {
   const t = useT()
+  const locale = useLocale()
+  const ws = useWorkspace()
+  const ai = useAiModel()
+  const loadChunks = useChunkLoader()
+  const [selection, setSelection] = useState<Selection>(emptySelection)
+  const [topic, setTopic] = useState('')
+  const [count, setCount] = useState<(typeof COUNTS)[number]>('10')
+  const [estimate, setEstimate] = useState<number | null>(null)
+  const [drafts, setDrafts] = useState<Draft[] | null>(null)
+  const [dropped, setDropped] = useState(0)
+  const [saved, setSaved] = useState<{ count: number; courseId: string } | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const onSelection = useCallback((s: Selection) => setSelection(s), [])
+
+  useEffect(() => {
+    if (ai.status !== 'ready') return
+    let live = true
+    loadChunks(selection).then(
+      (chunks) => {
+        if (live) setEstimate(estimateCost(ai.info, chunks, 150 * Number(count)))
+      },
+      () => {
+        if (live) setEstimate(null)
+      },
+    )
+    return () => {
+      live = false
+    }
+  }, [ai, selection, count, loadChunks])
+
+  if (ai.status === 'loading') return <Screen title={t('ai.generate')} back={paths.understand} />
+  if (ai.status === 'missing')
+    return (
+      <Screen title={t('ai.generate')} back={paths.understand}>
+        <NoModel />
+      </Screen>
+    )
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    setBusy(true)
+    setError('')
+    setSaved(null)
+    try {
+      const chunks = await loadChunks(selection)
+      const ctx = await ai.context(new AbortController().signal, ws.courses.get(selection.courseId)?.language)
+      const out = await generateCards(ctx, {
+        topic: topic.trim() || t('ai.wholeSelection'),
+        chunks,
+        count: Number(count),
+      })
+      const existing = ws.cards
+        .list({ courseId: selection.courseId })
+        .map((c) => ws.text({ id: c.id, field: 'front' }).toString())
+      const { kept, dropped: n } = dedupeDrafts(out, existing)
+      setDrafts(kept.map((d, i) => ({ ...d, key: `${Date.now()}-${i}` })))
+      setDropped(n)
+    } catch (err) {
+      setError(t('ai.failed', { reason: err instanceof Error ? err.message : String(err) }))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const edit = (key: string, patch: Partial<CardDraft>) =>
+    setDrafts((ds) => ds?.map((d) => (d.key === key ? { ...d, ...patch } : d)) ?? null)
+  const remove = (key: string) => setDrafts((ds) => ds?.filter((d) => d.key !== key) ?? null)
+
+  const save = () => {
+    if (!drafts || !selection.courseId) return
+    const keep = drafts.filter((d) => d.front.trim())
+    ws.batch(() => {
+      for (const d of keep) {
+        const sourceId = d.sourceRef && d.sourceRef.sourceId !== PASTED ? d.sourceRef.sourceId : undefined
+        const id = ws.cards.create({ courseId: selection.courseId, kind: d.kind, origin: 'ai', sourceId })
+        ws.text({ id, field: 'front' }).insert(0, d.front.trim())
+        if (d.back.trim()) ws.text({ id, field: 'back' }).insert(0, d.back.trim())
+      }
+    })
+    setSaved({ count: keep.length, courseId: selection.courseId })
+    setDrafts(null)
+    setDropped(0)
+  }
+
   return (
     <Screen title={t('ai.generate')} back={paths.understand}>
-      <EmptyState icon={Sparkles} title={t('common.generateBody')} />
+      <form className={styles.stack} onSubmit={submit}>
+        <Field label={t('ai.topicOptional')} value={topic} onChange={(e) => setTopic(e.target.value)} />
+        <Segmented
+          label={t('ai.cardCount')}
+          value={count}
+          onChange={setCount}
+          options={COUNTS.map((c) => ({ value: c, label: c }))}
+        />
+        <SourcePicker value={selection} onChange={onSelection} />
+        <div className={styles.row}>
+          <Button type="submit" variant="primary" loading={busy} disabled={!selection.courseId}>
+            {t('ai.generateDrafts')}
+          </Button>
+          {estimate !== null && (
+            <span className={styles.hint}>
+              {t('ai.cost', { amount: formatUsd(locale, estimate) })} · {ai.info.name}
+            </span>
+          )}
+        </div>
+        {!selection.courseId && <p className={styles.hint}>{t('ai.needCourse')}</p>}
+        {error && (
+          <p className={styles.error} role="alert">
+            {error}
+          </p>
+        )}
+      </form>
+
+      {saved && (
+        <p className={styles.success} role="status">
+          {t('ai.saved', { count: saved.count })} <Link href={to.course(saved.courseId)}>{t('ai.openCourse')}</Link>
+        </p>
+      )}
+
+      {drafts && (
+        <section className={styles.stack} aria-label={t('ai.drafts')}>
+          <div className={styles.tight} role="status">
+            <p className={styles.heading}>{t('ai.generated', { count: drafts.length })}</p>
+            {dropped > 0 && <p className={styles.hint}>{t('ai.duplicatesDropped', { count: dropped })}</p>}
+          </div>
+          <ol className={styles.list}>
+            {drafts.map((d, i) => (
+              <DraftEditor
+                key={d.key}
+                index={i + 1}
+                draft={d}
+                onChange={(p) => edit(d.key, p)}
+                onRemove={() => remove(d.key)}
+              />
+            ))}
+          </ol>
+          <div className={styles.row}>
+            <Button variant="primary" onClick={save} disabled={drafts.length === 0}>
+              {t('ai.saveCards', { count: drafts.length })}
+            </Button>
+            <Button variant="plain" onClick={() => setDrafts(null)}>
+              {t('ai.discard')}
+            </Button>
+            <Link href={paths.understand} className={buttonClass({ variant: 'plain' })}>
+              {t('ai.understand')}
+            </Link>
+          </div>
+        </section>
+      )}
     </Screen>
+  )
+}
+
+function DraftEditor({
+  draft,
+  index,
+  onChange,
+  onRemove,
+}: {
+  draft: Draft
+  index: number
+  onChange: (p: Partial<CardDraft>) => void
+  onRemove: () => void
+}) {
+  const t = useT()
+  const id = useId()
+  return (
+    <li className={styles.card}>
+      <div className={styles.row}>
+        <span className={styles.badge}>{draft.kind === 'cloze' ? t('ai.kindCloze') : t('ai.kindBasic')}</span>
+        {draft.sourceRef && <Citation sourceRef={draft.sourceRef} />}
+        <span className={styles.spacer} />
+        <IconButton icon={Trash2} label={t('ai.removeDraft', { n: String(index) })} onClick={onRemove} />
+      </div>
+      <div className={styles.field}>
+        <label className={styles.label} htmlFor={`${id}-f`}>
+          {t('ai.front', { n: String(index) })}
+        </label>
+        <textarea
+          id={`${id}-f`}
+          className={styles.textarea}
+          rows={2}
+          value={draft.front}
+          onChange={(e) => onChange({ front: e.target.value })}
+        />
+      </div>
+      {draft.kind === 'basic' && (
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor={`${id}-b`}>
+            {t('ai.back', { n: String(index) })}
+          </label>
+          <textarea
+            id={`${id}-b`}
+            className={styles.textarea}
+            rows={2}
+            value={draft.back}
+            onChange={(e) => onChange({ back: e.target.value })}
+          />
+        </div>
+      )}
+    </li>
   )
 }

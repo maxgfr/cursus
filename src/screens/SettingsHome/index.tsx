@@ -13,18 +13,26 @@ import {
   Sparkles,
   Trash2,
 } from 'lucide-react'
+import { useEffect } from 'react'
 import { paths } from '../../app/routes.ts'
 import { useSync } from '../../app/syncContext.tsx'
+import { useRuntime } from '../../app/workspaceContext.tsx'
 import { useT } from '../../i18n/react.tsx'
 import { SyncBadge } from '../../ui/components/Badges.tsx'
 import { ListGroup, ListRow } from '../../ui/components/List.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
+import { restoreDestinations } from '../settings/Sync/registry.ts'
 
 const ICON = 20
 
 export default function Settings() {
   const t = useT()
-  const { summary } = useSync()
+  const rt = useRuntime()
+  const { summary, engine, scheduler } = useSync()
+  // Remembered destinations rejoin the engine as soon as settings open.
+  useEffect(() => {
+    if (engine && scheduler) void restoreDestinations(rt, engine, scheduler)
+  }, [rt, engine, scheduler])
   return (
     <Screen title={t('settings.title')}>
       <ListGroup title={t('settings.sync')}>
@@ -36,6 +44,7 @@ export default function Settings() {
         />
         <ListRow href={paths.settingsPair} leading={<Smartphone size={ICON} />} title={t('sync.pairDevice')} />
         <ListRow href={paths.settingsSeal} leading={<ShieldCheck size={ICON} />} title={t('common.setSeal')} />
+        <ListRow href={paths.settingsRecovery} leading={<LifeBuoy size={ICON} />} title={t('common.setRecovery')} />
       </ListGroup>
       <ListGroup title={t('common.setReview')}>
         <ListRow
@@ -51,7 +60,6 @@ export default function Settings() {
       <ListGroup title={t('common.setData')}>
         <ListRow href={paths.settingsData} leading={<Database size={ICON} />} title={t('common.setData')} />
         <ListRow href={paths.trash} leading={<Trash2 size={ICON} />} title={t('common.trashTitle')} />
-        <ListRow href={paths.settingsRecovery} leading={<LifeBuoy size={ICON} />} title={t('common.setRecovery')} />
         <ListRow href={paths.settingsDiagnostic} leading={<FileText size={ICON} />} title={t('common.setDiagnostic')} />
         <ListRow href={paths.onboarding} leading={<Info size={ICON} />} title={t('common.welcomeTitle')} />
       </ListGroup>
