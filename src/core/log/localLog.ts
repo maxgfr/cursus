@@ -10,6 +10,11 @@ export const LOG_LOCK = 'cursus:log'
 /** Row of the `segments` store: the record plus the exact bytes, never re-encoded. */
 export interface SegmentRow extends SegmentRec {
   bytes: Uint8Array
+  /**
+   * `needs-upgrade` rows only: the header decoded (just not the update), so `header.blobRefs` are the
+   * real ones. Absent: the header itself is unreadable — its files are unknown and it is never relayed.
+   */
+  refsKnown?: true
 }
 interface PendingRow {
   update: Uint8Array
@@ -72,16 +77,26 @@ export function createLocalLog(o: LocalLogOptions): LocalLogImpl {
     return fresh
   }
 
-  /** Decodes the stored bytes; anything this build cannot read is `needs-upgrade`, not an error. */
-  const classify = (key: Key, bytes: Uint8Array): { header: Header; update: Uint8Array } | null => {
+  /**
+   * Decodes the stored bytes; anything this build cannot read is `needs-upgrade`, not an error. A header
+   * that decodes is kept even when the update does not (a newer Yjs encoding): its blob refs stay known.
+   */
+  const classify = (key: Key, bytes: Uint8Array): { header: Header; applicable: boolean } | null => {
+    let decoded: { header: Header; update: Uint8Array }
     try {
-      const d = codec.decode(key, bytes)
-      Y.decodeUpdateV2(d.update)
-      return d
+      decoded = codec.decode(key, bytes)
     } catch (e) {
       if (e instanceof EnvelopeError && e.kind !== 'version') throw e
-      return null
+      return null // too new (or unreadable by this build): needs-upgrade, header unknown
     }
+    const { header } = decoded
+    try {
+      Y.decodeUpdateV2(decoded.update)
+    } catch (e) {
+      if (!(e instanceof Error)) throw e
+      return { header, applicable: false } // update in an encoding this build cannot apply yet
+    }
+    return { header, applicable: true }
   }
 
   const placeholder = (key: Key): Header => {
@@ -155,9 +170,19 @@ export function createLocalLog(o: LocalLogOptions): LocalLogImpl {
           ops.push({ put: 'kv', key: 'deviceId', value: cloned }, { put: 'kv', key: 'seq', value: 0 })
         }
         const arrival = (arrival0 ?? 0) + 1
-        const row: SegmentRow = decoded
-          ? { key, bytes: plain, arrival, own: false, header: decoded.header, state: 'applied' }
-          : { key, bytes: plain, arrival, own: false, header: placeholder(key), state: 'needs-upgrade' }
+        const row: SegmentRow = !decoded
+          ? { key, bytes: plain, arrival, own: false, header: placeholder(key), state: 'needs-upgrade' }
+          : decoded.applicable
+            ? { key, bytes: plain, arrival, own: false, header: decoded.header, state: 'applied' }
+            : {
+                key,
+                bytes: plain,
+                arrival,
+                own: false,
+                header: decoded.header,
+                state: 'needs-upgrade',
+                refsKnown: true,
+              }
         ops.push({ put: 'segments', key, value: row }, { put: 'kv', key: 'arrival', value: arrival })
         await store.commit(ops)
         if (cloned !== null) o.onClone?.(me, cloned)
@@ -228,13 +253,20 @@ export function createLocalLog(o: LocalLogOptions): LocalLogImpl {
       return underLock(async () => {
         const { rows } = await allRows()
         const ops: Parameters<LocalStore['commit']>[0] = []
+        let applied = 0
         for (const r of rows) {
           if (r.state !== 'needs-upgrade') continue
           const d = classify(r.key, r.bytes)
-          if (d) ops.push({ put: 'segments', key: r.key, value: { ...r, header: d.header, state: 'applied' } })
+          if (!d) continue
+          if (d.applicable) applied++
+          const { refsKnown: _, ...rest } = r
+          const row: SegmentRow = d.applicable
+            ? { ...rest, header: d.header, state: 'applied' }
+            : { ...rest, header: d.header, state: 'needs-upgrade', refsKnown: true }
+          if (d.applicable || !r.refsKnown) ops.push({ put: 'segments', key: r.key, value: row })
         }
         await store.commit(ops)
-        return ops.length
+        return applied
       })
     },
   }

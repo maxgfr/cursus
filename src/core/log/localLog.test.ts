@@ -7,8 +7,8 @@ import { memoryLocks } from '../ports/locks'
 import { seededRng } from '../ports/rng'
 import { memoryStore } from '../storage/memoryStore'
 import { codec, encode, keyFor, MAGIC } from './codec'
-import { createLocalLog, type LocalLogOptions } from './localLog'
-import { captureUpdates, REMOTE, REPLAY, shouldCapture, TAB } from './origins'
+import { createLocalLog, type LocalLogOptions, type SegmentRow } from './localLog'
+import { CaptureStoppedError, captureUpdates, REMOTE, REPLAY, shouldCapture, TAB } from './origins'
 
 function setup(o: Partial<LocalLogOptions> = {}) {
   const store = o.store ?? memoryStore()
@@ -321,6 +321,24 @@ describe('needs-upgrade', () => {
     ).toEqual({ before: 1, after: 1 })
     expect(await log.retryUpgrades()).toBe(0)
   })
+
+  test('a needs-upgrade row keeps the blob refs of a readable header; an unreadable header is flagged', async () => {
+    const { log, store } = setup()
+    const ref = 'ab'.repeat(32)
+    const newer = encode(
+      { v: 1, kind: 'seg', deviceId: 'newer', seq: 0, createdAt: 0, blobRefs: [ref] },
+      new Uint8Array([255, 255, 255]),
+    )
+    const rec = await log.ingest(newer.key, newer.bytes)
+    expect(rec).toMatchObject({ state: 'needs-upgrade', header: { blobRefs: [ref] } })
+    const v2 = new Uint8Array([...MAGIC, 2, 9, 9])
+    const opaqueKey = keyFor({ v: 1, kind: 'seg', deviceId: 'future', seq: 0, createdAt: 0, blobRefs: [] }, v2)
+    await log.ingest(opaqueKey, v2)
+    const rows = await store.read(['segments'], (tx) =>
+      Promise.all([newer.key, opaqueKey].map((k) => tx.get<SegmentRow>('segments', k))),
+    )
+    expect(rows.map((r) => r?.refsKnown)).toEqual([true, undefined])
+  })
 })
 
 describe('compact', () => {
@@ -401,6 +419,7 @@ describe('origins', () => {
     Y.transact(doc, () => doc.getMap('m').set('r', 1), REMOTE)
     Y.transact(doc, () => doc.getMap('m').set('t', 1), TAB)
     undo.undo()
+    await Bun.sleep(0) // appends are serialised: the second starts once the first is acknowledged
     expect(got.length).toBe(2)
     fail = true
     doc.getMap('m').set('b', 1)
@@ -411,5 +430,66 @@ describe('origins', () => {
     await Bun.sleep(0)
     expect(got.length).toBe(2)
     expect(errors.length).toBe(1)
+  })
+
+  test('appends are serialised: a failed update and every later one stay in memory until a retry succeeds', async () => {
+    const doc = new Y.Doc()
+    let failures = 1
+    const persisted: Uint8Array[] = []
+    const errors: unknown[] = []
+    const timers: { fn: () => void; ms: number }[] = []
+    const acks: Promise<void>[] = []
+    let changes = 0
+    const cap = captureUpdates(
+      doc,
+      async (u) => {
+        if (failures-- > 0) throw new Error('quota')
+        persisted.push(u)
+      },
+      {
+        onError: (e) => errors.push(e),
+        onQueued: (p) => acks.push(p),
+        onChange: () => changes++,
+        setTimer: (fn, ms) => {
+          timers.push({ fn, ms })
+          return () => {}
+        },
+      },
+    )
+    doc.getMap('m').set('u1', 1)
+    doc.getMap('m').set('u2', 2)
+    await cap.settled()
+    // U2 must never be persisted before U1: nothing is written while U1 is unacknowledged.
+    expect(persisted).toEqual([])
+    expect({ unsaved: cap.unsaved(), blocked: cap.blocked(), errors: errors.length }).toEqual({
+      unsaved: 2,
+      blocked: true,
+      errors: 1,
+    })
+    expect(changes).toBeGreaterThan(0)
+    expect(timers.length).toBe(1)
+    timers[0]?.fn()
+    await cap.settled()
+    await Promise.all(acks)
+    expect(rebuild(persisted).getMap('m').toJSON()).toEqual({ u1: 1, u2: 2 })
+    expect({ unsaved: cap.unsaved(), blocked: cap.blocked() }).toEqual({ unsaved: 0, blocked: false })
+    // Repeated failures back off longer; a manual retry does not wait for the timer.
+    failures = 2
+    doc.getMap('m').set('u3', 3)
+    await cap.settled()
+    timers[1]?.fn()
+    await cap.settled()
+    expect((timers[2]?.ms ?? 0) > (timers[1]?.ms ?? 0)).toBe(true)
+    await cap.retry()
+    expect(cap.unsaved()).toBe(0)
+    expect(persisted.length).toBe(3)
+    // Stopping with an unacknowledged update rejects its acknowledgment: it was never saved.
+    failures = 1
+    doc.getMap('m').set('u4', 4)
+    await cap.settled()
+    const last = acks.at(-1)
+    cap.stop()
+    await expect(last).rejects.toBeInstanceOf(CaptureStoppedError)
+    expect(cap.unsaved()).toBe(1)
   })
 })
