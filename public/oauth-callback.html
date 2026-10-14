@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Cursus</title>
+    <style>
+      body { font: 16px system-ui, sans-serif; margin: 2rem 16px; color: #222; background: #fff; }
+      @media (prefers-color-scheme: dark) { body { color: #eee; background: #111; } }
+    </style>
+  </head>
+  <body>
+    <p id="msg">Returning to Cursus…</p>
+    <noscript>JavaScript is required to finish signing in.</noscript>
+    <script>
+      // OAuth redirect target shared by every provider (Google Drive, CloudKit…). Self-contained: no bundle.
+      // Stores every query and fragment parameter (code, state, error, ckWebAuthToken…) in IndexedDB
+      // `cursus-v1`, store `kv`, key `oauth:<state>` (or `oauth:<provider>` when there is no state), value
+      // `{ params, receivedAt }`, then goes back to the app with `?oauth=<that key>`. The app exchanges the code;
+      // nothing secret lives here. If the app database does not exist yet, nothing is created: the parameters
+      // travel in the fragment instead (`#oauth=<json>`).
+      ;(() => {
+        var params = {}
+        function collect(s) {
+          new URLSearchParams(s).forEach((v, k) => { params[k] = v })
+        }
+        collect(location.search.slice(1))
+        collect(location.hash.slice(1))
+        var provider = params.provider || (params.ckWebAuthToken || params.ckSession ? 'cloudkit' : 'gdrive')
+        var key = `oauth:${params.state || provider}`
+        var app = new URL('./', location.href)
+        function back(url) { location.replace(url.href) }
+        function fallback() {
+          app.hash = `oauth=${encodeURIComponent(JSON.stringify(params))}`
+          back(app)
+        }
+        if (!window.indexedDB) return fallback()
+        var created = false
+        var req = indexedDB.open('cursus-v1')
+        req.onupgradeneeded = () => {
+          // The app owns the schema: never create the database from here.
+          created = true
+          req.transaction.abort()
+        }
+        req.onerror = fallback
+        req.onblocked = fallback
+        req.onsuccess = () => {
+          var db = req.result
+          if (created || !db.objectStoreNames.contains('kv')) { db.close(); return fallback() }
+          var tx = db.transaction('kv', 'readwrite')
+          tx.objectStore('kv').put({ params: params, receivedAt: Date.now() }, key)
+          tx.oncomplete = () => {
+            db.close()
+            app.searchParams.set('oauth', key)
+            back(app)
+          }
+          tx.onerror = tx.onabort = () => { db.close(); fallback() }
+        }
+      })()
+    </script>
+  </body>
+</html>
