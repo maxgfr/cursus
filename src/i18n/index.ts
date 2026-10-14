@@ -228,6 +228,9 @@ export interface DetectInput {
   readonly languages?: readonly string[]
 }
 
+/** Device-local key in IndexedDB `cursus-v1` store `kv` (never the Y.Doc): the language picked in Settings. */
+export const UI_LOCALE_KEY = 'ui:locale'
+
 /** Query override, then device preference, then navigator.languages, then en. */
 export function detectLocale(input: DetectInput): Locale {
   if (isLocale(input.query)) return input.query

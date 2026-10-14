@@ -90,7 +90,7 @@ export default function RecoverySettings() {
           {(dbs ?? []).map((name) => (
             <ListRow
               key={name}
-              title={name}
+              title={<span translate="no">{name}</span>}
               subtitle={name === 'cursus-v1' ? t('settings.recCurrent') : t('settings.recKept')}
               trailing={
                 <Button
@@ -129,9 +129,9 @@ export default function RecoverySettings() {
               <dt>{t('settings.recPrinted')}</dt>
               <dd>{formatDate(locale, rt.clock.now(), 'long')}</dd>
               <dt>{t('settings.recWorkspace')}</dt>
-              <dd>{ids?.workspace ?? '—'}</dd>
+              <dd translate="no">{ids?.workspace ?? '—'}</dd>
               <dt>{t('settings.recDevice')}</dt>
-              <dd>{ids?.device ?? '—'}</dd>
+              <dd translate="no">{ids?.device ?? '—'}</dd>
             </dl>
             {(records ?? []).length === 0 ? (
               <p className={styles.warn}>{t('settings.recNoDest')}</p>

@@ -198,6 +198,13 @@
   padding: var(--space-2);
 }
 
+.report {
+  max-height: none;
+  overflow: visible;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 .codeWord {
   font-family: var(--font-mono);
   font-size: var(--text-title);

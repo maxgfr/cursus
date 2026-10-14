@@ -231,7 +231,7 @@ export default function DataSettings() {
                       loading={busy === `apkg:${c.id}`}
                       aria-label={t('settings.ankiExportOf', { name: c.title })}
                     >
-                      Anki
+                      <span translate="no">Anki</span>
                     </Button>
                     <Button
                       variant="plain"

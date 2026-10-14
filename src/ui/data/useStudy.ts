@@ -96,7 +96,39 @@ export function computeStudy(ws: ModelWorkspace, now: number): StudySummary {
   }
 }
 
+const SCOPES = ['courses', 'cards', 'reviews', 'prefs'] as const
+
+/** Per workspace: a change counter over SCOPES, and the last summary computed at that count. */
+interface Shared {
+  version: number
+  last?: { version: number; minute: number; value: StudySummary }
+}
+const shared = new WeakMap<ModelWorkspace, Shared>()
+
+/**
+ * One computation serves every component on screen (shell, Today, course rows): replaying a large history
+ * is the costly part of a launch. Recomputed when the data changes, and at least once a minute.
+ */
+function sharedStudy(ws: ModelWorkspace, now: number): StudySummary {
+  let entry = shared.get(ws)
+  if (!entry) {
+    const created: Shared = { version: 0 }
+    for (const scope of SCOPES)
+      ws.subscribe(scope, () => {
+        created.version++
+      })
+    shared.set(ws, created)
+    entry = created
+  }
+  const minute = Math.floor(now / 60_000)
+  const last = entry.last
+  if (last && last.version === entry.version && last.minute === minute) return last.value
+  const value = computeStudy(ws, now)
+  entry.last = { version: entry.version, minute, value }
+  return value
+}
+
 /** Today's study summary, recomputed whenever courses, cards, reviews or prefs change. */
 export function useStudy(): StudySummary {
-  return useWorkspaceData(['courses', 'cards', 'reviews', 'prefs'], (ws) => computeStudy(ws, Date.now()))
+  return useWorkspaceData(SCOPES, (ws) => sharedStudy(ws, Date.now()))
 }

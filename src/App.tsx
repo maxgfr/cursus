@@ -1,12 +1,12 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef } from 'react'
+import { lazy, type ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'wouter'
 import { HashRouter, Routes } from './app/router.tsx'
 import { isFocusRoute } from './app/routes.ts'
 import { SaveBanner } from './app/SaveBanner.tsx'
 import { SyncProvider } from './app/syncContext.tsx'
-import { useWorkspaceData, WorkspaceProvider } from './app/workspaceContext.tsx'
-import { detectFromEnvironment } from './i18n/index.ts'
-import { I18nProvider, useT } from './i18n/react.tsx'
+import { useRuntime, useWorkspaceData, WorkspaceProvider } from './app/workspaceContext.tsx'
+import { detectFromEnvironment, UI_LOCALE_KEY } from './i18n/index.ts'
+import { I18nProvider, useSetLocale, useT } from './i18n/react.tsx'
 import UpdateToast from './screens/UpdateToast/index.tsx'
 import { Button } from './ui/components/Button.tsx'
 import { EmptyState } from './ui/components/EmptyState.tsx'
@@ -75,6 +75,27 @@ function ThemeSync() {
   return null
 }
 
+/** Applies the language this device picked in Settings (device kv), before the app paints in another one. */
+function LocaleBoot({ children }: { children: ReactNode }) {
+  const rt = useRuntime()
+  const setLocale = useSetLocale()
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    let live = true
+    rt.store
+      .read(['kv'], (tx) => tx.get<string>('kv', UI_LOCALE_KEY))
+      .then((stored) => setLocale(detectFromEnvironment(stored ?? null)))
+      .catch((e: unknown) => console.error('stored language unavailable', e))
+      .finally(() => {
+        if (live) setReady(true)
+      })
+    return () => {
+      live = false
+    }
+  }, [rt, setLocale])
+  return ready ? children : null
+}
+
 function AppShell() {
   const [location] = useLocation()
   const { courses } = useStudy()
@@ -121,18 +142,20 @@ export function App() {
     <I18nProvider locale={locale}>
       <HashRouter>
         <WorkspaceProvider loading={<Loading />} failed={(error, retry) => <BootFailed error={error} retry={retry} />}>
-          <SyncProvider>
-            <ThemeSync />
-            <AppShell />
-            <SaveBanner />
-            <Palette />
-            {/* Separate boundaries: one chunk loading never holds back another. */}
-            {/* Eager: storage persistence is asked for and the service worker registered at launch. */}
-            <UpdateToast />
-            <Suspense fallback={null}>
-              <Notices />
-            </Suspense>
-          </SyncProvider>
+          <LocaleBoot>
+            <SyncProvider>
+              <ThemeSync />
+              <AppShell />
+              <SaveBanner />
+              <Palette />
+              {/* Separate boundaries: one chunk loading never holds back another. */}
+              {/* Eager: storage persistence is asked for and the service worker registered at launch. */}
+              <UpdateToast />
+              <Suspense fallback={null}>
+                <Notices />
+              </Suspense>
+            </SyncProvider>
+          </LocaleBoot>
         </WorkspaceProvider>
       </HashRouter>
     </I18nProvider>

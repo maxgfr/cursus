@@ -1,7 +1,6 @@
-import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import {
   applyDocumentLocale,
-  type Catalog,
   createTranslator,
   type Locale,
   loadCatalog,
@@ -16,39 +15,48 @@ interface I18nValue {
 
 const I18nContext = createContext<I18nValue | null>(null)
 
+/** Switches the interface language in place; resolves once the new catalog is applied. */
+type SetLocale = (locale: Locale) => Promise<void>
+
+const SetLocaleContext = createContext<SetLocale | null>(null)
+
 /**
- * Provides the translator of `locale`. English is bundled; another locale's catalog is fetched first
- * (nothing renders until it is there, which is one small request on that device's first paint).
+ * Provides the translator of `locale` (the initial one; `useSetLocale` changes it in place). A catalog is
+ * fetched before it applies: nothing renders until the first one is there, and on a switch the previous
+ * language stays on screen until the next one arrives (the tree is never unmounted).
  */
 export function I18nProvider({ locale, children }: { readonly locale: Locale; readonly children: ReactNode }) {
-  const [catalog, setCatalog] = useState<Catalog | undefined>(() => loadedCatalog(locale))
-  const [failure, setFailure] = useState<unknown>(null)
-  useEffect(() => {
-    let live = true
-    setCatalog(loadedCatalog(locale))
-    loadCatalog(locale).then(
-      (c) => {
-        if (live) setCatalog(c)
-      },
-      (e: unknown) => {
-        if (live) setFailure(e)
-      },
-    )
-    return () => {
-      live = false
-    }
-  }, [locale])
-  const value = useMemo<I18nValue | null>(
-    // `catalog` may still be the previous locale's for one render: wait for this one's.
-    () =>
-      catalog === undefined || loadedCatalog(locale) === undefined ? null : { locale, t: createTranslator(locale) },
-    [locale, catalog],
+  const [value, setValue] = useState<I18nValue | null>(() =>
+    loadedCatalog(locale) === undefined ? null : { locale, t: createTranslator(locale) },
   )
-  useEffect(() => applyDocumentLocale(locale), [locale])
-  // A catalog that cannot be fetched (offline before it was ever cached) is a boot failure.
+  const [failure, setFailure] = useState<unknown>(null)
+  const latest = useRef(locale)
+  const setLocale = useCallback<SetLocale>(async (next) => {
+    latest.current = next
+    await loadCatalog(next)
+    if (latest.current === next) setValue({ locale: next, t: createTranslator(next) })
+  }, [])
+  useEffect(() => {
+    // A catalog that cannot be fetched (offline before it was ever cached) is a boot failure.
+    setLocale(locale).catch((e: unknown) => setFailure(e))
+  }, [locale, setLocale])
+  const current = value?.locale
+  useEffect(() => {
+    if (current !== undefined) applyDocumentLocale(current)
+  }, [current])
   if (failure !== null) throw failure
   if (value === null) return null
-  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
+  return (
+    <SetLocaleContext.Provider value={setLocale}>
+      <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
+    </SetLocaleContext.Provider>
+  )
+}
+
+export function useSetLocale(): SetLocale {
+  const value = useContext(SetLocaleContext)
+  if (value === null) throw new Error('useSetLocale must be used inside <I18nProvider>')
+  return value
 }
 
 function useI18n(): I18nValue {

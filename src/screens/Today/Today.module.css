@@ -54,7 +54,7 @@
 
 .firstActions {
   display: grid;
-  justify-items: center;
+  justify-items: start;
   gap: var(--space-3);
 }
 

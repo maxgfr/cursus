@@ -109,7 +109,10 @@ export default function DiagnosticSettings() {
           </p>
         )}
         <h2 className={styles.label}>{t('settings.diagReport')}</h2>
-        <pre className={styles.code}>{report || t('common.loading')}</pre>
+        {/* Wraps instead of scrolling: no scroll area a keyboard could not reach. */}
+        <pre className={`${styles.code} ${styles.report}`} translate="no">
+          {report || t('common.loading')}
+        </pre>
       </div>
     </Screen>
   )

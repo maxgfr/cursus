@@ -20,17 +20,18 @@ export function Screen({ title, subtitle, trailing, back, children }: ScreenProp
   return (
     <div className={styles.screen}>
       <header className={styles.header}>
-        <div className={styles.titles}>
-          {back !== undefined && (
-            <Link href={back} className={styles.back}>
-              <ChevronLeft size={20} strokeWidth={2} aria-hidden="true" />
-              {t('common.back')}
-            </Link>
-          )}
+        {back !== undefined && (
+          <Link href={back} className={styles.back}>
+            <ChevronLeft size={20} strokeWidth={2} aria-hidden="true" />
+            {t('common.back')}
+          </Link>
+        )}
+        {/* The trailing control sits on the title's centre line, and drops below it rather than overlap. */}
+        <div className={styles.titleRow}>
           <h1 className={styles.title}>{title}</h1>
-          {subtitle && <p className={styles.subtitle}>{subtitle}</p>}
+          {trailing && <div className={styles.trailing}>{trailing}</div>}
         </div>
-        {trailing && <div className={styles.trailing}>{trailing}</div>}
+        {subtitle && <p className={styles.subtitle}>{subtitle}</p>}
       </header>
       <div className={styles.body}>{children}</div>
     </div>

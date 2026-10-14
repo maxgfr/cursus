@@ -257,9 +257,9 @@ function Editor({ initial }: { initial: Loaded }) {
                   onClick={() => void choose(r)}
                 >
                   <span className={styles.modelName}>
-                    <span>{r.model.name}</span>
+                    <span translate="no">{r.model.name}</span>
                     <span>
-                      {r.provider.name}
+                      <span translate="no">{r.provider.name}</span>
                       {r.model.cost
                         ? ` · ${t('ai.price', { input: formatUsd(locale, r.model.cost.input), output: formatUsd(locale, r.model.cost.output) })}`
                         : ''}
@@ -332,9 +332,9 @@ function Editor({ initial }: { initial: Loaded }) {
         }}
         options={[
           { value: 'auto', label: t('ai.languageAuto') },
-          { value: 'en', label: 'English' },
-          { value: 'de', label: 'Deutsch' },
-          { value: 'fr', label: 'Français' },
+          { value: 'en', label: 'English', lang: 'en' },
+          { value: 'de', label: 'Deutsch', lang: 'de' },
+          { value: 'fr', label: 'Français', lang: 'fr' },
         ]}
       />
       {languageStatus && (

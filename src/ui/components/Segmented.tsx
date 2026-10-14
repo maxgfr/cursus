@@ -3,7 +3,8 @@ import styles from './Segmented.module.css'
 
 export interface SegmentedProps<V extends string> {
   label: string
-  options: readonly { value: V; label: string }[]
+  /** `lang`: an option named in another language than the UI (a language's own name). */
+  options: readonly { value: V; label: string; lang?: string }[]
   value: V
   onChange: (value: V) => void
   /** Keep the legend for assistive tech only (e.g. tabs whose options speak for themselves). */
@@ -30,7 +31,7 @@ export function Segmented<V extends string>({ label, options, value, onChange, h
                 checked={o.value === value}
                 onChange={() => onChange(o.value)}
               />
-              <label htmlFor={id} className={styles.label}>
+              <label htmlFor={id} className={styles.label} lang={o.lang}>
                 {o.label}
               </label>
             </span>
