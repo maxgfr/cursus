@@ -1,0 +1,166 @@
+/*
+ * Design tokens. Light and dark are designed separately (not inverted): dark lifts surfaces
+ * above a near-black ground and uses a lighter blue with dark ink on it.
+ * `data-theme` on <html> forces a theme; otherwise the system preference wins.
+ */
+:root {
+  color-scheme: light;
+
+  /* Type: system stack, fixed rem scale (~1.2 ratio). */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --text-caption: 0.8125rem; /* 13 */
+  --text-footnote: 0.9375rem; /* 15 */
+  --text-body: 1.0625rem; /* 17 */
+  --text-title: 1.25rem; /* 20 */
+  --text-headline: 1.5rem; /* 24 */
+  --text-large-title: 2.125rem; /* 34 */
+  --text-hero: 2.5rem; /* 40 */
+  --leading-tight: 1.15;
+  --leading-body: 1.45;
+
+  /* Space: 4-pt rhythm. */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+
+  /* Shape. */
+  --radius-surface: 12px;
+  --radius-control: 10px;
+  --radius-pill: 999px;
+  --hairline-width: 1px;
+
+  /* Layout. */
+  --content-max: 720px;
+  --sidebar-width: 260px;
+  --tabbar-height: 3.5rem;
+  --gutter: max(var(--space-4), env(safe-area-inset-left), env(safe-area-inset-right));
+  --kb-inset: 0px;
+
+  /* Motion. */
+  --dur: 200ms;
+  --dur-fast: 150ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Light palette. */
+  --bg: #f2f4f7;
+  --bg-sidebar: #e9edf2;
+  --surface: #ffffff;
+  --surface-pressed: #eef1f5;
+  --ink: #101828;
+  --ink-2: #475467;
+  --ink-3: #5b6578;
+  --hairline: #e1e5eb;
+  --hairline-strong: #c9cfd8;
+  --accent: #2563eb;
+  --accent-hover: #1d55d6;
+  --on-accent: #ffffff;
+  --accent-soft: #e8efff;
+  --accent-ink: #1a4fc9;
+  --focus: #2563eb;
+  --danger: #c0362c;
+  --danger-soft: #fdecea;
+  --warning: #9a4a06;
+  --warning-soft: #fff3e0;
+  --success: #12704a;
+  --success-soft: #e5f5ec;
+  --lift: 0 1px 2px rgb(16 24 40 / 0.06);
+  --scrim: rgb(16 24 40 / 0.32);
+  --selection: rgb(37 99 235 / 0.2);
+
+  /* Course identity: eight hues. */
+  --course-blue: #2f6fed;
+  --course-teal: #0f8f8a;
+  --course-green: #2f9a4b;
+  --course-amber: #c98a0b;
+  --course-orange: #e2622b;
+  --course-red: #d93f4c;
+  --course-purple: #7a52d6;
+  --course-graphite: #6b7280;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0b0d12;
+    --bg-sidebar: #101319;
+    --surface: #171a21;
+    --surface-pressed: #20242d;
+    --ink: #f2f4f7;
+    --ink-2: #b9c0cd;
+    --ink-3: #98a1b2;
+    --hairline: #262b35;
+    --hairline-strong: #363c48;
+    --accent: #7aa2ff;
+    --accent-hover: #93b4ff;
+    --on-accent: #08132e;
+    --accent-soft: #1b2741;
+    --accent-ink: #a8c1ff;
+    --focus: #8fb0ff;
+    --danger: #ff8a80;
+    --danger-soft: #3a1c1c;
+    --warning: #ffb661;
+    --warning-soft: #33250f;
+    --success: #6bd49a;
+    --success-soft: #12301f;
+    --lift: 0 1px 0 rgb(0 0 0 / 0.4);
+    --scrim: rgb(0 0 0 / 0.55);
+    --selection: rgb(122 162 255 / 0.32);
+    --course-blue: #6f9bff;
+    --course-teal: #3cc2bb;
+    --course-green: #5cc878;
+    --course-amber: #f0b43c;
+    --course-orange: #ff8a57;
+    --course-red: #ff6b78;
+    --course-purple: #a88bff;
+    --course-graphite: #9aa3b2;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b0d12;
+  --bg-sidebar: #101319;
+  --surface: #171a21;
+  --surface-pressed: #20242d;
+  --ink: #f2f4f7;
+  --ink-2: #b9c0cd;
+  --ink-3: #98a1b2;
+  --hairline: #262b35;
+  --hairline-strong: #363c48;
+  --accent: #7aa2ff;
+  --accent-hover: #93b4ff;
+  --on-accent: #08132e;
+  --accent-soft: #1b2741;
+  --accent-ink: #a8c1ff;
+  --focus: #8fb0ff;
+  --danger: #ff8a80;
+  --danger-soft: #3a1c1c;
+  --warning: #ffb661;
+  --warning-soft: #33250f;
+  --success: #6bd49a;
+  --success-soft: #12301f;
+  --lift: 0 1px 0 rgb(0 0 0 / 0.4);
+  --scrim: rgb(0 0 0 / 0.55);
+  --selection: rgb(122 162 255 / 0.32);
+  --course-blue: #6f9bff;
+  --course-teal: #3cc2bb;
+  --course-green: #5cc878;
+  --course-amber: #f0b43c;
+  --course-orange: #ff8a57;
+  --course-red: #ff6b78;
+  --course-purple: #a88bff;
+  --course-graphite: #9aa3b2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur: 120ms;
+    --dur-fast: 0ms;
+  }
+}

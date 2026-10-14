@@ -1,0 +1,69 @@
+.screen {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+  width: 100%;
+  max-width: var(--content-max);
+  margin-inline: auto;
+  padding: calc(env(safe-area-inset-top) + var(--space-4)) var(--gutter) var(--space-10);
+}
+
+.header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--space-3);
+}
+
+.back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-inline-start: calc(-1 * var(--space-2));
+  margin-bottom: var(--space-1);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-control);
+  color: var(--accent-ink);
+  font-size: var(--text-body);
+  text-decoration: none;
+}
+
+.back:hover {
+  background: var(--surface-pressed);
+}
+
+.titles {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-1);
+}
+
+.title {
+  font-size: var(--text-large-title);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  color: var(--ink-3);
+  font-size: var(--text-footnote);
+  font-weight: 600;
+}
+
+.trailing {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  max-width: min(16rem, 50vw);
+  /* Sits on the large title's line, like a navigation bar item. */
+  margin-top: 0.375rem;
+}
+
+.body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-8);
+}

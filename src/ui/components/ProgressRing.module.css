@@ -1,0 +1,13 @@
+.ring {
+  display: inline-block;
+  flex: none;
+}
+
+.track {
+  stroke: var(--hairline);
+}
+
+.value {
+  stroke: var(--accent);
+  transition: stroke-dashoffset var(--dur) var(--ease-out);
+}

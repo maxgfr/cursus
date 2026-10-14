@@ -1,0 +1,47 @@
+.hero {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-5);
+  border-radius: var(--radius-surface);
+  background: var(--surface);
+  box-shadow: var(--lift);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hero {
+    view-transition-name: review-focus;
+  }
+}
+
+.label {
+  color: var(--ink-3);
+  font-size: var(--text-footnote);
+  font-weight: 600;
+}
+
+.count {
+  font-size: var(--text-hero);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+  letter-spacing: -0.02em;
+}
+
+.meta {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+}
+
+.start {
+  margin-top: var(--space-4);
+}
+
+.caughtUp {
+  font-size: var(--text-headline);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+}
+
+.form {
+  display: grid;
+  gap: var(--space-4);
+}

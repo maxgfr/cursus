@@ -1,0 +1,71 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  max-width: 100%;
+  min-height: 2rem;
+  padding: 0.25rem 0.75rem 0.25rem 0.625rem;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+/* Long translations wrap inside the chip instead of widening the page. */
+.badge > span {
+  min-width: 0;
+}
+
+a.badge:hover {
+  filter: brightness(0.97);
+}
+
+.neutral {
+  background: var(--surface);
+  color: var(--ink-2);
+  box-shadow: var(--lift);
+}
+
+.good {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.busy {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.warn {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.bad {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.count {
+  min-width: 1.75rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: var(--text-caption);
+  font-weight: 700;
+  text-align: center;
+}
+
+.countMuted {
+  background: var(--surface-pressed);
+  color: var(--ink-3);
+}
+
+.dot {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+}
