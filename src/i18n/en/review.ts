@@ -1,0 +1,18 @@
+export const review = {
+  title: 'Review',
+  showAnswer: 'Show answer',
+  again: 'Again',
+  hard: 'Hard',
+  good: 'Good',
+  easy: 'Easy',
+  ownWords: 'Answer in your own words',
+  ownWordsPlaceholder: 'Type what you remember…',
+  check: 'Check',
+  why: 'Why?',
+  remaining: { one: '{count} left', other: '{count} left' },
+  sessionDone: 'Session complete',
+  reviewed: { one: 'You reviewed {count} card.', other: 'You reviewed {count} cards.' },
+  nextIn: 'Next review in {interval}',
+  leech: 'This card keeps slipping. Try rewriting it.',
+  suspend: 'Suspend card',
+} as const

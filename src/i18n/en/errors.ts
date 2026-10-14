@@ -1,0 +1,15 @@
+export const errors = {
+  generic: 'Something went wrong.',
+  network: "Can't reach the network. Check your connection.",
+  storageFull: 'Your device is out of storage.',
+  invalidKey: 'This API key was rejected.',
+  rateLimited: 'Too many requests. Try again in a moment.',
+  quotaExceeded: 'Your AI quota is used up.',
+  fileTooLarge: 'This file is too large (max {size}).',
+  unsupportedFile: "This file type isn't supported.",
+  wrongPassphrase: 'Wrong passphrase.',
+  authExpired: 'Your sign-in to {provider} expired. Reconnect it.',
+  conflict: 'This item changed on another device.',
+  corruptBackup: "This backup is damaged and can't be read.",
+  notFound: 'Not found.',
+} as const

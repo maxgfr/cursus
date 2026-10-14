@@ -1,0 +1,18 @@
+export const ai = {
+  understand: 'Understand',
+  generate: 'Generate cards',
+  quiz: 'Quiz me',
+  explainPrompt: 'What do you want to understand?',
+  thinking: 'Thinking…',
+  sources: 'Based on your sources',
+  noKey: 'Add an API key in Settings to use the AI.',
+  model: 'Model',
+  chooseModel: 'Choose a model',
+  cost: 'Estimated cost: {amount}',
+  generated: { one: '{count} card generated', other: '{count} cards generated' },
+  keepAll: 'Keep all',
+  discard: 'Discard',
+  correct: 'Correct',
+  incorrect: 'Not quite',
+  score: 'Score: {score} / {total}',
+} as const
