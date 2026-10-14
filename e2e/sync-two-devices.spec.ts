@@ -31,6 +31,8 @@ const chip = (page: Page) => page.locator('[data-sync]').first()
 
 async function addS3(page: Page, bucket: string) {
   await go(page, '#/settings/sync', 'Sync & backup')
+  // S3 is a technical destination: it waits behind Advanced.
+  await page.locator('summary', { hasText: 'Advanced' }).click()
   await page.getByRole('button', { name: 'S3-compatible storage' }).click()
   const dialog = page.getByRole('dialog', { name: 'S3-compatible storage' })
   await dialog.getByLabel('Endpoint URL').fill(S3.endpoint)

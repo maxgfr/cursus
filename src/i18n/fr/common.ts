@@ -60,10 +60,7 @@ export const common = {
   sourceEmpty: 'Cette source est vide. Commencez à écrire.',
   cardTitle: 'Carte',
   trashTitle: 'Corbeille',
-  trashEmpty: 'La corbeille est vide. Les cours, sources et cartes supprimés y restent jusqu’à leur restauration.',
   historyTitle: 'Historique',
-  historyEmpty:
-    'Pas encore de versions antérieures. Chaque modification est conservée : vous pourrez revenir en arrière.',
   welcomeTitle: 'Bienvenue dans Cursus',
   welcomeBody: 'Vos cours, vos cartes, vos sauvegardes. Aucun compte, et tout fonctionne hors ligne.',
   reviewEmpty: 'Rien à revoir pour le moment.',
@@ -104,9 +101,6 @@ export const common = {
   edLabel: 'Texte',
   edLoading: 'Ouverture de l’éditeur…',
   // S-026
-  installHint:
-    'Pour garder Cursus sur l’écran d’accueil et l’utiliser hors ligne, touchez Partager, puis « Sur l’écran d’accueil ».',
-  installDismiss: 'Plus tard',
   updating: 'Mise à jour…',
   // end S-026
   items: { one: '{count} élément', other: '{count} éléments' },
@@ -157,4 +151,9 @@ export const common = {
   icsDaily: 'Réviser avec Cursus',
   icsExamPrefix: 'Examen : ',
   icsDone: 'Fichier calendrier enregistré',
+  aiEmptyTitle: 'Connectez un modèle d’IA',
+  statsEmptyTitle: 'Aucune révision pour l’instant',
+  statsEmptyAction: 'Aller à Aujourd’hui',
+  searchEmptyTitle: 'Chercher dans votre bibliothèque',
+  searchNoMatch: 'Essayez moins de mots ou une autre orthographe.',
 } as const satisfies Shape<typeof en>

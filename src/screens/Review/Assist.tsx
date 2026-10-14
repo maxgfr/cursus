@@ -7,16 +7,22 @@ import type { FeatureCtx } from '../../core/ai/client'
 import type { CardExplanation, CardImprovement } from '../../core/ai/schemas'
 import type { Rating } from '../../core/contracts/workspace'
 import { useT } from '../../i18n/react.tsx'
-import { Button, buttonClass } from '../../ui/components/Button.tsx'
+import { Button } from '../../ui/components/Button.tsx'
 import { Sanitized } from '../../ui/render/Sanitized.tsx'
 import type { AiModelState } from '../Understand/shared/aiConfig.ts'
+import { describeFailure } from './failure.ts'
 import styles from './Review.module.css'
 import type { CardView } from './session.ts'
 
-type Call<T> = { status: 'idle' } | { status: 'busy' } | { status: 'done'; value: T } | { status: 'failed' }
+type Call<T> =
+  | { status: 'idle' }
+  | { status: 'busy' }
+  | { status: 'done'; value: T }
+  | { status: 'failed'; message: string }
 
 /** Runs one AI request at a time; aborts it when the card changes or the view closes. */
 function useAiCall<T>(ai: AiModelState, language: string | undefined) {
+  const t = useT()
   const [call, setCall] = useState<Call<T>>({ status: 'idle' })
   const abort = useRef<AbortController | null>(null)
   useEffect(() => () => abort.current?.abort(), [])
@@ -35,7 +41,7 @@ function useAiCall<T>(ai: AiModelState, language: string | undefined) {
       if (controller.signal.aborted) return undefined
       // Shown to the student as a retryable message; the details stay in the console.
       console.warn('Review AI request failed', error)
-      setCall({ status: 'failed' })
+      setCall({ status: 'failed', message: describeFailure(error, t) })
       return undefined
     }
   }
@@ -44,21 +50,19 @@ function useAiCall<T>(ai: AiModelState, language: string | undefined) {
 
 const sparkle = <Sparkles size={18} strokeWidth={1.75} aria-hidden />
 
-/** Shown in place of an AI action while no model is set up: it leads to the AI settings. */
+/** Shown in place of an AI action while no model is set up: a quiet link to the AI settings. */
 function SetupLink({ label }: { label: string }) {
   return (
-    <Link href={paths.settingsAi} className={buttonClass({ variant: 'plain' })}>
-      {sparkle}
+    <Link href={paths.settingsAi} className={styles.setupLink}>
       {label}
     </Link>
   )
 }
 
-function Failed() {
-  const t = useT()
+function Failed({ message }: { message: string }) {
   return (
     <p className={styles.error} role="alert">
-      {t('review.aiFailed')}
+      {message}
     </p>
   )
 }
@@ -84,14 +88,9 @@ export function OwnWords({
     if (open) field.current?.focus()
   }, [open])
 
-  if (ai.status === 'loading') return null
-  if (ai.status === 'missing') {
-    return (
-      <div className={styles.assist}>
-        <SetupLink label={t('review.ownWordsSetup')} />
-      </div>
-    )
-  }
+  // Only offered once a model is configured; the setup path lives in Understand and Settings, not
+  // in the focus view.
+  if (ai.status !== 'ready') return null
   if (!open) {
     return (
       <div className={styles.assist}>
@@ -125,7 +124,7 @@ export function OwnWords({
         placeholder={t('review.ownWordsPlaceholder')}
         onChange={(e) => setAnswer(e.target.value)}
       />
-      {call.status === 'failed' && <Failed />}
+      {call.status === 'failed' && <Failed message={call.message} />}
       <Button type="submit" variant="primary" loading={call.status === 'busy'} disabled={answer.trim() === ''}>
         {call.status === 'busy' ? t('review.checking') : t('review.check')}
       </Button>
@@ -166,7 +165,7 @@ export function Explain({
   if (call.status !== 'done') {
     return (
       <div className={styles.assist}>
-        {call.status === 'failed' && <Failed />}
+        {call.status === 'failed' && <Failed message={call.message} />}
         <Button
           variant="plain"
           icon={<Lightbulb size={18} strokeWidth={1.75} aria-hidden />}
@@ -277,7 +276,7 @@ export function Improve({
         </div>
       ) : (
         <div className={styles.row}>
-          {call.status === 'failed' && <Failed />}
+          {call.status === 'failed' && <Failed message={call.message} />}
           {ai.status === 'missing' ? (
             <SetupLink label={t('review.improve')} />
           ) : (

@@ -48,7 +48,11 @@ export default function Search() {
         autoComplete="off"
       />
       {q === '' || results.length === 0 ? (
-        <EmptyState icon={SearchIcon} title={q === '' ? t('common.searchEmpty') : t('errors.notFound')} />
+        q === '' ? (
+          <EmptyState icon={SearchIcon} title={t('common.searchEmptyTitle')} body={t('common.searchEmpty')} />
+        ) : (
+          <EmptyState icon={SearchIcon} title={t('errors.notFound')} body={t('common.searchNoMatch')} />
+        )
       ) : (
         <ListGroup title={t('common.search')} hideTitle>
           {results.map((r) => (

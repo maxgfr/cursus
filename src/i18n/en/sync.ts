@@ -29,14 +29,16 @@ export const sync = {
   syncNow: 'Sync now',
   connected: '{name} is connected.',
   summaryTitle: 'Protection',
-  summaryNone: 'Your library lives only on this device until you add a destination.',
+  summaryNone:
+    'Your library lives only on this device. Add a destination and every change is copied there, so losing this device loses nothing.',
   summaryProtected: {
     one: 'Every change on this device is confirmed on {count} destination.',
     other: 'Every change on this device is confirmed on {count} destinations.',
   },
   summaryPending: 'Some changes are not confirmed on a destination yet.',
   summaryOffline: 'You’re offline. Changes wait on this device and go out when you’re back online.',
-  engineError: 'Sync could not start: {error}',
+  engineError:
+    'Sync couldn’t start on this device. Reload the page; if it keeps happening, settings › Diagnostics keeps the details.',
   alarmTitle: 'Some changes have no copy anywhere else',
   alarmBody:
     'For more than a day, a change on this device has not been confirmed on any destination. Open a destination to see why.',
@@ -167,7 +169,8 @@ export const sync = {
   errUnavailable: 'This destination can’t be opened on this device.',
   errNoState: 'The provider’s sign-in link is incomplete. Try connecting again.',
   errNoFolders: 'Folders aren’t available in this browser.',
-  oauthFailed: 'The connection could not be finished: {error}',
+  oauthFailed:
+    'The connection couldn’t be finished. Try connecting again; if it keeps failing, settings › Diagnostics keeps the details.',
   backupPartial: {
     one: 'Backup saved without {count} file this device hasn’t received yet (a PDF or image added on another device). Sync, then export again for a complete backup.',
     other:
@@ -179,4 +182,16 @@ export const sync = {
   },
   launchDeclined: 'Backup not opened: it belongs to another library.',
   launchFailed: 'This backup file could not be opened: {error}',
+  errGeneric: 'That didn’t work. Try again; if it keeps failing, settings › Diagnostics keeps the details.',
+  recommended: 'Recommended',
+  advanced: 'Advanced',
+  icloudSub: 'A folder in your iCloud Drive. Automatic on a Mac in Chrome or Edge; not on iPad or iPhone.',
+  icloudSubOff: 'A folder in your iCloud Drive. Needs Chrome or Edge on a Mac; this browser can’t keep it in sync.',
+  gdriveSub: 'Your Google account. Automatic on every device, iPad and iPhone included.',
+  dropboxSub: 'Your Dropbox account. Automatic on every device, iPad and iPhone included.',
+  s3Sub: 'Your own storage bucket (Amazon S3, Cloudflare R2…). For technical users.',
+  cloudkitSub: 'Apple’s cloud database with your own developer container. For developers.',
+  folderSub: 'Any folder on this computer, kept in sync while Cursus is open.',
+  fileSub: 'One .cursus file you save and keep yourself. Not automatic.',
+  nearbySub: 'Hands your destinations to another device next to you.',
 } as const

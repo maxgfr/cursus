@@ -46,4 +46,21 @@ export const today = {
   demoQ2: 'Que fabriquent les ribosomes ?',
   demoA2: 'Des protéines.',
   demoCloze: 'Le {{c1::noyau}} contient l’{{c2::ADN}} de la cellule.',
+  heroDue: { one: '{count} carte à revoir aujourd’hui', other: '{count} cartes à revoir aujourd’hui' },
+  examLead: 'dont {count} en {course} · {when}',
+  caughtUp: 'Tout est à jour',
+  laterTitle: {
+    one: '{count} carte revient dans {interval}',
+    other: '{count} cartes reviennent, la première dans {interval}',
+  },
+  laterBody: 'En cours d’apprentissage : elles reviennent plus tard aujourd’hui.',
+  startKey: 'S',
+  courseDue: { one: '{count} à revoir', other: '{count} à revoir' },
+  backupLine: 'Pas encore de sauvegarde',
+  backupAction: 'Ajouter une sauvegarde',
+  installHintLabel: 'Installer Cursus',
+  installHintTitle: 'Tu es dans un onglet Safari.',
+  installHintBody:
+    'Ce que tu ajoutes ici reste dans cet onglet ; l’app installée démarre vide. Installe d’abord : Partager, puis Sur l’écran d’accueil.',
+  installHintDismiss: 'Plus tard',
 } as const satisfies Shape<typeof en>

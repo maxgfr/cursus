@@ -18,6 +18,7 @@ export const anki = {
   reviews: 'Wiederholungen',
   media: 'Mediendateien',
   importAction: { one: '{count} Karte importieren', other: '{count} Karten importieren' },
-  unreadable: 'Diese Datei ließ sich nicht als Anki-Paket lesen ({error}).',
+  unreadable:
+    'Diese Datei ließ sich nicht als Anki-Paket lesen. Prüfe, ob es ein aus Anki exportiertes .apkg ist. Einstellungen › Diagnose enthält die Details.',
   exportHint: 'Für den Export nach Anki nutze oben die Anki-Schaltfläche neben einem Kurs.',
 } as const satisfies Shape<typeof en>

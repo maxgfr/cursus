@@ -36,7 +36,15 @@ async function open(page: Page, hash: string, heading: string | RegExp) {
   await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible()
 }
 
+/** S3 is a technical destination: it waits behind the Advanced disclosure. */
+async function openAdvanced(page: Page) {
+  const s3 = page.getByRole('button', { name: 'S3-compatible storage' })
+  if (!(await s3.isVisible())) await page.locator('summary', { hasText: 'Advanced' }).click()
+  await expect(s3).toBeVisible()
+}
+
 async function fillS3(page: Page, o: { endpoint: string; bucket: string; secret?: string }) {
+  await openAdvanced(page)
   await page.getByRole('button', { name: 'S3-compatible storage' }).click()
   const dialog = page.getByRole('dialog', { name: 'S3-compatible storage' })
   await dialog.getByLabel('Endpoint URL').fill(o.endpoint)
@@ -55,6 +63,10 @@ async function addS3(page: Page, bucket: string) {
   await expect(row).toBeVisible()
   return row
 }
+
+/** An empty state: its section, found by its title. */
+const emptyState = (page: Page, title: string) =>
+  page.getByRole('main').locator('section', { has: page.getByRole('heading', { name: title, exact: true }) })
 
 async function createCourse(page: Page, title: string) {
   await open(page, '#/courses', 'Courses')
@@ -178,7 +190,7 @@ test('Dropbox: coming back from consent finishes the connection', async ({ page 
   await page.route('https://content.dropboxapi.com/**', api)
 
   await open(page, '#/settings/sync', 'Sync & backup')
-  await page.getByRole('button', { name: 'Dropbox' }).click()
+  await page.getByRole('button', { name: /^Dropbox/ }).click()
   const dialog = page.getByRole('dialog', { name: 'Dropbox' })
   await dialog.getByLabel('App key').fill('app-key-123')
   await dialog.getByRole('button', { name: 'Connect' }).click()
@@ -293,4 +305,99 @@ test('sealing copies a destination encrypted and says the old copy stays', async
       .filter({ hasText: 'Sealed' })
       .first(),
   ).toBeVisible()
+})
+
+test('Sync: three everyday destinations say where they work, one is recommended, the technical ones wait behind Advanced', async ({
+  page,
+}) => {
+  await open(page, '#/settings/sync', 'Sync & backup')
+  // No separate empty state: the status line says it once, and "Add destination" is the one heading
+  // over the list, whose Recommended row is the action.
+  await expect(page.getByTestId('sync-summary')).toContainText('every change is copied there')
+  await expect(page.getByRole('heading', { name: 'No copy yet' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Destinations' })).toHaveCount(0)
+  for (const name of [/^iCloud Drive/, /^Google Drive/, /^Dropbox/])
+    await expect(page.getByRole('button', { name })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Google Drive/ })).toContainText('iPad and iPhone')
+  await expect(page.getByText('Recommended', { exact: true })).toHaveCount(1)
+  for (const name of ['S3-compatible storage', 'CloudKit', 'Folder on this device'])
+    await expect(page.getByRole('button', { name })).toBeHidden()
+  await openAdvanced(page)
+  await expect(page.getByRole('button', { name: /^CloudKit/ })).toBeVisible()
+  await expect(page.getByRole('link', { name: /^Nearby device/ })).toBeVisible()
+  await expect(page.getByRole('link', { name: /^Backup file/ })).toBeVisible()
+  // The Recommended row opens the recommended destination.
+  await page.getByRole('button', { name: /Recommended/ }).click()
+  await expect(page.getByRole('dialog', { name: /iCloud Drive|Dropbox/ })).toBeVisible()
+})
+
+test('Sync: the protection chip sits with the summary under the title, in French too', async ({ page }) => {
+  await page.goto('./?locale=fr#/settings/sync')
+  const title = page.getByRole('heading', { level: 1 })
+  await expect(title).toBeVisible()
+  const t = await title.boundingBox()
+  const c = await page.locator('main [data-sync]').first().boundingBox()
+  const p = await page.getByTestId('sync-summary').boundingBox()
+  if (!t || !c || !p) throw new Error('missing box')
+  expect(Math.abs(c.x - t.x)).toBeLessThanOrEqual(1)
+  expect(c.y).toBeGreaterThan(t.y + t.height)
+  expect(Math.abs(c.y - p.y)).toBeLessThanOrEqual(p.height)
+})
+
+test('Settings: four honest groups, no Search row, Sync & backup only once', async ({ page }) => {
+  await open(page, '#/settings', 'Settings')
+  await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toHaveText([
+    'Keep your library safe',
+    'Preferences',
+    'Your data',
+    'Help',
+  ])
+  await expect(page.getByRole('main').getByRole('link', { name: 'Search' })).toHaveCount(0)
+  await expect(page.getByRole('main').getByText('Sync & backup', { exact: true })).toHaveCount(1)
+})
+
+test('Course: empty states teach and offer the next action; Back returns to Today; a trashed card can be undone', async ({
+  page,
+}) => {
+  await createCourse(page, 'Histology')
+  const main = page.getByRole('main')
+  const title = await page.getByRole('heading', { level: 1, name: 'Histology' }).boundingBox()
+  const meta = await main.getByText('0 cards').first().boundingBox()
+  if (!title || !meta) throw new Error('missing box')
+  // The dot leads the meta row, flush with the title.
+  expect(meta.x - title.x).toBeLessThan(24)
+
+  const cards = emptyState(page, 'No cards yet')
+  await expect(cards.getByText('A card asks one thing')).toBeVisible()
+  await expect(cards.getByRole('button', { name: 'New card' })).toBeVisible()
+  await page.getByRole('radio', { name: 'Sources' }).click()
+  const sources = emptyState(page, 'No sources yet')
+  await expect(sources.getByRole('button', { name: 'Write a note' })).toBeVisible()
+  await page.getByRole('radio', { name: 'Study sheets' }).click()
+  const sheets = emptyState(page, 'No study sheets yet')
+  await expect(sheets.getByRole('link', { name: 'Understand…' })).toBeVisible()
+
+  // A card moved to the trash comes back with Undo.
+  await page.getByRole('radio', { name: 'Cards' }).click()
+  await main.getByRole('button', { name: 'New card' }).first().click()
+  await page.getByRole('textbox', { name: 'Front' }).click()
+  await page.keyboard.type('Basement membrane')
+  await page.keyboard.press('ControlOrMeta+s')
+  await main.getByRole('link', { name: /Basement membrane/ }).click()
+  await page.getByRole('button', { name: 'Move to trash' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Histology' })).toBeVisible()
+  await expect(page.getByText('Card moved to the trash.')).toBeVisible()
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect(main.getByRole('link', { name: /Basement membrane/ })).toBeVisible()
+  await expect(page.getByText('Card moved to the trash.')).toBeHidden()
+
+  // Opened from Today, the course goes back to Today.
+  await open(page, '#/', 'Today')
+  await main
+    .getByRole('link', { name: /Histology/ })
+    .first()
+    .click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Histology' })).toBeVisible()
+  await page.getByRole('link', { name: 'Back' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible()
 })

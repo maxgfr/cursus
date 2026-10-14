@@ -34,8 +34,10 @@
   gap: var(--space-1);
 }
 
+/* A 44px hit area; the negative block margin keeps the toast as compact as a 36px button. */
 .action {
-  min-height: 2.25rem;
+  min-height: 2.75rem;
+  margin-block: -0.25rem;
   padding: 0 var(--space-3);
   border: 0;
   border-radius: var(--radius-control);

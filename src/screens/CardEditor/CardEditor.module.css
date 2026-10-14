@@ -69,3 +69,40 @@
   justify-content: space-between;
   gap: var(--space-2);
 }
+
+.page {
+  display: contents;
+}
+
+.form {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.status {
+  min-height: 1.4em;
+  color: var(--ink-3);
+  font-size: var(--text-footnote);
+}
+
+/* Save: top right on iPad and Mac, in the thumb zone at the bottom on iPhone. */
+.bottom {
+  display: none;
+}
+
+@media (max-width: 599px) {
+  .top {
+    display: none;
+  }
+
+  .bottom {
+    position: sticky;
+    bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom) + var(--space-3));
+    z-index: 2;
+    display: grid;
+  }
+
+  .bottom > button {
+    width: 100%;
+  }
+}

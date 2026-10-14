@@ -45,8 +45,9 @@
 .bar {
   flex: 1;
   min-height: 2px;
-  border-radius: 2px 2px 0 0;
-  background: var(--accent);
+  border-radius: var(--radius-small) var(--radius-small) 0 0;
+  /* Neutral ink: the accent stays reserved for the one primary action and selection. */
+  background: var(--ink-3);
 }
 
 .barEmpty {

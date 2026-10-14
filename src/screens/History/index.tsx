@@ -13,10 +13,11 @@ import { ListGroup, ListRow } from '../../ui/components/List.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import NotFound from '../NotFound/index.tsx'
+import { noteError } from '../settings/Diagnostic/recent.ts'
 import styles from './History.module.css'
 import { applyForward, textAt, textVersions, type Version } from './replay.ts'
 
-type Load = { phase: 'loading' } | { phase: 'ready'; versions: Version[] } | { phase: 'error'; message: string }
+type Load = { phase: 'loading' } | { phase: 'ready'; versions: Version[] } | { phase: 'error' }
 
 /** `datetime-local` value of a time, in local time, to the minute. */
 function localInput(at: number): string {
@@ -68,7 +69,8 @@ export default function History() {
           if (live) setLoad({ phase: 'ready', versions: textVersions(segments, id, field) })
         },
         (e: unknown) => {
-          if (live) setLoad({ phase: 'error', message: e instanceof Error ? e.message : String(e) })
+          noteError('history.load', e)
+          if (live) setLoad({ phase: 'error' })
         },
       )
     return () => {
@@ -107,11 +109,11 @@ export default function History() {
       {load.phase === 'loading' && <p className={styles.note}>{t('common.loading')}</p>}
       {load.phase === 'error' && (
         <p className={styles.note} role="alert">
-          {t('course.historyFailed', { reason: load.message })}
+          {t('course.historyFailed')}
         </p>
       )}
       {load.phase === 'ready' && versions.length === 0 && (
-        <EmptyState icon={HistoryIcon} title={t('common.historyEmpty')} />
+        <EmptyState icon={HistoryIcon} title={t('course.historyEmptyTitle')} body={t('course.historyEmptyBody')} />
       )}
       {load.phase === 'ready' && versions.length > 0 && (
         <>

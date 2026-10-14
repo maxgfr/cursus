@@ -43,4 +43,18 @@ export const today = {
   demoQ2: 'What do ribosomes build?',
   demoA2: 'Proteins.',
   demoCloze: 'The {{c1::nucleus}} holds the cell’s {{c2::DNA}}.',
+  heroDue: { one: '{count} card due today', other: '{count} cards due today' },
+  examLead: 'incl. {count} in {course} · {when}',
+  caughtUp: 'All caught up',
+  laterTitle: { one: '{count} card back in {interval}', other: '{count} cards back, the first in {interval}' },
+  laterBody: 'Still learning: they come back later today.',
+  startKey: 'S',
+  courseDue: { one: '{count} due today', other: '{count} due today' },
+  backupLine: 'No backup yet',
+  backupAction: 'Add a backup',
+  installHintLabel: 'Install Cursus',
+  installHintTitle: 'You’re in a Safari tab.',
+  installHintBody:
+    'What you add here stays in this tab; the app you install starts empty. Install first: tap Share, then Add to Home Screen.',
+  installHintDismiss: 'Not now',
 } as const

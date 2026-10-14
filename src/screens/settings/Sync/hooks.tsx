@@ -5,6 +5,7 @@ import type { Translate } from '../../../i18n/index.ts'
 import { useT } from '../../../i18n/react.tsx'
 import { Button } from '../../../ui/components/Button.tsx'
 import { Sheet } from '../../../ui/components/Sheet.tsx'
+import { noteError } from '../Diagnostic/recent.ts'
 import { DestinationError, type DestRecord, listRecords } from './registry.ts'
 import styles from './settings.module.css'
 
@@ -75,10 +76,11 @@ export function useWorkspaceConfirm() {
   )
 }
 
-/** What a failure says to the user: registry errors are translated, others carry their own message. */
+/** What a failure says to the user: registry errors are translated; others get a plain line, their detail goes to Diagnostics. */
 export function errorText(t: Translate, e: unknown): string {
   if (e instanceof DestinationError) return t(`sync.${e.code}`)
-  return e instanceof Error ? e.message : String(e)
+  noteError('sync', e)
+  return t('sync.errGeneric')
 }
 
 /** Runs an async action with a busy flag and a readable error (registry errors in the current language). */

@@ -89,8 +89,17 @@ function LocaleBoot({ children }: { children: ReactNode }) {
       .finally(() => {
         if (live) setReady(true)
       })
+    // Automatic mode follows a system language change live; a picked language stays put.
+    const onLanguageChange = () => {
+      rt.store
+        .read(['kv'], (tx) => tx.get<string>('kv', UI_LOCALE_KEY))
+        .then((stored) => (stored ? undefined : setLocale(detectFromEnvironment(null))))
+        .catch((e: unknown) => console.error('language change not applied', e))
+    }
+    window.addEventListener('languagechange', onLanguageChange)
     return () => {
       live = false
+      window.removeEventListener('languagechange', onLanguageChange)
     }
   }, [rt, setLocale])
   return ready ? children : null

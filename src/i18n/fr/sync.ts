@@ -32,7 +32,8 @@ export const sync = {
   syncNow: 'Synchroniser maintenant',
   connected: '{name} est connecté.',
   summaryTitle: 'Protection',
-  summaryNone: 'Votre bibliothèque n’existe que sur cet appareil tant que vous n’ajoutez pas de destination.',
+  summaryNone:
+    'Votre bibliothèque n’existe que sur cet appareil. Ajoutez une destination : chaque modification y est copiée, et perdre cet appareil ne fait rien perdre.',
   summaryProtected: {
     one: 'Chaque modification de cet appareil est confirmée sur {count} destination.',
     other: 'Chaque modification de cet appareil est confirmée sur {count} destinations.',
@@ -40,7 +41,8 @@ export const sync = {
   summaryPending: 'Certaines modifications ne sont encore confirmées sur aucune destination.',
   summaryOffline:
     'Vous êtes hors ligne. Les modifications attendent sur cet appareil et partiront au retour du réseau.',
-  engineError: 'La synchronisation n’a pas pu démarrer : {error}',
+  engineError:
+    'La synchronisation n’a pas pu démarrer sur cet appareil. Rechargez la page ; si cela se répète, Réglages › Diagnostic garde les détails.',
   alarmTitle: 'Certaines modifications n’ont aucune copie ailleurs',
   alarmBody:
     'Depuis plus d’un jour, une modification de cet appareil n’est confirmée sur aucune destination. Ouvrez une destination pour voir pourquoi.',
@@ -180,7 +182,8 @@ export const sync = {
   errUnavailable: 'Cette destination ne peut pas être ouverte sur cet appareil.',
   errNoState: 'Le lien de connexion du fournisseur est incomplet. Reconnectez-vous.',
   errNoFolders: 'Les dossiers ne sont pas disponibles dans ce navigateur.',
-  oauthFailed: 'La connexion n’a pas pu être terminée : {error}',
+  oauthFailed:
+    'La connexion n’a pas pu être terminée. Reconnectez-vous ; si cela échoue encore, Réglages › Diagnostic garde les détails.',
   backupPartial: {
     one: 'Sauvegarde enregistrée sans {count} fichier que cet appareil n’a pas encore reçu (un PDF ou une image ajouté sur un autre appareil). Synchronisez, puis exportez à nouveau pour une sauvegarde complète.',
     other:
@@ -192,4 +195,17 @@ export const sync = {
   },
   launchDeclined: 'Sauvegarde non ouverte : elle appartient à une autre bibliothèque.',
   launchFailed: 'Ce fichier de sauvegarde n’a pas pu être ouvert : {error}',
+  errGeneric: 'Cela n’a pas marché. Réessayez ; si cela échoue encore, Réglages › Diagnostic garde les détails.',
+  recommended: 'Recommandé',
+  advanced: 'Avancé',
+  icloudSub: 'Un dossier de votre iCloud Drive. Automatique sur Mac avec Chrome ou Edge ; pas sur iPad ni iPhone.',
+  icloudSubOff:
+    'Un dossier de votre iCloud Drive. Demande Chrome ou Edge sur Mac ; ce navigateur ne peut pas le synchroniser.',
+  gdriveSub: 'Votre compte Google. Automatique sur tous vos appareils, iPad et iPhone compris.',
+  dropboxSub: 'Votre compte Dropbox. Automatique sur tous vos appareils, iPad et iPhone compris.',
+  s3Sub: 'Votre propre espace de stockage (Amazon S3, Cloudflare R2…). Pour les profils techniques.',
+  cloudkitSub: 'La base de données cloud d’Apple, avec votre propre conteneur. Pour les développeurs.',
+  folderSub: 'Un dossier de cet ordinateur, synchronisé tant que Cursus est ouvert.',
+  fileSub: 'Un fichier .cursus que vous enregistrez et gardez vous-même. Pas automatique.',
+  nearbySub: 'Transmet vos destinations à un autre appareil à côté de vous.',
 } as const satisfies Shape<typeof en>

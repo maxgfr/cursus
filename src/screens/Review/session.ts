@@ -1,9 +1,10 @@
 import type { Id, Rating } from '../../core/contracts/workspace'
 import { makeClozeCards } from '../../core/model/cloze'
 import type { ModelWorkspace } from '../../core/model/workspace'
-import { type CardState, createScheduler, localOffset, type Scheduler } from '../../core/srs/fsrs'
+import { type CardState, createScheduler, dayStart, localOffset, type Scheduler, studyDay } from '../../core/srs/fsrs'
 import { isLeech } from '../../core/srs/leech'
 import { buildQueue } from '../../core/srs/queue'
+import { examCourse } from '../../ui/data/useStudy.ts'
 
 export const RATINGS: readonly Rating[] = [1, 2, 3, 4]
 
@@ -12,8 +13,11 @@ export function schedulerFor(ws: ModelWorkspace): Scheduler {
   return createScheduler({ desiredRetention: ws.prefs.get('desiredRetention') })
 }
 
-/** Today's queue, frozen when the session starts so answering never reshuffles it. */
-export function startQueue(ws: ModelWorkspace, now: number): Id[] {
+/**
+ * Today's queue, fixed when the session starts so answering never reshuffles it. The course with
+ * the nearest exam leads; the order within each part is the scheduler's.
+ */
+export function startQueue(ws: ModelWorkspace, now: number): { queue: Id[]; learning: Id[] } {
   const live = new Set(ws.courses.list().map((c) => c.id))
   const cards = ws.cards.list().filter((c) => live.has(c.courseId) && !c.suspended)
   const scheduler = schedulerFor(ws)
@@ -22,14 +26,54 @@ export function startQueue(ws: ModelWorkspace, now: number): Id[] {
     const events = ws.reviews.forCard(c.id)
     if (events.length > 0) states.set(c.id, scheduler.replay(c.id, events))
   }
-  return buildQueue({
+  const ids = buildQueue({
     cards: cards.map((c) => ({ id: c.id })),
     states,
     now,
     tzOffsetMin: localOffset(now),
     newPerDay: ws.prefs.get('dailyNewCards'),
   }).map((q) => q.cardId)
+  // Cards in (re)learning: those not due yet may come back later in the session.
+  const learning: Id[] = []
+  for (const [id, st] of states) if (st.phase === 'learning' || st.phase === 'relearning') learning.push(id)
+  const exam = examCourse(ws, now)
+  if (exam === null) return { queue: ids, learning }
+  const courseOf = new Map(cards.map((c) => [c.id, c.courseId]))
+  const lead = ids.filter((id) => courseOf.get(id) === exam.id)
+  return { queue: [...lead, ...ids.filter((id) => courseOf.get(id) !== exam.id)], learning }
 }
+
+/**
+ * Cards (answered in this session, or in learning when it began) still in (re)learning and come back before the study day
+ * ends, soonest first: graded Again, or on a learning step. A session is done only once they are.
+ */
+export function returning(ws: ModelWorkspace, candidates: Iterable<Id>, now: number): { id: Id; due: number }[] {
+  const tz = localOffset(now)
+  const endOfDay = dayStart(studyDay(now, tz) + 1, tz)
+  const scheduler = schedulerFor(ws)
+  const out: { id: Id; due: number }[] = []
+  for (const id of new Set(candidates)) {
+    const card = ws.cards.get(id)
+    if (!card || card.deletedAt !== undefined || card.suspended) continue
+    const s = scheduler.replay(id, ws.reviews.forCard(id))
+    if ((s.phase === 'learning' || s.phase === 'relearning') && s.due < endOfDay) out.push({ id, due: s.due })
+  }
+  return out.sort((a, b) => a.due - b.due || (a.id < b.id ? -1 : 1))
+}
+
+/** One turn in the session's queue. */
+export interface QueueEntry {
+  id: Id
+  /**
+   * Set on a card appended because it came back: the review (in this session) whose grade sent it
+   * back, or null for a card already in learning when the session began.
+   */
+  returnOf?: Id | null
+}
+
+/** Undoing a grade also takes back the returns it caused. */
+export const dropReturnsOf = (queue: QueueEntry[], reviewId: Id): QueueEntry[] =>
+  queue.filter((e) => e.returnOf !== reviewId)
 
 export interface CardView {
   id: Id
@@ -94,18 +138,4 @@ export function speakable(markdown: string): string {
     .trim()
 }
 
-const MINUTE = 60_000
-const HOUR = 60 * MINUTE
-const DAY = 24 * HOUR
-
-/** Short, locale-aware interval ("10 min", "3 days", "2 mo"). */
-export function formatInterval(ms: number, tag: string): string {
-  const unit = (value: number, u: 'minute' | 'hour' | 'day' | 'month' | 'year') =>
-    new Intl.NumberFormat(tag, { style: 'unit', unit: u, unitDisplay: 'short', maximumFractionDigits: 1 }).format(value)
-  if (ms < HOUR) return unit(Math.max(1, Math.round(ms / MINUTE)), 'minute')
-  if (ms < DAY) return unit(Math.round(ms / HOUR), 'hour')
-  const days = Math.round(ms / DAY)
-  if (days < 31) return unit(days, 'day')
-  if (days < 365) return unit(Math.round(days / 30.4), 'month')
-  return unit(Math.round((days / 365) * 10) / 10, 'year')
-}
+export { formatInterval } from './interval.ts'

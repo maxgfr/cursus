@@ -72,7 +72,7 @@ async function seed(spec) {
   await log.seal()
   capture.stop()
   // The iOS install hint was already dismissed on this device (device-local kv, never the doc).
-  await store.commit([{ put: 'kv', key: 'pwa:install-hint-dismissed', value: true }])
+  await store.commit([{ put: 'kv', key: 'pwa:install-hint-dismissed', value: Date.now() }])
   store.close()
 }
 window.harness = { seed }

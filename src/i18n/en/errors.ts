@@ -12,4 +12,10 @@ export const errors = {
   conflict: 'This item changed on another device.',
   corruptBackup: "This backup is damaged and can't be read.",
   notFound: 'Not found.',
+  storageFullNext: 'Free up some space on this device, then try again. Nothing was lost.',
+  networkNext: 'Check your connection, then try again.',
+  invalidKeyNext: 'Check the key in Settings, AI.',
+  rateLimitedNext: 'Wait a minute, then try again.',
+  quotaExceededNext: 'Add credit with your AI provider, or switch models in Settings, AI.',
+  genericNext: 'Try again. If it keeps happening, reload Cursus: your answers so far are saved.',
 } as const

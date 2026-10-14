@@ -1,7 +1,7 @@
 import { to } from '../../app/routes.ts'
 import { useWorkspaceData } from '../../app/workspaceContext.tsx'
 import { useT } from '../../i18n/react.tsx'
-import { CountPill, CourseDot } from '../../ui/components/Badges.tsx'
+import { CourseDot } from '../../ui/components/Badges.tsx'
 import { ListRow } from '../../ui/components/List.tsx'
 import type { CourseStudy } from '../../ui/data/useStudy.ts'
 import { daysUntil } from './exam.ts'
@@ -20,7 +20,10 @@ export function ExamCountdown({ examDate }: { examDate: string | undefined }) {
   )
 }
 
-/** One row per course: colour, card count, exam countdown and today's due count. */
+/**
+ * One row per course: colour, card count, the exam countdown and, as in the sidebar, a trailing
+ * due count (nothing when none is due).
+ */
 export function CourseRows({ courses }: { courses: readonly CourseStudy[] }) {
   const t = useT()
   const exams = useWorkspaceData(['courses'], (ws) => new Map(ws.courses.list().map((c) => [c.id, c.examDate])))
@@ -34,7 +37,12 @@ export function CourseRows({ courses }: { courses: readonly CourseStudy[] }) {
       trailing={
         <>
           <ExamCountdown examDate={exams.get(c.id)} />
-          <CountPill count={c.due} label={t('common.dueBadge', { count: c.due })} />
+          {c.due > 0 && (
+            <span className={styles.due} data-testid="course-due">
+              <span aria-hidden="true">{c.due}</span>
+              <span className="sr-only">{t('today.courseDue', { count: c.due })}</span>
+            </span>
+          )}
         </>
       }
     />

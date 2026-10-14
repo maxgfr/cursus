@@ -60,9 +60,7 @@ export const common = {
   sourceEmpty: 'Diese Quelle ist leer. Fang an zu schreiben.',
   cardTitle: 'Karte',
   trashTitle: 'Papierkorb',
-  trashEmpty: 'Der Papierkorb ist leer. Gelöschte Kurse, Quellen und Karten warten hier, bis du sie wiederherstellst.',
   historyTitle: 'Verlauf',
-  historyEmpty: 'Noch keine früheren Versionen. Jede Änderung wird aufbewahrt, du kannst also später zurückgehen.',
   welcomeTitle: 'Willkommen bei Cursus',
   welcomeBody: 'Deine Kurse, deine Karten, deine Backups. Kein Konto, und alles funktioniert offline.',
   reviewEmpty: 'Gerade gibt es nichts zu wiederholen.',
@@ -71,7 +69,7 @@ export const common = {
   quizBody: 'Wähle einen Kurs, um zu seinen Quellen abgefragt zu werden.',
   statsTitle: 'Statistik',
   statsEmpty: 'Dein Fortschritt erscheint hier nach den ersten Wiederholungen.',
-  searchPlaceholder: 'Karten, Quellen und Fiches',
+  searchPlaceholder: 'Karten, Quellen und Spickzettel',
   searchEmpty: 'Tippe, um deine ganze Bibliothek zu durchsuchen, auch offline.',
   setGeneral: 'Allgemein',
   setReview: 'Wiederholung',
@@ -101,9 +99,6 @@ export const common = {
   edLabel: 'Text',
   edLoading: 'Editor wird geöffnet …',
   // S-026
-  installHint:
-    'Um Cursus auf dem Home-Bildschirm zu behalten und offline zu nutzen, tippe auf „Teilen“ und dann auf „Zum Home-Bildschirm“.',
-  installDismiss: 'Später',
   updating: 'Wird aktualisiert …',
   // end S-026
   items: { one: '{count} Eintrag', other: '{count} Einträge' },
@@ -155,4 +150,9 @@ export const common = {
   icsDaily: 'Lernen mit Cursus',
   icsExamPrefix: 'Prüfung: ',
   icsDone: 'Kalenderdatei gespeichert',
+  aiEmptyTitle: 'KI-Modell verbinden',
+  statsEmptyTitle: 'Noch keine Wiederholungen',
+  statsEmptyAction: 'Zu Heute',
+  searchEmptyTitle: 'Bibliothek durchsuchen',
+  searchNoMatch: 'Versuche weniger Wörter oder eine andere Schreibweise.',
 } as const satisfies Shape<typeof en>

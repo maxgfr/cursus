@@ -8,6 +8,7 @@ import { localDatabases } from '../Recovery/rawExport.ts'
 import { useAction, useDestinations } from '../Sync/hooks.tsx'
 import { download, fileStamp } from '../Sync/registry.ts'
 import styles from '../Sync/settings.module.css'
+import { recentErrors } from './recent.ts'
 
 const MAX_EVENTS = 200
 
@@ -61,6 +62,7 @@ export default function DiagnosticSettings() {
         dests: status.dests.map((d) => ({ ...d, failures: scheduler?.failures(d.id) ?? 0 })),
       },
       events: events.current,
+      errors: recentErrors(),
     }
     return JSON.stringify(data, null, 2)
   }, [rt, engine, scheduler, status, records, online, save, engineError])

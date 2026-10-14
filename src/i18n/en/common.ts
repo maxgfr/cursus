@@ -56,9 +56,7 @@ export const common = {
   sourceEmpty: 'This source is empty. Start writing.',
   cardTitle: 'Card',
   trashTitle: 'Trash',
-  trashEmpty: 'The trash is empty. Deleted courses, sources and cards wait here until you restore them.',
   historyTitle: 'History',
-  historyEmpty: 'No earlier versions yet. Every edit is kept, so you can go back later.',
   welcomeTitle: 'Welcome to Cursus',
   welcomeBody: 'Your courses, your cards, your backups. No account, and everything works offline.',
   reviewEmpty: 'Nothing to review right now.',
@@ -67,7 +65,7 @@ export const common = {
   quizBody: 'Pick a course to be quizzed on its sources.',
   statsTitle: 'Statistics',
   statsEmpty: 'Your progress shows up here after your first reviews.',
-  searchPlaceholder: 'Cards, sources and fiches',
+  searchPlaceholder: 'Cards, sources and study sheets',
   searchEmpty: 'Type to search your whole library, even offline.',
   setGeneral: 'General',
   setReview: 'Review',
@@ -97,8 +95,6 @@ export const common = {
   edLabel: 'Text',
   edLoading: 'Opening the editor…',
   // S-026
-  installHint: 'To keep Cursus on your Home Screen and use it offline, tap Share, then “Add to Home Screen”.',
-  installDismiss: 'Not now',
   updating: 'Updating…',
   // end S-026
   items: { one: '{count} item', other: '{count} items' },
@@ -149,4 +145,9 @@ export const common = {
   icsDaily: 'Study with Cursus',
   icsExamPrefix: 'Exam: ',
   icsDone: 'Calendar file saved',
+  aiEmptyTitle: 'Connect an AI model',
+  statsEmptyTitle: 'No reviews yet',
+  statsEmptyAction: 'Go to Today',
+  searchEmptyTitle: 'Search your library',
+  searchNoMatch: 'Try fewer words or another spelling.',
 } as const

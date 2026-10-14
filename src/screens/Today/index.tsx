@@ -1,5 +1,5 @@
 import { BookOpen, Plus } from 'lucide-react'
-import { useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Link, useLocation } from 'wouter'
 import { paths } from '../../app/routes.ts'
@@ -11,13 +11,17 @@ import { SyncBadge } from '../../ui/components/Badges.tsx'
 import { Button } from '../../ui/components/Button.tsx'
 import { EmptyState } from '../../ui/components/EmptyState.tsx'
 import { IconButton } from '../../ui/components/IconButton.tsx'
+import { Keycap } from '../../ui/components/Keycap.tsx'
 import { ListGroup } from '../../ui/components/List.tsx'
 import { useStudy } from '../../ui/data/useStudy.ts'
 import { Screen } from '../../ui/shell/Screen.tsx'
+import { formatInterval } from '../Review/interval.ts'
 import { CourseRows } from './CourseRows.tsx'
 import { InstallHint } from './InstallHint.tsx'
-import { NewCourseSheet } from './NewCourseSheet.tsx'
 import styles from './Today.module.css'
+
+// Not on Today's first paint: the sheet's chunk loads right after it.
+const NewCourseSheet = lazy(() => import('./NewCourseSheet.tsx').then((m) => ({ default: m.NewCourseSheet })))
 
 const MINUTE = 60_000
 
@@ -40,20 +44,51 @@ function useStartReview(): () => void {
   }
 }
 
+/** S, or Enter with nothing focused, starts the review from Today. */
+function useStartKey(enabled: boolean, start: () => void): void {
+  const ref = useRef(start)
+  ref.current = start
+  useEffect(() => {
+    if (!enabled) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || document.querySelector('dialog[open]')) return
+      const target = e.target
+      if (
+        target instanceof HTMLElement &&
+        (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+      )
+        return
+      const idle = target === document.body || target === document.documentElement
+      if (e.key.toLowerCase() === 's' || (e.key === 'Enter' && idle)) {
+        e.preventDefault()
+        ref.current()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [enabled])
+}
+
 export default function Today() {
   const t = useT()
   const locale = useLocale()
   const study = useStudy()
-  const { summary } = useSync()
+  const { summary, status } = useSync()
   const start = useStartReview()
   const [adding, setAdding] = useState(false)
   const add = () => setAdding(true)
-  const date = new Intl.DateTimeFormat(intlTag(locale), { weekday: 'long', day: 'numeric', month: 'long' }).format(
-    Date.now(),
-  )
+  useStartKey(study.due > 0 && !adding, start)
+  const now = Date.now()
+  const date = new Intl.DateTimeFormat(intlTag(locale), { weekday: 'long', day: 'numeric', month: 'long' }).format(now)
   const minutes = Math.max(MINUTE, Math.ceil(study.estimateMs / MINUTE) * MINUTE)
   const meta = [t('common.approx', { duration: formatDuration(locale, minutes) })]
   if (study.newDue > 0) meta.push(t('common.newShort', { count: study.newDue }))
+  const exam = study.exam !== null && study.exam.due > 0 ? study.exam : null
+  const hasData = study.totalCards > 0
+  // A destination exists (the install question is settled by the backup) and has confirmed a copy.
+  const hasDestination = status !== null && status.dests.length > 0
+  const backedUp = status !== null && (status.protectedOn > 0 || status.dests.some((d) => d.lastOkAt !== undefined))
+  const install = <InstallHint hasDestination={hasDestination} />
 
   return (
     <Screen
@@ -66,8 +101,10 @@ export default function Today() {
         </div>
       }
     >
-      <NewCourseSheet open={adding} onClose={() => setAdding(false)} />
-      <InstallHint />
+      <Suspense fallback={null}>
+        <NewCourseSheet open={adding} onClose={() => setAdding(false)} />
+      </Suspense>
+      {!hasData && install}
       {study.courses.length === 0 ? (
         <EmptyState
           icon={BookOpen}
@@ -89,10 +126,18 @@ export default function Today() {
           <section className={styles.hero} aria-labelledby="today-hero">
             {study.due > 0 ? (
               <>
-                <h2 id="today-hero" className={styles.label}>
-                  {t('common.dueToday')}
+                <h2 id="today-hero" className={styles.count}>
+                  {t('today.heroDue', { count: study.due })}
                 </h2>
-                <p className={styles.count}>{t('common.cardsHero', { count: study.due })}</p>
+                {exam !== null && (
+                  <p className={styles.examLead} data-testid="exam-lead">
+                    {t('today.examLead', {
+                      count: exam.due,
+                      course: exam.title,
+                      when: exam.days === 0 ? t('today.examToday') : t('today.examCountdown', { count: exam.days }),
+                    })}
+                  </p>
+                )}
                 <p className={styles.meta}>{meta.join(' · ')}</p>
                 <Button
                   className={styles.start}
@@ -102,14 +147,26 @@ export default function Today() {
                   onClick={start}
                   onPointerEnter={() => void preloadReview()}
                   onFocus={() => void preloadReview()}
+                  aria-keyshortcuts="S"
                 >
                   {t('common.start')}
+                  <Keycap>{t('today.startKey')}</Keycap>
                 </Button>
+              </>
+            ) : study.later !== null ? (
+              <>
+                <h2 id="today-hero" className={styles.caughtUp}>
+                  {t('today.laterTitle', {
+                    count: study.later.count,
+                    interval: formatInterval(Math.max(0, study.later.nextAt - now), intlTag(locale)),
+                  })}
+                </h2>
+                <p className={styles.meta}>{t('today.laterBody')}</p>
               </>
             ) : (
               <>
                 <h2 id="today-hero" className={styles.caughtUp}>
-                  {t('common.caughtUp')}
+                  {t('today.caughtUp')}
                 </h2>
                 <p className={styles.meta}>
                   {study.totalCards === 0
@@ -121,6 +178,15 @@ export default function Today() {
               </>
             )}
           </section>
+          {hasData && status !== null && !backedUp && (
+            <p className={styles.backup} data-testid="backup-line">
+              {t('today.backupLine')} ·{' '}
+              <Link href={paths.settingsSync} className={styles.backupLink}>
+                {t('today.backupAction')}
+              </Link>
+            </p>
+          )}
+          {hasData && install}
           <ListGroup title={t('today.courses')}>
             <CourseRows courses={study.courses} />
           </ListGroup>

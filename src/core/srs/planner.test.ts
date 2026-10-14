@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { DAY_MS, DEFAULT_PARAMS, dayStart, newCardState } from './fsrs'
-import { dailyGoal, daysUntil, EXAM_RETENTION, paramsFor } from './planner'
+import { dailyGoal, daysUntil, EXAM_RETENTION, nearestExam, paramsFor } from './planner'
 
 const TZ = 60
 const D = (n: number): number => dayStart(20_000 + n, TZ) + 3_600_000
@@ -29,5 +29,26 @@ describe('planner', () => {
     expect(dailyGoal(plan, [...fresh, due, notDue], D(0))).toEqual({ newCards: 2, dueCards: 1, total: 3 })
     expect(dailyGoal(plan, fresh, D(27)).newCards).toBe(16)
     expect(dailyGoal(plan, fresh, D(30)).newCards).toBe(46)
+  })
+})
+
+describe('nearestExam', () => {
+  const now = Date.UTC(2026, 5, 10, 12)
+  const at = (days: number) => ({ examAt: now + days * DAY_MS, tzOffsetMin: 0 })
+  test('picks the soonest exam ahead, today included, and skips past ones', () => {
+    expect(nearestExam([], now)).toBeNull()
+    expect(nearestExam([{ id: 'past', plan: at(-2) }], now)).toBeNull()
+    expect(
+      nearestExam(
+        [
+          { id: 'far', plan: at(20) },
+          { id: 'past', plan: at(-1) },
+          { id: 'near', plan: at(5) },
+          { id: 'tie', plan: at(5) },
+        ],
+        now,
+      ),
+    ).toEqual({ id: 'near', days: 5 })
+    expect(nearestExam([{ id: 'today', plan: at(0) }], now)).toEqual({ id: 'today', days: 0 })
   })
 })

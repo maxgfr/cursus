@@ -5,8 +5,10 @@ import {
   type Catalog,
   createTranslator,
   detectLocale,
+  intlTag,
   loadCatalog,
   type Message,
+  regionalTag,
 } from './index.ts'
 import { pseudoize } from './pseudo.ts'
 
@@ -121,5 +123,35 @@ describe('format', () => {
     expect(formatRelative('en', 3 * 86400_000, 0)).toBe('in 3 days')
     expect(formatRelative('fr', -86400_000, 0)).toBe('hier')
     expect(formatDuration('en', 3_900_000)).toBe('1 hr 5 min')
+  })
+})
+
+describe('regional formats', () => {
+  const day = new Date(Date.UTC(2026, 9, 14, 12))
+  const long = (tag: string) =>
+    new Intl.DateTimeFormat(tag, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(day)
+
+  test('en-GB device: day before month', () => {
+    expect(intlTag('en', ['en-GB'])).toBe('en-GB')
+    expect(long(intlTag('en', ['en-GB']))).toBe('Wednesday 14 October')
+  })
+
+  test('de-CH device: Swiss grouping', () => {
+    expect(new Intl.NumberFormat(intlTag('de', ['de-CH', 'en'])).format(12345.6)).toMatch(/^12['’]345\.6$/)
+  })
+
+  test('first device language of the same base wins; fr-CA keeps its conventions', () => {
+    expect(intlTag('fr', ['en-GB', 'fr-CA', 'fr-FR'])).toBe('fr-CA')
+  })
+
+  test('explicit pick with no matching device language: that language’s default region', () => {
+    expect(intlTag('de', ['en-GB'])).toBe('de-DE')
+    expect(intlTag('fr', [])).toBe('fr-FR')
+    expect(intlTag('en', ['de-CH'])).toBe('en-US')
+  })
+
+  test('malformed tags are skipped; pseudo stays en-XA for <html lang>', () => {
+    expect(intlTag('en', ['en_GB!', 'en-AU'])).toBe('en-AU')
+    expect(regionalTag('pseudo', ['en-GB'])).toBe('en-XA')
   })
 })

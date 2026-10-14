@@ -125,7 +125,8 @@ export function NoModel() {
   return (
     <EmptyState
       icon={Sparkles}
-      title={t('ai.noKey')}
+      title={t('common.aiEmptyTitle')}
+      body={t('ai.noKey')}
       action={
         <Link href={paths.settingsAi} className={buttonClass({ variant: 'primary' })}>
           {t('ai.openSettings')}

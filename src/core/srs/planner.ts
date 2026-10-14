@@ -46,3 +46,22 @@ export function dailyGoal(plan: ExamPlan, states: readonly CardState[], now: num
   const newCards = Math.ceil(unseen / learnDays)
   return { newCards, dueCards, total: newCards + dueCards }
 }
+
+export interface ExamCandidate {
+  id: string
+  plan: ExamPlan
+}
+
+/**
+ * The course whose exam comes first, today included; exams already past are ignored.
+ * Ties keep the given order. Null when no course has an exam ahead.
+ */
+export function nearestExam(candidates: readonly ExamCandidate[], now: number): { id: string; days: number } | null {
+  let best: { id: string; days: number } | null = null
+  for (const c of candidates) {
+    if (studyDay(c.plan.examAt, c.plan.tzOffsetMin) < studyDay(now, c.plan.tzOffsetMin)) continue
+    const days = daysUntil(c.plan, now)
+    if (best === null || days < best.days) best = { id: c.id, days }
+  }
+  return best
+}

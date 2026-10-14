@@ -6,7 +6,6 @@ import {
   FileText,
   Info,
   LifeBuoy,
-  Search,
   ShieldCheck,
   SlidersHorizontal,
   Smartphone,
@@ -35,7 +34,7 @@ export default function Settings() {
   }, [rt, engine, scheduler])
   return (
     <Screen title={t('settings.title')}>
-      <ListGroup title={t('settings.sync')}>
+      <ListGroup title={t('settings.groupSafe')}>
         <ListRow
           href={paths.settingsSync}
           leading={<Cloud size={ICON} />}
@@ -46,7 +45,7 @@ export default function Settings() {
         <ListRow href={paths.settingsSeal} leading={<ShieldCheck size={ICON} />} title={t('common.setSeal')} />
         <ListRow href={paths.settingsRecovery} leading={<LifeBuoy size={ICON} />} title={t('common.setRecovery')} />
       </ListGroup>
-      <ListGroup title={t('common.setReview')}>
+      <ListGroup title={t('settings.groupPrefs')}>
         <ListRow
           href={paths.settingsGeneral}
           leading={<SlidersHorizontal size={ICON} />}
@@ -54,14 +53,15 @@ export default function Settings() {
         />
         <ListRow href={paths.settingsReview} leading={<CalendarCheck size={ICON} />} title={t('common.setReview')} />
         <ListRow href={paths.settingsAi} leading={<Sparkles size={ICON} />} title={t('common.setAi')} />
-        <ListRow href={paths.stats} leading={<ChartColumn size={ICON} />} title={t('common.statsTitle')} />
-        <ListRow href={paths.search} leading={<Search size={ICON} />} title={t('common.search')} />
       </ListGroup>
-      <ListGroup title={t('common.setData')}>
+      <ListGroup title={t('settings.groupData')}>
+        <ListRow href={paths.stats} leading={<ChartColumn size={ICON} />} title={t('common.statsTitle')} />
         <ListRow href={paths.settingsData} leading={<Database size={ICON} />} title={t('common.setData')} />
         <ListRow href={paths.trash} leading={<Trash2 size={ICON} />} title={t('common.trashTitle')} />
-        <ListRow href={paths.settingsDiagnostic} leading={<FileText size={ICON} />} title={t('common.setDiagnostic')} />
+      </ListGroup>
+      <ListGroup title={t('settings.groupHelp')}>
         <ListRow href={paths.onboarding} leading={<Info size={ICON} />} title={t('common.welcomeTitle')} />
+        <ListRow href={paths.settingsDiagnostic} leading={<FileText size={ICON} />} title={t('common.setDiagnostic')} />
       </ListGroup>
     </Screen>
   )

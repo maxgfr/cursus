@@ -45,6 +45,8 @@ test('after the first load the app works fully offline, and edits are saved on t
   // A destination, so the chip has something to be truthful about.
   const bucket = await newBucket()
   await go(page, '#/settings/sync', 'Sync & backup')
+  // S3 sits under the "Advanced" disclosure.
+  await page.locator('summary', { hasText: 'Advanced' }).click()
   await page.getByRole('button', { name: 'S3-compatible storage' }).click()
   const dialog = page.getByRole('dialog', { name: 'S3-compatible storage' })
   await dialog.getByLabel('Endpoint URL').fill(S3.endpoint)
@@ -71,7 +73,9 @@ test('after the first load the app works fully offline, and edits are saved on t
   await page.getByRole('button', { name: 'New card' }).click()
   await typeInto(page, 'Front', 'Longest bone?')
   await typeInto(page, 'Back', 'The femur')
-  await page.getByRole('link', { name: 'Back' }).click()
+  // The editor holds a draft: the card exists only once saved (offline, on this device).
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByRole('main').getByRole('link', { name: /Longest bone\?/ })).toBeVisible()
   for (const [hash, heading] of [
     ['#/search', 'Search'],
     ['#/stats', 'Statistics'],

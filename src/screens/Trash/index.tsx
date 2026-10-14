@@ -56,7 +56,7 @@ export default function Trash() {
   return (
     <Screen title={t('common.trashTitle')} back={paths.settings}>
       {items.length === 0 ? (
-        <EmptyState icon={Trash2} title={t('common.trashEmpty')} />
+        <EmptyState icon={Trash2} title={t('course.trashEmptyTitle')} body={t('course.trashEmptyBody')} />
       ) : (
         <>
           <ListGroup title={t('common.trashTitle')} hideTitle footer={t('course.trashFooter')}>

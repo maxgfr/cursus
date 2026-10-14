@@ -3,6 +3,7 @@ import { useRuntime } from '../../../app/workspaceContext.tsx'
 import type { ImportResult } from '../../../core/anki/apkgRead'
 import { useT } from '../../../i18n/react.tsx'
 import { Button } from '../../../ui/components/Button.tsx'
+import { noteError } from '../Diagnostic/recent.ts'
 import styles from '../Sync/settings.module.css'
 
 interface Preview {
@@ -54,7 +55,8 @@ export function AnkiImport() {
         decks,
       })
     } catch (err) {
-      setError(t('anki.unreadable', { error: err instanceof Error ? err.message : String(err) }))
+      noteError('anki.read', err)
+      setError(t('anki.unreadable'))
     } finally {
       setBusy(null)
     }
@@ -72,7 +74,8 @@ export function AnkiImport() {
       setResult(await importApkg(preview.bytes, rt.ws, blobStore(rt.store), { keepHistory }))
       setPreview(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err))
+      noteError('anki.import', err)
+      setError(t('sync.errGeneric'))
     } finally {
       setBusy(null)
     }

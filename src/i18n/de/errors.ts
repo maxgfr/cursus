@@ -15,4 +15,10 @@ export const errors = {
   conflict: 'Dieser Eintrag wurde auf einem anderen Gerät geändert.',
   corruptBackup: 'Dieses Backup ist beschädigt und kann nicht gelesen werden.',
   notFound: 'Nicht gefunden.',
+  storageFullNext: 'Gib auf diesem Gerät etwas Speicher frei und versuche es erneut. Es ging nichts verloren.',
+  networkNext: 'Prüfe deine Verbindung und versuche es erneut.',
+  invalidKeyNext: 'Prüfe den Schlüssel unter Einstellungen, KI.',
+  rateLimitedNext: 'Warte eine Minute und versuche es erneut.',
+  quotaExceededNext: 'Lade bei deinem KI-Anbieter Guthaben auf oder wähle unter Einstellungen, KI ein anderes Modell.',
+  genericNext: 'Versuche es erneut. Passiert es wieder, lade Cursus neu: deine bisherigen Antworten sind gespeichert.',
 } as const satisfies Shape<typeof en>

@@ -15,7 +15,6 @@
   --text-title: 1.25rem; /* 20 */
   --text-headline: 1.5rem; /* 24 */
   --text-large-title: 2.125rem; /* 34 */
-  --text-hero: 2.5rem; /* 40 */
   --leading-tight: 1.15;
   --leading-body: 1.45;
 
@@ -33,6 +32,8 @@
   --radius-surface: 12px;
   --radius-control: 10px;
   --radius-pill: 999px;
+  /* Small details inside text or charts (inline code, bar tops). */
+  --radius-small: 4px;
   --hairline-width: 1px;
 
   /* Layout. */
@@ -52,6 +53,8 @@
   --bg-sidebar: #e9edf2;
   --surface: #ffffff;
   --surface-pressed: #eef1f5;
+  /* Selected segment / raised chip inside a pressed track. */
+  --surface-raised: #ffffff;
   --ink: #101828;
   --ink-2: #475467;
   --ink-3: #5b6578;
@@ -74,7 +77,7 @@
   --selection: rgb(37 99 235 / 0.2);
 
   /* Course identity: eight hues. */
-  --course-blue: #2f6fed;
+  --course-blue: #4f46e5;
   --course-teal: #0f8f8a;
   --course-green: #2f9a4b;
   --course-amber: #c98a0b;
@@ -91,6 +94,7 @@
     --bg-sidebar: #101319;
     --surface: #171a21;
     --surface-pressed: #20242d;
+    --surface-raised: #353b47;
     --ink: #f2f4f7;
     --ink-2: #b9c0cd;
     --ink-3: #98a1b2;
@@ -111,7 +115,7 @@
     --lift: 0 1px 0 rgb(0 0 0 / 0.4);
     --scrim: rgb(0 0 0 / 0.55);
     --selection: rgb(122 162 255 / 0.32);
-    --course-blue: #6f9bff;
+    --course-blue: #6c70ff;
     --course-teal: #3cc2bb;
     --course-green: #5cc878;
     --course-amber: #f0b43c;
@@ -128,6 +132,7 @@
   --bg-sidebar: #101319;
   --surface: #171a21;
   --surface-pressed: #20242d;
+  --surface-raised: #353b47;
   --ink: #f2f4f7;
   --ink-2: #b9c0cd;
   --ink-3: #98a1b2;
@@ -148,7 +153,7 @@
   --lift: 0 1px 0 rgb(0 0 0 / 0.4);
   --scrim: rgb(0 0 0 / 0.55);
   --selection: rgb(122 162 255 / 0.32);
-  --course-blue: #6f9bff;
+  --course-blue: #6c70ff;
   --course-teal: #3cc2bb;
   --course-green: #5cc878;
   --course-amber: #f0b43c;

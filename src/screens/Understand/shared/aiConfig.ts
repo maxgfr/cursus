@@ -7,7 +7,6 @@ import { costOf } from '../../../core/ai/cost'
 import type { AiUsageEvent } from '../../../core/ai/usage'
 import type { ModelWorkspace } from '../../../core/model/workspace'
 import { type Secrets, secretsVault } from '../../../core/storage/secrets'
-import { intlTag } from '../../../i18n/index.ts'
 import { useLocale } from '../../../i18n/react.tsx'
 
 export type AiLanguage = 'auto' | 'en' | 'de' | 'fr'
@@ -135,7 +134,7 @@ export function useAiModel(): AiModelState {
       return {
         model,
         info,
-        language: languageName(config, courseLanguage, intlTag(locale)),
+        language: languageName(config, courseLanguage, locale === 'pseudo' ? 'en' : locale),
         signal,
         onUsage: (e) => recordUsage(ws, e),
       }

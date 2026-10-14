@@ -9,7 +9,7 @@
 
 .bar {
   display: grid;
-  grid-template-columns: 2.75rem 1fr 2.75rem;
+  grid-template-columns: minmax(2.75rem, 1fr) auto minmax(2.75rem, 1fr);
   align-items: center;
   justify-items: center;
   gap: var(--space-2);
@@ -18,6 +18,10 @@
 
 .barSpacer {
   width: 2.75rem;
+}
+
+.bar > :first-child {
+  justify-self: start;
 }
 
 .title {
@@ -57,10 +61,21 @@
 }
 
 .face {
-  display: grid;
+  display: flex;
+  align-items: flex-start;
   gap: var(--space-2);
   min-width: 0;
   overflow-wrap: anywhere;
+}
+
+/* The face's text; the speak button sits beside it, centred on the first line. */
+.faceText {
+  flex: 1 1 auto;
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  /* Centres the first line on the 2.75rem speak button. */
+  padding-top: calc((2.75rem - 1lh) / 2);
 }
 
 .face + .face {
@@ -68,40 +83,85 @@
   border-top: var(--hairline-width) solid var(--hairline);
 }
 
-.faceHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-  min-height: 2.75rem;
+/* A small sentence-case heading for the assist panels (never an uppercase tracked eyebrow). */
+.label {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+  font-weight: 600;
 }
 
-.label {
-  color: var(--ink-3);
-  font-size: var(--text-caption);
-  font-weight: 600;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+/* The back of the card: the hidden answer and the shown answer share one footprint. */
+.back,
+.reveal {
+  min-height: 7.5rem;
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-control);
+}
+
+.back {
+  display: grid;
+  align-content: center;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  background: var(--surface-pressed);
+}
+
+/* The answer and its speak button, aligned to the first line. */
+.backRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .back {
+    animation: turn var(--dur) var(--ease-out);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .back {
+    animation: fade var(--dur) linear;
+  }
+}
+
+@keyframes turn {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
 }
 
 .reveal {
   display: grid;
+  place-content: center;
   justify-items: center;
   gap: var(--space-1);
   width: 100%;
-  min-height: 6rem;
-  padding: var(--space-5) var(--space-4);
-  border: var(--hairline-width) dashed var(--hairline-strong);
-  border-radius: var(--radius-control);
-  background: transparent;
+  border: 0;
+  background: var(--accent-soft);
   color: var(--accent-ink);
   font: inherit;
   cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 
 .reveal:hover {
-  background: var(--surface-pressed);
+  background: color-mix(in srgb, var(--accent-soft) 80%, var(--accent) 8%);
+}
+
+.reveal:active {
+  transform: scale(0.99);
 }
 
 .reveal:focus-visible {
@@ -114,10 +174,8 @@
   font-weight: 600;
 }
 
-.revealHint {
-  color: var(--ink-3);
-  font-size: var(--text-footnote);
-  font-weight: 400;
+.grades:focus {
+  outline: none;
 }
 
 .grades {
@@ -363,4 +421,27 @@ fieldset.grades {
   margin: 0;
   padding: 0;
   border: 0;
+}
+
+/* No AI model yet: a quiet footnote link, well below "Show answer" in weight. */
+.setupLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding-inline: var(--space-2);
+  border-radius: var(--radius-control);
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+  text-decoration: underline;
+  text-decoration-color: var(--hairline-strong);
+  text-underline-offset: 0.2em;
+}
+
+.setupLink:hover {
+  color: var(--ink);
+}
+
+.setupLink:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }

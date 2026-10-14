@@ -1,5 +1,6 @@
 import { CalendarPlus, ChartColumn, FileUp, Share } from 'lucide-react'
 import { type ChangeEvent, useRef, useState } from 'react'
+import { Link } from 'wouter'
 import { paths, to } from '../../app/routes.ts'
 import { useWorkspace, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { Id } from '../../core/contracts/workspace'
@@ -8,7 +9,7 @@ import { dayStart } from '../../core/srs/fsrs'
 import { formatDate, formatDuration, formatPercent } from '../../i18n/format.ts'
 import { intlTag } from '../../i18n/index.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
-import { Button } from '../../ui/components/Button.tsx'
+import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { EmptyState } from '../../ui/components/EmptyState.tsx'
 import { ListGroup, ListRow } from '../../ui/components/List.tsx'
 import { Toast } from '../../ui/components/Toast.tsx'
@@ -77,7 +78,16 @@ export default function Stats() {
   if (total === 0 && courses.length === 0) {
     return (
       <Screen title={t('common.statsTitle')} back={paths.settings}>
-        <EmptyState icon={ChartColumn} title={t('common.statsEmpty')} />
+        <EmptyState
+          icon={ChartColumn}
+          title={t('common.statsEmptyTitle')}
+          body={t('common.statsEmpty')}
+          action={
+            <Link href={paths.today} className={buttonClass({ variant: 'primary' })}>
+              {t('common.statsEmptyAction')}
+            </Link>
+          }
+        />
       </Screen>
     )
   }
@@ -119,6 +129,7 @@ export default function Stats() {
             {stats.days.map((d) => (
               <span
                 key={d.day}
+                data-bar=""
                 className={d.reviews === 0 ? `${styles.bar} ${styles.barEmpty}` : styles.bar}
                 style={{ height: `${Math.round((d.reviews / peak) * 100)}%` }}
               />

@@ -100,14 +100,32 @@ test('Today: first-launch state, "+" action, due counts and the exam countdown',
   // One card makes one new card due today.
   await page.getByRole('button', { name: 'New card' }).click()
   await typeInto(page, 'Front', 'What does the sinoatrial node do?')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByText('Card saved.')).toBeVisible()
   await page.goto('./#/')
-  await expect(page.getByRole('heading', { name: 'Due today' })).toBeVisible()
+  // One sentence: the count and "due today" together, no eyebrow above it.
+  await expect(page.getByRole('heading', { level: 2, name: '1 card due today' })).toBeVisible()
+  await expect(page.getByText('Due today', { exact: true })).toHaveCount(0)
+  // The nearest exam leads the session and is named under the total.
+  await expect(page.getByTestId('exam-lead')).toHaveText('incl. 1 in Physiology · D-12')
+  // Nothing confirmed a copy yet: one calm line leads to a backup.
+  // It adds what the sync chip doesn't say: storage status is stated once.
+  await expect(page.getByTestId('backup-line')).toContainText('No backup yet')
+  await expect(page.getByTestId('backup-line')).not.toContainText(/this device/i)
+  await expect(page.getByRole('link', { name: 'Add a backup' })).toHaveAttribute('href', /settings\/sync/)
   await expect(page.getByText(/≈ \d+/)).toBeVisible()
   await expect(page.getByRole('button', { name: 'Start' })).toBeVisible()
   const row = page.getByRole('main').getByRole('link', { name: /Physiology/ })
   await expect(row).toContainText('D-12')
   await expect(row).toContainText('Exam in 12 days')
-  await expect(row).toContainText('1 due')
+  // The meta keeps the card count alone; the due count trails the row as in the sidebar, spelled out
+  // for screen readers.
+  await expect(row.getByText('1 card', { exact: true })).toBeVisible()
+  await expect(row.getByTestId('course-due')).toHaveText('11 due today')
+  await expect(row.getByTestId('course-due').locator('[aria-hidden="true"]')).toHaveText('1')
+  expect(await row.getByTestId('course-due').evaluate((el) => getComputedStyle(el).fontVariantNumeric)).toContain(
+    'tabular-nums',
+  )
   expect(await seriousViolations(page)).toEqual([])
   expect(errors).toEqual([])
 })
@@ -226,7 +244,9 @@ test('Card editor: the cloze assistant hides phrases and previews one card each'
   await expect(page.getByText('This phrase isn’t in the text.')).toBeVisible()
   expect(await seriousViolations(page)).toEqual([])
 
-  await page.getByRole('link', { name: 'Back' }).click()
+  // The editor works on a draft: Save creates the card and goes back to the course.
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByText('Card saved.')).toBeVisible()
   await expect(page.getByRole('main').getByRole('link', { name: /The \{\{c1::nucleus/ })).toBeVisible()
   expect(errors).toEqual([])
 })
@@ -237,6 +257,13 @@ test('Trash: restore, then delete forever with the history caveat explained', as
   await createCourse(page, 'Law')
   await page.getByRole('button', { name: 'New card' }).click()
   await typeInto(page, 'Front', 'Consideration')
+  // A new card exists only once saved; then, opened again, it can go to the trash.
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByText('Card saved.')).toBeVisible()
+  await page
+    .getByRole('main')
+    .getByRole('link', { name: /Consideration/ })
+    .click()
   await page.getByRole('button', { name: 'Move to trash' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Law' })).toBeVisible()
   await expect(page.getByRole('heading', { name: /No cards yet/ })).toBeVisible()
@@ -244,7 +271,9 @@ test('Trash: restore, then delete forever with the history caveat explained', as
   await page.goto('./#/trash')
   await expect(page.getByText(/your sync history still keeps a copy/)).toBeVisible()
   await page.getByRole('button', { name: 'Restore Consideration' }).click()
-  await expect(page.getByRole('heading', { name: /The trash is empty/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'The trash is empty' })).toBeVisible()
+  // The empty state teaches with one sentence under its title.
+  await expect(page.getByText('Deleted courses, sources and cards wait here until you restore them.')).toBeVisible()
   await page.goto('./#/')
   await page.getByRole('main').getByRole('link', { name: /Law/ }).click()
   await expect(page.getByRole('main').getByRole('link', { name: /Consideration/ })).toBeVisible()
@@ -266,7 +295,9 @@ test('Trash: restore, then delete forever with the history caveat explained', as
   await expect(confirm).toContainText('never rewrites your sync history')
   expect(await dialogViolations(page)).toEqual([])
   await confirm.getByRole('button', { name: 'Delete forever' }).click()
-  await expect(page.getByRole('heading', { name: /The trash is empty/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'The trash is empty' })).toBeVisible()
+  // The empty state teaches with one sentence under its title.
+  await expect(page.getByText('Deleted courses, sources and cards wait here until you restore them.')).toBeVisible()
   await page.goto('./#/courses')
   await expect(page.getByRole('main').getByRole('link', { name: /Law/ })).toHaveCount(0)
   expect(errors).toEqual([])
@@ -339,7 +370,7 @@ test('Onboarding: install first, Safari tab warning, storage health and an expli
   await expect(page.getByRole('heading', { level: 1, name: 'Demo: Cell biology' })).toBeVisible()
   await expect(page.getByRole('main').getByRole('link')).toHaveCount(4) // back link + 3 cards
   await page.goto('./#/')
-  await expect(page.getByRole('heading', { name: 'Due today' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /due today$/ })).toBeVisible()
   await expect(page.getByRole('main').getByRole('link', { name: /Demo: Cell biology/ })).toContainText('3 due')
   expect(errors).toEqual([])
 })

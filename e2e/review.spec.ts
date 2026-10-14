@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, join, resolve } from 'node:path'
 import { expect, type Page, type Route, test } from '@playwright/test'
+import { seriousViolations } from './support/page.ts'
 
 // Review needs cards with a history. Instead of a test path in the app, a throwaway harness
 // (bundled like p2p.spec.ts) opens the same local log on the app's origin and writes through
@@ -49,7 +50,7 @@ async function seed(spec) {
     await vault.set('ai-key-ai21', 'test-key')
   }
   // The iOS install hint was already dismissed on this device.
-  await store.commit([{ put: 'kv', key: 'pwa:install-hint-dismissed', value: true }])
+  await store.commit([{ put: 'kv', key: 'pwa:install-hint-dismissed', value: Date.now() }])
   store.close()
 }
 window.harness = { seed }
@@ -216,34 +217,60 @@ test('focus mode: reveal, grade with predicted intervals, undo, then settle into
     ],
   })
   await openReview(page)
-  await expect(page.getByRole('progressbar', { name: '0 of 3' })).toBeVisible()
+  // One progress readout: "3 left", announced politely; no ring, no "0/3".
+  await expect(page.getByTestId('remaining')).toHaveText('3 left')
+  await expect(page.getByTestId('remaining')).toHaveAttribute('role', 'status')
+  await expect(page.getByRole('progressbar')).toHaveCount(0)
+  await expect(page.getByText('0/3', { exact: true })).toHaveCount(0)
+  // No uppercase eyebrows over the faces: the regions are named for assistive tech instead.
+  await expect(page.getByRole('heading', { name: 'Question' })).toHaveCount(0)
+  await expect(page.getByRole('region', { name: 'Question' })).toBeVisible()
   const first = page.getByText(/\?$/).first()
   const question = await first.textContent()
   await expect(page.getByRole('button', { name: /Again/ })).toHaveCount(0)
 
+  // The hidden answer is the card's back face: a filled surface, not a dashed drop zone.
+  const showAnswer = page.getByRole('button', { name: /Show answer/ })
+  expect(await showAnswer.evaluate((el) => getComputedStyle(el).borderStyle)).not.toContain('dashed')
+  const before = await showAnswer.boundingBox()
   await reveal(page, phone)
+  // Measured once the turn has settled.
+  await page.getByTestId('answer').evaluate((el) => {
+    for (const a of el.getAnimations()) a.finish()
+  })
+  const after = await page.getByTestId('answer').boundingBox()
+  // The answer turns up in the same footprint.
+  expect(Math.abs((after?.x ?? 0) - (before?.x ?? 1))).toBeLessThan(2)
+  expect(Math.abs((after?.width ?? 0) - (before?.width ?? 1))).toBeLessThan(2)
+  expect(Math.abs((after?.y ?? 0) - (before?.y ?? 1))).toBeLessThan(2)
   // Each grade carries the interval it would schedule; new cards: minutes for Again, days for Easy.
   await expect(page.getByRole('button', { name: /^Again, next review in .*min/ })).toBeVisible()
   await expect(page.getByRole('button', { name: /^Easy, next review in .*day/ })).toBeVisible()
   if (phone) await page.getByRole('button', { name: /^Good, next review in/ }).tap()
-  else await page.keyboard.press('3')
-  await expect(page.getByRole('progressbar', { name: '1 of 3' })).toBeVisible()
+  else {
+    // Focus lands on the grades group, not on Again; Space a second time gives Good.
+    await expect(page.getByTestId('grades')).toBeFocused()
+    await expect(page.getByRole('button', { name: /^Again, next review in/ })).not.toBeFocused()
+    await page.keyboard.press('Space')
+  }
+  await expect(page.getByTestId('remaining')).toHaveText('2 left')
   await expect(page.getByText(question ?? '', { exact: true })).toHaveCount(0)
 
   // Undo brings the same card back, revealed, and voids the review.
   if (phone) await page.getByRole('button', { name: 'Undo last answer' }).tap()
   else await page.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z')
   await expect(page.getByText('Answer undone')).toBeVisible()
-  await expect(page.getByRole('progressbar', { name: '0 of 3' })).toBeVisible()
+  await expect(page.getByTestId('remaining')).toHaveText('3 left')
   await expect(page.getByText(question ?? '', { exact: true })).toBeVisible()
   await expect(page.getByTestId('answer')).toBeVisible()
 
   for (let i = 0; i < 3; i++) {
     if (i > 0) {
-      await expect(page.getByRole('progressbar', { name: `${i} of 3` })).toBeVisible()
+      await expect(page.getByTestId('remaining')).toHaveText(`${3 - i} left`)
       await reveal(page, phone)
     }
-    await page.getByRole('button', { name: /^Good, next review in/ }).click()
+    // Easy graduates a new card; Good would bring it back in 10 minutes.
+    await page.getByRole('button', { name: /^Easy, next review in/ }).click()
   }
   await expect(page.getByRole('heading', { name: 'Session complete' })).toBeVisible()
   await expect(page.getByText('You reviewed 3 cards.')).toBeVisible()
@@ -258,11 +285,45 @@ test('focus mode: reveal, grade with predicted intervals, undo, then settle into
   expect(errors).toEqual([])
 })
 
-test('without AI, "Answer in your own words" leads to the AI settings', async ({ page }) => {
+test('without AI, the focus view offers no "own words" link (setup lives in Understand and Settings)', async ({
+  page,
+}, info) => {
+  const phone = isPhone(info.project.name)
   await seed(page, { course: 'Geography', cards: [{ front: 'Longest river?', back: 'The Nile' }] })
   await openReview(page)
-  await page.getByRole('link', { name: 'Set up AI to check answers in your own words' }).click()
-  await expect(page).toHaveURL(/#\/settings\/ai$/)
+  await expect(page.getByRole('button', { name: /Show answer/ })).toBeVisible()
+  await expect(page.getByRole('link', { name: /Set up AI/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Answer in your own words' })).toHaveCount(0)
+  // One keycap style: Show answer's hint and the grades' keys share the same class.
+  const revealCap = await page
+    .getByRole('button', { name: /Show answer/ })
+    .locator('kbd')
+    .evaluate((k) => k.parentElement?.className ?? '')
+  // The grades show their keys where a keyboard is likely, as Start and Show answer do.
+  await reveal(page, phone)
+  const gradeCap = await page
+    .getByTestId('grades')
+    .locator('kbd')
+    .first()
+    .evaluate((k) => k.parentElement?.className ?? '')
+  expect(gradeCap.split(' ')[0]).toBe(revealCap.split(' ')[0])
+  const keycap = page.getByTestId('grades').locator('kbd')
+  const keyboard = await page.evaluate(() => matchMedia('(hover: hover) and (pointer: fine)').matches)
+  if (keyboard) {
+    await expect(keycap).toHaveText(['1', '2', '3', '4'])
+    // Inline after the label, on its line, not a badge in the corner.
+    const easy = page.getByRole('button', { name: /^Easy, next review in/ })
+    const name = await easy.getByText('Easy').boundingBox()
+    const key = await easy.locator('kbd').boundingBox()
+    if (!name || !key) throw new Error('missing box')
+    expect(key.x).toBeGreaterThan(name.x + name.width / 2)
+    expect(Math.abs(key.y + key.height / 2 - (name.y + name.height / 2))).toBeLessThan(6)
+  } else await expect(keycap.first()).toBeHidden()
+  // A one-line answer sits in the middle of the shared footprint, not pinned above an empty band.
+  const box = await page.getByTestId('answer').boundingBox()
+  const text = await page.getByTestId('answer').getByText('The Nile').boundingBox()
+  if (!box || !text) throw new Error('missing box')
+  expect(Math.abs(text.y + text.height / 2 - (box.y + box.height / 2))).toBeLessThan(8)
 })
 
 test('own words: the AI suggests a grade to confirm; Why? explains and makes a card', async ({ page }, info) => {
@@ -289,7 +350,8 @@ test('own words: the AI suggests a grade to confirm; Why? explains and makes a c
   await expect(page.getByText(/Spot on/)).toBeVisible()
   const easy = page.getByRole('button', { name: /^Easy, next review in/ })
   await expect(easy).toHaveAttribute('data-suggested', 'true')
-  if (!phone) await expect(easy).toBeFocused()
+  // Suggested, not preselected: focus is on the grades group.
+  if (!phone) await expect(page.getByTestId('grades')).toBeFocused()
 
   await page.getByRole('button', { name: 'Why?' }).click()
   await expect(page.getByText('Mitochondria turn nutrients into ATP.')).toBeVisible()
@@ -299,7 +361,7 @@ test('own words: the AI suggests a grade to confirm; Why? explains and makes a c
   await expect(page.getByRole('button', { name: 'Create a card on this point' })).toBeDisabled()
 
   await easy.click()
-  await expect(page.getByRole('progressbar', { name: '1 of 2' })).toBeVisible()
+  await expect(page.getByTestId('remaining')).toHaveText('1 left')
   await expect(page.getByText(front ?? '', { exact: true })).toHaveCount(0)
   expect(features).toEqual(['gradeAnswer', 'explainCard'])
   expect(errors).toEqual([])
@@ -357,6 +419,88 @@ test('read aloud uses the course language', async ({ page }) => {
   await page.getByRole('button', { name: 'Read the question aloud' }).click()
   const spoken = await page.evaluate(() => (window as unknown as { spoken: { text: string; lang: string }[] }).spoken)
   expect(spoken).toEqual([{ text: 'Powerhouse of the cell?', lang: 'en' }])
+})
+
+test('a card graded Again comes back in the same session; until then the session waits', async ({ page }, info) => {
+  const phone = isPhone(info.project.name)
+  const errors = watchErrors(page)
+  await page.clock.install()
+  await seed(page, { course: 'Biology', cards: [{ front: 'Powerhouse of the cell?', back: 'The mitochondrion' }] })
+  await openReview(page)
+  // The one progress readout is visible from the start.
+  await expect(page.getByTestId('remaining')).toHaveText('1 left')
+  // The card's back face, hidden and shown, passes axe in both themes.
+  for (const colorScheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme })
+    expect(await seriousViolations(page)).toEqual([])
+  }
+  await reveal(page, phone)
+  for (const colorScheme of ['dark', 'light'] as const) {
+    await page.emulateMedia({ colorScheme })
+    expect(await seriousViolations(page)).toEqual([])
+  }
+  await page.getByRole('button', { name: /^Again, next review in/ }).click()
+  // Not "All caught up": the card is back in a minute, with a live countdown.
+  await expect(page.getByRole('heading', { name: /^1 card back in 1 min/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'All caught up' })).toHaveCount(0)
+  await expect(page.getByText(/^Next card in 0:\d\d$/)).toBeVisible()
+  await page.clock.fastForward('01:05')
+  await expect(page.getByText('Powerhouse of the cell?', { exact: true })).toBeVisible()
+  await expect(page.getByTestId('remaining')).toHaveText('1 left')
+  await reveal(page, phone)
+  await expect(page.getByRole('button', { name: /^Easy, next review in/ })).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test('the summary counts cards, not answers: Again then Easy on one card is one card', async ({ page }, info) => {
+  const phone = isPhone(info.project.name)
+  const errors = watchErrors(page)
+  await page.clock.install()
+  await seed(page, { course: 'Biology', cards: [{ front: 'Powerhouse of the cell?', back: 'The mitochondrion' }] })
+  await openReview(page)
+  await reveal(page, phone)
+  await page.getByRole('button', { name: /^Again, next review in/ }).click()
+  await page.clock.fastForward('01:05')
+  await expect(page.getByText('Powerhouse of the cell?', { exact: true })).toBeVisible()
+  await reveal(page, phone)
+  await page.getByRole('button', { name: /^Easy, next review in/ }).click()
+  await expect(page.getByRole('heading', { name: 'Session complete' })).toBeVisible()
+  await expect(page.getByText('You reviewed 1 card.')).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test('undoing the Again that brought a card back removes its return from the queue', async ({ page }, info) => {
+  const phone = isPhone(info.project.name)
+  const errors = watchErrors(page)
+  await page.clock.install()
+  await seed(page, { course: 'Biology', cards: [{ front: 'Powerhouse of the cell?', back: 'The mitochondrion' }] })
+  await openReview(page)
+  await reveal(page, phone)
+  await page.getByRole('button', { name: /^Again, next review in/ }).click()
+  await page.clock.fastForward('01:05')
+  await expect(page.getByText('Powerhouse of the cell?', { exact: true })).toBeVisible()
+  // Undo the Again: the card is back as it was before, once.
+  if (phone) await page.getByRole('button', { name: 'Undo last answer' }).tap()
+  else await page.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z')
+  await expect(page.getByTestId('answer')).toBeVisible()
+  await expect(page.getByTestId('remaining')).toHaveText('1 left')
+  await page.getByRole('button', { name: /^Easy, next review in/ }).click()
+  // Not shown a second time: the session is complete with one answer.
+  await expect(page.getByRole('heading', { name: 'Session complete' })).toBeVisible()
+  await expect(page.getByText('You reviewed 1 card.')).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test('Esc leaves the review for where it was opened from', async ({ page }, info) => {
+  test.skip(isPhone(info.project.name), 'no hardware keyboard on the phone')
+  await seed(page, { course: 'Biology', cards: [{ front: 'Powerhouse of the cell?', back: 'The mitochondrion' }] })
+  await page.goto('./#/')
+  await expect(page.getByRole('heading', { name: '1 card due today' })).toBeVisible()
+  // S starts from Today.
+  await page.keyboard.press('s')
+  await expect(page.getByRole('heading', { level: 1, name: 'Review' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible()
 })
 
 test('with nothing due, the view is already caught up', async ({ page }) => {

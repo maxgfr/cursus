@@ -133,6 +133,20 @@ test('Stats: forecast, exam plan, share a course and calendar export', async ({ 
   await expect(page.getByRole('status').filter({ hasText: '3 cards imported' })).toBeVisible()
 
   await expect(page.getByRole('heading', { name: 'Next 7 days' })).toBeVisible()
+  // One voice: the activity bars are neutral ink, never the accent.
+  const barColours = await page.evaluate(() => {
+    const accent = document.createElement('span')
+    accent.style.color = 'var(--accent)'
+    document.body.append(accent)
+    const a = getComputedStyle(accent).color
+    accent.remove()
+    return {
+      accent: a,
+      bars: [...document.querySelectorAll('[data-bar]')].map((b) => getComputedStyle(b).backgroundColor),
+    }
+  })
+  expect(barColours.bars.length).toBeGreaterThan(0)
+  expect(barColours.bars).not.toContain(barColours.accent)
   await expect(page.getByText(/^D-1[12]: 1 card\/day$/)).toBeVisible()
   await expect(page.getByTestId('retention')).toHaveText('—')
   // No streaks anywhere.

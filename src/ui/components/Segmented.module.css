@@ -51,7 +51,7 @@
 }
 
 .input:checked + .label {
-  background: var(--surface);
+  background: var(--surface-raised);
   color: var(--ink);
   box-shadow: var(--lift);
 }

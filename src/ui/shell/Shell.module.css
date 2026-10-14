@@ -69,7 +69,7 @@
   min-height: var(--tabbar-height);
   padding: var(--space-1) var(--space-1);
   color: var(--ink-3);
-  font-size: 0.6875rem;
+  font-size: var(--text-caption);
   font-weight: 600;
   line-height: 1.15;
   text-align: center;
@@ -77,7 +77,7 @@
   hyphens: auto;
 }
 
-.tab[aria-current="page"] {
+.tab[aria-current] {
   color: var(--accent-ink);
 }
 
@@ -89,14 +89,10 @@
   display: none;
 }
 
-/* The app name stays in the accessibility tree on phones; the sidebar shows it. */
-.brandRow {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
+/* Phones: the tab bar carries no brand or search row (Search lives in Settings and ⌘K). */
+.brand,
+.footer {
+  display: none;
 }
 
 /* iPad landscape and Mac: sidebar. */
@@ -131,13 +127,52 @@
     -webkit-backdrop-filter: none;
   }
 
-  .brandRow {
-    position: static;
-    width: auto;
-    height: auto;
-    overflow: visible;
-    clip: auto;
+  .brand {
+    display: block;
     padding-inline: var(--space-3);
+  }
+
+  /* Quiet footer: Search, with its keyboard shortcut. */
+  .footer {
+    display: block;
+    margin-top: auto;
+  }
+
+  .search {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 2.5rem;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-control);
+    background: color-mix(in srgb, var(--ink) 5%, transparent);
+    color: var(--ink-2);
+    font-size: var(--text-footnote);
+    text-decoration: none;
+    transition: background-color var(--dur-fast) var(--ease-out);
+  }
+
+  .search:hover {
+    background: color-mix(in srgb, var(--ink) 9%, transparent);
+  }
+
+  .search[aria-current="page"] {
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+  }
+
+  .search:focus-visible {
+    outline-offset: -2px;
+  }
+
+  .searchLabel {
+    flex: 1;
+  }
+
+  .kbd {
+    color: var(--ink-3);
+    font-family: var(--font-sans);
+    font-size: var(--text-caption);
   }
 
   .tabs {
@@ -162,6 +197,11 @@
     transition: background-color var(--dur-fast) var(--ease-out);
   }
 
+  /* The section of a more specific current row keeps the plain look. */
+  .tab[aria-current="true"] {
+    color: var(--ink);
+  }
+
   .tab:hover,
   .courseLink:hover {
     background: color-mix(in srgb, var(--ink) 6%, transparent);
@@ -180,6 +220,10 @@
   }
 
   .tabIcon {
+    color: var(--ink-2);
+  }
+
+  [aria-current="page"] > .tabIcon {
     color: var(--accent-ink);
   }
 

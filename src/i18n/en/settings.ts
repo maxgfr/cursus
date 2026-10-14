@@ -80,4 +80,8 @@ export const settings = {
   diagCopy: 'Copy report',
   diagCopied: 'Copied',
   diagReport: 'Diagnostic report',
+  groupSafe: 'Keep your library safe',
+  groupPrefs: 'Preferences',
+  groupData: 'Your data',
+  groupHelp: 'Help',
 } as const

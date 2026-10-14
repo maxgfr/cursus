@@ -32,7 +32,8 @@ export const sync = {
   syncNow: 'Jetzt synchronisieren',
   connected: '{name} ist verbunden.',
   summaryTitle: 'Schutz',
-  summaryNone: 'Deine Bibliothek liegt nur auf diesem Gerät, bis du ein Ziel hinzufügst.',
+  summaryNone:
+    'Deine Bibliothek liegt nur auf diesem Gerät. Füge ein Ziel hinzu: Jede Änderung wird dorthin kopiert, und ein verlorenes Gerät kostet dich nichts.',
   summaryProtected: {
     one: 'Jede Änderung auf diesem Gerät ist auf {count} Ziel bestätigt.',
     other: 'Jede Änderung auf diesem Gerät ist auf {count} Zielen bestätigt.',
@@ -40,7 +41,8 @@ export const sync = {
   summaryPending: 'Einige Änderungen sind noch auf keinem Ziel bestätigt.',
   summaryOffline:
     'Du bist offline. Änderungen warten auf diesem Gerät und werden gesendet, sobald du wieder online bist.',
-  engineError: 'Die Synchronisierung konnte nicht starten: {error}',
+  engineError:
+    'Die Synchronisierung konnte auf diesem Gerät nicht starten. Lade die Seite neu; passiert es wieder, enthält Einstellungen › Diagnose die Details.',
   alarmTitle: 'Einige Änderungen haben nirgendwo sonst eine Kopie',
   alarmBody:
     'Seit mehr als einem Tag ist eine Änderung auf diesem Gerät auf keinem Ziel bestätigt. Öffne ein Ziel, um den Grund zu sehen.',
@@ -177,7 +179,8 @@ export const sync = {
   errUnavailable: 'Dieses Ziel lässt sich auf diesem Gerät nicht öffnen.',
   errNoState: 'Der Anmeldelink des Anbieters ist unvollständig. Verbinde dich erneut.',
   errNoFolders: 'Ordner sind in diesem Browser nicht verfügbar.',
-  oauthFailed: 'Die Verbindung konnte nicht abgeschlossen werden: {error}',
+  oauthFailed:
+    'Die Verbindung konnte nicht abgeschlossen werden. Verbinde dich erneut; klappt es wieder nicht, enthält Einstellungen › Diagnose die Details.',
   backupPartial: {
     one: 'Sicherung gespeichert, ohne {count} Datei, die dieses Gerät noch nicht erhalten hat (ein PDF oder Bild von einem anderen Gerät). Synchronisiere und exportiere erneut für eine vollständige Sicherung.',
     other:
@@ -189,4 +192,19 @@ export const sync = {
   },
   launchDeclined: 'Sicherung nicht geöffnet: Sie gehört zu einer anderen Bibliothek.',
   launchFailed: 'Diese Sicherungsdatei konnte nicht geöffnet werden: {error}',
+  errGeneric:
+    'Das hat nicht geklappt. Versuch es noch einmal; klappt es wieder nicht, enthält Einstellungen › Diagnose die Details.',
+  recommended: 'Empfohlen',
+  advanced: 'Erweitert',
+  icloudSub:
+    'Ein Ordner in deinem iCloud Drive. Automatisch auf dem Mac mit Chrome oder Edge; nicht auf iPad oder iPhone.',
+  icloudSubOff:
+    'Ein Ordner in deinem iCloud Drive. Braucht Chrome oder Edge auf dem Mac; dieser Browser kann ihn nicht synchronisieren.',
+  gdriveSub: 'Dein Google-Konto. Automatisch auf jedem Gerät, auch auf iPad und iPhone.',
+  dropboxSub: 'Dein Dropbox-Konto. Automatisch auf jedem Gerät, auch auf iPad und iPhone.',
+  s3Sub: 'Dein eigener Speicher-Bucket (Amazon S3, Cloudflare R2 …). Für technisch Versierte.',
+  cloudkitSub: 'Apples Cloud-Datenbank mit deinem eigenen Entwickler-Container. Für Entwickler.',
+  folderSub: 'Ein Ordner auf diesem Computer, synchron, solange Cursus offen ist.',
+  fileSub: 'Eine .cursus-Datei, die du selbst speicherst und aufbewahrst. Nicht automatisch.',
+  nearbySub: 'Gibt deine Ziele an ein Gerät in deiner Nähe weiter.',
 } as const satisfies Shape<typeof en>

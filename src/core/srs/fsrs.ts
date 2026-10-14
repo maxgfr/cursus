@@ -82,6 +82,17 @@ export function compareReviews(a: { at: number; id: Id }, b: { at: number; id: I
  * backwards (negative elapsed time becomes 0).
  */
 export function effectiveReviews(events: readonly Review[]): GradedReview[] {
+  // Fast path: the log is usually already in replay order with no voids and no clock skew.
+  let ordered = true
+  for (let i = 0; i < events.length; i++) {
+    const e = events[i] as Review
+    const prev = events[i - 1]
+    if (!isGraded(e) || (prev !== undefined && compareReviews(prev as GradedReview, e) >= 0)) {
+      ordered = false
+      break
+    }
+  }
+  if (ordered) return events.slice() as GradedReview[]
   const voided = new Set<Id>()
   for (const e of events) if (!isGraded(e)) voided.add(e.voids)
   const graded = events.filter(isGraded).filter((r) => !voided.has(r.id))
@@ -160,10 +171,53 @@ export interface Scheduler {
   replayAll(events: readonly Review[]): Map<Id, CardState>
   /** Next due time for each rating if the card were reviewed at `now`. */
   previewIntervals(state: CardState, now: number): Record<Rating, number>
+  /** Every cached replay in a compact form a device can keep between launches. */
+  snapshot(): ReplaySnapshot
+  /**
+   * Seeds the cache from a snapshot taken earlier (ignored when the parameters differ). An entry is used
+   * only when its fingerprint matches the card's current reviews, so results never change.
+   */
+  restore(snapshot: ReplaySnapshot): void
+  /** Counts replays computed by the engine (not served from the cache): a changed count means a new snapshot. */
+  readonly replays: number
 }
+
+/** Cached replays, columnar: NUMS numbers per card, plus the phase before each review as one letter. */
+export interface ReplaySnapshot {
+  v: 1
+  params: string
+  ids: Id[]
+  lastIds: Id[]
+  phases: string[]
+  nums: Float64Array
+}
+
+const NUMS = 13
+const PHASE_CODE: Record<Phase, string> = { new: 'n', learning: 'l', review: 'r', relearning: 'x' }
+const CODE_PHASE: Record<string, Phase> = { n: 'new', l: 'learning', r: 'review', x: 'relearning' }
+
+/** Cached replay of one card: enough to recognise the same history, or the same history with reviews appended. */
+interface Replayed {
+  count: number
+  lastId: Id
+  lastAt: number
+  /** Numeric fingerprint of every (at, rating) in order. */
+  hash: number
+  card: FsrsCard & { cardId: Id }
+  state: CardState
+}
+
+const HASH_MOD = 4_294_967_291
+const step = (h: number, r: GradedReview): number => (h * 31 + (r.at % 1_000_000_007) * 4 + r.rating) % HASH_MOD
+
+/** One scheduler (engine and replay cache) per parameter set, shared by every screen. */
+const schedulers = new Map<string, Scheduler>()
 
 export function createScheduler(params: Partial<SrsParams> = {}): Scheduler {
   const p: SrsParams = { ...DEFAULT_PARAMS, ...params }
+  const id = JSON.stringify([p.desiredRetention, p.learningSteps, p.relearningSteps, p.maximumInterval, p.enableFuzz])
+  const existing = schedulers.get(id)
+  if (existing) return existing
   const engine: FSRS = fsrs({
     request_retention: p.desiredRetention,
     maximum_interval: p.maximumInterval,
@@ -172,32 +226,135 @@ export function createScheduler(params: Partial<SrsParams> = {}): Scheduler {
     learning_steps: p.learningSteps,
     relearning_steps: p.relearningSteps,
   }).useStrategy(StrategyMode.SEED, GenSeedStrategyWithCardId('cardId'))
-  const cache = new Map<string, CardState>()
+  const cache = new Map<Id, Replayed>()
+  let replays = 0
+  let seed: { snap: ReplaySnapshot; at: Map<Id, number> } | null = null
+
+  /** Rebuilds a cached replay from the snapshot row of `cardId`, given the reviews it covered. */
+  const fromSeed = (cardId: Id, reviews: readonly GradedReview[]): Replayed | undefined => {
+    const row = seed?.at.get(cardId)
+    if (seed === null || row === undefined) return undefined
+    const { nums, lastIds, phases } = seed.snap
+    const o = row * NUMS
+    const count = nums[o] as number
+    const codes = phases[row] as string
+    if (count > reviews.length || codes.length !== count) return undefined
+    const lastReview = nums[o + 12] as number
+    const card: FsrsCard & { cardId: Id } = {
+      cardId,
+      due: new Date(nums[o + 3] as number),
+      stability: nums[o + 4] as number,
+      difficulty: nums[o + 5] as number,
+      elapsed_days: nums[o + 6] as number,
+      scheduled_days: nums[o + 7] as number,
+      learning_steps: nums[o + 8] as number,
+      reps: nums[o + 9] as number,
+      lapses: nums[o + 10] as number,
+      state: nums[o + 11] as State,
+      ...(lastReview >= 0 ? { last_review: new Date(lastReview) } : {}),
+    }
+    const history: ReplayStep[] = []
+    for (let i = 0; i < count; i++) {
+      const r = reviews[i] as GradedReview
+      history.push({ reviewId: r.id, at: r.at, rating: r.rating, phaseBefore: CODE_PHASE[codes[i] as string] as Phase })
+    }
+    const lastId = lastIds[row] as Id
+    return {
+      count,
+      lastId,
+      lastAt: nums[o + 1] as number,
+      hash: nums[o + 2] as number,
+      card,
+      state: toState(cardId, card, history),
+    }
+  }
 
   const replaySorted = (cardId: Id, reviews: readonly GradedReview[]): CardState => {
     if (reviews.length === 0) return newCardState(cardId)
-    // Keyed by (cardId, count) plus a fingerprint of the exact reviews, so a
-    // merge that swaps an earlier review never returns a stale state.
-    const key = `${cardId}\u0000${reviews.length}\u0000${reviews.map((r) => `${r.id}:${r.at}:${r.rating}`).join(',')}`
-    const hit = cache.get(key)
-    if (hit) return hit
+    // Fingerprint (count, last review, hash of every time and rating): a merge that swaps or
+    // inserts an earlier review never returns a stale state, and appended reviews resume
+    // from the cached card instead of replaying from the start.
+    const hit = cache.get(cardId) ?? fromSeed(cardId, reviews)
+    let hash = 0
+    let from = 0
+    let card: FsrsCard & { cardId: Id } = newCardFsrs(cardId, reviews[0] as GradedReview)
+    let steps: ReplayStep[] = []
+    if (hit && hit.count <= reviews.length) {
+      for (let i = 0; i < hit.count; i++) hash = step(hash, reviews[i] as GradedReview)
+      const at = reviews[hit.count - 1] as GradedReview
+      if (hash === hit.hash && at.id === hit.lastId && at.at === hit.lastAt) {
+        if (hit.count === reviews.length) {
+          cache.set(cardId, hit)
+          return hit.state
+        }
+        from = hit.count
+        card = hit.card
+        steps = hit.state.history.slice()
+      } else hash = 0
+    }
     // Step-by-step with a card carrying `cardId`, so the fuzz seed is per card
     // and identical to the one previewIntervals uses.
-    let card: FsrsCard & { cardId: Id } = newCardFsrs(cardId, reviews[0] as GradedReview)
-    const steps: ReplayStep[] = []
-    for (const r of reviews) {
+    for (let i = from; i < reviews.length; i++) {
+      const r = reviews[i] as GradedReview
+      hash = step(hash, r)
       const item: RecordLogItem = engine.next(card, new Date(r.at), r.rating as Grade)
       steps.push({ reviewId: r.id, at: r.at, rating: r.rating, phaseBefore: PHASES[item.log.state] })
-      card = { ...item.card, cardId }
+      const next = item.card as FsrsCard & { cardId: Id }
+      next.cardId = cardId
+      card = next
     }
-    const final = card
-    const state = toState(cardId, final, steps)
-    cache.set(key, state)
+    const last = reviews[reviews.length - 1] as GradedReview
+    replays++
+    const state = toState(cardId, card, steps)
+    cache.set(cardId, { count: reviews.length, lastId: last.id, lastAt: last.at, hash, card, state })
     return state
   }
 
-  return {
+  const snapshot = (): ReplaySnapshot => {
+    const ids: Id[] = []
+    const lastIds: Id[] = []
+    const phases: string[] = []
+    const nums = new Float64Array(cache.size * NUMS)
+    for (const [cardId, e] of cache) {
+      const o = ids.length * NUMS
+      ids.push(cardId)
+      lastIds.push(e.lastId)
+      let codes = ''
+      for (const h of e.state.history) codes += PHASE_CODE[h.phaseBefore]
+      phases.push(codes)
+      const c = e.card
+      nums.set(
+        [
+          e.count,
+          e.lastAt,
+          e.hash,
+          c.due.getTime(),
+          c.stability,
+          c.difficulty,
+          c.elapsed_days,
+          c.scheduled_days,
+          c.learning_steps,
+          c.reps,
+          c.lapses,
+          c.state,
+          c.last_review ? c.last_review.getTime() : -1,
+        ],
+        o,
+      )
+    }
+    return { v: 1, params: id, ids, lastIds, phases, nums }
+  }
+  const restore = (snap: ReplaySnapshot): void => {
+    if (snap.v !== 1 || snap.params !== id) return
+    seed = { snap, at: new Map(snap.ids.map((cardId, i) => [cardId, i])) }
+  }
+  const scheduler: Scheduler = {
     params: p,
+    snapshot,
+    restore,
+    get replays() {
+      return replays
+    },
     replay(cardId, events) {
       return replaySorted(
         cardId,
@@ -219,6 +376,8 @@ export function createScheduler(params: Partial<SrsParams> = {}): Scheduler {
       }
     },
   }
+  schedulers.set(id, scheduler)
+  return scheduler
 }
 
 function newCardFsrs(cardId: Id, first: GradedReview): FsrsCard & { cardId: Id } {

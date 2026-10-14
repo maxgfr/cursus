@@ -1,4 +1,4 @@
-import { BookOpen, CalendarCheck, Lightbulb, type LucideIcon, Settings } from 'lucide-react'
+import { BookOpen, CalendarCheck, Lightbulb, type LucideIcon, Search, Settings } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, useLocation } from 'wouter'
 import { paths, to } from '../../app/routes.ts'
@@ -46,11 +46,18 @@ export interface ShellProps {
   courses: readonly ShellCourse[]
 }
 
+/** Mac and iPad keyboards show ⌘; everything else Ctrl. */
+function isApple(): boolean {
+  return typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent)
+}
+
 /** Phone and iPad portrait: content + bottom tab bar. iPad landscape and Mac: sidebar + content. */
 export function Shell({ children, focus, courses }: ShellProps) {
   const t = useT()
   const [location] = useLocation()
   useKeyboardInset()
+  // Only the most specific row is the page: on a course, its sidebar row wins over the Courses tab.
+  const courseRowCurrent = courses.some((c) => to.course(c.id) === location)
   return (
     <div className={cx(styles.shell, focus && styles.focus)}>
       <a className={styles.skip} href="#main">
@@ -58,16 +65,16 @@ export function Shell({ children, focus, courses }: ShellProps) {
       </a>
       {!focus && (
         <nav className={styles.nav} data-tabbar="" aria-label={t('common.navMain')}>
-          <div className={styles.brandRow}>
-            <h2 className={styles.brand}>{t('common.appName')}</h2>
-          </div>
+          <p className={styles.brand}>{t('common.appName')}</p>
           <ul className={styles.tabs}>
             {TABS.map((tab) => {
               const Icon = tab.icon
               const active = tab.match(location)
+              // A course row being the page leaves the Courses tab as the current section, not the page.
+              const current = !active ? undefined : courseRowCurrent && tab.href === paths.courses ? 'true' : 'page'
               return (
                 <li key={tab.href}>
-                  <Link href={tab.href} className={styles.tab} aria-current={active ? 'page' : undefined}>
+                  <Link href={tab.href} className={styles.tab} aria-current={current}>
                     <Icon className={styles.tabIcon} size={22} strokeWidth={active ? 2.25 : 1.75} aria-hidden="true" />
                     <span>{t(tab.label)}</span>
                   </Link>
@@ -105,6 +112,20 @@ export function Shell({ children, focus, courses }: ShellProps) {
               </ul>
             </section>
           )}
+          <div className={styles.footer}>
+            <Link
+              href={paths.search}
+              className={styles.search}
+              aria-current={location === paths.search ? 'page' : undefined}
+              aria-keyshortcuts={isApple() ? 'Meta+K' : 'Control+K'}
+            >
+              <Search className={styles.tabIcon} size={18} strokeWidth={1.75} aria-hidden="true" />
+              <span className={styles.searchLabel}>{t('common.search')}</span>
+              <span className={styles.kbd} aria-hidden="true">
+                <kbd>{isApple() ? '⌘K' : 'Ctrl K'}</kbd>
+              </span>
+            </Link>
+          </div>
         </nav>
       )}
       <main id="main" className={styles.main} tabIndex={-1}>

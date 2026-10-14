@@ -26,7 +26,7 @@ export function Screen({ title, subtitle, trailing, back, children }: ScreenProp
             {t('common.back')}
           </Link>
         )}
-        {/* The trailing control sits on the title's centre line, and drops below it rather than overlap. */}
+        {/* The trailing control sits on the title's first line; the title wraps beside it, never under it. */}
         <div className={styles.titleRow}>
           <h1 className={styles.title}>{title}</h1>
           {trailing && <div className={styles.trailing}>{trailing}</div>}

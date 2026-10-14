@@ -31,7 +31,9 @@ test('functional journey: course, note, cards, review, search, stats, reload', a
     await expect(page.getByRole('heading', { level: 1, name: 'Card' })).toBeVisible()
     await typeInto(page, 'Front', front)
     await typeInto(page, 'Back', back)
-    await page.getByRole('link', { name: 'Back' }).click()
+    // The editor works on a draft: nothing reaches the card until Save, which goes back to the course.
+    await page.getByRole('button', { name: 'Save', exact: true }).click()
+    await expect(page.getByText('Card saved.')).toBeVisible()
     await expect(
       page.getByRole('main').getByRole('link', { name: new RegExp(front.replace('?', '\\?')) }),
     ).toBeVisible()
@@ -39,12 +41,12 @@ test('functional journey: course, note, cards, review, search, stats, reload', a
 
   // Today offers the two new cards; the session reviews both.
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Today' }).click()
-  await expect(page.getByRole('heading', { name: 'Due today' })).toBeVisible()
-  await expect(page.getByRole('main').getByRole('link', { name: /Cell biology/ })).toContainText('2 due')
+  await expect(page.getByRole('heading', { name: /due today$/ })).toBeVisible()
+  await expect(page.getByRole('main').getByRole('link', { name: /Cell biology/ })).toContainText('2 due today')
   await page.getByRole('button', { name: 'Start' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Review' })).toBeVisible()
   for (let i = 0; i < 2; i++) {
-    await expect(page.getByRole('progressbar', { name: `${i} of 2` })).toBeVisible()
+    await expect(page.getByTestId('remaining')).toHaveText(`${2 - i} left`)
     if (phone) await page.getByRole('button', { name: /Show answer/ }).tap()
     else await page.keyboard.press('Space')
     await expect(page.getByTestId('answer')).toBeVisible()
@@ -52,7 +54,9 @@ test('functional journey: course, note, cards, review, search, stats, reload', a
     if (phone) await good.tap()
     else await good.click()
   }
-  await expect(page.getByRole('heading', { name: 'Session complete' })).toBeVisible()
+  // Good on a new card is a 10-minute learning step: the session waits for them instead of claiming
+  // everything is done.
+  await expect(page.getByRole('heading', { name: /^2 cards back, the first in 10 min/ })).toBeVisible()
   await expect(page.getByText('You reviewed 2 cards.')).toBeVisible()
 
   // Search finds a card and a note by their words.
@@ -65,10 +69,12 @@ test('functional journey: course, note, cards, review, search, stats, reload', a
   await go(page, '#/stats', 'Statistics')
   await expect(page.getByText('2 reviews').first()).toBeVisible()
 
-  // Everything went through the local log: a reload shows the same library, nothing left to review.
+  // Everything went through the local log: a reload shows the same library, nothing due until the
+  // learning step comes back.
   await page.reload()
   await go(page, '#/', 'Today')
-  await expect(page.getByRole('heading', { name: 'All caught up' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: /^2 cards back, the first in/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'All caught up' })).toHaveCount(0)
   await page
     .getByRole('main')
     .getByRole('link', { name: /Cell biology/ })

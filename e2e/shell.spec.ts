@@ -32,6 +32,8 @@ async function createCourse(page: Page, title: string) {
   const dialog = page.getByRole('dialog', { name: 'New course' })
   await expect(dialog).toBeVisible()
   const input = dialog.getByLabel('Course name')
+  // The sheet opens on its field, not its Close button, so the phone keyboard comes up.
+  await expect(input).toBeFocused()
   await expect(input).toHaveAttribute('enterkeyhint', 'done')
   await input.fill(title)
   await dialog.getByRole('button', { name: 'Save' }).click()
@@ -72,13 +74,35 @@ test('tab bar on phone, sidebar on iPad landscape and Mac', async ({ page }, inf
     expect(box.width).toBeGreaterThanOrEqual(vp.width - 1)
     expect(box.y + box.height).toBeGreaterThanOrEqual(vp.height - 1)
     await expect(links).toHaveCount(4)
-    await expect(nav.getByRole('heading', { name: 'Cursus' })).toBeAttached()
+    // No hidden brand heading read before every page's <h1>.
+    await expect(nav.getByRole('heading')).toHaveCount(0)
+    await expect(nav.getByText('Cursus')).toBeHidden()
+    // Tab labels sit on the type ramp (Caption, 13px), not an off-scale 11px.
+    const label = await links
+      .first()
+      .locator('span')
+      .evaluate((el) => Number.parseFloat(getComputedStyle(el).fontSize))
+    expect(label).toBeGreaterThanOrEqual(13)
   } else {
     // Sidebar: left column, full height, content capped near 720px.
     expect(box.x).toBeLessThanOrEqual(1)
     expect(box.height).toBeGreaterThanOrEqual(vp.height - 1)
     expect(box.width).toBeLessThan(vp.width / 2)
-    await expect(nav.getByRole('heading', { name: 'Cursus' })).toBeVisible()
+    // The brand is a label, not a heading before the page's <h1>.
+    await expect(nav.getByText('Cursus', { exact: true })).toBeVisible()
+    await expect(nav.getByRole('heading', { name: 'Cursus' })).toHaveCount(0)
+    // Search is one click from the shell, with its ⌘K / Ctrl K shortcut hinted.
+    const search = nav.getByRole('link', { name: 'Search' })
+    await expect(search).toBeVisible()
+    await expect(search).toHaveAttribute('aria-keyshortcuts', /^(Meta|Control)\+K$/)
+    await expect(search.locator('kbd')).toHaveText(/^(⌘K|Ctrl K)$/)
+    // One voice: inactive icons are ink, only the current row's icon is accent.
+    const iconColor = (name: string) =>
+      nav
+        .getByRole('link', { name, exact: true })
+        .locator('svg')
+        .evaluate((el) => getComputedStyle(el).color)
+    expect(await iconColor('Courses')).not.toBe(await iconColor('Today'))
     const main = await page.locator('#main > *').first().boundingBox()
     expect(main?.width ?? 0).toBeLessThanOrEqual(720)
   }
@@ -150,14 +174,23 @@ test('a created course appears on Today and in the course list', async ({ page }
   await expect(page.getByRole('heading', { name: 'All caught up' })).toBeVisible()
   await expect(page.getByRole('main').getByRole('link', { name: /Makroökonomie II/ })).toBeVisible()
   if (!isPhone(info.project.name)) {
-    await expect(
-      page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /Makroökonomie II/ }),
-    ).toBeVisible()
+    const nav = page.getByRole('navigation', { name: 'Main' })
+    const row = nav.getByRole('link', { name: /Makroökonomie II/ })
+    await expect(row).toBeVisible()
   }
   // Survives a reload: the edit went through the local log.
   await page.waitForTimeout(300)
   await page.reload()
   await expect(page.getByRole('main').getByRole('link', { name: /Makroökonomie II/ })).toBeVisible()
+  if (!isPhone(info.project.name)) {
+    // On a course page only the most specific row is the page.
+    const nav = page.getByRole('navigation', { name: 'Main' })
+    const row = nav.getByRole('link', { name: /Makroökonomie II/ })
+    await row.click()
+    await expect(row).toHaveAttribute('aria-current', 'page')
+    await expect(nav.locator('[aria-current="page"]')).toHaveCount(1)
+    await expect(nav.getByRole('link', { name: 'Courses', exact: true })).not.toHaveAttribute('aria-current', 'page')
+  }
   expect(errors).toEqual([])
 })
 
@@ -178,6 +211,69 @@ test('light and dark themes are both designed', async ({ page }) => {
   const serious = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   expect(serious.map((v) => v.id)).toEqual([])
   expect(errors).toEqual([])
+})
+
+test('one blue accent: the blue course colour reads as indigo, never as the accent', async ({ page }) => {
+  // Hue in degrees of a #rrggbb token, read from the live stylesheet.
+  const hues = () =>
+    page.evaluate(() => {
+      const hue = (name: string) => {
+        const hex = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+        const channel = (i: number) => Number.parseInt(hex.slice(i, i + 2), 16) / 255
+        const r = channel(1)
+        const g = channel(3)
+        const b = channel(5)
+        const max = Math.max(r, g, b)
+        const d = max - Math.min(r, g, b)
+        const h = max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4
+        return (h * 60 + 360) % 360
+      }
+      return { accent: hue('--accent'), blue: hue('--course-blue'), purple: hue('--course-purple') }
+    })
+  for (const colorScheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme })
+    await openToday(page)
+    const { accent, blue, purple } = await hues()
+    // Clearly off the accent toward indigo, and still apart from purple.
+    expect(blue - accent).toBeGreaterThan(12)
+    expect(purple - blue).toBeGreaterThan(8)
+  }
+})
+
+test('a long German title keeps its trailing control on the first line', async ({ page }) => {
+  const errors = watchErrors(page)
+  await openToday(page, '?locale=de')
+  await page.getByRole('button', { name: 'Neuer Kurs' }).first().click()
+  const dialog = page.getByRole('dialog', { name: 'Neuer Kurs' })
+  const input = dialog.getByRole('textbox').first()
+  await expect(input).toBeFocused()
+  const title = 'Einführung in das deutsche und europäische Kartellrecht mit Fallübungen'
+  await input.fill(title)
+  await input.press('Enter')
+  const h1 = page.getByRole('heading', { level: 1, name: title })
+  await expect(h1).toBeVisible()
+  const trailing = page.locator('main h1 + div')
+  const t = await h1.boundingBox()
+  const c = await trailing.boundingBox()
+  if (!t || !c) throw new Error('header not laid out')
+  // Beside the title's first line, never on an orphan row, never overlapping it.
+  expect(c.y).toBeLessThan(t.y + 40)
+  expect(c.x).toBeGreaterThanOrEqual(t.x + t.width - 1)
+  expect(errors).toEqual([])
+})
+
+test('dark segmented control: the selected segment is lifted above the track', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await page.goto('./#/settings/general')
+  const label = page.locator('input[type="radio"]:checked + *').first()
+  await expect(label).toBeVisible()
+  const lum = (c: string) => {
+    const [r = 0, g = 0, b = 0] = (c.match(/\d+(\.\d+)?/g) ?? []).map(Number)
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
+  }
+  const seg = await label.evaluate((el) => getComputedStyle(el).backgroundColor)
+  const track = await label.evaluate((el) => getComputedStyle(el.parentElement?.parentElement ?? el).backgroundColor)
+  expect(lum(seg)).toBeGreaterThan(lum(track))
 })
 
 test('reduced motion turns the Start morph into a crossfade', async ({ page }) => {
@@ -268,4 +364,24 @@ test('another tab upgrading the database shows a blocking banner on any route', 
   const alert = page.getByRole('alert')
   await expect(alert).toContainText('Cursus was updated in another tab')
   await expect(alert.getByRole('button', { name: 'Reload' })).toBeVisible()
+})
+
+test('Automatic language follows a system language change live, with regional formats', async ({ page }) => {
+  const errors = watchErrors(page)
+  await page.addInitScript(() => {
+    const w = window as unknown as { __langs: string[] }
+    w.__langs = ['en-GB']
+    Object.defineProperty(navigator, 'languages', { configurable: true, get: () => w.__langs })
+    Object.defineProperty(navigator, 'language', { configurable: true, get: () => w.__langs[0] })
+  })
+  await openToday(page)
+  // en-GB keeps British formats: <html lang> is regional, the date reads day before month.
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en-GB')
+  await page.evaluate(() => {
+    ;(window as unknown as { __langs: string[] }).__langs = ['fr-CA', 'en-GB']
+    window.dispatchEvent(new Event('languagechange'))
+  })
+  await expect(page.getByRole('heading', { level: 1, name: 'Aujourd’hui' })).toBeVisible()
+  await expect(page.locator('html')).toHaveAttribute('lang', 'fr-CA')
+  expect(errors).toEqual([])
 })

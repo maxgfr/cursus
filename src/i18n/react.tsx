@@ -40,10 +40,10 @@ export function I18nProvider({ locale, children }: { readonly locale: Locale; re
     // A catalog that cannot be fetched (offline before it was ever cached) is a boot failure.
     setLocale(locale).catch((e: unknown) => setFailure(e))
   }, [locale, setLocale])
-  const current = value?.locale
+  // Keyed on the value, not the locale: a device region change re-applies the regional <html lang>.
   useEffect(() => {
-    if (current !== undefined) applyDocumentLocale(current)
-  }, [current])
+    if (value !== null) applyDocumentLocale(value.locale)
+  }, [value])
   if (failure !== null) throw failure
   if (value === null) return null
   return (

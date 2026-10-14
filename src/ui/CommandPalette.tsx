@@ -123,11 +123,6 @@ export function CommandPalette() {
     return () => document.removeEventListener('keydown', onKey)
   }, [close, show])
 
-  // The sheet's showModal() (a child effect) has run by now: move focus from its close button to the field.
-  useEffect(() => {
-    if (open && session > 0) inputRef.current?.focus()
-  }, [open, session])
-
   useEffect(() => {
     if (toast === null) return
     const timer = setTimeout(() => setToast(null), 4_000)
@@ -243,6 +238,7 @@ export function CommandPalette() {
       <Sheet
         key={session}
         open={open}
+        initialFocus={inputRef}
         title={captured !== null ? t('common.captureTitle') : t('common.paletteTitle')}
         onClose={() => {
           if (sessionRef.current === session) close()

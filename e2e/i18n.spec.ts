@@ -136,7 +136,7 @@ test('German: no horizontal overflow and no clipped text on any main screen', as
   const problems: string[] = []
   for (const hash of await mainScreens(page, query)) {
     await openScreen(page, query, hash)
-    await expect(page.locator('html')).toHaveAttribute('lang', 'de')
+    await expect(page.locator('html')).toHaveAttribute('lang', 'de-DE')
     await settle(page)
     const overflow = await horizontalOverflow(page)
     if (overflow > 0) problems.push(`${hash} overflows by ${overflow}px`)
@@ -152,7 +152,7 @@ test('French: the app speaks French and fits the screen', async ({ page }) => {
   await seedLibrary(harness, page, 'Biologie cellulaire')
   const query = '?locale=fr'
   await openScreen(page, query, '#/')
-  await expect(page.locator('html')).toHaveAttribute('lang', 'fr')
+  await expect(page.locator('html')).toHaveAttribute('lang', 'fr-FR')
   await expect(page.getByRole('heading', { level: 1, name: 'Aujourd’hui' })).toBeVisible()
   await expect(page.getByRole('main').getByRole('link', { name: /Biologie cellulaire/ })).toBeVisible()
   const problems: string[] = []
@@ -208,14 +208,14 @@ test('Settings: the interface language is picked on the device, applied in place
   await language.getByRole('radio', { name: 'Deutsch' }).check()
   // In place: same page, no reload, the heading and <html lang> follow.
   await expect(page.getByRole('heading', { level: 1, name: 'Allgemein' })).toBeVisible()
-  await expect(page.locator('html')).toHaveAttribute('lang', 'de')
+  await expect(page.locator('html')).toHaveAttribute('lang', 'de-DE')
   await expect(page.getByRole('group', { name: 'Sprache' }).getByRole('radio', { name: 'Deutsch' })).toBeChecked()
   await page.reload()
   await expect(page.getByRole('heading', { level: 1, name: 'Allgemein' })).toBeVisible()
   await page.getByRole('group', { name: 'Sprache' }).getByRole('radio', { name: 'Automatisch' }).check()
   // Automatic follows the browser language (English here).
   await expect(page.getByRole('heading', { level: 1, name: 'General' })).toBeVisible()
-  await expect(page.locator('html')).toHaveAttribute('lang', 'en')
+  await expect(page.locator('html')).toHaveAttribute('lang', 'en-US')
   await page.reload()
   await expect(page.getByRole('heading', { level: 1, name: 'General' })).toBeVisible()
   expect(errors).toEqual([])

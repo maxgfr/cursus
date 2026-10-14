@@ -1,6 +1,5 @@
 import { type FormEvent, useState } from 'react'
 import type * as Y from 'yjs'
-import { useWorkspace } from '../../app/workspaceContext.tsx'
 import { clozeIndexes, makeClozeCards } from '../../core/model/cloze'
 import { useT } from '../../i18n/react.tsx'
 import { Button } from '../../ui/components/Button.tsx'
@@ -9,11 +8,10 @@ import styles from './CardEditor.module.css'
 
 /**
  * Turns a phrase of the front into the next `{{cN::…}}` deletion and previews the cards it makes.
- * Edits go through the card's own Y.Text, like typing in the editor.
+ * Edits go through the draft's Y.Text, like typing in the editor: the card changes only on Save.
  */
 export function ClozeAssistant({ text, value }: { text: Y.Text; value: string }) {
   const t = useT()
-  const ws = useWorkspace()
   const [phrase, setPhrase] = useState('')
   const [hint, setHint] = useState('')
   const [miss, setMiss] = useState(false)
@@ -31,10 +29,12 @@ export function ClozeAssistant({ text, value }: { text: Y.Text; value: string })
     const next = (clozeIndexes(value).at(-1) ?? 0) + 1
     const h = hint.trim()
     const cloze = `{{c${next}::${target}${h === '' ? '' : `::${h}`}}}`
-    ws.batch(() => {
+    const edit = () => {
       text.delete(at, target.length)
       text.insert(at, cloze)
-    })
+    }
+    if (text.doc) text.doc.transact(edit)
+    else edit()
     setPhrase('')
     setHint('')
     setMiss(false)

@@ -1,5 +1,5 @@
 import { Undo2, X } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { useLocation } from 'wouter'
 import { paths } from '../../app/routes.ts'
 import { useWorkspace, useWorkspaceData } from '../../app/workspaceContext.tsx'
@@ -8,19 +8,32 @@ import { intlTag } from '../../i18n/index.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
 import { Button } from '../../ui/components/Button.tsx'
 import { IconButton } from '../../ui/components/IconButton.tsx'
-import { ProgressRing } from '../../ui/components/ProgressRing.tsx'
+import { Keycap } from '../../ui/components/Keycap.tsx'
 import { Toast } from '../../ui/components/Toast.tsx'
 import { useStudy } from '../../ui/data/useStudy.ts'
 import { Sanitized } from '../../ui/render/Sanitized.tsx'
 import { SpeakButton } from '../../ui/SpeakButton.tsx'
 import { useAiModel } from '../Understand/shared/aiConfig.ts'
 import { Explain, Improve, OwnWords } from './Assist.tsx'
+import { describeFailure } from './failure.ts'
 import styles from './Review.module.css'
-import { type CardView, formatInterval, RATINGS, readCard, speakable, startQueue } from './session.ts'
+import {
+  type CardView,
+  dropReturnsOf,
+  formatInterval,
+  type QueueEntry,
+  RATINGS,
+  readCard,
+  returning,
+  speakable,
+  startQueue,
+} from './session.ts'
 
 const GRADE_KEY = { 1: 'review.again', 2: 'review.hard', 3: 'review.good', 4: 'review.easy' } as const
 /** How long the session summary stays before settling into "All caught up". */
 const SETTLE_MS = 1600
+/** Grade given by Space or Enter once the answer shows. */
+const DEFAULT_GRADE: Rating = 3
 
 interface Suggestion {
   rating: Rating
@@ -43,19 +56,26 @@ export default function Review() {
   const ws = useWorkspace()
   const [, navigate] = useLocation()
   const study = useStudy()
-  const [queue, setQueue] = useState<Id[]>(() => startQueue(ws, Date.now()))
+  const [start] = useState(() => startQueue(ws, Date.now()))
+  const [queue, setQueue] = useState<QueueEntry[]>(() => start.queue.map((id) => ({ id })))
   const [index, setIndex] = useState(0)
-  /** The card whose answer is showing; any other card starts hidden. */
-  const [revealedId, setRevealedId] = useState<Id | null>(null)
+  /** The queue position whose answer is showing (a card can come back later in the session). */
+  const [revealedAt, setRevealedAt] = useState<number | null>(null)
   const [answered, setAnswered] = useState<Answered[]>([])
-  const [suggestion, setSuggestion] = useState<(Suggestion & { cardId: Id }) | null>(null)
+  const [suggestion, setSuggestion] = useState<(Suggestion & { at: number }) | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const shownAt = useRef(Date.now())
-  const leave = () => navigate(paths.today)
+  // Back to where the session started from (Today, a course), or Today when opened directly.
+  const leave = useCallback(() => {
+    if ((window.history.state as { cursusIndex?: number } | null) !== null && window.history.length > 1)
+      window.history.back()
+    else navigate(paths.today)
+  }, [navigate])
 
-  const currentId = queue[index]
-  const revealed = currentId !== undefined && revealedId === currentId
-  const suggested = suggestion !== null && suggestion.cardId === currentId ? suggestion : null
+  const currentId = queue[index]?.id
+  const revealed = currentId !== undefined && revealedAt === index
+  const suggested = suggestion !== null && suggestion.at === index ? suggestion : null
   const card = useWorkspaceData(
     ['cards', 'courses', 'reviews', 'prefs', { id: currentId ?? '' }],
     (w): CardView | null => (currentId === undefined ? null : readCard(w, currentId, Date.now())),
@@ -72,17 +92,23 @@ export default function Review() {
     return () => clearTimeout(timer)
   }, [toast])
 
-  const reveal = useCallback(() => setRevealedId(currentId ?? null), [currentId])
+  const reveal = useCallback(() => setRevealedAt(currentId === undefined ? null : index), [currentId, index])
 
   const rate = useCallback(
     (rating: Rating) => {
       if (!card || !revealed) return
       const now = Date.now()
-      const reviewId = ws.reviews.record({ cardId: card.id, rating, at: now, ms: now - shownAt.current })
-      setAnswered((a) => [...a, { cardId: card.id, reviewId }])
-      setIndex((i) => i + 1)
+      try {
+        const reviewId = ws.reviews.record({ cardId: card.id, rating, at: now, ms: now - shownAt.current })
+        setAnswered((a) => [...a, { cardId: card.id, reviewId }])
+        setError(null)
+        setIndex((i) => i + 1)
+      } catch (e) {
+        console.error('review not recorded', e)
+        setError(describeFailure(e, t))
+      }
     },
-    [card, revealed, ws],
+    [card, revealed, ws, t],
   )
 
   const undo = useCallback(() => {
@@ -90,23 +116,36 @@ export default function Review() {
     if (!last) return
     ws.reviews.void(last.reviewId)
     setAnswered((a) => a.slice(0, -1))
+    // A return this grade caused is taken back with it.
+    setQueue((q) => dropReturnsOf(q, last.reviewId))
     // The card comes back revealed, as it was when it was graded.
-    setRevealedId(last.cardId)
+    setRevealedAt(Math.max(0, index - 1))
     setIndex((i) => Math.max(0, i - 1))
     setToast(t('review.undone'))
-  }, [answered, ws, t])
+  }, [answered, ws, t, index])
 
   const skip = useCallback(() => {
-    setQueue((q) => q.filter((id) => id !== currentId))
-  }, [currentId])
+    setQueue((q) => q.filter((e, i) => i < index || e.id !== currentId))
+  }, [currentId, index])
 
   // One listener for the whole session, reading the state of the latest render.
-  const keys = useRef({ card, revealed, reveal, rate, undo })
-  keys.current = { card, revealed, reveal, rate, undo }
+  const keys = useRef({ card, revealed, reveal, rate, undo, leave })
+  keys.current = { card, revealed, reveal, rate, undo, leave }
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const { card, revealed, reveal, rate, undo } = keys.current
-      if (e.defaultPrevented || isTyping(e.target) || document.querySelector('dialog[open]')) return
+      const { card, revealed, reveal, rate, undo, leave } = keys.current
+      if (e.defaultPrevented || document.querySelector('dialog[open]')) return
+      if (e.key === 'Escape') {
+        // In a text field, Esc only leaves the field.
+        if (isTyping(e.target)) {
+          ;(e.target as HTMLElement).blur()
+          return
+        }
+        e.preventDefault()
+        leave()
+        return
+      }
+      if (isTyping(e.target)) return
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
         e.preventDefault()
         undo()
@@ -118,6 +157,13 @@ export default function Review() {
         if (e.target instanceof HTMLButtonElement || e.target instanceof HTMLAnchorElement) return
         e.preventDefault()
         reveal()
+        return
+      }
+      // Once the answer shows, Space and Enter give Good, unless a control has focus (it acts itself).
+      if ((e.key === ' ' || e.key === 'Enter') && revealed && card) {
+        if (e.target instanceof HTMLButtonElement || e.target instanceof HTMLAnchorElement) return
+        e.preventDefault()
+        rate(DEFAULT_GRADE)
         return
       }
       const n = Number(e.key)
@@ -132,18 +178,40 @@ export default function Review() {
 
   const total = queue.length
   const done = Math.min(index, total)
-  const finished = total > 0 && index >= total
+  const finished = index >= total
+
+  // Cards that come back today (graded Again, on a learning step) rejoin the session when due;
+  // until then the session waits for them rather than claiming everything is done.
+  const [now, setNow] = useState(Date.now)
+  const pending = finished ? returning(ws, [...start.learning, ...answered.map((a) => a.cardId)], now) : []
+  const dueNow = pending.filter((p) => p.due <= now)
+  const nextAt = pending[0]?.due ?? null
+  useEffect(() => {
+    if (dueNow.length === 0) return
+    const cause = (id: Id) => answered.findLast((a) => a.cardId === id)?.reviewId ?? null
+    setQueue((q) => [...q, ...dueNow.map((p) => ({ id: p.id, returnOf: cause(p.id) }))])
+  })
+  // A card that came back is shown only while it is still due at its turn (an undo or another device may
+  // have changed that since it was appended).
+  const entry = queue[index]
+  useEffect(() => {
+    if (entry?.returnOf === undefined) return
+    const at = Date.now()
+    if (returning(ws, [entry.id], at).some((p) => p.due <= at)) return
+    setQueue((q) => q.filter((e) => e !== entry))
+  }, [entry, ws])
+  useEffect(() => {
+    if (nextAt === null) return
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(timer)
+  }, [nextAt])
 
   return (
     <div className={styles.focus}>
       <header className={styles.bar}>
         <IconButton icon={X} label={t('common.close')} onClick={leave} />
         <h1 className={styles.title}>{t('review.title')}</h1>
-        {total > 0 ? (
-          <ProgressRing value={done / total} label={t('common.progress', { done, total })} />
-        ) : (
-          <span className={styles.barSpacer} />
-        )}
+        <span className={styles.barSpacer} />
       </header>
       {card && !finished ? (
         <CardStage
@@ -153,8 +221,8 @@ export default function Review() {
           onRate={rate}
           suggested={suggested}
           onSuggest={(rating, feedback) => {
-            setSuggestion({ cardId: card.id, rating, feedback })
-            setRevealedId(card.id)
+            setSuggestion({ at: index, rating, feedback })
+            setRevealedAt(index)
           }}
           onSuspend={() => {
             ws.cards.update(card.id, { suspended: true })
@@ -165,7 +233,13 @@ export default function Review() {
           remaining={total - done}
         />
       ) : (
-        <Finished reviewed={answered.length} tomorrow={study.tomorrow} empty={total === 0} onLeave={leave} />
+        <Finished
+          reviewed={new Set(answered.map((a) => a.cardId)).size}
+          tomorrow={study.tomorrow}
+          empty={answered.length === 0}
+          waiting={dueNow.length === 0 && nextAt !== null ? { count: pending.length, nextAt, now } : null}
+          onLeave={leave}
+        />
       )}
       <footer className={styles.foot}>
         {answered.length > 0 && (
@@ -175,6 +249,11 @@ export default function Review() {
         )}
         {card && !finished && <p className={styles.keys}>{t('review.keysHint')}</p>}
       </footer>
+      {error !== null && (
+        <p className={styles.error} role="alert">
+          {error}
+        </p>
+      )}
       {toast !== null && <Toast message={toast} />}
     </div>
   )
@@ -207,42 +286,46 @@ function CardStage({
   const locale = useLocale()
   const ai = useAiModel()
   const gradesRef = useRef<HTMLFieldSetElement>(null)
+  const hintId = useId()
   const now = Date.now()
   const tag = intlTag(locale)
 
-  // After the reveal, keyboard and screen-reader users land on the grades.
+  // After the reveal, focus lands on the grades group (its question is announced), not on a grade:
+  // nothing is preselected, and Space or Enter gives Good.
   useEffect(() => {
     if (!revealed) return
-    const target =
-      gradesRef.current?.querySelector<HTMLButtonElement>('[data-suggested="true"]') ??
-      gradesRef.current?.querySelector<HTMLButtonElement>('button')
-    target?.focus({ preventScroll: true })
+    gradesRef.current?.focus({ preventScroll: true })
   }, [revealed])
 
   return (
     <div className={styles.main}>
-      <p className={styles.remaining}>{t('review.remaining', { count: remaining })}</p>
+      {/* The session's one progress readout, announced politely as it changes. */}
+      <p className={styles.remaining} role="status" data-testid="remaining">
+        {t('review.remaining', { count: remaining })}
+      </p>
       {card.leech && <Improve card={card} ai={ai} onSuspend={onSuspend} onToast={onToast} />}
       <section className={styles.stage} aria-label={card.courseTitle || t('review.title')}>
-        <div className={styles.face}>
-          <div className={styles.faceHead}>
-            <h2 className={styles.label}>{t('review.question')}</h2>
-            <SpeakButton text={speakable(card.front)} lang={card.language} label={t('review.readQuestion')} />
+        {/* No eyebrow: the question text and the pressed answer surface carry the distinction. */}
+        <section className={styles.face} aria-label={t('review.question')} data-testid="question">
+          <div className={styles.faceText}>
+            <Sanitized markdown={card.front} />
           </div>
-          <Sanitized markdown={card.front} />
-        </div>
+          <SpeakButton text={speakable(card.front)} lang={card.language} label={t('review.readQuestion')} />
+        </section>
         {revealed ? (
-          <div className={styles.face} data-testid="answer">
-            <div className={styles.faceHead}>
-              <h2 className={styles.label}>{t('review.answer')}</h2>
+          <section className={styles.back} aria-label={t('review.answer')} data-testid="answer">
+            {/* Centred in the footprint it shares with the hidden answer. */}
+            <div className={styles.backRow}>
+              <div className={styles.faceText}>
+                <Sanitized markdown={card.back} />
+              </div>
               <SpeakButton text={speakable(card.back)} lang={card.language} label={t('review.readAnswer')} />
             </div>
-            <Sanitized markdown={card.back} />
-          </div>
+          </section>
         ) : (
-          <button type="button" className={styles.reveal} onClick={onReveal}>
+          <button type="button" className={styles.reveal} onClick={onReveal} aria-keyshortcuts="Space">
             <span className={styles.revealLabel}>{t('review.showAnswer')}</span>
-            <span className={styles.revealHint}>{t('review.revealHint')}</span>
+            <Keycap inline={false}>{t('review.revealHint')}</Keycap>
           </button>
         )}
       </section>
@@ -256,8 +339,17 @@ function CardStage({
               <p className={styles.aside}>{t('review.confirmHint')}</p>
             </div>
           )}
-          <fieldset ref={gradesRef} className={styles.grades}>
+          <fieldset
+            ref={gradesRef}
+            className={styles.grades}
+            tabIndex={-1}
+            aria-describedby={hintId}
+            data-testid="grades"
+          >
             <legend className="sr-only">{t('review.gradesLabel')}</legend>
+            <p id={hintId} className="sr-only">
+              {t('review.gradesHint')}
+            </p>
             {RATINGS.map((r) => {
               const interval = formatInterval(Math.max(0, card.preview[r] - now), tag)
               const grade = t(GRADE_KEY[r])
@@ -272,7 +364,10 @@ function CardStage({
                   aria-keyshortcuts={String(r)}
                   onClick={() => onRate(r)}
                 >
-                  <span className={styles.gradeName}>{grade}</span>
+                  <span className={styles.gradeName}>
+                    {grade}
+                    <Keycap>{r}</Keycap>
+                  </span>
                   <span className={styles.gradeInterval}>{interval}</span>
                   {suggested?.rating === r && <span className={styles.gradeTag}>{t('review.suggestedTag')}</span>}
                 </button>
@@ -287,6 +382,53 @@ function CardStage({
 }
 
 function Finished({
+  reviewed,
+  tomorrow,
+  empty,
+  waiting,
+  onLeave,
+}: {
+  reviewed: number
+  tomorrow: number
+  empty: boolean
+  /** Cards coming back later today, and when the first one is due. */
+  waiting: { count: number; nextAt: number; now: number } | null
+  onLeave: () => void
+}) {
+  const t = useT()
+  const locale = useLocale()
+  if (waiting !== null) {
+    const left = Math.max(0, waiting.nextAt - waiting.now)
+    return (
+      <div className={styles.main}>
+        <section className={styles.stage}>
+          <div className={styles.summary} data-testid="waiting">
+            <h2 className={styles.summaryTitle}>
+              {t('review.waitingTitle', { count: waiting.count, interval: formatInterval(left, intlTag(locale)) })}
+            </h2>
+            {reviewed > 0 && <p className={styles.summaryBody}>{t('review.reviewed', { count: reviewed })}</p>}
+            <p className={styles.summaryBody}>
+              <span aria-hidden="true">{t('review.waitingCountdown', { time: countdown(left) })}</span>
+            </p>
+            <p className={styles.summaryBody}>{t('review.waitingBody')}</p>
+          </div>
+          <Button variant="secondary" onClick={onLeave}>
+            {t('common.backToday')}
+          </Button>
+        </section>
+      </div>
+    )
+  }
+  return <Done reviewed={reviewed} tomorrow={tomorrow} empty={empty} onLeave={onLeave} />
+}
+
+/** "4:05": minutes and seconds until a card comes back. */
+function countdown(ms: number): string {
+  const s = Math.ceil(ms / 1000)
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
+
+function Done({
   reviewed,
   tomorrow,
   empty,

@@ -46,4 +46,21 @@ export const today = {
   demoQ2: 'Was bauen Ribosomen?',
   demoA2: 'Proteine.',
   demoCloze: 'Der {{c1::Zellkern}} enthält die {{c2::DNA}} der Zelle.',
+  heroDue: { one: '{count} Karte heute fällig', other: '{count} Karten heute fällig' },
+  examLead: 'davon {count} in {course} · {when}',
+  caughtUp: 'Alles erledigt',
+  laterTitle: {
+    one: '{count} Karte kommt in {interval} zurück',
+    other: '{count} Karten kommen zurück, die erste in {interval}',
+  },
+  laterBody: 'Noch in der Lernphase: sie kommen später am Tag zurück.',
+  startKey: 'S',
+  courseDue: { one: '{count} heute fällig', other: '{count} heute fällig' },
+  backupLine: 'Noch keine Sicherung',
+  backupAction: 'Sicherung einrichten',
+  installHintLabel: 'Cursus installieren',
+  installHintTitle: 'Du bist in einem Safari-Tab.',
+  installHintBody:
+    'Was du hier hinzufügst, bleibt in diesem Tab; die installierte App startet leer. Installiere zuerst: Teilen, dann Zum Home-Bildschirm.',
+  installHintDismiss: 'Später',
 } as const satisfies Shape<typeof en>

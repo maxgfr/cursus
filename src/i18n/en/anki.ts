@@ -15,6 +15,7 @@ export const anki = {
   reviews: 'Reviews',
   media: 'Media files',
   importAction: { one: 'Import {count} card', other: 'Import {count} cards' },
-  unreadable: 'This file could not be read as an Anki package ({error}).',
+  unreadable:
+    'This file couldn’t be read as an Anki package. Check that it’s an .apkg exported from Anki. Settings › Diagnostics keeps the details.',
   exportHint: 'To export to Anki, use the Anki button next to a course above.',
 } as const

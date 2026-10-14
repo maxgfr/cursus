@@ -186,9 +186,31 @@ function isNamespace(value: string): value is Namespace {
   return NAMESPACES.some((n) => n === value)
 }
 
-/** BCP-47 tag used by Intl for a locale (pseudo formats like English). */
-export function intlTag(locale: Locale): BaseLocale {
-  return locale === 'pseudo' ? 'en' : locale
+/** Formatting region used when the device lists no regional variant of the interface language. */
+const DEFAULT_REGION: Record<BaseLocale, string> = { en: 'en-US', de: 'de-DE', fr: 'fr-FR' }
+
+/** A well-formed BCP-47 language tag (language plus optional subtags); anything else is ignored. */
+const TAG = /^[a-z]{2,3}(-[a-z0-9]{1,8})*$/i
+
+function deviceLanguages(): readonly string[] {
+  return (typeof navigator === 'undefined' ? undefined : navigator.languages) ?? []
+}
+
+/**
+ * Regional BCP-47 tag for a UI locale: the first device language of the same base (en-GB, de-CH, fr-CA…),
+ * else the default region of that language. Applies to an explicitly picked language too. Pseudo is en-XA.
+ */
+export function regionalTag(locale: Locale, languages: readonly string[] = deviceLanguages()): string {
+  if (locale === 'pseudo') return 'en-XA'
+  for (const tag of languages) {
+    if (TAG.test(tag) && tag.split('-')[0]?.toLowerCase() === locale) return tag
+  }
+  return DEFAULT_REGION[locale]
+}
+
+/** BCP-47 tag used by Intl for a locale: regional formats follow the device (pseudo formats like US English). */
+export function intlTag(locale: Locale, languages: readonly string[] = deviceLanguages()): string {
+  return locale === 'pseudo' ? 'en-US' : regionalTag(locale, languages)
 }
 
 /** A translator for a loaded locale (see `loadCatalog`). */
@@ -252,5 +274,5 @@ export function detectFromEnvironment(stored?: string | null): Locale {
 /** Updates `<html lang>` when a document exists. */
 export function applyDocumentLocale(locale: Locale): void {
   if (typeof document === 'undefined') return
-  document.documentElement.lang = locale === 'pseudo' ? 'en-XA' : locale
+  document.documentElement.lang = regionalTag(locale)
 }

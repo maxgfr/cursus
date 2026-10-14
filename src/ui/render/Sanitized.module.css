@@ -29,7 +29,7 @@
 
 .prose code {
   padding: 0.1em 0.3em;
-  border-radius: 6px;
+  border-radius: var(--radius-small);
   background: var(--surface-pressed);
   font-family: var(--font-mono);
   font-size: 0.9em;

@@ -18,6 +18,7 @@ export const anki = {
   reviews: 'Révisions',
   media: 'Fichiers médias',
   importAction: { one: 'Importer {count} carte', other: 'Importer {count} cartes' },
-  unreadable: 'Ce fichier n’a pas pu être lu comme un paquet Anki ({error}).',
+  unreadable:
+    'Ce fichier n’a pas pu être lu comme un paquet Anki. Vérifiez qu’il s’agit d’un .apkg exporté d’Anki. Réglages › Diagnostic garde les détails.',
   exportHint: 'Pour exporter vers Anki, utilisez le bouton Anki à côté d’un cours ci-dessus.',
 } as const satisfies Shape<typeof en>

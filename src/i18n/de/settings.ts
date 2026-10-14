@@ -84,4 +84,8 @@ export const settings = {
   diagCopy: 'Bericht kopieren',
   diagCopied: 'Kopiert',
   diagReport: 'Diagnosebericht',
+  groupSafe: 'Bibliothek absichern',
+  groupPrefs: 'Präferenzen',
+  groupData: 'Deine Daten',
+  groupHelp: 'Hilfe',
 } as const satisfies Shape<typeof en>
