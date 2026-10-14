@@ -5,6 +5,7 @@ import { parseManifest } from '../../src/core/log/blobs'
 import { blobKey, bmanKey, codec, parseKey } from '../../src/core/log/codec'
 import type { SegmentRow } from '../../src/core/log/localLog'
 import { textKey } from '../../src/core/model/schema'
+import type { ModelWorkspace } from '../../src/core/model/workspace'
 import { seededRng } from '../../src/core/ports/rng'
 import { canonicalJson, hashMatches } from '../../src/core/sync/verify'
 import type { SimDevice, World } from './world'
@@ -58,7 +59,55 @@ async function registry(
   return { refs, chunks, rows }
 }
 
-/** I1, I2 (+ sealed roots hold only sealed objects), I3, I11 (safe ⇒ really stored). */
+const ITEM_KINDS = ['sources', 'fiches', 'cards'] as const
+
+/**
+ * I12 (one tab): the derived section tree is acyclic, links only sections of the same course, and every item
+ * resolves to its root or to a live (not purged) section of its own course. Once converged (`settled`), every
+ * item's course exists too — before that, a tab may hold an update whose dependencies have not arrived yet
+ * (Yjs keeps it pending), so a field replaced elsewhere can be briefly missing.
+ */
+function checkTree(ws: ModelWorkspace, where: string, settled: boolean): void {
+  const tree = ws.sections.tree()
+  const all = tree.ids()
+  for (const id of all) {
+    let cur: string | null = id
+    for (let steps = 0; cur !== null; steps++) {
+      check(steps <= all.length, 'I12', () => `${where}: section ${id} sits on a cycle`)
+      const p: string | null = tree.parent(cur)
+      if (p !== null) {
+        check(tree.get(p)?.courseId === tree.get(cur)?.courseId, 'I12', () => `${where}: ${cur} under another course`)
+      }
+      cur = p
+    }
+  }
+  const courses = ws.doc.getMap<Y.Map<unknown>>('courses')
+  for (const kind of ITEM_KINDS) {
+    for (const e of ws[kind].all()) {
+      if (settled) {
+        check(courses.has(e.courseId), 'I12', () => `${where}: ${kind} ${e.id} in unknown course ${e.courseId}`)
+      }
+      const s = tree.sectionOf(e)
+      if (s !== null) {
+        const sec = tree.get(s)
+        check(sec !== undefined && sec.purgedAt === undefined, 'I12', () => `${where}: ${e.id} in a purged section`)
+        check(sec?.courseId === e.courseId, 'I12', () => `${where}: ${e.id} in a section of another course`)
+      }
+    }
+  }
+}
+
+/** Everything a tab derives from the tree: effective parents, derived trash, where each item resolves. */
+function treeSignature(ws: ModelWorkspace): string {
+  const tree = ws.sections.tree()
+  const rows = tree.ids().map((id) => `${id}<${tree.parent(id) ?? '-'}${tree.hidden(id) ? '!' : ''}`)
+  for (const kind of ITEM_KINDS) {
+    for (const e of ws[kind].all()) rows.push(`${e.id}@${tree.sectionOf(e) ?? '-'}${tree.itemHidden(e) ? '!' : ''}`)
+  }
+  return rows.sort().join('|')
+}
+
+/** I1, I2 (+ sealed roots hold only sealed objects), I3, I11 (safe ⇒ really stored), I12 (tree of each tab). */
 export async function checkContinuous(w: World): Promise<void> {
   const h = history.get(w) ?? { buckets: new Map(), local: new Map() }
   history.set(w, h)
@@ -90,6 +139,7 @@ export async function checkContinuous(w: World): Promise<void> {
     }
   }
   for (const dev of w.devices) {
+    for (const [i, t] of dev.tabs.entries()) checkTree(t.ws, `${dev.name}/tab${i}`, false)
     // I3: the local log only grows.
     const local = await dev.localKeys()
     for (const k of h.local.get(dev.name) ?? []) check(local.has(k), 'I3', () => `${dev.name} lost local ${k}`)
@@ -144,7 +194,7 @@ async function intactOn(w: World, dev: SimDevice, dest: string, key: Key): Promi
   }
 }
 
-/** After healing: I1–I11. */
+/** After healing: I1–I12. */
 export async function checkFinal(w: World): Promise<void> {
   await checkContinuous(w)
   const o = w.oracle
@@ -187,6 +237,20 @@ export async function checkFinal(w: World): Promise<void> {
     check(sources.get(sid)?.get('blobId') === `cursus-blob:${blob}`, 'I5', () => `source ${sid} lost`)
     for (const dev of w.devices) {
       check((await dev.blobs.get(blob)) !== null, 'I5', () => `${dev.name} cannot open file ${blob}`)
+    }
+  }
+
+  const sections = ref.getMap<Y.Map<unknown>>('sections')
+  for (const id of o.sections.keys()) check(sections.has(id), 'I5', () => `section ${id} lost`)
+
+  // I12: every converged tab derives the same section tree, without writing anything to do so.
+  const refTree = treeSignature(tabs[0]?.ws as ModelWorkspace)
+  for (const dev of w.devices) {
+    for (const [i, t] of dev.tabs.entries()) {
+      const sv = Y.encodeStateVector(t.doc)
+      checkTree(t.ws, `${dev.name}/tab${i}`, true)
+      check(treeSignature(t.ws) === refTree, 'I12', () => `${dev.name}/tab${i} derives another section tree`)
+      check(Buffer.from(Y.encodeStateVector(t.doc)).equals(Buffer.from(sv)), 'I12', () => 'reading the tree wrote')
     }
   }
 

@@ -7,10 +7,15 @@ export interface CardFields {
   back: string
 }
 
-/** Route id of a card not created yet: `new.<courseId>`. It is created only on Save. */
+/** Route id of a card not created yet: `new.<courseId>` or `new.<courseId>.<sectionId>`. It is created only on Save. */
 const NEW = 'new.'
-export const newCardId = (courseId: string): string => NEW + courseId
-export const newCardCourse = (id: string): string | null => (id.startsWith(NEW) ? id.slice(NEW.length) : null)
+export const newCardId = (courseId: string, sectionId?: string): string =>
+  sectionId ? `${NEW}${courseId}.${sectionId}` : NEW + courseId
+export const newCardCourse = (id: string): string | null =>
+  id.startsWith(NEW) ? (id.slice(NEW.length).split('.')[0] ?? null) : null
+/** The section a new card lands in, if it was started inside one. */
+export const newCardSection = (id: string): string | null =>
+  id.startsWith(NEW) ? (id.slice(NEW.length).split('.')[1] ?? null) : null
 
 /** Device-only key of a card's unsaved draft (never in the workspace doc). */
 export const draftKey = (id: string): string => `draft:card:${id}`

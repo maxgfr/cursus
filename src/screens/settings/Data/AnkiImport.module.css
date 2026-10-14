@@ -1,0 +1,25 @@
+/* Courses and the subsets an Anki import will create, nested like the course tree. */
+.tree {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tree .tree {
+  padding-inline-start: var(--space-4);
+}
+
+/* New cards landed in a trashed subset: informative, not alarming. */
+.trashed {
+  margin: 0;
+  font-size: var(--text-footnote);
+  line-height: var(--leading-body);
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.link {
+  color: var(--accent-ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

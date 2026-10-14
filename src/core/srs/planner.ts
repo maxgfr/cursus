@@ -1,4 +1,6 @@
-import { type CardState, dayStart, type SrsParams, studyDay } from './fsrs'
+import type { Id, StudyScope } from '../contracts/workspace'
+import { type CardState, dayStart, newCardState, type SrsParams, studyDay } from './fsrs'
+import { inScope, type QueueCard } from './queue'
 
 export const EXAM_RETENTION = 0.95
 export const EXAM_WINDOW_DAYS = 7
@@ -64,4 +66,56 @@ export function nearestExam(candidates: readonly ExamCandidate[], now: number): 
     if (best === null || days < best.days) best = { id: c.id, days }
   }
   return best
+}
+
+/** An exam set on a course or on one of its subsets (a chapter exam covers that chapter and its descendants). */
+export interface ScopedExam {
+  scope: StudyScope
+  plan: ExamPlan
+}
+
+/** The nearest deadline among these exams, today included, past ones ignored; ties keep the given order. */
+export function nearestScopedExam(
+  exams: readonly ScopedExam[],
+  now: number,
+): { scope: StudyScope; plan: ExamPlan; days: number } | null {
+  const best = nearestExam(
+    exams.map((e, i) => ({ id: String(i), plan: e.plan })),
+    now,
+  )
+  const exam = best === null ? undefined : exams[Number(best.id)]
+  return best === null || exam === undefined ? null : { scope: exam.scope, plan: exam.plan, days: best.days }
+}
+
+/** A course's deadline: the nearest exam among the course itself and all its subsets. */
+export function courseDeadline(
+  exams: readonly ScopedExam[],
+  courseId: Id,
+  now: number,
+): { scope: StudyScope; plan: ExamPlan; days: number } | null {
+  return nearestScopedExam(
+    exams.filter((e) => e.scope.courseId === courseId),
+    now,
+  )
+}
+
+/** The nearest exam that covers this card (its course's, or one of the subsets it is filed under). */
+export function examFor(card: QueueCard, exams: readonly ScopedExam[], now: number): ScopedExam | null {
+  const best = nearestScopedExam(
+    exams.filter((e) => inScope(card, e.scope)),
+    now,
+  )
+  return best === null ? null : { scope: best.scope, plan: best.plan }
+}
+
+/** Daily goal for one exam: only the cards in its scope count, so a chapter exam plans that chapter alone. */
+export function scopedDailyGoal(
+  exam: ScopedExam,
+  cards: readonly QueueCard[],
+  states: ReadonlyMap<Id, CardState>,
+  now: number,
+): DailyGoal {
+  const own: CardState[] = []
+  for (const c of cards) if (inScope(c, exam.scope)) own.push(states.get(c.id) ?? newCardState(c.id))
+  return dailyGoal(exam.plan, own, now)
 }

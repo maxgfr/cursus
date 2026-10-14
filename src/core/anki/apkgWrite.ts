@@ -103,7 +103,7 @@ function interval(s: CardState, at: number): number {
 
 /**
  * Exports courses as a schema 11 `.apkg` ("Cursus Basic" / "Cursus Cloze" notetypes, one `Cursus::<course>`
- * deck per course), with media, review history and FSRS due dates.
+ * deck per course and `Cursus::<course>::<subset>::…` per subset), with media, review history and FSRS due dates.
  */
 export async function exportApkg(ws: ModelWorkspace, blobs: BlobStore, opts: ExportOptions): Promise<Uint8Array> {
   const now = opts.now
@@ -124,12 +124,37 @@ export async function exportApkg(ws: ModelWorkspace, blobs: BlobStore, opts: Exp
     const decks: Record<string, unknown> = { '1': deck(1, 'Default', nowSecs) }
     const rootId = now
     decks[String(rootId)] = deck(rootId, ROOT_DECK, nowSecs)
+    // One deck per course and per live subset; names that collide once sanitised share one deck.
+    const byName = new Map<string, number>()
+    let nextDeck = rootId + 1
+    const deckFor = (segments: readonly string[]): number => {
+      const name = [ROOT_DECK, ...segments.map(deckSegment)].join('::')
+      const key = name.toLowerCase()
+      const known = byName.get(key)
+      if (known !== undefined) return known
+      const id = nextDeck++
+      byName.set(key, id)
+      decks[String(id)] = deck(id, name, nowSecs)
+      return id
+    }
+    const tree = ws.sections.tree()
     const deckIds = new Map<Id, number>()
-    courses.forEach((c, i) => {
-      const id = rootId + 1 + i
-      deckIds.set(c.id, id)
-      decks[String(id)] = deck(id, `${ROOT_DECK}::${c.title.replace(/::/g, ':')}`, nowSecs)
-    })
+    const sectionDecks = new Map<Id, number>()
+    for (const c of courses) {
+      deckIds.set(c.id, deckFor([c.title]))
+      const visit = (parentId: Id | null, path: readonly string[]): void => {
+        for (const s of tree.children(c.id, parentId)) {
+          const segs = [...path, s.name]
+          sectionDecks.set(s.id, deckFor(segs))
+          visit(s.id, segs)
+        }
+      }
+      visit(null, [c.title])
+    }
+    const deckOf = (c: CardRecord): number => {
+      const s = tree.sectionOf(c)
+      return (s === null ? undefined : sectionDecks.get(s)) ?? deckIds.get(c.courseId) ?? 1
+    }
 
     const mediaNames = new Map<string, string>()
     const mediaFiles: Record<string, Uint8Array> = {}
@@ -199,7 +224,7 @@ export async function exportApkg(ws: ModelWorkspace, blobs: BlobStore, opts: Exp
       insCard.run([
         id,
         id,
-        deckIds.get(c.courseId) ?? 1,
+        deckOf(c),
         ord,
         nowSecs,
         -1,
@@ -261,6 +286,11 @@ export async function exportApkg(ws: ModelWorkspace, blobs: BlobStore, opts: Exp
   } finally {
     db.close()
   }
+}
+
+/** One deck name segment: no `::` (the Anki separator), no surrounding blanks, never empty. */
+function deckSegment(name: string): string {
+  return name.replace(/::/g, ':').replace(/\s+/g, ' ').trim() || '-'
 }
 
 function round(x: number): number {

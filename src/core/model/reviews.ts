@@ -46,15 +46,32 @@ export class ReviewLog {
     return this.arr
   }
 
+  private event(r: NewReview): ReviewEvent {
+    return { id: this.rng.id(), cardId: r.cardId, rating: r.rating, at: r.at, ms: Math.max(0, r.ms), dev: this.dev }
+  }
+
   record(r: NewReview): Id {
-    const id = this.rng.id()
-    const ms = Math.max(0, r.ms)
-    this.arr.push([{ id, cardId: r.cardId, rating: r.rating, at: r.at, ms, dev: this.dev }])
-    return id
+    const e = this.event(r)
+    this.arr.push([e])
+    this.cache = null
+    return e.id
+  }
+
+  /**
+   * Records many reviews with ONE push: same events, ids and order as calling `record` for each, but linear.
+   * Separate pushes inside one transaction are quadratic in Yjs (pending items only merge on commit).
+   */
+  recordMany(rs: readonly NewReview[]): Id[] {
+    if (rs.length === 0) return []
+    const events = rs.map((r) => this.event(r))
+    this.arr.push(events)
+    this.cache = null
+    return events.map((e) => e.id)
   }
 
   void(id: Id): void {
     this.arr.push([{ id: this.rng.id(), voids: id }])
+    this.cache = null
   }
 
   /** Non-voided reviews of a card in replay order (memoized). */

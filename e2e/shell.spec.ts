@@ -385,3 +385,53 @@ test('Automatic language follows a system language change live, with regional fo
   await expect(page.locator('html')).toHaveAttribute('lang', 'fr-CA')
   expect(errors).toEqual([])
 })
+
+/** Hash navigation inside the running page (no reload: what the page recorded stays in memory). */
+async function goHash(page: Page, hash: string) {
+  await page.evaluate((h) => {
+    location.hash = h
+  }, hash)
+}
+
+test('a screen whose code fails to load says so calmly, with a retry, and the failure is recorded', async ({
+  page,
+  browserName,
+}) => {
+  const thrown: string[] = []
+  page.on('pageerror', (e) => thrown.push(e.message))
+  await openToday(page)
+  const stats = /\/assets\/Stats-[^/]+\.(js|css)$/
+  await page.route(stats, (route) => route.abort())
+  await goHash(page, '#/stats')
+  const calm = page.getByRole('heading', { name: 'This part didn’t load.' })
+  await expect(calm).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible()
+  // The shell around it still works: the failure is in the diagnostic report.
+  await page.unroute(stats)
+  await goHash(page, '#/settings/diagnostic')
+  await expect(page.locator('pre')).toContainText(' chunk.stats ')
+  // Back on the screen, the retry loads it. WebKit keeps a failed module import failed for the life of the
+  // page: there the retry fails again, and the action becomes a reload.
+  await goHash(page, '#/stats')
+  await page.getByRole('button', { name: 'Try again' }).click()
+  if (browserName === 'webkit') await expect(page.getByRole('button', { name: 'Reload' })).toBeVisible()
+  else await expect(page.getByRole('heading', { level: 1, name: 'Statistics' })).toBeVisible()
+  expect(thrown).toEqual([])
+})
+
+test('reloading while deferred chunks are still loading raises no page error', async ({ page }) => {
+  const thrown: string[] = []
+  page.on('pageerror', (e) => thrown.push(e.message))
+  // The chunks fetched right after Today paints never arrive before the reload.
+  const deferred = /\/assets\/(Notices|CommandPalette|ExamLead|virtual_pwa-register)-[^/]+\.js$/
+  const held = page.waitForRequest(deferred)
+  await page.route(deferred, () => {})
+  await openToday(page)
+  await held
+  await page.reload()
+  await expect(page.getByRole('heading', { level: 1, name: /Today/ })).toBeVisible()
+  // Whatever the aborted loads reported has had its turn.
+  await page.evaluate(() => new Promise((r) => setTimeout(r, 500)))
+  expect(thrown).toEqual([])
+  await page.unrouteAll({ behavior: 'ignoreErrors' })
+})

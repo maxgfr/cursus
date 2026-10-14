@@ -9,14 +9,15 @@ import { Field } from '../../ui/components/Field.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
 import { cx } from '../../ui/cx.ts'
 import { Screen } from '../../ui/shell/Screen.tsx'
+import { useScopeOnce } from '../Section/scope.ts'
 import styles from '../Understand/shared/ai.module.css'
 import { useAiModel } from '../Understand/shared/aiConfig.ts'
 import {
   Citation,
-  emptySelection,
   NoModel,
   type Selection,
   SourcePicker,
+  selectionFor,
   useChunkLoader,
 } from '../Understand/shared/SourcePicker.tsx'
 
@@ -28,7 +29,8 @@ export default function Quiz() {
   const ws = useWorkspace()
   const ai = useAiModel()
   const loadChunks = useChunkLoader()
-  const [selection, setSelection] = useState<Selection>(emptySelection)
+  const opened = useScopeOnce()
+  const [selection, setSelection] = useState<Selection>(() => selectionFor(opened))
   const [topic, setTopic] = useState('')
   const [count, setCount] = useState<(typeof COUNTS)[number]>('5')
   const [questions, setQuestions] = useState<QuizQuestion[] | null>(null)

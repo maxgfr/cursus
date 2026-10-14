@@ -5,6 +5,7 @@ import { useT } from '../../../i18n/react.tsx'
 import { Button } from '../../../ui/components/Button.tsx'
 import { noteError } from '../Diagnostic/recent.ts'
 import styles from '../Sync/settings.module.css'
+import local from './AnkiImport.module.css'
 
 interface Preview {
   name: string
@@ -14,7 +15,43 @@ interface Preview {
   cards: number
   reviews: number
   media: number
-  decks: string[]
+  /** Course (depth 0) and subsets the import will create, in tree order. */
+  decks: DeckNode[]
+}
+
+/** A course (top level) or a subset the import will create, with its own subsets. */
+interface DeckNode {
+  path: string
+  name: string
+  children: DeckNode[]
+}
+
+/** Paths come parents first ("Law", "Law › Contracts"…): each one hangs under the node of its parent path. */
+function deckTree(paths: readonly string[], separator: string): DeckNode[] {
+  const roots: DeckNode[] = []
+  const byPath = new Map<string, DeckNode>()
+  for (const path of paths) {
+    const parts = path.split(separator)
+    const node: DeckNode = { path, name: parts.at(-1) ?? path, children: [] }
+    byPath.set(path, node)
+    const parent = byPath.get(parts.slice(0, -1).join(separator))
+    if (parent) parent.children.push(node)
+    else roots.push(node)
+  }
+  return roots
+}
+
+function DeckList({ nodes }: { nodes: readonly DeckNode[] }) {
+  return (
+    <ul className={local.tree}>
+      {nodes.map((n) => (
+        <li key={n.path} title={n.path}>
+          {n.name}
+          {n.children.length > 0 && <DeckList nodes={n.children} />}
+        </li>
+      ))}
+    </ul>
+  )
 }
 
 /** Reads the package first and shows what it holds; nothing is written until the user confirms. */
@@ -37,13 +74,10 @@ export function AnkiImport() {
     setPreview(null)
     try {
       const bytes = new Uint8Array(await f.arrayBuffer())
-      const { readApkg, courseTitle } = await import('../../../core/anki/apkgRead')
+      const { readApkg, previewPlacements, PATH_SEPARATOR } = await import('../../../core/anki/apkgRead')
       const { format, collection, media } = await readApkg(bytes)
-      const used = new Set(collection.cards.map((c) => c.did))
-      const decks = [...collection.decks.entries()]
-        .filter(([id]) => used.has(id))
-        .map(([, path]) => courseTitle(path))
-        .sort()
+      // Courses and the subsets they will hold ("Law › Contracts"), parents before children.
+      const decks = deckTree(previewPlacements(collection), PATH_SEPARATOR)
       setPreview({
         name: f.name,
         bytes,
@@ -100,7 +134,7 @@ export function AnkiImport() {
           <h3 className={styles.label}>{t('anki.previewTitle', { name: preview.name })}</h3>
           <dl className={styles.facts}>
             <dt>{t('anki.decks')}</dt>
-            <dd>{preview.decks.join(', ') || '—'}</dd>
+            <dd>{preview.decks.length === 0 ? '—' : <DeckList nodes={preview.decks} />}</dd>
             <dt>{t('anki.notes')}</dt>
             <dd>{preview.notes}</dd>
             <dt>{t('anki.cards')}</dt>
@@ -130,6 +164,14 @@ export function AnkiImport() {
           {result.skipped > 0 ? ` · ${t('anki.skipped', { count: result.skipped })}` : ''}
         </p>
       )}
+      {result?.trashedSections.map((path) => (
+        <p key={path} className={local.trashed}>
+          {t('anki.inTrashedSection', { path })}{' '}
+          <a className={local.link} href="#/trash">
+            {t('anki.restoreFromTrash')}
+          </a>
+        </p>
+      ))}
       {error && (
         <p className={styles.bad} role="alert">
           {error}

@@ -253,6 +253,20 @@ test('Data: storage health, backup to a file and back on another device, Anki im
   await expect(page2.getByRole('main').getByRole('link', { name: /Histology/ })).toBeVisible()
   await other.close()
 
+  // A trashed subset that the package fills (deck Bio::Cells): the import says so and leads to the Trash.
+  await createCourse(page, 'Bio')
+  await page.getByRole('button', { name: 'New section' }).click()
+  const newSection = page.getByRole('dialog', { name: 'New section' })
+  await newSection.getByLabel('Section name').fill('Cells')
+  await newSection.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Cells' })).toBeVisible()
+  await page.getByRole('button', { name: 'Section settings' }).click()
+  await page
+    .getByRole('dialog', { name: 'Section settings' })
+    .getByRole('button', { name: 'Move section to the trash' })
+    .click()
+  await expect(page.getByText('Section moved to the trash.')).toBeVisible()
+
   // Anki: a preview first, then the import on confirmation.
   await open(page, '#/settings/data', 'Data')
   await page.getByLabel('Choose an .apkg or .colpkg file').setInputFiles(ANKI)
@@ -261,8 +275,13 @@ test('Data: storage health, backup to a file and back on another device, Anki im
   await expect(page.getByText('Decks', { exact: true })).toBeVisible()
   await confirm.click()
   await expect(page.getByText(/\d+ cards? imported/)).toBeVisible({ timeout: 20_000 })
+  await expect(page.getByText('New cards went into “Bio › Cells”, which is in the trash.')).toBeVisible()
+  await page.getByRole('link', { name: 'Restore it from Trash' }).click()
+  await expect(page).toHaveURL(/#\/trash$/)
+  await expect(page.getByRole('main').getByText(/Cells/).first()).toBeVisible()
 
   // Export one course to Anki.
+  await open(page, '#/settings/data', 'Data')
   const apkg = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Export “Histology” to Anki' }).click()
   expect((await apkg).suggestedFilename()).toBe('Histology.apkg')

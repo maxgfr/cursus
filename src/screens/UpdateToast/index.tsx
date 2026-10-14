@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
+import { startResiliently } from '../../app/chunkGuard.ts'
 import { useRuntime } from '../../app/workspaceContext.tsx'
 import { useT } from '../../i18n/react.tsx'
 import { type PwaUpdate, requestPersistence, startPwa } from '../../pwa/index.ts'
 import { Toast } from '../../ui/components/Toast.tsx'
+import { noteError } from '../settings/Diagnostic/recent.ts'
 
 /** Starts the PWA layer and offers a waiting update (sealing first). */
 export default function UpdateToast() {
@@ -12,8 +14,9 @@ export default function UpdateToast() {
   const [applying, setApplying] = useState(false)
 
   useEffect(() => {
-    void startPwa({ onUpdate: setPending, seal: () => rt.seal() })
-    void requestPersistence()
+    // A failed start only loses the update prompt: recorded for the diagnostic report, retried once.
+    void startResiliently(() => startPwa({ onUpdate: setPending, seal: () => rt.seal(), report: noteError }), noteError)
+    requestPersistence().catch((e: unknown) => noteError('storage.persist', e))
   }, [rt])
 
   if (pending) {

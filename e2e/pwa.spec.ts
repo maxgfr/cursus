@@ -1,11 +1,6 @@
-import { readFile, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { readFile } from 'node:fs/promises'
 import { expect, type Page, test } from '@playwright/test'
-
-const SW = join(import.meta.dirname, '..', 'dist', 'sw.js')
-
-// One test rewrites dist/sw.js to publish a new version: keep the others from installing it meanwhile.
-test.describe.configure({ mode: 'serial' })
+import { test as ownAppTest } from './support/own-app.ts'
 
 /** Collects console errors (CSP violations land here) and uncaught exceptions. */
 function watchErrors(page: Page): string[] {
@@ -124,7 +119,8 @@ test('the app works offline from the precache, without CSP violations', async ({
   expect(errors.filter((e) => /Content Security Policy/i.test(e))).toEqual([])
 })
 
-test('a new version is offered on return to the foreground and applied', async ({ page }) => {
+// Publishes its new version on its own copy of the app: the shared dist/ is never rewritten.
+ownAppTest('a new version is offered on return to the foreground and applied', async ({ page, ownApp }) => {
   await page.addInitScript(() => {
     const w = window as Window & { __updateChecks?: number }
     w.__updateChecks = 0
@@ -136,38 +132,78 @@ test('a new version is offered on return to the foreground and applied', async (
   })
   await openToday(page)
   await waitForController(page)
-  // Publish a "new version": same worker code, different bytes (restored afterwards; this file runs serially).
-  const original = await readFile(SW, 'utf8')
-  await writeFile(SW, `${original}\n// next version\n`)
-  try {
-    // Back to the foreground (repeated: the registration may still be settling after the reload).
-    await expect
-      .poll(() =>
-        page.evaluate(() => {
-          Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' })
-          document.dispatchEvent(new Event('visibilitychange'))
-          return (window as Window & { __updateChecks?: number }).__updateChecks ?? 0
-        }),
-      )
-      .toBeGreaterThan(0)
-    const toast = page.getByRole('status').filter({ hasText: 'A new version of Cursus is ready.' })
-    await expect(toast).toBeVisible()
-    await Promise.all([page.waitForEvent('load'), toast.getByRole('button', { name: 'Update' }).click()])
+  await ownApp.publishNewVersion()
+  // Back to the foreground (repeated: the registration may still be settling after the reload).
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' })
+        document.dispatchEvent(new Event('visibilitychange'))
+        return (window as Window & { __updateChecks?: number }).__updateChecks ?? 0
+      }),
+    )
+    .toBeGreaterThan(0)
+  const toast = page.getByRole('status').filter({ hasText: 'A new version of Cursus is ready.' })
+  await expect(toast).toBeVisible()
+  await Promise.all([page.waitForEvent('load'), toast.getByRole('button', { name: 'Update' }).click()])
+  await expect(page.getByRole('heading', { level: 1, name: /Today/ })).toBeVisible()
+  await expect.poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true)
+  await expect(page.getByText('A new version of Cursus is ready.')).toHaveCount(0)
+})
+
+test('a PWA chunk that fails to load is recorded, never thrown, and registration is retried on return', async ({
+  page,
+  browserName,
+}) => {
+  const thrown: string[] = []
+  page.on('pageerror', (e) => thrown.push(e.message))
+  const chunk = /\/assets\/virtual_pwa-register-[^/]+\.js$/
+  await page.route(chunk, (route) => route.abort())
+  const failed = page.waitForEvent('requestfailed', (r) => chunk.test(r.url()))
+  await openToday(page)
+  await failed
+  const registered = () => page.evaluate(() => navigator.serviceWorker.getRegistration().then((r) => r !== undefined))
+  /** The diagnostic report's recorded failures, rebuilt by opening the screen afresh (in-app, no reload). */
+  const recorded = async () => {
+    await page.evaluate(() => {
+      location.hash = '#/'
+    })
     await expect(page.getByRole('heading', { level: 1, name: /Today/ })).toBeVisible()
-    await expect.poll(() => page.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true)
-    await expect(page.getByText('A new version of Cursus is ready.')).toHaveCount(0)
-  } finally {
-    await writeFile(SW, original)
+    await page.evaluate(() => {
+      location.hash = '#/settings/diagnostic'
+    })
+    await expect(page.locator('pre')).toContainText('"errors"')
+    return ((await page.locator('pre').textContent()) ?? '').match(/pwa\.start TypeError/g)?.length ?? 0
   }
+  // The app stays usable; the failure is in the diagnostic report.
+  expect(await recorded()).toBe(1)
+  expect(await registered()).toBe(false)
+  // Back to the foreground with the network healed: registration is tried once more.
+  await page.unroute(chunk)
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event('blur'))
+    window.dispatchEvent(new Event('focus'))
+  })
+  if (browserName === 'webkit') {
+    // WebKit keeps a failed module import failed for the life of the document: the retry is recorded, and the
+    // worker registers on the next launch.
+    await expect.poll(recorded).toBe(2)
+  } else {
+    await expect.poll(registered).toBe(true)
+    expect(await recorded()).toBe(1)
+  }
+  expect(thrown).toEqual([])
 })
 
 test('storage persistence is requested', async ({ page }) => {
+  // Observed on the prototype: WebKit hands out a fresh `navigator.storage` wrapper after init scripts, so a
+  // property set on the instance here is gone by the time the app asks (the request went unobserved).
   await page.addInitScript(() => {
     const w = window as Window & { __persistAsked?: boolean }
-    const orig = navigator.storage.persist.bind(navigator.storage)
-    navigator.storage.persist = () => {
+    const orig = StorageManager.prototype.persist
+    StorageManager.prototype.persist = function (this: StorageManager) {
       w.__persistAsked = true
-      return orig()
+      return orig.call(this)
     }
   })
   await openToday(page)

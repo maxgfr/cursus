@@ -1,15 +1,17 @@
-import { History, Trash2 } from 'lucide-react'
+import { FolderInput, History, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'wouter'
 import * as Y from 'yjs'
 import { to } from '../../app/routes.ts'
 import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
+import { PATH_SEPARATOR } from '../../core/model/sections'
 import { useT } from '../../i18n/react.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { Keycap } from '../../ui/components/Keycap.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
 import { Sheet } from '../../ui/components/Sheet.tsx'
 import { MarkdownEditor } from '../../ui/editor/MarkdownEditor.tsx'
+import { MoveSheet, moveItemTo } from '../../ui/MoveSheet.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { earlierPaths } from '../Course/backTarget.ts'
 import type { CardNotice } from '../Course/index.tsx'
@@ -18,7 +20,16 @@ import NotFound from '../NotFound/index.tsx'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 import styles from './CardEditor.module.css'
 import { ClozeAssistant } from './ClozeAssistant.tsx'
-import { type CardFields, dropDraft, EMPTY, keepDraft, newCardCourse, readDraft, sameFields } from './draft.ts'
+import {
+  type CardFields,
+  dropDraft,
+  EMPTY,
+  keepDraft,
+  newCardCourse,
+  newCardSection,
+  readDraft,
+  sameFields,
+} from './draft.ts'
 import { saveExisting } from './merge.ts'
 
 type Kind = CardFields['kind']
@@ -48,10 +59,21 @@ export default function CardEditor() {
   const [, navigate] = useLocation()
   const { id = '' } = useParams<{ id: string }>()
   const newCourse = newCardCourse(id)
-  const card = useWorkspaceData(['cards', 'courses', { id }], (w) => {
+  const newSection = newCardSection(id)
+  const card = useWorkspaceData(['cards', 'courses', 'sections', { id }], (w) => {
     if (newCourse !== null) {
       const course = w.courses.get(newCourse)
-      return course && course.deletedAt === undefined ? { courseId: newCourse, saved: null } : null
+      if (!course || course.deletedAt !== undefined) return null
+      // A card started inside a section lands there; if that section went to the trash (or is gone) meanwhile,
+      // in its nearest live ancestor, or the course root, and the editor says where.
+      const tree = w.sections.tree()
+      const chain = newSection === null ? [] : tree.chain(newSection).filter((s) => s.courseId === newCourse)
+      const sectionId = chain.filter((s) => !tree.hidden(s.id)).at(-1)?.id ?? null
+      const relocated =
+        newSection !== null && sectionId !== newSection
+          ? [course.title, ...(sectionId === null ? [] : tree.chain(sectionId).map((s) => s.name))].join(PATH_SEPARATOR)
+          : null
+      return { courseId: newCourse, sectionId, saved: null, relocated }
     }
     const c = w.cards.get(id)
     if (!c || c.deletedAt !== undefined) return null
@@ -60,7 +82,7 @@ export default function CardEditor() {
       front: w.text({ id: c.id, field: 'front' }).toString(),
       back: w.text({ id: c.id, field: 'back' }).toString(),
     }
-    return { courseId: c.courseId, saved }
+    return { courseId: c.courseId, sectionId: w.sections.tree().sectionOf(c), saved, relocated: null }
   })
   const saved = card?.saved ?? EMPTY
   const savedRef = useRef(saved)
@@ -81,6 +103,8 @@ export default function CardEditor() {
   const [justSaved, setJustSaved] = useState(false)
   const [asking, setAsking] = useState(false)
   const [round, setRound] = useState(0)
+  const [moving, setMoving] = useState(false)
+  const [movedTo, setMovedTo] = useState<string | null>(null)
   const formRef = useRef<HTMLDivElement>(null)
   const pageRef = useRef<HTMLDivElement>(null)
   const exists = card !== null
@@ -163,23 +187,26 @@ export default function CardEditor() {
   const leave = useCallback(
     (notice?: CardNotice) => {
       const prev = earlierPaths().at(-1)
-      const target = prev && !prev.startsWith('/card/') ? prev : to.course(card?.courseId ?? '')
+      // The page the card was started from may be in the trash now: go where the card actually is.
+      const home = to.place(card?.courseId ?? '', card?.sectionId)
+      const target = prev && !prev.startsWith('/card/') && !card?.relocated ? prev : home
       navigate(target, notice ? { state: notice } : undefined)
     },
-    [navigate, card?.courseId],
+    [navigate, card?.courseId, card?.sectionId, card?.relocated],
   )
 
   /** Creates the new card from the draft in one batch, once. */
   const create = useCallback(
     (f: CardFields, courseId: string): string => {
+      const sectionId = card?.sectionId ?? undefined
       return ws.batch(() => {
-        const cid = ws.cards.create({ courseId, kind: f.kind })
+        const cid = ws.cards.create(sectionId ? { courseId, sectionId, kind: f.kind } : { courseId, kind: f.kind })
         applyForward(ws.text({ id: cid, field: 'front' }), f.front)
         applyForward(ws.text({ id: cid, field: 'back' }), f.back)
         return cid
       })
     },
-    [ws],
+    [ws, card?.sectionId],
   )
 
   /** Holds Save (buttons, shortcuts, key repeat) until the write and what follows it are done. */
@@ -284,12 +311,13 @@ export default function CardEditor() {
 
   if (card === null) return <NotFound />
   const courseId = card.courseId
+  const home = to.place(courseId, card.sectionId)
   const remove = () => {
     void dropDraft(rt.store, id).catch((e: unknown) => noteError('card.draft', e))
     ws.cards.trash(id)
     // The course offers Undo for a few moments instead of asking first.
     const state: CardNotice = { trashedCard: id }
-    navigate(to.course(courseId), { state })
+    navigate(home, { state })
   }
   const shortcut = MAC ? '⌘S' : 'Ctrl+S'
   const saveButton = (
@@ -308,12 +336,10 @@ export default function CardEditor() {
 
   return (
     <div ref={pageRef} className={styles.page}>
-      <Screen
-        title={t('common.cardTitle')}
-        back={to.course(courseId)}
-        trailing={<div className={styles.top}>{saveButton}</div>}
-      >
+      <Screen title={t('common.cardTitle')} back={home} trailing={<div className={styles.top}>{saveButton}</div>}>
         <p className={styles.status} role="status">
+          {card.relocated ? `${t('course.sectionGoneSaveIn', { place: card.relocated })} ` : ''}
+          {movedTo !== null ? `${t('course.moved', { place: movedTo })} ` : ''}
           {conflict && dirty ? `${t('course.changedElsewhere')} ` : ''}
           {restored && dirty && !conflict ? `${t('course.draftRestored')} ` : ''}
           {status}
@@ -364,6 +390,13 @@ export default function CardEditor() {
                 <History size={18} aria-hidden="true" />
                 {t('course.history')}
               </Link>
+              <Button
+                variant="plain"
+                icon={<FolderInput size={18} aria-hidden="true" />}
+                onClick={() => setMoving(true)}
+              >
+                {t('course.moveTo')}
+              </Button>
               <Button variant="danger" icon={<Trash2 size={18} aria-hidden="true" />} onClick={remove}>
                 {t('course.moveToTrash')}
               </Button>
@@ -372,6 +405,16 @@ export default function CardEditor() {
         </div>
         <div className={styles.bottom}>{saveButton}</div>
       </Screen>
+      {newCourse === null && (
+        <MoveSheet
+          open={moving}
+          title={t('course.moveTitle')}
+          onClose={() => setMoving(false)}
+          current={{ courseId, sectionId: card.sectionId }}
+          onMove={(place) => moveItemTo(ws, 'cards', id, place)}
+          onMoved={setMovedTo}
+        />
+      )}
       <Sheet open={asking} title={t('course.discardTitle')} onClose={() => setAsking(false)}>
         <p className={styles.help}>{t('course.discardBody')}</p>
         <div className={styles.actions}>

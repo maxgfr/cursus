@@ -1,10 +1,14 @@
-import type { Id } from '../contracts/workspace'
+import type { Id, StudyScope } from '../contracts/workspace'
 import { type CardState, dayStart, newCardState, studyDay } from './fsrs'
 
 export interface QueueCard {
   id: Id
   /** Cards sharing a sibling key (e.g. same fiche or cloze note) are buried together for the day. */
   sibling?: string
+  /** Needed only for a scoped queue. */
+  courseId?: Id
+  /** Section ids from the course root down to the card's section (empty or absent at the course root). */
+  sections?: readonly Id[]
 }
 
 export interface QueueInput {
@@ -13,6 +17,18 @@ export interface QueueInput {
   now: number
   tzOffsetMin: number
   newPerDay: number
+  /**
+   * Only cards of this course or subset (descendants included) are queued. Today's reviews of every card
+   * still count: the daily new-card budget and sibling burying are the student's, not the subset's.
+   */
+  scope?: StudyScope
+}
+
+/** In the scope's course and, for a subset, filed in it or below it. No scope: every card. */
+export function inScope(card: QueueCard, scope: StudyScope | undefined): boolean {
+  if (scope === undefined) return true
+  if (card.courseId !== scope.courseId) return false
+  return scope.sectionId === undefined || (card.sections ?? []).includes(scope.sectionId)
 }
 
 export interface QueueEntry {
@@ -26,7 +42,8 @@ const byDueThenId = (a: CardState, b: CardState): number =>
 /**
  * Today's queue: due learning cards first, then reviews due before the end
  * of the study day, then new cards up to the remaining daily limit. A sibling
- * group reviewed today, or already represented in the queue, is buried.
+ * group reviewed today, or already represented in the queue, is buried. With a scope, only that course
+ * or subset is queued.
  */
 export function buildQueue(input: QueueInput): QueueEntry[] {
   const { cards, states, now, tzOffsetMin } = input
@@ -49,6 +66,7 @@ export function buildQueue(input: QueueInput): QueueEntry[] {
   const fresh: CardState[] = []
   const siblingOf = new Map<Id, string | undefined>()
   for (const c of cards) {
+    if (!inScope(c, input.scope)) continue
     siblingOf.set(c.id, c.sibling)
     const s = states.get(c.id) ?? newCardState(c.id)
     if (s.phase === 'new') fresh.push(s)

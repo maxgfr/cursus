@@ -1,6 +1,6 @@
 import { ListChecks, Sparkles } from 'lucide-react'
 import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from 'react'
-import { paths } from '../../app/routes.ts'
+import { paths, withScope } from '../../app/routes.ts'
 import { useWorkspace } from '../../app/workspaceContext.tsx'
 import { explainBack } from '../../core/ai/features/explainBack'
 import { type Chunk, isValidRef } from '../../core/ai/retrieval'
@@ -12,14 +12,15 @@ import { Field } from '../../ui/components/Field.tsx'
 import { ListGroup, ListRow } from '../../ui/components/List.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
+import { useScopeOnce } from '../Section/scope.ts'
 import styles from './shared/ai.module.css'
 import { useAiModel } from './shared/aiConfig.ts'
 import {
   Citation,
-  emptySelection,
   NoModel,
   type Selection,
   SourcePicker,
+  selectionFor,
   useChunkLoader,
 } from './shared/SourcePicker.tsx'
 import { estimateCost } from './shared/sources.ts'
@@ -33,7 +34,8 @@ export default function Understand() {
   const ws = useWorkspace()
   const ai = useAiModel()
   const loadChunks = useChunkLoader()
-  const [selection, setSelection] = useState<Selection>(emptySelection)
+  const opened = useScopeOnce()
+  const [selection, setSelection] = useState<Selection>(() => selectionFor(opened))
   const [topic, setTopic] = useState('')
   const [level, setLevel] = useState<Level>('standard')
   const [estimate, setEstimate] = useState<number | null>(null)
@@ -70,7 +72,7 @@ export default function Understand() {
     return (
       <Screen title={t('ai.understand')}>
         <NoModel />
-        <MoreTools />
+        <MoreTools selection={selection} />
       </Screen>
     )
 
@@ -168,18 +170,25 @@ export default function Understand() {
 
       {done && <ExplainBack topic={topic.trim()} chunks={grounded} courseLanguage={courseLanguage} />}
 
-      <MoreTools />
+      <MoreTools selection={selection} />
     </Screen>
   )
 }
 
 /** Generate and Quiz stay one tap away from Understand, with or without a model set up. */
-function MoreTools() {
+function MoreTools({ selection }: { selection: Selection }) {
   const t = useT()
+  // The chosen course or section carries over.
+  const scope =
+    selection.courseId === ''
+      ? null
+      : selection.sectionId === ''
+        ? { courseId: selection.courseId }
+        : { courseId: selection.courseId, sectionId: selection.sectionId }
   return (
     <ListGroup title={t('common.more')} hideTitle>
-      <ListRow href={paths.generate} leading={<Sparkles size={20} />} title={t('ai.generate')} />
-      <ListRow href={paths.quiz} leading={<ListChecks size={20} />} title={t('ai.quiz')} />
+      <ListRow href={withScope(paths.generate, scope)} leading={<Sparkles size={20} />} title={t('ai.generate')} />
+      <ListRow href={withScope(paths.quiz, scope)} leading={<ListChecks size={20} />} title={t('ai.quiz')} />
     </ListGroup>
   )
 }

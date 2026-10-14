@@ -36,6 +36,15 @@ ws.text({ id: basic, field: 'back' }).insert(0, 'Einstein')
 const cloze = ws.cards.create({ courseId: other, kind: 'cloze' })
 ws.text({ id: cloze, field: 'front' }).insert(0, `Pi is {{c1::3.14}} <audio controls src="cursus-blob:${mp3}"></audio>`)
 ws.text({ id: cloze, field: 'back' }).insert(0, 'circle')
+// Nested subsets of Maths: Algebra (1 card) > Groups (2 cards), plus an empty Geometry.
+const algebra = ws.sections.create({ courseId: other, name: 'Algebra' })
+const groups = ws.sections.create({ courseId: other, parentId: algebra, name: 'Groups' })
+ws.sections.create({ courseId: other, name: 'Geometry' })
+for (const [front, sectionId] of [['Ring', algebra], ['Group', groups], ['Abelian', groups]]) {
+  const id = ws.cards.create({ courseId: other, kind: 'basic', sectionId })
+  ws.text({ id, field: 'front' }).insert(0, front)
+  ws.text({ id, field: 'back' }).insert(0, `${front} def`)
+}
 ws.reviews.record({ cardId: basic, rating: 3, at: T0, ms: 5_000 })
 ws.reviews.record({ cardId: basic, rating: 3, at: T0 + 600_000, ms: 4_000 })
 ws.reviews.record({ cardId: basic, rating: 4, at: T0 + DAY, ms: 2_000 })
@@ -70,12 +79,40 @@ def main() -> int:
             col.import_anki_package(req)
 
             decks = sorted(d.name for d in col.decks.all_names_and_ids())
-            if decks != ["Cursus", "Cursus::Maths", "Cursus::Physics", "Default"]:
+            # Anki imports only the decks that hold cards (and their parents): empty Geometry stays behind.
+            want = [
+                "Cursus",
+                "Cursus::Maths",
+                "Cursus::Maths::Algebra",
+                "Cursus::Maths::Algebra::Groups",
+                "Cursus::Physics",
+                "Default",
+            ]
+            if decks != want:
                 return fail(f"decks {decks}")
-            if col.card_count() != 2 or col.note_count() != 2:
+            # The deck tree: every subset deck sits under its parent's deck.
+            for name in want[1:-1]:
+                parent = col.decks.parents(col.decks.id_for_name(name))
+                if [p["name"] for p in parent] != ["::".join(name.split("::")[:i]) for i in range(1, name.count("::") + 1)]:
+                    return fail(f"parents of {name}: {[p['name'] for p in parent]}")
+            if col.card_count() != 5 or col.note_count() != 5:
                 return fail(f"{col.card_count()} cards, {col.note_count()} notes")
+            per_deck = {}
+            for did in col.db.list("select did from cards"):
+                per_deck[col.decks.name(did)] = per_deck.get(col.decks.name(did), 0) + 1
+            if per_deck != {
+                "Cursus::Physics": 1,
+                "Cursus::Maths": 1,
+                "Cursus::Maths::Algebra": 1,
+                "Cursus::Maths::Algebra::Groups": 2,
+            }:
+                return fail(f"cards per deck {per_deck}")
+            for front, deck in (("Ring", "Algebra"), ("Group", "Algebra::Groups"), ("Abelian", "Algebra::Groups")):
+                nids = col.find_notes(f'"deck:Cursus::Maths::{deck}" -"deck:Cursus::Maths::{deck}::*" "Front:{front}"')
+                if len(nids) != 1 or col.get_note(nids[0])["Back"] != f"{front} def":
+                    return fail(f"{front} not found with its fields in {deck}")
 
-            basic_nid = col.find_notes('"note:Cursus Basic"')
+            basic_nid = col.find_notes('"note:Cursus Basic" "deck:Cursus::Physics"')
             cloze_nid = col.find_notes('"note:Cursus Cloze"')
             if len(basic_nid) != 1 or len(cloze_nid) != 1:
                 return fail("notetypes Cursus Basic / Cursus Cloze not found")

@@ -2,7 +2,7 @@ import { generateKeyBetween } from 'fractional-indexing'
 import * as Y from 'yjs'
 import type { Clock, Rng } from '../contracts/ports'
 import type { Id, Repo } from '../contracts/workspace'
-import { type EntityCollection, ROOT, TEXT_FIELDS, textKey } from './schema'
+import { type RepoCollection, ROOT, TEXT_FIELDS, textKey } from './schema'
 
 export type Scalar = string | number | boolean | null | readonly unknown[] | Record<string, unknown>
 
@@ -43,24 +43,41 @@ export class EntityRepo<T extends Meta, In extends object> implements Repo<T, In
   private readonly texts: Y.Map<Y.Text>
   private cache: readonly T[] | null = null
   private byId = new Map<Id, T>()
+  private hidden: ((e: T) => boolean) | null = null
 
   constructor(
-    private readonly deps: RepoDeps,
-    readonly name: EntityCollection,
+    protected readonly deps: RepoDeps,
+    readonly name: RepoCollection,
     private readonly ordered = false,
   ) {
     this.root = deps.doc.getMap(ROOT[name])
     this.texts = deps.doc.getMap(ROOT.texts)
-    this.root.observeDeep(() => {
-      this.cache = null
-    })
+    // Remote and undo changes arrive here at the end of their transaction.
+    this.root.observeDeep(() => this.invalidate())
+  }
+
+  /**
+   * Drops derived caches. Called by every local write as soon as it is applied, so reads stay correct inside
+   * an enclosing transaction (`ws.batch`), where observers only fire once the whole batch ends.
+   */
+  protected invalidate(): void {
+    this.cache = null
   }
 
   get yRoot(): Y.Map<Y.Map<unknown>> {
     return this.root
   }
 
-  private all(): readonly T[] {
+  /**
+   * Hides live entities by derivation (e.g. inside a trashed section) from `list()`; no write involved.
+   * Trashed listings are unaffected: an entity is in the trash only when it was trashed itself.
+   */
+  hideWhen(fn: (e: T) => boolean): void {
+    this.hidden = fn
+  }
+
+  /** Every entity ever created, trashed and purged ones included, ordered like `list()`. */
+  all(): readonly T[] {
     if (this.cache) return this.cache
     const out: T[] = []
     const byId = new Map<Id, T>()
@@ -86,11 +103,13 @@ export class EntityRepo<T extends Meta, In extends object> implements Repo<T, In
     const trashed = f?.trashed ?? false
     const courseId = f?.courseId
     const all = this.all()
+    const hidden = trashed ? null : this.hidden
     const res = all.filter(
       (e) =>
         e.purgedAt === undefined &&
         (e.deletedAt !== undefined) === trashed &&
-        (courseId === undefined || (e as { courseId?: Id }).courseId === courseId),
+        (courseId === undefined || (e as { courseId?: Id }).courseId === courseId) &&
+        (hidden === null || !hidden(e)),
     )
     return res.length === all.length ? all : res
   }
@@ -120,10 +139,11 @@ export class EntityRepo<T extends Meta, In extends object> implements Repo<T, In
       // Nested types are created in the same transaction, never lazily.
       for (const field of TEXT_FIELDS[this.name]) this.texts.set(textKey(id, field), new Y.Text())
     })
+    this.invalidate()
     return id
   }
 
-  private entity(id: Id): Y.Map<unknown> {
+  protected entity(id: Id): Y.Map<unknown> {
     const m = this.root.get(id)
     if (!m) throw new EntityNotFoundError(this.name, id)
     return m
@@ -147,11 +167,13 @@ export class EntityRepo<T extends Meta, In extends object> implements Repo<T, In
       }
       if (changed) m.set('updatedAt', this.deps.clock.now())
     })
+    this.invalidate()
   }
 
   trash(id: Id): void {
     const m = this.entity(id)
     if (m.get('deletedAt') === undefined) m.set('deletedAt', this.deps.clock.now())
+    this.invalidate()
   }
 
   restore(id: Id): void {
@@ -160,6 +182,7 @@ export class EntityRepo<T extends Meta, In extends object> implements Repo<T, In
       m.delete('deletedAt')
       m.delete('purgedAt')
     })
+    this.invalidate()
   }
 
   purge(id: Id): void {
@@ -169,6 +192,7 @@ export class EntityRepo<T extends Meta, In extends object> implements Repo<T, In
       if (m.get('deletedAt') === undefined) m.set('deletedAt', now)
       m.set('purgedAt', now)
     })
+    this.invalidate()
   }
 }
 

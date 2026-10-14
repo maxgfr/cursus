@@ -55,7 +55,7 @@
         "@vitejs/plugin-react": "6.1.2",
         "fake-indexeddb": "6.2.5",
         "fast-check": "4.10.2",
-        "llm-models": "1.5.1",
+        "llm-models": "1.7.0",
         "typescript": "7.0.2",
       },
     },
@@ -981,7 +981,7 @@
 
     "lightningcss-win32-x64-msvc": ["lightningcss-win32-x64-msvc@1.33.0", "", { "os": "win32", "cpu": "x64" }, "sha512-OlEICDx/Xl0FqSp4bry8zFnCvGpig3Gl4gCquvYwHuqJKEC1+n9NgDniFvqHGmMv1ZkqDJrDqKKSykTDX+ehuA=="],
 
-    "llm-models": ["llm-models@1.5.1", "", { "dependencies": { "@modelcontextprotocol/sdk": "^1.30.0", "commander": "^15.0.0", "zod": "^4.4.3" }, "bin": { "llm-models": "build/index.js" } }, "sha512-BpltjdU5NS14+VAcfQdnZCPzANz4PgIRttYkS6Sq5yKosreuxhNx0TGjaKgUaufLh8pkFHX1GAdktmeV1Npp2w=="],
+    "llm-models": ["llm-models@1.7.0", "", { "dependencies": { "@modelcontextprotocol/sdk": "^1.30.0", "commander": "^15.0.0", "zod": "^4.4.3" }, "bin": { "llm-models": "build/index.js" } }, "sha512-847IK5/K9Nd3+x0mX7t8nQqkMpRKHrcctADGOfnziyVuG3Ce6Fbmg7HVDMpzhLOfTF/v3a+XEsimVYh+ZmZ01w=="],
 
     "locate-path": ["locate-path@5.0.0", "", { "dependencies": { "p-locate": "^4.1.0" } }, "sha512-t7hw9pI+WvuwNJXwk5zVHpyhIqzg2qTlklJOf0mVxGSbe3Fp2VieZcduNYjaLDoy6p9uGpQEGWG87WpMKlNq8g=="],
 

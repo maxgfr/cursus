@@ -17,5 +17,7 @@ export const anki = {
   importAction: { one: 'Import {count} card', other: 'Import {count} cards' },
   unreadable:
     'This file couldn’t be read as an Anki package. Check that it’s an .apkg exported from Anki. Settings › Diagnostics keeps the details.',
+  inTrashedSection: 'New cards went into “{path}”, which is in the trash.',
+  restoreFromTrash: 'Restore it from Trash',
   exportHint: 'To export to Anki, use the Anki button next to a course above.',
 } as const

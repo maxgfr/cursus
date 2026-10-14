@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import * as Y from 'yjs'
+import type { Rating } from '../contracts/workspace'
 import { virtualClock } from '../ports/clock'
 import { seededRng } from '../ports/rng'
 import { createWorkspace, TextNotFoundError } from './workspace'
@@ -209,5 +210,53 @@ describe('convergence', () => {
       expect(first && 'ms' in first ? first.ms : -1).toBe(0)
       expect(first && 'dev' in first ? first.dev : '').toBe('B')
     }
+  })
+})
+
+describe('bulk review history', () => {
+  const fresh = () => {
+    const clock = virtualClock(1)
+    const doc = new Y.Doc({ gc: true })
+    doc.clientID = 1
+    return { doc, w: createWorkspace(doc, { rng: seededRng(5, clock), clock, deviceId: 'd' }) }
+  }
+  const history = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      cardId: `c${i % 7}`,
+      rating: ((i % 4) + 1) as Rating,
+      at: i * 1_000,
+      ms: i % 3 === 0 ? -5 : 900,
+    }))
+
+  test('recordMany equals record one by one: same ids, order and encoded update', () => {
+    const rs = history(2_000)
+    const a = fresh()
+    const ids = a.w.atomic(() => rs.map((r) => a.w.reviews.record(r)))
+    const b = fresh()
+    expect(b.w.atomic(() => b.w.reviews.recordMany(rs))).toEqual(ids)
+    expect(b.w.reviews.yArray.toJSON()).toEqual(a.w.reviews.yArray.toJSON())
+    expect(Y.encodeStateAsUpdateV2(b.doc)).toEqual(Y.encodeStateAsUpdateV2(a.doc))
+    expect(b.w.reviews.forCard('c3')).toEqual(a.w.reviews.forCard('c3'))
+    expect(b.w.reviews.recordMany([])).toEqual([])
+  })
+
+  test('50k reviews in one atomic transaction stay linear', () => {
+    const rs = history(50_000)
+    const { w } = fresh()
+    const t0 = performance.now()
+    w.atomic(() => w.reviews.recordMany(rs))
+    // Per-item pushes took ~4.3 s here (quadratic); one push takes tens of ms.
+    expect(performance.now() - t0).toBeLessThan(1_500)
+    expect(w.reviews.yArray.length).toBe(50_000)
+    expect(w.reviews.forCard('c0')).toHaveLength(Math.ceil(50_000 / 7))
+  })
+
+  test('forCard sees reviews recorded earlier in the same transaction', () => {
+    const { w } = fresh()
+    w.batch(() => {
+      expect(w.reviews.forCard('c0')).toHaveLength(0)
+      w.reviews.record({ cardId: 'c0', rating: 3, at: 1, ms: 1 })
+      expect(w.reviews.forCard('c0')).toHaveLength(1)
+    })
   })
 })

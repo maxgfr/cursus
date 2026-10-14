@@ -273,7 +273,9 @@ test('Trash: restore, then delete forever with the history caveat explained', as
   await page.getByRole('button', { name: 'Restore Consideration' }).click()
   await expect(page.getByRole('heading', { name: 'The trash is empty' })).toBeVisible()
   // The empty state teaches with one sentence under its title.
-  await expect(page.getByText('Deleted courses, sources and cards wait here until you restore them.')).toBeVisible()
+  await expect(
+    page.getByText('Deleted courses, sections, sources and cards wait here until you restore them.'),
+  ).toBeVisible()
   await page.goto('./#/')
   await page.getByRole('main').getByRole('link', { name: /Law/ }).click()
   await expect(page.getByRole('main').getByRole('link', { name: /Consideration/ })).toBeVisible()
@@ -297,7 +299,9 @@ test('Trash: restore, then delete forever with the history caveat explained', as
   await confirm.getByRole('button', { name: 'Delete forever' }).click()
   await expect(page.getByRole('heading', { name: 'The trash is empty' })).toBeVisible()
   // The empty state teaches with one sentence under its title.
-  await expect(page.getByText('Deleted courses, sources and cards wait here until you restore them.')).toBeVisible()
+  await expect(
+    page.getByText('Deleted courses, sections, sources and cards wait here until you restore them.'),
+  ).toBeVisible()
   await page.goto('./#/courses')
   await expect(page.getByRole('main').getByRole('link', { name: /Law/ })).toHaveCount(0)
   expect(errors).toEqual([])

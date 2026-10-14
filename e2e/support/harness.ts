@@ -20,6 +20,7 @@ import { defaultLocks } from '${ROOT}/src/core/ports/locks.ts'
 import { cryptoRng } from '${ROOT}/src/core/ports/rng.ts'
 
 const DAY = 86400000
+const BULK_CARDS_PER_BATCH = 100
 
 async function seed(spec) {
   const store = idbStore()
@@ -51,22 +52,27 @@ async function seed(spec) {
     // Generated here rather than shipped over the protocol: a large library with a long history.
     const { courses, cardsPerCourse, reviewsPerCard } = spec.bulk
     const now = clock.now()
-    ws.batch(() => {
-      for (let k = 0; k < courses; k++) {
-        const courseId = ws.courses.create({ title: 'Course ' + (k + 1), language: 'en' })
-        for (let i = 0; i < cardsPerCourse; i++) {
-          const id = ws.cards.create({ courseId, kind: 'basic' })
-          ws.text({ id, field: 'front' }).insert(0, 'Question ' + k + '.' + i + ': what is term ' + i + '?')
-          ws.text({ id, field: 'back' }).insert(0, 'Answer ' + i)
-          // Reviews spread over the past year; a fraction of them lapse.
-          const start = now - 365 * DAY + ((i * 7919) % (30 * DAY))
-          for (let j = 0; j < reviewsPerCard; j++) {
-            const rating = (i + j) % 9 === 0 ? 1 : 3
-            ws.reviews.record({ cardId: id, rating, at: start + j * 16 * DAY, ms: 4000 })
+    for (let k = 0; k < courses; k++) {
+      const courseId = ws.courses.create({ title: 'Course ' + (k + 1), language: 'en' })
+      // A few cards per transaction: inside one Yjs transaction every Y.Array push walks the items
+      // pushed so far (they merge only when it commits), so one batch of 200,000 reviews is quadratic
+      // and took minutes on CI.
+      for (let first = 0; first < cardsPerCourse; first += BULK_CARDS_PER_BATCH) {
+        ws.batch(() => {
+          for (let i = first; i < Math.min(cardsPerCourse, first + BULK_CARDS_PER_BATCH); i++) {
+            const id = ws.cards.create({ courseId, kind: 'basic' })
+            ws.text({ id, field: 'front' }).insert(0, 'Question ' + k + '.' + i + ': what is term ' + i + '?')
+            ws.text({ id, field: 'back' }).insert(0, 'Answer ' + i)
+            // Reviews spread over the past year; a fraction of them lapse.
+            const start = now - 365 * DAY + ((i * 7919) % (30 * DAY))
+            for (let j = 0; j < reviewsPerCard; j++) {
+              const rating = (i + j) % 9 === 0 ? 1 : 3
+              ws.reviews.record({ cardId: id, rating, at: start + j * 16 * DAY, ms: 4000 })
+            }
           }
-        }
+        })
       }
-    })
+    }
   }
   await capture.settled()
   await log.seal()

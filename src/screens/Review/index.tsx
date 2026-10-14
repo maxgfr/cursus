@@ -13,6 +13,7 @@ import { Toast } from '../../ui/components/Toast.tsx'
 import { useStudy } from '../../ui/data/useStudy.ts'
 import { Sanitized } from '../../ui/render/Sanitized.tsx'
 import { SpeakButton } from '../../ui/SpeakButton.tsx'
+import { useScopeOnce } from '../Section/scope.ts'
 import { useAiModel } from '../Understand/shared/aiConfig.ts'
 import { Explain, Improve, OwnWords } from './Assist.tsx'
 import { describeFailure } from './failure.ts'
@@ -56,7 +57,8 @@ export default function Review() {
   const ws = useWorkspace()
   const [, navigate] = useLocation()
   const study = useStudy()
-  const [start] = useState(() => startQueue(ws, Date.now()))
+  const scope = useScopeOnce()
+  const [start] = useState(() => startQueue(ws, Date.now(), scope ?? undefined))
   const [queue, setQueue] = useState<QueueEntry[]>(() => start.queue.map((id) => ({ id })))
   const [index, setIndex] = useState(0)
   /** The queue position whose answer is showing (a card can come back later in the session). */

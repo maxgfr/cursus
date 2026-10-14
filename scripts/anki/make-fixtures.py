@@ -1,7 +1,8 @@
 """Builds tests/fixtures/anki/*.apkg with the official Anki engine.
 
 Run once, then commit the output (tests never regenerate it):
-  uv run --no-project --with anki==26.9.3 python scripts/anki/make-fixtures.py
+  uv run --no-project --with anki==26.9.3 python scripts/anki/make-fixtures.py [legacy|modern|nested ...]
+With names, only those packages are (re)written.
 """
 
 import sys
@@ -72,13 +73,29 @@ def build(col: Collection) -> None:
         )
 
 
-def main() -> int:
-    OUT.mkdir(parents=True, exist_ok=True)
+def build_nested(col: Collection) -> None:
+    """Nested decks: Law (root card), Law::Contracts, Law::Contracts::Formation, Law::Torts."""
+    basic = col.models.by_name("Basic")
+    for guid, deck, front in (
+        ("guidNestRoot", "Law", "Law root"),
+        ("guidNestContracts", "Law::Contracts", "Contract"),
+        ("guidNestFormation1", "Law::Contracts::Formation", "Offer"),
+        ("guidNestFormation2", "Law::Contracts::Formation", "Acceptance"),
+        ("guidNestTorts", "Law::Torts", "Negligence"),
+    ):
+        note = col.new_note(basic)
+        note.guid = guid
+        note["Front"] = front
+        note["Back"] = f"{front} answer"
+        col.add_note(note, col.decks.id(deck))
+
+
+def write(builder, packages: tuple[tuple[str, bool], ...]) -> None:
     with tempfile.TemporaryDirectory() as tmp:
         col = Collection(str(Path(tmp) / "fixtures.anki2"))
         try:
-            build(col)
-            for name, legacy in (("legacy.apkg", True), ("modern.apkg", False)):
+            builder(col)
+            for name, legacy in packages:
                 opts = ExportAnkiPackageOptions(
                     with_scheduling=True, with_deck_configs=False, with_media=True, legacy=legacy
                 )
@@ -86,6 +103,16 @@ def main() -> int:
                 print(f"wrote {OUT / name}")
         finally:
             col.close()
+
+
+def main() -> int:
+    OUT.mkdir(parents=True, exist_ok=True)
+    only = set(sys.argv[1:])
+    flat = tuple((f"{n}.apkg", n == "legacy") for n in ("legacy", "modern") if not only or n in only)
+    if flat:
+        write(build, flat)
+    if not only or "nested" in only:
+        write(build_nested, (("nested.apkg", False),))
     return 0
 
 

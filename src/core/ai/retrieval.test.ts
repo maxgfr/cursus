@@ -6,6 +6,7 @@ import {
   estimateTokens,
   formatSources,
   groundChunks,
+  scopeChunks,
   verifyCitations,
 } from './retrieval'
 
@@ -59,5 +60,14 @@ describe('retrieval', () => {
       { sourceId: 's2' },
       undefined,
     ])
+  })
+
+  test('a subset scope grounds on its own sources only', () => {
+    const scope = { sourceIds: new Set(['s2']) }
+    expect(scopeChunks(CHUNKS)).toBe(CHUNKS)
+    expect(scopeChunks(CHUNKS, scope).map((c) => c.sourceId)).toEqual(['s2'])
+    expect(groundChunks(CHUNKS, 'calvin', 10_000, 0, scope).map((c) => c.sourceId)).toEqual(['s2'])
+    expect(groundChunks(CHUNKS, 'calvin', 10_000, 0, { sourceIds: new Set() })).toEqual([])
+    expect(groundChunks(CHUNKS, 'calvin', 10_000, 0)).toHaveLength(3)
   })
 })

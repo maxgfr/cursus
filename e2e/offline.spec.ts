@@ -3,8 +3,6 @@ import { AwsClient } from 'aws4fetch'
 import { createCourse, go, typeInto, watchErrors } from './support/page.ts'
 
 // Service workers on: after the first load, the precache serves the whole app with no network at all.
-// pwa.spec.ts rewrites dist/sw.js in one test: run serially here so no install happens mid-way.
-test.describe.configure({ mode: 'serial' })
 
 const S3 = {
   endpoint: process.env.S3_ENDPOINT ?? 'http://localhost:9000',

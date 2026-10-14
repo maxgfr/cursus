@@ -83,5 +83,8 @@ function hashOf(href: string | null): string {
 export async function openScreen(page: Page, query: string, hash: string): Promise<void> {
   await page.goto(`./${query}${hash}`)
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  // The screen is open once its deferred chunks (service worker registration, idle preloads) are in: navigating
+  // on while they load aborts them, and WebKit reports the aborted import as "Importing a module script failed".
+  await page.waitForLoadState('networkidle')
   await page.evaluate(() => document.fonts.ready.then(() => undefined))
 }

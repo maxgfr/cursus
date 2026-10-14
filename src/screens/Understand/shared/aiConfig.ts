@@ -1,30 +1,29 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRuntime, useWorkspace } from '../../../app/workspaceContext.tsx'
-import { bundledCatalog, findModel, findProvider } from '../../../core/ai/catalog'
-import type { Catalog, CatalogModel, CatalogProvider } from '../../../core/ai/catalogTrim'
+import { findModel, findProvider, isCurrentCatalog, loadBundledCatalog } from '../../../core/ai/catalog'
+import { type Catalog, type CatalogModel, type CatalogProvider, isBrowserCallable } from '../../../core/ai/catalogTrim'
 import { createModel, type FeatureCtx, outputLanguage } from '../../../core/ai/client'
+import { type AiConfig, CUSTOM_PROVIDER, migrateConfig } from '../../../core/ai/config'
 import { costOf } from '../../../core/ai/cost'
+import { checkKey, type DeviceCheck, type DeviceChecks, routeStatus } from '../../../core/ai/deviceCheck'
 import type { AiUsageEvent } from '../../../core/ai/usage'
 import type { ModelWorkspace } from '../../../core/model/workspace'
 import { type Secrets, secretsVault } from '../../../core/storage/secrets'
 import { useLocale } from '../../../i18n/react.tsx'
 
-export type AiLanguage = 'auto' | 'en' | 'de' | 'fr'
-
-/** Device-only AI settings. They live in the vault next to the key, never in the synced doc. */
-export interface AiConfig {
-  providerId?: string
-  modelId?: string
-  /** Overrides the provider's base URL (proxies, self-hosted gateways). */
-  baseUrl?: string
-  language: AiLanguage
-}
+export { type AiConfig, type AiLanguage, CUSTOM_PROVIDER, DEFAULT_CONFIG, migrateConfig } from '../../../core/ai/config'
+export {
+  checkKey,
+  type DeviceCheck,
+  type DeviceChecks,
+  type RouteStatus,
+  routeStatus,
+} from '../../../core/ai/deviceCheck'
 
 const CONFIG = 'ai-config'
 const CATALOG = 'ai-catalog'
+const CHECKS = 'ai-device-checks'
 const keyName = (providerId: string) => `ai-key-${providerId}`
-
-export const DEFAULT_CONFIG: AiConfig = { language: 'auto' }
 
 export function useVault(): Secrets {
   const rt = useRuntime()
@@ -36,13 +35,17 @@ export interface AiSettings {
   catalog: Catalog
   /** Key of the selected provider, if any. */
   apiKey: string
+  checks: DeviceChecks
 }
 
 export async function loadAiSettings(vault: Secrets): Promise<AiSettings> {
-  const config = { ...DEFAULT_CONFIG, ...((await vault.get<AiConfig>(CONFIG)) ?? {}) }
-  const catalog = (await vault.get<Catalog>(CATALOG)) ?? bundledCatalog()
+  const stored = await vault.get<unknown>(CATALOG)
+  // A catalog stored by an older version has another shape: fall back to the bundled one.
+  const catalog = isCurrentCatalog(stored) ? stored : await loadBundledCatalog()
+  const config = migrateConfig(await vault.get<unknown>(CONFIG), catalog)
   const apiKey = config.providerId ? ((await vault.get<string>(keyName(config.providerId))) ?? '') : ''
-  return { config, catalog, apiKey }
+  const checks = (await vault.get<DeviceChecks>(CHECKS)) ?? {}
+  return { config, catalog, apiKey, checks }
 }
 
 export const saveConfig = (vault: Secrets, config: AiConfig) => vault.set(CONFIG, config)
@@ -54,10 +57,66 @@ export async function saveKey(vault: Secrets, providerId: string, key: string): 
 export const loadKey = async (vault: Secrets, providerId: string) =>
   (await vault.get<string>(keyName(providerId))) ?? ''
 
-/** The provider as the client should call it, with the user's base URL applied. */
+export async function saveCheck(vault: Secrets, provider: CatalogProvider, check: DeviceCheck): Promise<DeviceChecks> {
+  const checks = { ...((await vault.get<DeviceChecks>(CHECKS)) ?? {}), [checkKey(provider)]: check }
+  await vault.set(CHECKS, checks)
+  return checks
+}
+
+/** The user's own endpoint, called the OpenAI-compatible way. Nothing about it is known in advance. */
+export function customProvider(name: string, baseUrl: string): CatalogProvider {
+  return {
+    id: CUSTOM_PROVIDER,
+    name,
+    npm: '@ai-sdk/openai-compatible',
+    api: baseUrl.trim() || null,
+    baseUrlSource: 'none',
+    kind: 'host',
+    browser: { verdict: 'unknown', evidence: 'none', checkedAt: new Date(0).toISOString() },
+  }
+}
+
+/**
+ * The provider as the client should call it, with the user's base URL applied. Another URL is
+ * another server, so the build's browser verdict no longer applies to it.
+ */
 export function effectiveProvider(provider: CatalogProvider, baseUrl: string | undefined): CatalogProvider {
   const url = baseUrl?.trim()
-  return url ? { ...provider, api: url } : provider
+  if (!url || url === provider.api) return provider
+  return {
+    ...provider,
+    api: url,
+    browser: { verdict: 'unknown', evidence: 'none', checkedAt: provider.browser.checkedAt },
+  }
+}
+
+/** The configured route resolved against the catalog, or the custom endpoint. */
+export function resolveRoute(
+  config: AiConfig,
+  catalog: Catalog,
+  customName: string,
+): { provider: CatalogProvider; info: CatalogModel } | undefined {
+  const { providerId, modelId } = config
+  if (!providerId || !modelId) return undefined
+  if (providerId === CUSTOM_PROVIDER) {
+    const provider = customProvider(customName, config.baseUrl ?? '')
+    if (!provider.api) return undefined
+    return {
+      provider,
+      info: {
+        id: modelId,
+        name: modelId,
+        provider: CUSTOM_PROVIDER,
+        context_length: 8192,
+        modalities: { input: ['text'] },
+        capabilities: {},
+      },
+    }
+  }
+  const provider = findProvider(catalog, providerId)
+  const info = findModel(catalog, providerId, modelId)
+  if (!provider || !info) return undefined
+  return { provider: effectiveProvider(provider, config.baseUrl), info }
 }
 
 export function languageName(config: AiConfig, courseLanguage: string | undefined, uiLocale: string): string {
@@ -119,36 +178,36 @@ export function useAiModel(): AiModelState {
     }
   }, [vault])
 
+  const route = useMemo(
+    () => (settings ? resolveRoute(settings.config, settings.catalog, CUSTOM_PROVIDER) : undefined),
+    [settings],
+  )
+
   const context = useCallback(
     async (signal: AbortSignal, courseLanguage?: string): Promise<FeatureCtx> => {
       if (!settings) throw new Error('AI settings are not loaded')
-      const { config, catalog, apiKey } = settings
-      const provider = findProvider(catalog, config.providerId ?? '')
-      const info = findModel(catalog, config.providerId ?? '', config.modelId ?? '')
-      if (!provider || !info) throw new Error('No model selected')
-      const model = await createModel({
-        provider: effectiveProvider(provider, config.baseUrl),
-        modelId: info.id,
-        apiKey,
-      })
+      if (!route) throw new Error('No model selected')
+      const model = await createModel({ provider: route.provider, modelId: route.info.id, apiKey: settings.apiKey })
       return {
         model,
-        info,
-        language: languageName(config, courseLanguage, locale === 'pseudo' ? 'en' : locale),
+        info: route.info,
+        language: languageName(settings.config, courseLanguage, locale === 'pseudo' ? 'en' : locale),
         signal,
         onUsage: (e) => recordUsage(ws, e),
       }
     },
-    [settings, ws, locale],
+    [settings, route, ws, locale],
   )
 
   return useMemo((): AiModelState => {
     if (failed) return { status: 'missing' }
     if (!settings) return { status: 'loading' }
-    const { config, catalog, apiKey } = settings
-    const provider = findProvider(catalog, config.providerId ?? '')
-    const info = findModel(catalog, config.providerId ?? '', config.modelId ?? '')
-    if (!provider || !info || !provider.browserCallable || apiKey === '') return { status: 'missing' }
-    return { status: 'ready', info, provider, context }
-  }, [failed, settings, context])
+    if (!route) return { status: 'missing' }
+    // A route this device saw blocked stays on: the settings show it and offer a new test. A
+    // provider that moved to an unchecked address gets no key until the user tests it there.
+    if (routeStatus(route.provider, settings.checks, Date.now()).kind === 'moved') return { status: 'missing' }
+    // A local server may need no key; every catalog provider does.
+    if (settings.apiKey === '' && route.provider.id !== CUSTOM_PROVIDER) return { status: 'missing' }
+    return { status: 'ready', info: route.info, provider: route.provider, context }
+  }, [failed, settings, route, context])
 }

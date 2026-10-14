@@ -194,7 +194,7 @@ export function computeStudy(ws: ModelWorkspace, now: number): StudySummary {
   }
 }
 
-const SCOPES = ['courses', 'cards', 'reviews', 'prefs'] as const
+const SCOPES = ['courses', 'sections', 'cards', 'reviews', 'prefs'] as const
 
 /** Per workspace: a change counter over SCOPES, and the last summary computed at that count. */
 interface Shared {
@@ -227,7 +227,7 @@ function sharedStudy(ws: ModelWorkspace, now: number): StudySummary {
   return value
 }
 
-/** Today's study summary, recomputed whenever courses, cards, reviews or prefs change. */
+/** Today's study summary, recomputed whenever courses, sections, cards, reviews or prefs change. */
 export function useStudy(): StudySummary {
   saveStore = useRuntime().store
   const ws = useWorkspace()

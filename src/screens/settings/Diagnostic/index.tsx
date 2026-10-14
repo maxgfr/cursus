@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { noteLoadFailure } from '../../../app/chunkGuard.ts'
 import { paths } from '../../../app/routes.ts'
 import { useSaveState } from '../../../app/workspaceContext.tsx'
 import { useT } from '../../../i18n/react.tsx'
@@ -8,7 +9,7 @@ import { localDatabases } from '../Recovery/rawExport.ts'
 import { useAction, useDestinations } from '../Sync/hooks.tsx'
 import { download, fileStamp } from '../Sync/registry.ts'
 import styles from '../Sync/settings.module.css'
-import { recentErrors } from './recent.ts'
+import { noteError, recentErrors } from './recent.ts'
 
 const MAX_EVENTS = 200
 
@@ -69,9 +70,14 @@ export default function DiagnosticSettings() {
 
   useEffect(() => {
     let live = true
-    void build().then((r) => {
-      if (live) setReport(r)
-    })
+    build().then(
+      (r) => {
+        if (live) setReport(r)
+      },
+      (e: unknown) => {
+        if (!noteLoadFailure('diagnostic.build', e, noteError) && live) setReport(String(e))
+      },
+    )
     return () => {
       live = false
     }

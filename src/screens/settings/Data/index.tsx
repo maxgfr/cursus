@@ -1,4 +1,5 @@
 import { type ChangeEvent, useCallback, useEffect, useState } from 'react'
+import { noteLoadFailure } from '../../../app/chunkGuard.ts'
 import { paths } from '../../../app/routes.ts'
 import { useWorkspaceData } from '../../../app/workspaceContext.tsx'
 import { formatNumber } from '../../../i18n/format.ts'
@@ -6,6 +7,7 @@ import { useLocale, useT } from '../../../i18n/react.tsx'
 import { Button } from '../../../ui/components/Button.tsx'
 import { ListGroup, ListRow } from '../../../ui/components/List.tsx'
 import { Screen } from '../../../ui/shell/Screen.tsx'
+import { noteError } from '../Diagnostic/recent.ts'
 import { useAction, useDestinations, useWorkspaceConfirm } from '../Sync/hooks.tsx'
 import { absorb, download, exportBackup, fileStamp } from '../Sync/registry.ts'
 import styles from '../Sync/settings.module.css'
@@ -37,7 +39,8 @@ export default function DataSettings() {
     setUsage(await estimate())
   }, [])
   useEffect(() => {
-    void measure()
+    // Without the figures the rows stay unknown; the failure is in the diagnostic report.
+    measure().catch((e: unknown) => void noteLoadFailure('data.measure', e, noteError))
   }, [measure])
 
   const done = (text: string) => {

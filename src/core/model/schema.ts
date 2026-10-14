@@ -7,6 +7,8 @@ import type {
   FicheInput,
   Id,
   Prefs,
+  Section,
+  SectionInput,
   Source,
   SourceInput,
 } from '../contracts/workspace'
@@ -14,6 +16,7 @@ import type {
 /** Top-level collection names. These are the ONLY root types of the doc. */
 export const ROOT = {
   courses: 'courses',
+  sections: 'sections',
   sources: 'sources',
   fiches: 'fiches',
   cards: 'cards',
@@ -23,12 +26,16 @@ export const ROOT = {
   prefs: 'prefs',
 } as const
 
+/** Collections the search indexes (sections are reached through the path of their items). */
 export type EntityCollection = 'courses' | 'sources' | 'fiches' | 'cards'
+/** Every top-level collection of entities (Y.Map of scalars). */
+export type RepoCollection = EntityCollection | 'sections'
 export type TextField = 'body' | 'front' | 'back'
 
 /** Y.Text fields each entity kind owns, created inside its creation transaction. */
-export const TEXT_FIELDS: Record<EntityCollection, readonly TextField[]> = {
+export const TEXT_FIELDS: Record<RepoCollection, readonly TextField[]> = {
   courses: [],
+  sections: [],
   sources: ['body'],
   fiches: ['body'],
   cards: ['front', 'back'],
@@ -45,6 +52,9 @@ export interface CourseFields extends CourseInput {
   examDate?: string
 }
 export interface CourseRecord extends Course, CourseFields {}
+
+export type SectionFields = SectionInput
+export interface SectionRecord extends Section, SectionFields {}
 
 export interface SourceFields extends SourceInput {
   blobIds?: string[]

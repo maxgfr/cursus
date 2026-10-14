@@ -2,7 +2,9 @@ import { createContext, type ReactNode, useContext, useEffect, useMemo, useRef, 
 import type { SyncEngineImpl } from '../core/sync/engine'
 import type { SyncScheduler } from '../core/sync/scheduler'
 import type { EngineStatus } from '../core/sync/status'
+import { noteError } from '../screens/settings/Diagnostic/recent.ts'
 import type { SyncSummary } from '../ui/components/Badges.tsx'
+import { guardChunk } from './chunkGuard.ts'
 import type { OAuthOutcome } from './destinations.ts'
 import { summarize } from './syncSummary.ts'
 import { useRuntime, useSaveState } from './workspaceContext.tsx'
@@ -78,11 +80,11 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         { createAppEngine, bootDestinations, pendingOAuthKey, clearOAuthParam },
         { createScheduler, browserTimers },
         { blobStore },
-      ] = await Promise.all([
-        import('./destinations.ts'),
-        import('../core/sync/scheduler'),
-        import('../core/log/blobs'),
-      ])
+      ] = await guardChunk(
+        () => Promise.all([import('./destinations.ts'), import('../core/sync/scheduler'), import('../core/log/blobs')]),
+        'sync.engine',
+        noteError,
+      )
       const engine = createAppEngine({
         store: rt.store,
         log: rt.log,

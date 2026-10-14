@@ -1,7 +1,11 @@
 import { unzipSync } from 'fflate'
 import { decompress } from 'fzstd'
 import type { BlobStore } from '../contracts/log'
-import type { Id, Rating } from '../contracts/workspace'
+import type { Id, NewReview, Rating } from '../contracts/workspace'
+import { PATH_SEPARATOR } from '../model/sections'
+
+export { PATH_SEPARATOR }
+
 import type { ModelWorkspace } from '../model/workspace'
 import { ankiToMarkdown, type HtmlConverter, mediaRefs, turndownConverter } from './htmlToMd'
 import { decodeMediaEntries } from './mediaProto'
@@ -118,9 +122,43 @@ export function cardSides(note: AnkiNote, type: AnkiNotetype, ord: number): { fr
   return { front: f[frontIdx] ?? '', back: [f[backIdx] ?? '', ...extras].filter(Boolean).join('') }
 }
 
+/** Where an Anki deck lands: `A::B::C` is course `A`, subsets `B › C` (a leading `Cursus` root deck is dropped). */
+export interface DeckPlacement {
+  course: string
+  sections: string[]
+}
+
+export function deckPlacement(path: readonly string[]): DeckPlacement {
+  const p = (path.length > 1 && path[0] === 'Cursus' ? path.slice(1) : path).map((s) => s.trim())
+  const [course, ...sections] = p
+  return { course: course || 'Anki', sections: sections.map((s) => s || 'Anki') }
+}
+
+/**
+ * What an import will create, for a preview: one readable line per course and per subset that receives cards
+ * ("Law", "Law › Contracts", "Law › Contracts › Formation"), parents included, in tree order.
+ */
+export function previewPlacements(collection: Pick<AnkiCollection, 'cards' | 'decks'>): string[] {
+  const lines = new Set<string>()
+  for (const did of new Set(collection.cards.map((c) => c.did))) {
+    const { course, sections } = deckPlacement(collection.decks.get(did) ?? ['Anki'])
+    const parts = [course, ...sections]
+    for (let i = 1; i <= parts.length; i++) lines.add(parts.slice(0, i).join(PATH_SEPARATOR))
+  }
+  return [...lines].sort((a, b) => {
+    const pa = a.split(PATH_SEPARATOR)
+    const pb = b.split(PATH_SEPARATOR)
+    for (let i = 0; i < Math.min(pa.length, pb.length); i++) {
+      const c = (pa[i] ?? '').localeCompare(pb[i] ?? '')
+      if (c !== 0) return c
+    }
+    return pa.length - pb.length
+  })
+}
+
+/** The course an Anki deck maps to. */
 export function courseTitle(path: readonly string[]): string {
-  const p = path.length > 1 && path[0] === 'Cursus' ? path.slice(1) : path
-  return p.join('::') || 'Anki'
+  return deckPlacement(path).course
 }
 
 export interface ImportOptions {
@@ -136,9 +174,15 @@ export interface ImportResult {
   reviews: number
   media: number
   courseIds: Id[]
+  /** Readable paths ("Law › Contracts") of subsets in the trash that received new cards: restore them to see the cards. */
+  trashedSections: string[]
 }
 
-/** Imports a package: deck => course, card => card, revlog => reviews. Cards already imported (same `ankiGuid`) are skipped. */
+/**
+ * Imports a package: top deck => course, sub-decks => nested subsets, card => card, revlog => reviews.
+ * Cards already imported (same `ankiGuid`) are skipped; existing courses and subsets are found again by
+ * title and path, so a re-import never duplicates them.
+ */
 export async function importApkg(
   bytes: Uint8Array,
   ws: ModelWorkspace,
@@ -147,12 +191,13 @@ export async function importApkg(
 ): Promise<ImportResult> {
   const { format, collection, media } = await readApkg(bytes)
   const convert = opts.htmlToMarkdown ?? turndownConverter
+  // Every card that still exists, live, trashed or hidden inside a trashed subset; a card deleted forever
+  // (purged) may come back.
   const known = new Set<string>()
-  for (const trashed of [false, true]) {
-    for (const c of ws.cards.list({ trashed })) {
-      known.add(c.id)
-      if (c.ankiGuid) known.add(c.ankiGuid)
-    }
+  for (const c of ws.cards.all()) {
+    if (c.purgedAt !== undefined) continue
+    known.add(c.id)
+    if (c.ankiGuid) known.add(c.ankiGuid)
   }
 
   const todo: { card: AnkiCard; note: AnkiNote; type: AnkiNotetype; guid: string }[] = []
@@ -202,22 +247,46 @@ export async function importApkg(
 
   let reviews = 0
   const courseIds: Id[] = []
-  ws.batch(() => {
+  const trashedSections: string[] = []
+  // One all-or-nothing transaction: a failure leaves no course, subset or card half-imported.
+  ws.atomic(() => {
+    const history: NewReview[] = []
     const courses = new Map<string, Id>()
     for (const c of ws.courses.list()) if (!courses.has(c.title)) courses.set(c.title, c.id)
-    const courseFor = (did: number): Id => {
-      const title = courseTitle(collection.decks.get(did) ?? ['Anki'])
-      let id = courses.get(title)
-      if (!id) {
-        id = ws.courses.create({ title })
-        courses.set(title, id)
+    const placements = new Map<number, { courseId: Id; sectionId?: Id }>()
+    // A subset in the trash is found again too (a live one first): re-importing never forks a second copy.
+    const sectionUnder = (courseId: Id, parentId: Id | null, name: string): Id => {
+      const same = ws.sections
+        .tree()
+        .children(courseId, parentId, { trashed: true })
+        .filter((s) => s.name === name)
+      const found = same.find((s) => s.deletedAt === undefined) ?? same[0]
+      if (found) return found.id
+      return ws.sections.create({ courseId, name, ...(parentId === null ? {} : { parentId }) })
+    }
+    const placeFor = (did: number): { courseId: Id; sectionId?: Id } => {
+      const memo = placements.get(did)
+      if (memo) return memo
+      const { course, sections } = deckPlacement(collection.decks.get(did) ?? ['Anki'])
+      let courseId = courses.get(course)
+      if (!courseId) {
+        courseId = ws.courses.create({ title: course })
+        courses.set(course, courseId)
       }
-      if (!courseIds.includes(id)) courseIds.push(id)
-      return id
+      if (!courseIds.includes(courseId)) courseIds.push(courseId)
+      let sectionId: Id | null = null
+      for (const name of sections) sectionId = sectionUnder(courseId, sectionId, name)
+      const out = sectionId === null ? { courseId } : { courseId, sectionId }
+      if (sectionId !== null && ws.sections.tree().hidden(sectionId)) {
+        const title = ws.courses.get(courseId)?.title ?? course
+        trashedSections.push([title, ws.sections.tree().pathOf(out)].join(PATH_SEPARATOR))
+      }
+      placements.set(did, out)
+      return out
     }
     for (const p of prepared) {
       const id = ws.cards.create({
-        courseId: courseFor(p.card.did),
+        ...placeFor(p.card.did),
         kind: p.type.kind === 'cloze' ? 'cloze' : 'basic',
         origin: 'anki',
         ankiGuid: p.guid,
@@ -227,11 +296,11 @@ export async function importApkg(
       ws.text({ id, field: 'front' }).insert(0, p.front)
       ws.text({ id, field: 'back' }).insert(0, p.back)
       if (opts.keepHistory === false) continue
-      for (const r of revlogByCard.get(p.card.id) ?? []) {
-        ws.reviews.record({ cardId: id, rating: r.ease as Rating, at: r.id, ms: r.time })
-        reviews++
-      }
+      for (const r of revlogByCard.get(p.card.id) ?? [])
+        history.push({ cardId: id, rating: r.ease as Rating, at: r.id, ms: r.time })
     }
+    // One push for the whole history: per-review pushes in one transaction are quadratic in Yjs.
+    reviews = ws.reviews.recordMany(history).length
   })
-  return { format, imported: prepared.length, skipped, reviews, media: blobIds.size, courseIds }
+  return { format, imported: prepared.length, skipped, reviews, media: blobIds.size, courseIds, trashedSections }
 }

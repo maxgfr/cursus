@@ -12,13 +12,18 @@ test.beforeAll(async () => {
 test.afterAll(() => harness.dispose())
 
 const BUDGET_MS = 1_500
+const SEED_BUDGET_MS = 60_000
 
 // The budget is for the phone: a large library (10,000 cards, 200,000 reviews) opens and Today is ready.
 test('10,000 cards and 200,000 reviews: Today is ready in under 1.5 s', async ({ page }, info) => {
   test.skip(info.project.name !== 'webkit-iphone', 'the budget is set for the iPhone')
   test.setTimeout(300_000)
   const errors = watchErrors(page)
+  // Seeding is setup, not the measure, but it spends this test's time: it must stay linear in the library
+  // size (a quadratic seed once took 297 s of the 300 s on CI and the launch was never measured).
+  const seedStart = Date.now()
   await harness.seed(page, { bulk: { courses: 10, cardsPerCourse: 1_000, reviewsPerCard: 20 } })
+  expect(Date.now() - seedStart, 'seeding 10,000 cards and 200,000 reviews (ms)').toBeLessThan(SEED_BUDGET_MS)
 
   // Records, in the page, the moment Today shows the due count and the course list (no polling delay).
   await page.addInitScript(() => {

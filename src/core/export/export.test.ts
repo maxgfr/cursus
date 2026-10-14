@@ -5,8 +5,15 @@ import { createWorkspace } from '../model/workspace'
 import { virtualClock } from '../ports/clock'
 import { seededRng } from '../ports/rng'
 import { MemoryBucket, memoryRemote } from '../sync/providers/memory'
-import { COURSE_EXT, CoursePackageError, exportCourse, importCourse, readCoursePackage } from './coursePackage'
-import { importCards, parseDelimited } from './csvImport'
+import {
+  COURSE_EXT,
+  CoursePackageError,
+  CourseTreeError,
+  exportCourse,
+  importCourse,
+  readCoursePackage,
+} from './coursePackage'
+import { CsvTargetError, importCards, parseDelimited } from './csvImport'
 import { buildIcs, escapeText, foldLine } from './ics'
 import { csvField, exportMarkdown, safeName } from './markdown'
 import { MIRROR_PREFIX, writeMirror } from './mirror'
@@ -272,5 +279,195 @@ describe('course package validation', () => {
     const [f] = w.fiches.list({ courseId: id })
     expect(f?.keyPoints).toEqual([{ text: 'k' }])
     expect(w.cards.list({ courseId: id }).length).toBe(1)
+  })
+})
+
+function nested() {
+  const w = ws()
+  const course = w.courses.create({ title: 'Law' })
+  const contracts = w.sections.create({ courseId: course, name: 'Contracts/Deals', examDate: '2027-02-01' })
+  const formation = w.sections.create({ courseId: course, parentId: contracts, name: 'CON' })
+  const torts = w.sections.create({ courseId: course, name: 'Torts. ' })
+  const src = w.sources.create({ courseId: course, sectionId: formation, kind: 'note', title: 'Offer' })
+  w.text({ id: src, field: 'body' }).insert(0, 'An offer.')
+  w.sources.create({ courseId: course, kind: 'note', title: 'Intro' })
+  const fiche = w.fiches.create({ courseId: course, sectionId: contracts, title: 'Deal', sourceIds: [src] })
+  const card = w.cards.create({ courseId: course, sectionId: formation, kind: 'basic', ficheId: fiche })
+  w.text({ id: card, field: 'front' }).insert(0, 'Q')
+  w.text({ id: card, field: 'back' }).insert(0, 'A')
+  const rootCard = w.cards.create({ courseId: course, kind: 'basic' })
+  w.text({ id: rootCard, field: 'front' }).insert(0, 'R')
+  w.text({ id: rootCard, field: 'back' }).insert(0, 'S')
+  return { w, course, contracts, formation, torts, src, fiche, card }
+}
+
+describe('subsets', () => {
+  test('readable export: one sanitised folder per subset, items in their own folder only', () => {
+    const { w } = nested()
+    expect([...exportMarkdown(w).keys()].sort()).toEqual([
+      'Law/Contracts Deals/_CON/Offer.md',
+      'Law/Contracts Deals/_CON/cards.csv',
+      'Law/Contracts Deals/fiches/Deal.md',
+      'Law/Intro.md',
+      'Law/cards.csv',
+    ])
+    expect(exportMarkdown(w).get('Law/Contracts Deals/_CON/cards.csv')).toBe('front,back,tags\r\nQ,A,\r\n')
+  })
+
+  test('a subset folder never collides with a file or the fiches folder', () => {
+    const w = ws()
+    const course = w.courses.create({ title: 'C' })
+    const sub = w.sections.create({ courseId: course, name: 'fiches' })
+    w.fiches.create({ courseId: course, title: 'F' })
+    w.fiches.create({ courseId: course, sectionId: sub, title: 'G' })
+    expect([...exportMarkdown(w).keys()].sort()).toEqual(['C/fiches (2)/fiches/G.md', 'C/fiches/F.md'])
+  })
+
+  test('safeName covers every filesystem', () => {
+    expect(safeName('nul', 'f')).toBe('_nul')
+    expect(safeName('Com1.txt', 'f')).toBe('_Com1.txt')
+    expect(safeName('end. . ', 'f')).toBe('end')
+    expect(safeName('a\u007fb', 'f')).toBe('a b')
+    expect(safeName('é'.repeat(200), 'f')).toHaveLength(120)
+    expect(safeName('...', 'f')).toBe('f')
+  })
+
+  test('mirror: moving a subset writes the new folder and reports the old files as stale', async () => {
+    const { w, formation, torts } = nested()
+    const store = memoryRemote({ bucket: new MemoryBucket() })
+    expect((await writeMirror(w, store)).written).toBe(5)
+    w.sections.move(formation, torts)
+    const res = await writeMirror(w, store)
+    expect(res.written).toBe(2)
+    expect(res.stale).toEqual(['mirror/Law/Contracts Deals/_CON/Offer.md', 'mirror/Law/Contracts Deals/_CON/cards.csv'])
+    expect(await store.get({ key: 'mirror/Law/Contracts Deals/_CON/Offer.md' })).not.toBeNull()
+    expect(await store.get({ key: 'mirror/Law/Torts/_CON/Offer.md' })).not.toBeNull()
+  })
+
+  test('course package carries the tree with fresh ids and remapped parents', () => {
+    const { w, course, contracts, formation, torts, card } = nested()
+    const bytes = exportCourse(w, course)
+    expect(readCoursePackage(bytes).sections).toEqual([
+      { ref: 't0', name: 'Contracts/Deals', examDate: '2027-02-01' },
+      { ref: 't1', parentRef: 't0', name: 'CON' },
+      { ref: 't2', name: 'Torts. ' },
+    ])
+    const other = ws(9)
+    const id = importCourse(other, bytes)
+    expect(exportMarkdown(other)).toEqual(exportMarkdown(w))
+    const secs = other.sections.list({ courseId: id })
+    expect(secs.map((s) => s.name).sort()).toEqual(['CON', 'Contracts/Deals', 'Torts. '])
+    for (const old of [contracts, formation, torts]) expect(secs.map((s) => s.id)).not.toContain(old)
+    const newContracts = secs.find((s) => s.name === 'Contracts/Deals')
+    const newFormation = secs.find((s) => s.name === 'CON')
+    expect(newFormation?.parentId).toBe(newContracts?.id as string)
+    expect(newContracts?.examDate).toBe('2027-02-01')
+    const [k] = other.cards
+      .list({ courseId: id })
+      .filter((c) => other.text({ id: c.id, field: 'front' }).toString() === 'Q')
+    expect(k?.sectionId).toBe(newFormation?.id as string)
+    expect(k?.id).not.toBe(card)
+  })
+
+  test('course package: a broken tree is rejected with a typed error, nothing imported', () => {
+    const pack = (sections: unknown, cards: unknown[] = []) =>
+      zipSync({
+        'course.json': new TextEncoder().encode(
+          JSON.stringify({
+            format: 'cursus-course/1',
+            course: { title: 'T' },
+            sections,
+            sources: [],
+            fiches: [],
+            cards,
+          }),
+        ),
+      })
+    const w = ws()
+    const issue = (bytes: Uint8Array) => {
+      try {
+        importCourse(w, bytes)
+      } catch (e) {
+        if (e instanceof CourseTreeError) return [e.issue, e.ref]
+        throw e
+      }
+      return null
+    }
+    expect(
+      issue(
+        pack([
+          { ref: 'a', parentRef: 'b', name: 'A' },
+          { ref: 'b', parentRef: 'a', name: 'B' },
+        ]),
+      ),
+    ).toEqual(['cycle', 'a'])
+    expect(issue(pack([{ ref: 'a', parentRef: 'a', name: 'A' }]))).toEqual(['cycle', 'a'])
+    expect(issue(pack([{ ref: 'a', parentRef: 'zz', name: 'A' }]))).toEqual(['unknownParent', 'a'])
+    expect(
+      issue(
+        pack([
+          { ref: 'a', name: 'A' },
+          { ref: 'a', name: 'B' },
+        ]),
+      ),
+    ).toEqual(['duplicate', 'a'])
+    expect(issue(pack([], [{ kind: 'basic', sectionRef: 'x', front: 'q', back: 'a' }]))).toEqual([
+      'unknownSection',
+      'x',
+    ])
+    expect(() => readCoursePackage(pack([{ ref: 'a', name: 'A', examDate: 'soon' }]))).toThrow(CoursePackageError)
+    expect(new CourseTreeError('cycle', 'a')).toBeInstanceOf(CoursePackageError)
+    expect(w.courses.list()).toHaveLength(0)
+    expect(w.sections.list()).toHaveLength(0)
+  })
+
+  test('course package: sections are whitelisted and older packages without a tree still import', () => {
+    const w = ws()
+    const json = {
+      format: 'cursus-course/1',
+      course: { title: 'T' },
+      sections: [{ ref: 'a', name: 'A', id: 'X', deletedAt: 1, courseId: 'evil', evil: 1 }],
+      sources: [],
+      fiches: [],
+      cards: [],
+    }
+    const id = importCourse(w, zipSync({ 'course.json': new TextEncoder().encode(JSON.stringify(json)) }))
+    const [s] = w.sections.list({ courseId: id }) as unknown as Record<string, unknown>[]
+    expect(s?.id).not.toBe('X')
+    expect(s?.courseId).toBe(id)
+    expect(s?.deletedAt).toBeUndefined()
+    expect(s?.evil).toBeUndefined()
+    const { sections: _, ...old } = json
+    const legacy = importCourse(w, zipSync({ 'course.json': new TextEncoder().encode(JSON.stringify(old)) }))
+    expect(w.sections.list({ courseId: legacy })).toHaveLength(0)
+  })
+
+  test('CSV/TSV import into a chosen subset', () => {
+    const { w, course, torts, formation } = nested()
+    expect(importCards(w, course, 'a\tb\nc\td\n', torts)).toEqual({ created: 2, skipped: 0 })
+    const inTorts = w.cards.list({ courseId: course }).filter((c) => c.sectionId === torts)
+    expect(inTorts).toHaveLength(2)
+    const other = w.courses.create({ title: 'Other' })
+    expect(() => importCards(w, other, 'a\tb\n', formation)).toThrow(CsvTargetError)
+    expect(() => importCards(w, course, 'a\tb\n', 'nope')).toThrow(CsvTargetError)
+    w.sections.trash(torts)
+    expect(() => importCards(w, course, 'a\tb\n', torts)).toThrow(CsvTargetError)
+    expect(w.cards.list({ courseId: other })).toHaveLength(0)
+  })
+
+  test('course package: an import failing after the subsets are created leaves nothing behind', () => {
+    const { w, course } = nested()
+    const bytes = exportCourse(w, course)
+    const other = ws(11)
+    const create = other.cards.create.bind(other.cards)
+    other.cards.create = () => {
+      throw new Error('disk full')
+    }
+    expect(() => importCourse(other, bytes)).toThrow('disk full')
+    expect(other.courses.list()).toHaveLength(0)
+    expect(other.sections.list()).toHaveLength(0)
+    expect(other.sources.list()).toHaveLength(0)
+    other.cards.create = create
+    expect(exportMarkdown(other)).toEqual(new Map())
   })
 })

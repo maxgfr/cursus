@@ -97,4 +97,57 @@ describe('exportApkg', () => {
     expect(collection.cards).toHaveLength(0)
     expect(collection.revlog).toHaveLength(0)
   })
+
+  test('one deck per subset, round-tripping to the same tree', async () => {
+    const { ws, blobs } = setup(3)
+    const course = ws.courses.create({ title: 'Law' })
+    const contracts = ws.sections.create({ courseId: course, name: 'Contracts' })
+    const formation = ws.sections.create({ courseId: course, parentId: contracts, name: 'Formation::Offer' })
+    ws.sections.create({ courseId: course, name: 'Empty' })
+    const gone = ws.sections.create({ courseId: course, name: 'Gone' })
+    const add = (front: string, sectionId?: string) => {
+      const id = ws.cards.create({ courseId: course, kind: 'basic', ...(sectionId ? { sectionId } : {}) })
+      ws.text({ id, field: 'front' }).insert(0, front)
+      ws.text({ id, field: 'back' }).insert(0, 'x')
+      return id
+    }
+    add('root')
+    add('c', contracts)
+    add('f1', formation)
+    add('f2', formation)
+    add('hidden', gone)
+    ws.sections.trash(gone)
+    const bytes = await exportApkg(ws, blobs, { now: T0 })
+    const { collection } = await readApkg(bytes)
+    const names = (did: number) => collection.decks.get(did)?.join('::')
+    expect([...collection.decks.values()].map((d) => d.join('::')).sort()).toEqual([
+      'Cursus',
+      'Cursus::Law',
+      'Cursus::Law::Contracts',
+      'Cursus::Law::Contracts::Formation:Offer',
+      'Cursus::Law::Empty',
+      'Default',
+    ])
+    const perDeck = new Map<string, number>()
+    for (const c of collection.cards) perDeck.set(names(c.did) ?? '', (perDeck.get(names(c.did) ?? '') ?? 0) + 1)
+    expect(Object.fromEntries(perDeck)).toEqual({
+      'Cursus::Law': 1,
+      'Cursus::Law::Contracts': 1,
+      'Cursus::Law::Contracts::Formation:Offer': 2,
+    })
+
+    const other = setup(4)
+    await importApkg(bytes, other.ws, other.blobs)
+    const tree = other.ws.sections.tree()
+    const paths = other.ws.cards
+      .list()
+      .map((c) => [other.ws.text({ id: c.id, field: 'front' }).toString(), tree.pathOf(c)])
+      .sort()
+    expect(paths).toEqual([
+      ['c', 'Contracts'],
+      ['f1', 'Contracts › Formation:Offer'],
+      ['f2', 'Contracts › Formation:Offer'],
+      ['root', ''],
+    ])
+  })
 })

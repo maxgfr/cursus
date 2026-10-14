@@ -1,7 +1,9 @@
 import { BookOpen, Plus } from 'lucide-react'
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Link, useLocation } from 'wouter'
+import { noteLoadFailure } from '../../app/chunkGuard.ts'
+import { ChunkFailed, lazyChunk } from '../../app/lazyChunk.tsx'
 import { paths } from '../../app/routes.ts'
 import { useSync } from '../../app/syncContext.tsx'
 import { formatDuration } from '../../i18n/format.ts'
@@ -16,17 +18,34 @@ import { ListGroup } from '../../ui/components/List.tsx'
 import { useStudy } from '../../ui/data/useStudy.ts'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { formatInterval } from '../Review/interval.ts'
+import { noteError } from '../settings/Diagnostic/recent.ts'
 import { CourseRows } from './CourseRows.tsx'
 import { InstallHint } from './InstallHint.tsx'
+import { LeadLine } from './LeadLine.tsx'
 import styles from './Today.module.css'
 
 // Not on Today's first paint: the sheet's chunk loads right after it.
-const NewCourseSheet = lazy(() => import('./NewCourseSheet.tsx').then((m) => ({ default: m.NewCourseSheet })))
+// Should a chunk fail: the course lead stays, and the sheet says so calmly when opened.
+const ExamLead = lazyChunk(
+  'today.examLead',
+  () => import('./ExamLead.tsx'),
+  ({ course }) => <LeadLine lead={course} />,
+)
+const NewCourseSheet = lazyChunk<Parameters<typeof import('./NewCourseSheet.tsx').NewCourseSheet>[0]>(
+  'today.newCourse',
+  () => import('./NewCourseSheet.tsx').then((m) => ({ default: m.NewCourseSheet })),
+  ({ open, retry, again }) => (open ? <ChunkFailed retry={retry} again={again} /> : null),
+)
 
 const MINUTE = 60_000
 
 /** The review chunk is fetched before the transition starts, so the morph lands on real content. */
-const preloadReview = () => import('../Review/index.tsx')
+const preloadReview = () =>
+  import('../Review/index.tsx').then(
+    () => undefined,
+    // Recorded unless a navigation aborted it; the review route itself then shows its calm retry.
+    (e: unknown) => void noteLoadFailure('chunk.review.preload', e, noteError),
+  )
 
 /** Navigates into the review focus view, morphing the Start surface when motion is allowed. */
 function useStartReview(): () => void {
@@ -83,7 +102,6 @@ export default function Today() {
   const minutes = Math.max(MINUTE, Math.ceil(study.estimateMs / MINUTE) * MINUTE)
   const meta = [t('common.approx', { duration: formatDuration(locale, minutes) })]
   if (study.newDue > 0) meta.push(t('common.newShort', { count: study.newDue }))
-  const exam = study.exam !== null && study.exam.due > 0 ? study.exam : null
   const hasData = study.totalCards > 0
   // A destination exists (the install question is settled by the backup) and has confirmed a copy.
   const hasDestination = status !== null && status.dests.length > 0
@@ -129,15 +147,10 @@ export default function Today() {
                 <h2 id="today-hero" className={styles.count}>
                   {t('today.heroDue', { count: study.due })}
                 </h2>
-                {exam !== null && (
-                  <p className={styles.examLead} data-testid="exam-lead">
-                    {t('today.examLead', {
-                      count: exam.due,
-                      course: exam.title,
-                      when: exam.days === 0 ? t('today.examToday') : t('today.examCountdown', { count: exam.days }),
-                    })}
-                  </p>
-                )}
+                {/* The course lead paints at once; a chapter exam's (computed off the first paint) may replace it. */}
+                <Suspense fallback={<LeadLine lead={study.exam} />}>
+                  <ExamLead course={study.exam} />
+                </Suspense>
                 <p className={styles.meta}>{meta.join(' · ')}</p>
                 <Button
                   className={styles.start}

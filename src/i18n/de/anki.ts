@@ -20,5 +20,7 @@ export const anki = {
   importAction: { one: '{count} Karte importieren', other: '{count} Karten importieren' },
   unreadable:
     'Diese Datei ließ sich nicht als Anki-Paket lesen. Prüfe, ob es ein aus Anki exportiertes .apkg ist. Einstellungen › Diagnose enthält die Details.',
+  inTrashedSection: 'Neue Karten sind in „{path}“ gelandet, das im Papierkorb liegt.',
+  restoreFromTrash: 'Aus dem Papierkorb wiederherstellen',
   exportHint: 'Für den Export nach Anki nutze oben die Anki-Schaltfläche neben einem Kurs.',
 } as const satisfies Shape<typeof en>

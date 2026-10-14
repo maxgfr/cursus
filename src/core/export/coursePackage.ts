@@ -17,12 +17,33 @@ const optStr = z.string().optional()
 const PackageSchema = z.object({
   format: z.literal(FORMAT),
   course: z.object({ title: z.string(), color: optStr, emoji: optStr, language: optStr, examDate: optStr }),
+  /** The subset tree, parents before children (packages made before subsets have none). */
+  sections: z
+    .array(
+      z.object({
+        ref: z.string(),
+        parentRef: optStr,
+        name: z.string(),
+        examDate: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .optional(),
+      }),
+    )
+    .default([]),
   sources: z.array(
-    z.object({ ref: z.string(), kind: z.enum(['note', 'pdf', 'image']), title: z.string(), body: z.string() }),
+    z.object({
+      ref: z.string(),
+      sectionRef: optStr,
+      kind: z.enum(['note', 'pdf', 'image']),
+      title: z.string(),
+      body: z.string(),
+    }),
   ),
   fiches: z.array(
     z.object({
       ref: z.string(),
+      sectionRef: optStr,
       title: z.string(),
       subject: optStr,
       template: optStr,
@@ -39,6 +60,7 @@ const PackageSchema = z.object({
   cards: z.array(
     z.object({
       kind: z.enum(['basic', 'cloze']),
+      sectionRef: optStr,
       ficheRef: optStr,
       sourceRef: optStr,
       front: z.string(),
@@ -58,18 +80,83 @@ export class CoursePackageError extends Error {
   }
 }
 
+export type CourseTreeIssue = 'duplicate' | 'unknownParent' | 'cycle' | 'unknownSection'
+
+/** A package whose subset tree is broken: rejected whole, nothing is imported. */
+export class CourseTreeError extends CoursePackageError {
+  constructor(
+    readonly issue: CourseTreeIssue,
+    readonly ref: string,
+  ) {
+    super(`Invalid subset tree in ${COURSE_EXT}: ${issue} at ${ref}`)
+    this.name = 'CourseTreeError'
+  }
+}
+
+/** Every ref unique, every parent known, no cycle, every item's subset known; returns refs parents first. */
+function checkTree(pkg: CoursePackage): string[] {
+  const parent = new Map<string, string | undefined>()
+  for (const s of pkg.sections) {
+    if (parent.has(s.ref)) throw new CourseTreeError('duplicate', s.ref)
+    parent.set(s.ref, s.parentRef)
+  }
+  for (const [ref, p] of parent) if (p !== undefined && !parent.has(p)) throw new CourseTreeError('unknownParent', ref)
+  const order: string[] = []
+  const state = new Map<string, 'walk' | 'done'>()
+  const visit = (ref: string): void => {
+    const st = state.get(ref)
+    if (st === 'done') return
+    if (st === 'walk') throw new CourseTreeError('cycle', ref)
+    state.set(ref, 'walk')
+    const p = parent.get(ref)
+    if (p !== undefined) visit(p)
+    state.set(ref, 'done')
+    order.push(ref)
+  }
+  for (const s of pkg.sections) visit(s.ref)
+  for (const item of [...pkg.sources, ...pkg.fiches, ...pkg.cards]) {
+    if (item.sectionRef !== undefined && !parent.has(item.sectionRef))
+      throw new CourseTreeError('unknownSection', item.sectionRef)
+  }
+  return order
+}
+
 /** Shares one course's content (no reviews, no attachments' bytes) as a `.cursus-course` zip. */
 export function exportCourse(w: ModelWorkspace, courseId: Id): Uint8Array {
   const c = w.courses.get(courseId)
   if (!c) throw new CoursePackageError(`No course ${courseId}`)
   const sourceRef = new Map<Id, string>()
   const ficheRef = new Map<Id, string>()
+  const tree = w.sections.tree()
+  const sectionRef = new Map<Id, string>()
+  const sections: CoursePackage['sections'] = []
+  const walk = (parentId: Id | null): void => {
+    for (const s of tree.children(courseId, parentId)) {
+      const ref = `t${sectionRef.size}`
+      sectionRef.set(s.id, ref)
+      const parentRef = parentId === null ? undefined : sectionRef.get(parentId)
+      sections.push({ ref, parentRef, name: s.name, examDate: s.examDate })
+      walk(s.id)
+    }
+  }
+  walk(null)
+  const placed = (item: { courseId: Id; sectionId?: Id }): string | undefined => {
+    const s = tree.sectionOf(item)
+    return s === null ? undefined : sectionRef.get(s)
+  }
   const pkg: CoursePackage = {
     format: FORMAT,
     course: { title: c.title, color: c.color, emoji: c.emoji, language: c.language, examDate: c.examDate },
+    sections,
     sources: w.sources.list({ courseId }).map((s, i) => {
       sourceRef.set(s.id, `s${i}`)
-      return { ref: `s${i}`, kind: s.kind, title: s.title, body: w.text({ id: s.id, field: 'body' }).toString() }
+      return {
+        ref: `s${i}`,
+        sectionRef: placed(s),
+        kind: s.kind,
+        title: s.title,
+        body: w.text({ id: s.id, field: 'body' }).toString(),
+      }
     }),
     fiches: [],
     cards: [],
@@ -79,6 +166,7 @@ export function exportCourse(w: ModelWorkspace, courseId: Id): Uint8Array {
     ficheRef.set(f.id, `f${i}`)
     return {
       ref: `f${i}`,
+      sectionRef: placed(f),
       title: f.title,
       subject: f.subject,
       template: f.template,
@@ -92,6 +180,7 @@ export function exportCourse(w: ModelWorkspace, courseId: Id): Uint8Array {
   })
   pkg.cards = w.cards.list({ courseId }).map((k) => ({
     kind: k.kind,
+    sectionRef: placed(k),
     ficheRef: k.ficheId === undefined ? undefined : ficheRef.get(k.ficheId),
     sourceRef: mapRef(k.sourceId),
     front: w.text({ id: k.id, field: 'front' }).toString(),
@@ -118,13 +207,19 @@ export function readCoursePackage(bytes: Uint8Array): CoursePackage {
       `Unsupported ${COURSE_EXT} format${issue ? ` at ${issue.path.join('.') || '(root)'}: ${issue.message}` : ''}`,
     )
   }
+  checkTree(parsed.data)
   return parsed.data
 }
 
-/** Imports a package as a NEW course: every entity gets a fresh id, nothing existing is touched. */
+/**
+ * Imports a package as a NEW course: every entity gets a fresh id, nothing existing is touched; subset
+ * parent links are remapped to the new ids. A broken tree (cycle, unknown parent) is rejected up front.
+ */
 export function importCourse(w: ModelWorkspace, bytes: Uint8Array): Id {
   const pkg = readCoursePackage(bytes)
-  return w.batch(() => {
+  const order = checkTree(pkg)
+  // One all-or-nothing transaction; subsets parents first.
+  return w.atomic(() => {
     const courseId = w.courses.create({
       title: pkg.course.title,
       color: pkg.course.color,
@@ -132,16 +227,38 @@ export function importCourse(w: ModelWorkspace, bytes: Uint8Array): Id {
       language: pkg.course.language,
       examDate: pkg.course.examDate,
     })
+    const byRef = new Map(pkg.sections.map((s) => [s.ref, s]))
+    const sectionIds = new Map<string, Id>()
+    for (const ref of order) {
+      const s = byRef.get(ref)
+      if (!s) throw new CourseTreeError('unknownSection', ref)
+      const parentId = s.parentRef === undefined ? undefined : sectionIds.get(s.parentRef)
+      if (s.parentRef !== undefined && parentId === undefined) throw new CourseTreeError('unknownParent', ref)
+      sectionIds.set(
+        ref,
+        w.sections.create({
+          courseId,
+          name: s.name,
+          ...(parentId === undefined ? {} : { parentId }),
+          ...(s.examDate === undefined ? {} : { examDate: s.examDate }),
+        }),
+      )
+    }
+    const placed = (ref: string | undefined): { sectionId?: Id } => {
+      const id = ref === undefined ? undefined : sectionIds.get(ref)
+      return id === undefined ? {} : { sectionId: id }
+    }
     const sources = new Map<string, Id>()
     const fiches = new Map<string, Id>()
     for (const s of pkg.sources) {
-      const id = w.sources.create({ courseId, kind: s.kind, title: s.title })
+      const id = w.sources.create({ courseId, kind: s.kind, title: s.title, ...placed(s.sectionRef) })
       sources.set(s.ref, id)
       if (s.body) w.text({ id, field: 'body' }).insert(0, s.body)
     }
     for (const f of pkg.fiches) {
       const id = w.fiches.create({
         courseId,
+        ...placed(f.sectionRef),
         title: f.title,
         subject: f.subject,
         template: f.template,
@@ -157,6 +274,7 @@ export function importCourse(w: ModelWorkspace, bytes: Uint8Array): Id {
     for (const c of pkg.cards) {
       const id = w.cards.create({
         courseId,
+        ...placed(c.sectionRef),
         kind: c.kind,
         ficheId: c.ficheRef === undefined ? undefined : fiches.get(c.ficheRef),
         sourceId: c.sourceRef === undefined ? undefined : sources.get(c.sourceRef),

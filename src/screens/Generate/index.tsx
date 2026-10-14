@@ -12,14 +12,15 @@ import { Field } from '../../ui/components/Field.tsx'
 import { IconButton } from '../../ui/components/IconButton.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
+import { useScopeOnce } from '../Section/scope.ts'
 import styles from '../Understand/shared/ai.module.css'
 import { useAiModel } from '../Understand/shared/aiConfig.ts'
 import {
   Citation,
-  emptySelection,
   NoModel,
   type Selection,
   SourcePicker,
+  selectionFor,
   useChunkLoader,
 } from '../Understand/shared/SourcePicker.tsx'
 import { estimateCost, PASTED } from '../Understand/shared/sources.ts'
@@ -37,13 +38,14 @@ export default function Generate() {
   const ws = useWorkspace()
   const ai = useAiModel()
   const loadChunks = useChunkLoader()
-  const [selection, setSelection] = useState<Selection>(emptySelection)
+  const opened = useScopeOnce()
+  const [selection, setSelection] = useState<Selection>(() => selectionFor(opened))
   const [topic, setTopic] = useState('')
   const [count, setCount] = useState<(typeof COUNTS)[number]>('10')
   const [estimate, setEstimate] = useState<number | null>(null)
   const [drafts, setDrafts] = useState<Draft[] | null>(null)
   const [dropped, setDropped] = useState(0)
-  const [saved, setSaved] = useState<{ count: number; courseId: string } | null>(null)
+  const [saved, setSaved] = useState<{ count: number; courseId: string; sectionId: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const onSelection = useCallback((s: Selection) => setSelection(s), [])
@@ -108,12 +110,14 @@ export default function Generate() {
     ws.batch(() => {
       for (const d of keep) {
         const sourceId = d.sourceRef && d.sourceRef.sourceId !== PASTED ? d.sourceRef.sourceId : undefined
-        const id = ws.cards.create({ courseId: selection.courseId, kind: d.kind, origin: 'ai', sourceId })
+        // Drafts made from a section land in it.
+        const place = selection.sectionId === '' ? {} : { sectionId: selection.sectionId }
+        const id = ws.cards.create({ courseId: selection.courseId, ...place, kind: d.kind, origin: 'ai', sourceId })
         ws.text({ id, field: 'front' }).insert(0, d.front.trim())
         if (d.back.trim()) ws.text({ id, field: 'back' }).insert(0, d.back.trim())
       }
     })
-    setSaved({ count: keep.length, courseId: selection.courseId })
+    setSaved({ count: keep.length, courseId: selection.courseId, sectionId: selection.sectionId })
     setDrafts(null)
     setDropped(0)
   }
@@ -149,7 +153,8 @@ export default function Generate() {
 
       {saved && (
         <p className={styles.success} role="status">
-          {t('ai.saved', { count: saved.count })} <Link href={to.course(saved.courseId)}>{t('ai.openCourse')}</Link>
+          {t('ai.saved', { count: saved.count })}{' '}
+          <Link href={to.place(saved.courseId, saved.sectionId)}>{t('ai.openCourse')}</Link>
         </p>
       )}
 

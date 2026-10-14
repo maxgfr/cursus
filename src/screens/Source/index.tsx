@@ -1,4 +1,4 @@
-import { ExternalLink, History, Trash2 } from 'lucide-react'
+import { ExternalLink, FolderInput, History, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useParams, useSearch } from 'wouter'
 import { to } from '../../app/routes.ts'
@@ -7,6 +7,7 @@ import type { SourceRecord } from '../../core/model/schema'
 import { useT } from '../../i18n/react.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { MarkdownEditor } from '../../ui/editor/MarkdownEditor.tsx'
+import { MoveSheet, moveItemTo } from '../../ui/MoveSheet.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import NotFound from '../NotFound/index.tsx'
 import { loadBlob } from './importers.ts'
@@ -94,17 +95,21 @@ export default function Source() {
     url.search = ''
     window.history.replaceState(window.history.state, '', url.href)
   }, [search])
-  const source = useWorkspaceData(['sources'], (w) => {
+  const [moving, setMoving] = useState(false)
+  const [movedTo, setMovedTo] = useState<string | null>(null)
+  const found = useWorkspaceData(['sources', 'sections'], (w) => {
     const s = w.sources.get(id)
-    return s && s.deletedAt === undefined ? s : null
+    return s && s.deletedAt === undefined ? { source: s, sectionId: w.sections.tree().sectionOf(s) } : null
   })
-  if (source === null) return <NotFound />
+  if (found === null) return <NotFound />
+  const { source, sectionId } = found
+  const home = to.place(source.courseId, sectionId)
   const remove = () => {
     rt.ws.sources.trash(source.id)
-    navigate(to.course(source.courseId))
+    navigate(home)
   }
   return (
-    <Screen title={source.title} back={to.course(source.courseId)}>
+    <Screen title={source.title} back={home}>
       {source.kind !== 'note' && <Attachment source={source} page={page} />}
       <MarkdownEditor
         text={rt.ws.text({ id: source.id, field: 'body' })}
@@ -116,10 +121,26 @@ export default function Source() {
           <History size={18} aria-hidden="true" />
           {t('course.history')}
         </Link>
+        <Button variant="plain" icon={<FolderInput size={18} aria-hidden="true" />} onClick={() => setMoving(true)}>
+          {t('course.moveTo')}
+        </Button>
         <Button variant="danger" icon={<Trash2 size={18} aria-hidden="true" />} onClick={remove}>
           {t('course.moveToTrash')}
         </Button>
       </div>
+      {movedTo !== null && (
+        <p className={styles.note} role="status">
+          {t('course.moved', { place: movedTo })}
+        </p>
+      )}
+      <MoveSheet
+        open={moving}
+        title={t('course.moveTitle')}
+        onClose={() => setMoving(false)}
+        current={{ courseId: source.courseId, sectionId }}
+        onMove={(place) => moveItemTo(rt.ws, 'sources', source.id, place)}
+        onMoved={setMovedTo}
+      />
     </Screen>
   )
 }

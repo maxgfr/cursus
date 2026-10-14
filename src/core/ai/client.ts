@@ -1,11 +1,13 @@
 import { type DeepPartial, generateText, type LanguageModel, Output, streamText } from 'ai'
 import type { z } from 'zod'
 import type { CatalogModel, CatalogProvider } from './catalogTrim'
-import { providerBaseUrl } from './catalogTrim'
 import type { TokenUsage } from './cost'
 import { type AiFeature, type UsageSink, usageEvent } from './usage'
 
 export class AiConfigError extends Error {}
+
+const ANTHROPIC_API = 'https://api.anthropic.com/v1'
+const ANTHROPIC_BROWSER_HEADER = 'anthropic-dangerous-direct-browser-access'
 
 export interface ModelRef {
   provider: CatalogProvider
@@ -16,31 +18,39 @@ export interface ModelRef {
 /** Builds a language model; provider packages are loaded only when first needed. */
 export async function createModel(ref: ModelRef): Promise<LanguageModel> {
   const { provider, modelId, apiKey } = ref
-  if (!provider.browserCallable) throw new AiConfigError(`${provider.id} cannot be called from a browser`)
+  if (provider.browser.verdict === 'blocked') {
+    throw new AiConfigError(`${provider.id} cannot be called from a browser`)
+  }
+  // Headers the provider asked for when it was checked (Anthropic's direct-browser header).
+  const headers = provider.browser.headers
   if (provider.id === 'anthropic' || provider.npm === '@ai-sdk/anthropic') {
     const { createAnthropic } = await import('@ai-sdk/anthropic')
+    const baseURL = provider.api ?? undefined
+    // The header is Anthropic's own opt-in: it goes to Anthropic's host, never to another server
+    // that merely speaks the same protocol (MiniMax, a proxy).
+    const own = new URL(baseURL ?? ANTHROPIC_API).host === new URL(ANTHROPIC_API).host
     return createAnthropic({
       apiKey,
-      baseURL: provider.api ?? undefined,
-      headers: { 'anthropic-dangerous-direct-browser-access': 'true' },
+      baseURL,
+      headers: own ? { [ANTHROPIC_BROWSER_HEADER]: 'true', ...headers } : headers,
     })(modelId)
   }
   if (provider.id === 'google' || provider.npm === '@ai-sdk/google') {
     const { createGoogle } = await import('@ai-sdk/google')
-    return createGoogle({ apiKey, baseURL: provider.api ?? undefined })(modelId)
+    return createGoogle({ apiKey, baseURL: provider.api ?? undefined, headers })(modelId)
   }
   if (provider.id === 'openai' || provider.npm === '@ai-sdk/openai') {
     const { createOpenAI } = await import('@ai-sdk/openai')
-    return createOpenAI({ apiKey, baseURL: provider.api ?? undefined })(modelId)
+    return createOpenAI({ apiKey, baseURL: provider.api ?? undefined, headers })(modelId)
   }
   if (provider.id === 'openrouter' || provider.npm === '@openrouter/ai-sdk-provider') {
     const { createOpenRouter } = await import('@openrouter/ai-sdk-provider')
-    return createOpenRouter({ apiKey, baseURL: provider.api ?? undefined }).chat(modelId)
+    return createOpenRouter({ apiKey, baseURL: provider.api ?? undefined, headers }).chat(modelId)
   }
-  const baseURL = providerBaseUrl(provider)
+  const baseURL = provider.api
   if (!baseURL) throw new AiConfigError(`no base URL known for ${provider.id}`)
   const { createOpenAICompatible } = await import('@ai-sdk/openai-compatible')
-  return createOpenAICompatible({ name: provider.id, apiKey, baseURL }).chatModel(modelId)
+  return createOpenAICompatible({ name: provider.id, apiKey, baseURL, headers }).chatModel(modelId)
 }
 
 /** Everything a feature needs to call a model. */

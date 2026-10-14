@@ -1,24 +1,26 @@
-import type * as Y from 'yjs'
+import * as Y from 'yjs'
 import type { Clock, Rng } from '../contracts/ports'
-import type { Id, Prefs, Scope, Workspace } from '../contracts/workspace'
-import { EntityRepo } from './repos'
+import type { Id, ItemKind, Prefs, Scope, StudyScope, Workspace } from '../contracts/workspace'
+import { EntityNotFoundError, EntityRepo } from './repos'
 import { AiUsageLog, ReviewLog } from './reviews'
 import {
   type CardFields,
   type CardRecord,
   type CourseFields,
   type CourseRecord,
-  type EntityCollection,
   type FicheFields,
   type FicheRecord,
   PREF_DEFAULTS,
+  type RepoCollection,
   ROOT,
+  type SectionRecord,
   type SourceFields,
   type SourceRecord,
   type TextField,
   textKey,
 } from './schema'
 import { SearchIndex } from './search'
+import { SectionRepo } from './sections'
 
 interface Observable {
   observeDeep(f: () => void): void
@@ -38,10 +40,27 @@ export interface ModelWorkspace extends Workspace {
   sources: EntityRepo<SourceRecord, SourceFields>
   fiches: EntityRepo<FicheRecord, FicheFields>
   cards: EntityRepo<CardRecord, CardFields> & { move(id: Id, courseId: Id): void }
+  sections: SectionRepo
+  /** Live entities of a course or subset (descendants included), those hidden in a trashed section excluded. */
+  scoped<K extends ItemKind>(kind: K, scope: StudyScope): readonly ItemRecord[K][]
+  /** Exam dates of live courses and their visible subsets: each course's own first, then its subsets in tree order. */
+  exams(): readonly { scope: StudyScope; examDate: string }[]
+  /**
+   * Like `batch`, but all or nothing: if `fn` throws, its writes are undone (a forward inverse update, as
+   * remote history keeps everything) and the error is rethrown. Nested in an open transaction it is a plain
+   * batch: the outer one owns atomicity.
+   */
+  atomic<T>(fn: () => T): T
   reviews: ReviewLog
   aiUsage: AiUsageLog
   search: SearchIndex
   dispose(): void
+}
+
+export interface ItemRecord {
+  sources: SourceRecord
+  fiches: FicheRecord
+  cards: CardRecord
 }
 
 export interface WorkspaceDeps {
@@ -60,18 +79,26 @@ export function createWorkspace(doc: Y.Doc, deps: WorkspaceDeps): ModelWorkspace
   const sources = new EntityRepo<SourceRecord, SourceFields>(rd, 'sources')
   const fiches = new EntityRepo<FicheRecord, FicheFields>(rd, 'fiches')
   const cardRepo = new EntityRepo<CardRecord, CardFields>(rd, 'cards')
+  const sections = new SectionRepo(rd)
+  // Moving a card to another course takes it out of its section there.
   const cards = Object.assign(cardRepo, {
     move(id: Id, courseId: Id): void {
-      cardRepo.update(id, { courseId })
+      cardRepo.update(id, { courseId, sectionId: undefined })
     },
   })
+  const items = { sources, fiches, cards: cardRepo }
+  // An item inside a trashed section (or below one) is hidden by derivation: no cascade write.
+  sources.hideWhen((e) => sections.tree().itemHidden(e))
+  fiches.hideWhen((e) => sections.tree().itemHidden(e))
+  cardRepo.hideWhen((e) => sections.tree().itemHidden(e))
   const reviews = new ReviewLog(doc, deps.rng, deps.deviceId)
   const aiUsage = new AiUsageLog(doc, deps.rng, deps.clock, deps.deviceId)
   const prefsMap = doc.getMap<unknown>(ROOT.prefs)
   const texts = doc.getMap<Y.Text>(ROOT.texts)
-  const search = new SearchIndex(doc)
-  const repos: Record<EntityCollection, EntityRepo<{ id: Id; createdAt: number; updatedAt: number }, object>> = {
+  const search = new SearchIndex(doc, () => sections.tree())
+  const repos: Record<RepoCollection, { readonly yRoot: Y.Map<Y.Map<unknown>> }> = {
     courses,
+    sections,
     sources,
     fiches,
     cards: cardRepo,
@@ -107,12 +134,47 @@ export function createWorkspace(doc: Y.Doc, deps: WorkspaceDeps): ModelWorkspace
     }
   }
 
+  function moveItem(kind: ItemKind, id: Id, sectionId: Id | null): void {
+    const repo: { update(id: Id, p: { courseId?: Id; sectionId?: Id }): void } = items[kind]
+    if (sectionId === null) {
+      repo.update(id, { sectionId: undefined })
+      return
+    }
+    const target = sections.tree().get(sectionId)
+    if (!target) throw new EntityNotFoundError('sections', sectionId)
+    repo.update(id, { courseId: target.courseId, sectionId })
+  }
+
+  function scoped<K extends ItemKind>(kind: K, scope: StudyScope): readonly ItemRecord[K][] {
+    const tree = sections.tree()
+    const list = items[kind].list({ courseId: scope.courseId }) as readonly ItemRecord[K][]
+    return scope.sectionId === undefined ? list : list.filter((e) => tree.contains(scope, e))
+  }
+
+  function exams(): readonly { scope: StudyScope; examDate: string }[] {
+    const tree = sections.tree()
+    const out: { scope: StudyScope; examDate: string }[] = []
+    const visit = (s: SectionRecord): void => {
+      if (s.examDate) out.push({ scope: { courseId: s.courseId, sectionId: s.id }, examDate: s.examDate })
+      for (const c of tree.children(s.courseId, s.id)) visit(c)
+    }
+    for (const c of courses.list()) {
+      if (c.examDate) out.push({ scope: { courseId: c.id }, examDate: c.examDate })
+      for (const s of tree.children(c.id, null)) visit(s)
+    }
+    return out
+  }
+
   return {
     doc,
     courses,
     sources,
     fiches,
     cards,
+    sections,
+    moveItem,
+    scoped,
+    exams,
     reviews,
     aiUsage,
     search,
@@ -133,6 +195,32 @@ export function createWorkspace(doc: Y.Doc, deps: WorkspaceDeps): ModelWorkspace
       })
       if (!out) throw new Error('batch: transaction did not run')
       return out.v
+    },
+    atomic<T>(fn: () => T): T {
+      if (doc._transaction !== null) return fn()
+      const origin = { atomic: true }
+      const um = new Y.UndoManager([...Object.values(repos).map((r) => r.yRoot), texts, reviews.yArray, prefsMap], {
+        trackedOrigins: new Set([origin]),
+        captureTimeout: 0,
+      })
+      try {
+        const box: { out?: { v: T } | { e: unknown } } = {}
+        doc.transact(() => {
+          try {
+            box.out = { v: fn() }
+          } catch (e) {
+            box.out = { e }
+          }
+        }, origin)
+        const out = box.out ?? { e: new Error('atomic: transaction did not run') }
+        if ('e' in out) {
+          um.undo()
+          throw out.e
+        }
+        return out.v
+      } finally {
+        um.destroy()
+      }
     },
     subscribe,
     dispose() {

@@ -93,12 +93,26 @@ export function verifyCitations<T extends { sourceRef?: SourceRef }>(
   })
 }
 
+/**
+ * Grounding limited to a course or one of its subsets: the ids of the sources filed there (descendants
+ * included, e.g. from `ModelWorkspace.scoped('sources', scope)`), plus any id kept on purpose such as pasted text.
+ */
+export interface RetrievalScope {
+  sourceIds: ReadonlySet<string>
+}
+
+/** Passages inside the scope; every passage without one. */
+export function scopeChunks(chunks: readonly Chunk[], scope?: RetrievalScope): readonly Chunk[] {
+  return scope === undefined ? chunks : chunks.filter((c) => scope.sourceIds.has(c.sourceId))
+}
+
 /** Chunks relevant to `query` within the model's context budget, minus what the rest of the prompt uses. */
 export function groundChunks(
   chunks: readonly Chunk[],
   query: string,
   contextLength: number,
   promptTokens: number,
+  scope?: RetrievalScope,
 ): Chunk[] {
-  return new ChunkIndex(chunks).select(query, contextBudget(contextLength) - promptTokens)
+  return new ChunkIndex(scopeChunks(chunks, scope)).select(query, contextBudget(contextLength) - promptTokens)
 }

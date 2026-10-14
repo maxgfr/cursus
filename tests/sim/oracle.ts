@@ -15,6 +15,8 @@ export class Oracle {
   readonly voids = new Set<string>()
   /** source id → blob id of its file */
   readonly files = new Map<string, string>()
+  /** section id → its name at creation: the section must survive every merge (renames may win later) */
+  readonly sections = new Map<string, string>()
   private counter = 0
 
   token(prefix: string): string {
@@ -24,7 +26,13 @@ export class Oracle {
 
   get acknowledged(): number {
     return (
-      this.courses.size + this.tokens.size + this.deleted.size + this.reviews.size + this.voids.size + this.files.size
+      this.courses.size +
+      this.tokens.size +
+      this.deleted.size +
+      this.reviews.size +
+      this.voids.size +
+      this.files.size +
+      this.sections.size
     )
   }
 }

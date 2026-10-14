@@ -11,34 +11,50 @@ export interface PwaOptions {
   onUpdate(update: PwaUpdate): void
   /** Seals the local log; awaited before the page reloads into the new version. */
   seal(): Promise<void>
+  /** Records a failure the user is not told about (the next check may well succeed). */
+  report(where: string, e: unknown): void
 }
 
 let started = false
 
-/** Registers the service worker once. A no-op where service workers are unavailable or in dev. */
+/**
+ * Registers the service worker once; resolves when registered. A no-op where service workers are unavailable
+ * or in dev. Rejects when the deferred chunks or the worker script fail to load, and may then be called again.
+ */
 export async function startPwa(opts: PwaOptions): Promise<void> {
   if (started || !('serviceWorker' in navigator) || import.meta.env.DEV) return
   started = true
-  const { registerSW } = await import('virtual:pwa-register')
-  const updateSW = registerSW({
-    // The page has long loaded by the time this lazy chunk runs: register now, not on `load`.
-    immediate: true,
-    onNeedRefresh() {
-      opts.onUpdate({
-        async apply() {
-          await opts.seal()
-          await updateSW(true)
+  try {
+    const { registerSW } = await import('virtual:pwa-register')
+    await new Promise<void>((resolve, reject) => {
+      const updateSW = registerSW({
+        // The page has long loaded by the time this lazy chunk runs: register now, not on `load`.
+        immediate: true,
+        onNeedRefresh() {
+          opts.onUpdate({
+            async apply() {
+              await opts.seal()
+              await updateSW(true)
+            },
+          })
         },
+        onRegisteredSW(_url, registration) {
+          resolve()
+          if (!registration) return
+          // Check for a new version on every return to the foreground (installed apps rarely reload).
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && navigator.onLine)
+              registration.update().catch((e: unknown) => opts.report('pwa.update', e))
+          })
+        },
+        // workbox-window failed to load, or the worker failed to register.
+        onRegisterError: reject,
       })
-    },
-    onRegisteredSW(_url, registration) {
-      if (!registration) return
-      // Check for a new version on every return to the foreground (installed apps rarely reload).
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && navigator.onLine) void registration.update()
-      })
-    },
-  })
+    })
+  } catch (e) {
+    started = false
+    throw e
+  }
 }
 
 export { requestPersistence } from '../core/storage/persist.ts'

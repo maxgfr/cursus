@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import { z } from 'zod'
-import { bundledCatalog, findModel, findProvider } from '../../src/core/ai/catalog'
+import { findModel, findProvider, loadBundledCatalog } from '../../src/core/ai/catalog'
 import { createModel, generateStructured } from '../../src/core/ai/client'
 import type { AiUsageEvent } from '../../src/core/ai/usage'
 
@@ -13,7 +13,7 @@ if (missing.length > 0) {
   test.skip(`live AI: skipped, set ${missing.join(', ')}`, () => {})
 } else {
   test(`live AI: ${env('LIVE_AI_PROVIDER')}/${env('LIVE_AI_MODEL')} returns structured output and usage`, async () => {
-    const catalog = bundledCatalog()
+    const catalog = await loadBundledCatalog()
     const provider = findProvider(catalog, env('LIVE_AI_PROVIDER'))
     const info = findModel(catalog, env('LIVE_AI_PROVIDER'), env('LIVE_AI_MODEL'))
     if (!provider || !info) throw new Error('LIVE_AI_PROVIDER / LIVE_AI_MODEL not found in the bundled catalog')

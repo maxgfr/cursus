@@ -1,4 +1,8 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { guardChunk } from '../app/chunkGuard.ts'
+import { noteError } from '../screens/settings/Diagnostic/recent.ts'
+import { Button } from '../ui/components/Button.tsx'
+import { EmptyState } from '../ui/components/EmptyState.tsx'
 import {
   applyDocumentLocale,
   createTranslator,
@@ -37,19 +41,45 @@ export function I18nProvider({ locale, children }: { readonly locale: Locale; re
     if (latest.current === next) setValue({ locale: next, t: createTranslator(next) })
   }, [])
   useEffect(() => {
-    // A catalog that cannot be fetched (offline before it was ever cached) is a boot failure.
-    setLocale(locale).catch((e: unknown) => setFailure(e))
+    // A catalog that cannot be fetched (offline before it was ever cached) is a boot failure; one aborted by a
+    // navigation away is not (the guard holds it until the page is back, should it come back).
+    guardChunk(() => setLocale(locale), 'i18n.catalog', noteError).catch((e: unknown) => setFailure(e))
   }, [locale, setLocale])
   // Keyed on the value, not the locale: a device region change re-applies the regional <html lang>.
   useEffect(() => {
     if (value !== null) applyDocumentLocale(value.locale)
   }, [value])
-  if (failure !== null) throw failure
+  if (failure !== null) return <CatalogFailed />
   if (value === null) return null
   return (
     <SetLocaleContext.Provider value={setLocale}>
       <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
     </SetLocaleContext.Provider>
+  )
+}
+
+/** Without a catalog there is no translated text: the few words needed, in the device's language. */
+const noCatalog = {
+  en: ['Cursus didn’t load.', 'Your data is safe. Check the connection, then reload.', 'Reload'],
+  de: ['Cursus wurde nicht geladen.', 'Deine Daten sind sicher. Prüfe die Verbindung und lade neu.', 'Neu laden'],
+  fr: ['Cursus ne s’est pas chargé.', 'Vos données sont intactes. Vérifiez la connexion, puis rechargez.', 'Recharger'],
+} as const
+
+function CatalogFailed() {
+  const lang = navigator.language.slice(0, 2)
+  const [title, body, reload] = lang === 'de' || lang === 'fr' ? noCatalog[lang] : noCatalog.en
+  return (
+    <main>
+      <EmptyState
+        title={title}
+        body={body}
+        action={
+          <Button variant="primary" onClick={() => location.reload()}>
+            {reload}
+          </Button>
+        }
+      />
+    </main>
   )
 }
 

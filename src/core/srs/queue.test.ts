@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { Rating, Review } from '../contracts/workspace'
 import { type CardState, createScheduler, DAY_MS, dayStart, studyDay } from './fsrs'
-import { buildQueue, type QueueCard } from './queue'
+import { buildQueue, inScope, type QueueCard } from './queue'
 
 const TZ = 0
 const MIN = 60_000
@@ -75,5 +75,47 @@ describe('buildQueue', () => {
     expect(buildQueue({ cards, states: undone, now, tzOffsetMin: TZ, newPerDay: 5 })).toEqual([
       { cardId: 'n', kind: 'new' },
     ])
+  })
+
+  test('a scope queues its course or subset, descendants included', () => {
+    const cards: QueueCard[] = [
+      { id: 'root', courseId: 'law' },
+      { id: 'ch', courseId: 'law', sections: ['contracts'] },
+      { id: 'deep', courseId: 'law', sections: ['contracts', 'formation'] },
+      { id: 'torts', courseId: 'law', sections: ['torts'] },
+      { id: 'bio', courseId: 'bio' },
+    ]
+    const now = DAY0 + MIN
+    const base = { cards, states: states([]), now, tzOffsetMin: TZ, newPerDay: 10 }
+    const ids = (scope?: { courseId: string; sectionId?: string }) =>
+      buildQueue({ ...base, ...(scope ? { scope } : {}) }).map((q) => q.cardId)
+    expect(ids()).toEqual(['root', 'ch', 'deep', 'torts', 'bio'])
+    expect(ids({ courseId: 'law' })).toEqual(['root', 'ch', 'deep', 'torts'])
+    expect(ids({ courseId: 'law', sectionId: 'contracts' })).toEqual(['ch', 'deep'])
+    expect(ids({ courseId: 'law', sectionId: 'formation' })).toEqual(['deep'])
+    expect(ids({ courseId: 'bio', sectionId: 'contracts' })).toEqual([])
+    expect(inScope({ id: 'x' }, { courseId: 'law' })).toBe(false)
+    expect(inScope({ id: 'x', courseId: 'law' }, { courseId: 'law', sectionId: 's' })).toBe(false)
+    expect(inScope({ id: 'x' }, undefined)).toBe(true)
+  })
+
+  test("a scoped queue keeps the student's daily new-card budget and sibling burying", () => {
+    const log = [rv('a', 'elsewhere', 3, DAY0 + MIN), rv('b', 'sib1', 3, DAY0 + MIN)]
+    const cards: QueueCard[] = [
+      { id: 'elsewhere', courseId: 'bio' },
+      { id: 'sib1', courseId: 'bio', sibling: 'f' },
+      { id: 'sib2', courseId: 'law', sections: ['s'], sibling: 'f' },
+      { id: 'n1', courseId: 'law', sections: ['s'] },
+      { id: 'n2', courseId: 'law', sections: ['s'] },
+    ]
+    const q = buildQueue({
+      cards,
+      states: states(log),
+      now: DAY0 + 2 * MIN,
+      tzOffsetMin: TZ,
+      newPerDay: 3,
+      scope: { courseId: 'law', sectionId: 's' },
+    })
+    expect(q).toEqual([{ cardId: 'n1', kind: 'new' }])
   })
 })

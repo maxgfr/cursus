@@ -1,10 +1,10 @@
-import type { Id, Rating } from '../../core/contracts/workspace'
+import type { Id, Rating, StudyScope } from '../../core/contracts/workspace'
 import { makeClozeCards } from '../../core/model/cloze'
 import type { ModelWorkspace } from '../../core/model/workspace'
 import { type CardState, createScheduler, dayStart, localOffset, type Scheduler, studyDay } from '../../core/srs/fsrs'
 import { isLeech } from '../../core/srs/leech'
-import { buildQueue } from '../../core/srs/queue'
-import { examCourse } from '../../ui/data/useStudy.ts'
+import { buildQueue, inScope, type QueueCard } from '../../core/srs/queue'
+import { nearestExamScope } from '../Today/sectionLead.ts'
 
 export const RATINGS: readonly Rating[] = [1, 2, 3, 4]
 
@@ -13,13 +13,23 @@ export function schedulerFor(ws: ModelWorkspace): Scheduler {
   return createScheduler({ desiredRetention: ws.prefs.get('desiredRetention') })
 }
 
-/**
- * Today's queue, fixed when the session starts so answering never reshuffles it. The course with
- * the nearest exam leads; the order within each part is the scheduler's.
- */
-export function startQueue(ws: ModelWorkspace, now: number): { queue: Id[]; learning: Id[] } {
+/** Live, unsuspended cards with what a scoped queue needs: their course and the sections they are filed under. */
+export function queueCards(ws: ModelWorkspace): (QueueCard & { courseId: Id })[] {
   const live = new Set(ws.courses.list().map((c) => c.id))
-  const cards = ws.cards.list().filter((c) => live.has(c.courseId) && !c.suspended)
+  const tree = ws.sections.tree()
+  return ws.cards
+    .list()
+    .filter((c) => live.has(c.courseId) && !c.suspended)
+    .map((c) => ({ id: c.id, courseId: c.courseId, sections: tree.locate(c) }))
+}
+
+/**
+ * Today's queue, fixed when the session starts so answering never reshuffles it. With a scope, only that
+ * course or subset (descendants included). The nearest exam's cards lead; the order within each part is the
+ * scheduler's.
+ */
+export function startQueue(ws: ModelWorkspace, now: number, scope?: StudyScope): { queue: Id[]; learning: Id[] } {
+  const cards = queueCards(ws)
   const scheduler = schedulerFor(ws)
   const states = new Map<Id, CardState>()
   for (const c of cards) {
@@ -27,20 +37,26 @@ export function startQueue(ws: ModelWorkspace, now: number): { queue: Id[]; lear
     if (events.length > 0) states.set(c.id, scheduler.replay(c.id, events))
   }
   const ids = buildQueue({
-    cards: cards.map((c) => ({ id: c.id })),
+    cards,
     states,
     now,
     tzOffsetMin: localOffset(now),
     newPerDay: ws.prefs.get('dailyNewCards'),
+    scope,
   }).map((q) => q.cardId)
   // Cards in (re)learning: those not due yet may come back later in the session.
   const learning: Id[] = []
-  for (const [id, st] of states) if (st.phase === 'learning' || st.phase === 'relearning') learning.push(id)
-  const exam = examCourse(ws, now)
+  const queued = new Set(cards.filter((c) => inScope(c, scope)).map((c) => c.id))
+  for (const [id, st] of states)
+    if ((st.phase === 'learning' || st.phase === 'relearning') && queued.has(id)) learning.push(id)
+  const exam = nearestExamScope(ws, now)
   if (exam === null) return { queue: ids, learning }
-  const courseOf = new Map(cards.map((c) => [c.id, c.courseId]))
-  const lead = ids.filter((id) => courseOf.get(id) === exam.id)
-  return { queue: [...lead, ...ids.filter((id) => courseOf.get(id) !== exam.id)], learning }
+  const byId = new Map(cards.map((c) => [c.id, c]))
+  const leads = (id: Id) => {
+    const c = byId.get(id)
+    return c !== undefined && inScope(c, exam.scope)
+  }
+  return { queue: [...ids.filter(leads), ...ids.filter((id) => !leads(id))], learning }
 }
 
 /**

@@ -58,11 +58,33 @@ function detect(body: string): string {
   return '\t'
 }
 
+/** The chosen subset is gone or belongs to another course. */
+export class CsvTargetError extends Error {
+  constructor(
+    readonly courseId: Id,
+    readonly sectionId: Id,
+  ) {
+    super(`subset ${sectionId} is not a live subset of course ${courseId}`)
+    this.name = 'CsvTargetError'
+  }
+}
+
 /**
- * Imports Anki "Notes in plain text" or Quizlet exports as basic cards of `courseId`:
- * column 1 = front, 2 = back, 3 = space-separated tags. A `front,back` header row is skipped.
+ * Imports Anki "Notes in plain text" or Quizlet exports as basic cards of `courseId`, filed in the subset
+ * `sectionId` when given (else at the course root): column 1 = front, 2 = back, 3 = space-separated tags.
+ * A `front,back` header row is skipped.
  */
-export function importCards(w: ModelWorkspace, courseId: Id, text: string): { created: number; skipped: number } {
+export function importCards(
+  w: ModelWorkspace,
+  courseId: Id,
+  text: string,
+  sectionId?: Id,
+): { created: number; skipped: number } {
+  if (sectionId !== undefined) {
+    const tree = w.sections.tree()
+    const target = tree.get(sectionId)
+    if (!target || target.courseId !== courseId || tree.hidden(sectionId)) throw new CsvTargetError(courseId, sectionId)
+  }
   const rows = parseDelimited(text)
   const head = rows[0]
   if (head && head[0]?.trim().toLowerCase() === 'front' && head[1]?.trim().toLowerCase() === 'back') rows.shift()
@@ -77,7 +99,13 @@ export function importCards(w: ModelWorkspace, courseId: Id, text: string): { cr
         continue
       }
       const tags = (r[2] ?? '').split(/\s+/).filter((t) => t.length > 0)
-      const id = w.cards.create({ courseId, kind: 'basic', tags: tags.length ? tags : undefined, origin: 'manual' })
+      const id = w.cards.create({
+        courseId,
+        ...(sectionId === undefined ? {} : { sectionId }),
+        kind: 'basic',
+        tags: tags.length ? tags : undefined,
+        origin: 'manual',
+      })
       w.text({ id, field: 'front' }).insert(0, front)
       w.text({ id, field: 'back' }).insert(0, back)
       created++

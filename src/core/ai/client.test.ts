@@ -10,8 +10,9 @@ const provider = (id: string, extra: Partial<CatalogProvider> = {}): CatalogProv
   id,
   name: id,
   api: null,
-  browserCallable: true,
-  models: [],
+  baseUrlSource: 'none',
+  kind: 'vendor',
+  browser: { verdict: 'callable', evidence: 'preflight', checkedAt: '2026-10-14T00:00:00.000Z' },
   ...extra,
 })
 
@@ -60,7 +61,11 @@ describe('client', () => {
     const google = await createModel({ provider: provider('google'), modelId: 'gemini-x', apiKey: 'k' })
     const openai = await createModel({ provider: provider('openai'), modelId: 'gpt-x', apiKey: 'k' })
     const openrouter = await createModel({ provider: provider('openrouter'), modelId: 'a/b', apiKey: 'k' })
-    const compat = await createModel({ provider: provider('groq'), modelId: 'llama', apiKey: 'k' })
+    const compat = await createModel({
+      provider: provider('groq', { api: 'https://api.groq.com/openai/v1', baseUrlSource: 'default' }),
+      modelId: 'llama',
+      apiKey: 'k',
+    })
     for (const [m, id] of [
       [anthropic, 'claude-x'],
       [google, 'gemini-x'],
@@ -75,11 +80,44 @@ describe('client', () => {
 
   test('createModel refuses providers a browser cannot reach or without a URL', async () => {
     await expect(
-      createModel({ provider: provider('x', { browserCallable: false }), modelId: 'm', apiKey: 'k' }),
+      createModel({
+        provider: provider('x', {
+          api: 'https://x/v1',
+          browser: { verdict: 'blocked', evidence: 'preflight', checkedAt: '2026-10-14T00:00:00.000Z' },
+        }),
+        modelId: 'm',
+        apiKey: 'k',
+      }),
     ).rejects.toBeInstanceOf(AiConfigError)
     await expect(createModel({ provider: provider('nowhere'), modelId: 'm', apiKey: 'k' })).rejects.toBeInstanceOf(
       AiConfigError,
     )
+  })
+
+  test('the Anthropic browser header goes to Anthropic only, not to servers speaking its protocol', async () => {
+    const { generateText } = await import('ai')
+    const sent: { url: string; header: string | null }[] = []
+    const real = globalThis.fetch
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      sent.push({
+        url: String(input),
+        header: new Headers(init?.headers).get('anthropic-dangerous-direct-browser-access'),
+      })
+      return new Response('{}', { status: 400 })
+    }) as typeof fetch
+    try {
+      const minimax = provider('minimax', { npm: '@ai-sdk/anthropic', api: 'https://api.minimax.io/anthropic/v1' })
+      for (const p of [provider('anthropic'), minimax]) {
+        const model = await createModel({ provider: p, modelId: 'm', apiKey: 'k' })
+        await expect(generateText({ model, prompt: 'hi', maxRetries: 0 })).rejects.toThrow()
+      }
+    } finally {
+      globalThis.fetch = real
+    }
+    expect(sent).toEqual([
+      { url: 'https://api.anthropic.com/v1/messages', header: 'true' },
+      { url: 'https://api.minimax.io/anthropic/v1/messages', header: null },
+    ])
   })
 
   test('output language: course first, then UI', () => {

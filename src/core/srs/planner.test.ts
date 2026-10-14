@@ -1,6 +1,18 @@
 import { describe, expect, test } from 'bun:test'
 import { DAY_MS, DEFAULT_PARAMS, dayStart, newCardState } from './fsrs'
-import { dailyGoal, daysUntil, EXAM_RETENTION, nearestExam, paramsFor } from './planner'
+import {
+  courseDeadline,
+  dailyGoal,
+  daysUntil,
+  EXAM_RETENTION,
+  examFor,
+  nearestExam,
+  nearestScopedExam,
+  paramsFor,
+  type ScopedExam,
+  scopedDailyGoal,
+} from './planner'
+import type { QueueCard } from './queue'
 
 const TZ = 60
 const D = (n: number): number => dayStart(20_000 + n, TZ) + 3_600_000
@@ -50,5 +62,49 @@ describe('nearestExam', () => {
       ),
     ).toEqual({ id: 'near', days: 5 })
     expect(nearestExam([{ id: 'today', plan: at(0) }], now)).toEqual({ id: 'today', days: 0 })
+  })
+})
+
+describe('exams per subset', () => {
+  const now = Date.UTC(2026, 9, 14, 12)
+  const plan = (days: number) => ({ examAt: now + days * DAY_MS, tzOffsetMin: 0 })
+  const exams: ScopedExam[] = [
+    { scope: { courseId: 'law' }, plan: plan(40) },
+    { scope: { courseId: 'law', sectionId: 'contracts' }, plan: plan(5) },
+    { scope: { courseId: 'law', sectionId: 'formation' }, plan: plan(-1) },
+    { scope: { courseId: 'bio' }, plan: plan(3) },
+  ]
+
+  test('the nearest deadline among a course and its subsets; past exams ignored', () => {
+    expect(nearestScopedExam([], now)).toBeNull()
+    expect(nearestScopedExam(exams, now)).toEqual({ scope: { courseId: 'bio' }, plan: plan(3), days: 3 })
+    expect(courseDeadline(exams, 'law', now)).toEqual({
+      scope: { courseId: 'law', sectionId: 'contracts' },
+      plan: plan(5),
+      days: 5,
+    })
+    expect(courseDeadline(exams, 'chem', now)).toBeNull()
+  })
+
+  test("a card's exam is the nearest one covering it", () => {
+    const deep: QueueCard = { id: 'd', courseId: 'law', sections: ['contracts', 'formation'] }
+    const rootCard: QueueCard = { id: 'r', courseId: 'law' }
+    expect(examFor(deep, exams, now)?.scope).toEqual({ courseId: 'law', sectionId: 'contracts' })
+    expect(examFor(rootCard, exams, now)?.scope).toEqual({ courseId: 'law' })
+    expect(examFor({ id: 'x', courseId: 'chem' }, exams, now)).toBeNull()
+  })
+
+  test('a chapter exam plans only the cards of that chapter', () => {
+    const cards: QueueCard[] = [
+      { id: 'in1', courseId: 'law', sections: ['contracts'] },
+      { id: 'in2', courseId: 'law', sections: ['contracts', 'formation'] },
+      { id: 'out', courseId: 'law', sections: ['torts'] },
+      { id: 'root', courseId: 'law' },
+    ]
+    const reviewed = { ...newCardState('in2'), phase: 'review' as const, due: now }
+    const chapter = exams[1] as ScopedExam
+    const goal = scopedDailyGoal(chapter, cards, new Map([['in2', reviewed]]), now)
+    expect(goal).toEqual({ newCards: 1, dueCards: 1, total: 2 })
+    expect(scopedDailyGoal(exams[0] as ScopedExam, cards, new Map(), now).newCards).toBe(1)
   })
 })

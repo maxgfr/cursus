@@ -3,6 +3,7 @@ import { RemoteError } from '../../src/core/contracts/errors'
 import type { Rating } from '../../src/core/contracts/workspace'
 import { createSealer, sealDestination } from '../../src/core/crypto/sealer'
 import { blobRef } from '../../src/core/log/blobs'
+import { SectionMoveError } from '../../src/core/model/sections'
 import { memoryStore } from '../../src/core/storage/memoryStore'
 import type { Fault } from '../../src/core/sync/providers/faulty'
 import { memoryRemote } from '../../src/core/sync/providers/memory'
@@ -38,6 +39,13 @@ export type Action =
   | { t: 'sealDest'; dest: number; locked: number; unhinted?: number; blackout?: number }
   | { t: 'advance'; ms: number }
   | { t: 'localQuota'; dev: number; n: number }
+  | { t: 'section'; dev: number; tab: number; course: number; parent: number }
+  | { t: 'rename'; dev: number; tab: number; target: number }
+  | { t: 'smove'; dev: number; tab: number; target: number; parent: number }
+  | { t: 'sbin'; dev: number; tab: number; target: number; op: 'trash' | 'restore' | 'purge' }
+  | { t: 'file'; dev: number; tab: number; item: number; section: number }
+  | { t: 'swap'; dev: number; tab: number; other: number; pair: number }
+  | { t: 'exchange' }
 
 const ix = fc.nat({ max: 50 })
 const FAULTS: Fault[] = [
@@ -132,15 +140,48 @@ export const actionArb: fc.Arbitrary<Action> = fc.oneof(
   },
 )
 
+/** Unbiased: a biased index keeps picking the first section, and a section never goes under itself. */
+const six = fc.noBias(fc.nat({ max: 50 }))
+
+/** Subsets: created, renamed, moved (concurrent moves may form cycles), trashed/restored/purged; items filed. */
+const sectionActionArb: fc.Arbitrary<Action> = fc.oneof(
+  {
+    weight: 3,
+    arbitrary: fc.record({ t: fc.constant('section' as const), dev: six, tab: six, course: six, parent: six }),
+  },
+  { weight: 1, arbitrary: fc.record({ t: fc.constant('rename' as const), dev: six, tab: six, target: six }) },
+  {
+    weight: 4,
+    arbitrary: fc.record({ t: fc.constant('smove' as const), dev: six, tab: six, target: six, parent: six }),
+  },
+  {
+    weight: 1,
+    arbitrary: fc.record({
+      t: fc.constant('sbin' as const),
+      dev: six,
+      tab: six,
+      target: six,
+      op: fc.constantFrom('trash' as const, 'restore' as const, 'purge' as const),
+    }),
+  },
+  { weight: 2, arbitrary: fc.record({ t: fc.constant('file' as const), dev: six, tab: six, item: six, section: six }) },
+  {
+    weight: 2,
+    arbitrary: fc.record({ t: fc.constant('swap' as const), dev: six, tab: six, other: six, pair: six }),
+  },
+)
+
 /**
  * Faults beyond the original model, kept out of `actionArb` so the pinned regressions replay exactly:
  * - localQuota: the next N local appends fail (the device is out of storage), then storage frees up;
  * - sealed destinations added WITHOUT the `sealed` hint (per device bit), by a seal or a fresh device,
  *   whose first listings may lose pages (`blackout`: that many pages silently missing);
- * - listing blackouts: every page of the next listings silently missing (whole `keys/` pages lost).
+ * - listing blackouts: every page of the next listings silently missing (whole `keys/` pages lost);
+ * - subsets (sections) and items filed in them, edited concurrently on every device.
  */
 export const extendedActionArb: fc.Arbitrary<Action> = fc.oneof(
   { weight: 90, arbitrary: actionArb },
+  { weight: 12, arbitrary: sectionActionArb },
   {
     weight: 2,
     arbitrary: fc.record({
@@ -221,6 +262,31 @@ export const simulationArb: fc.Arbitrary<Simulation> = fc.record({
   scheduler: fc.scheduler(),
 })
 
+/**
+ * Subsets under sync: as many section edits as everything else, so the same sections are often moved
+ * concurrently on several devices (cycles, moves under purged or trashed parents) before the merge.
+ */
+export const sectionSimulationArb: fc.Arbitrary<Simulation> = fc.record({
+  params: paramsArb,
+  steps: stepsOf(
+    fc.oneof(
+      { weight: 2, arbitrary: actionArb },
+      { weight: 3, arbitrary: sectionActionArb },
+      // Frequent exchanges, so devices and tabs share sections before moving them concurrently.
+      {
+        weight: 1,
+        arbitrary: fc.oneof(
+          fc.record({ t: fc.constant('seal' as const), dev: six }),
+          fc.record({ t: fc.constant('round' as const), dev: six, dest: six }),
+          fc.record({ t: fc.constant('tabsync' as const), dev: six, tab: six }),
+        ),
+      },
+      { weight: 1, arbitrary: fc.constant({ t: 'exchange' as const }) },
+    ),
+  ),
+  scheduler: fc.scheduler(),
+})
+
 /** The invariant suite's simulation: every original action plus the extended faults. */
 export const extendedSimulationArb: fc.Arbitrary<Simulation> = fc.record({
   params: paramsArb,
@@ -265,6 +331,25 @@ async function edit(tab: SimTab, fn: () => (() => void) | null): Promise<void> {
   await tab.capture.settled()
 }
 
+/** Sections that still exist on this tab (trashed ones included), in a stable order. */
+function sectionsOf(tab: SimTab) {
+  return tab.ws.sections
+    .all()
+    .filter((s) => s.purgedAt === undefined)
+    .sort((a, b) => (a.id < b.id ? -1 : 1))
+}
+
+/** A move refused locally (into its own subtree) is not an edit: nothing to acknowledge. */
+function unlessRefused(fn: () => void): (() => void) | null {
+  try {
+    fn()
+  } catch (e) {
+    if (e instanceof SectionMoveError) return null
+    throw e
+  }
+  return () => {}
+}
+
 function courseOf(tab: SimTab, i: number, w: World): string {
   const c = pick(tab.ws.courses.list(), i)
   if (c) return c.id
@@ -281,6 +366,17 @@ async function runAction(w: World, a: Action): Promise<void> {
   const devs = w.devices
   if (a.t === 'advance') {
     w.clock.advance(a.ms)
+    return
+  }
+  if (a.t === 'exchange') {
+    // Every live device seals, runs a round with each destination, and its tabs catch up.
+    for (const dev of devs) {
+      if (dev.dead) continue
+      const rec = await dev.log.seal()
+      if (rec) dev.hint(rec.arrival)
+      for (const d of [...dev.dests].sort()) await dev.engine.round(d)
+      for (const t of dev.tabs) await t.sync()
+    }
     return
   }
   if (a.t === 'fresh') {
@@ -506,6 +602,91 @@ async function runAction(w: World, a: Action): Promise<void> {
         tab.ws.reviews.void(id)
         return () => o.voids.add(id)
       })
+      return
+    }
+    case 'section': {
+      const course = courseOf(tab, a.course, w)
+      const parent = pick(
+        sectionsOf(tab).filter((x) => x.courseId === course),
+        a.parent,
+      )
+      const name = o.token('s')
+      await edit(tab, () => {
+        const parentId = a.parent % 3 === 0 ? undefined : parent?.id
+        const id = tab.ws.sections.create({ courseId: course, name, ...(parentId ? { parentId } : {}) })
+        return () => o.sections.set(id, name)
+      })
+      return
+    }
+    case 'rename': {
+      const s = pick(sectionsOf(tab), a.target)
+      if (!s) return
+      const name = o.token('s')
+      await edit(tab, () => {
+        tab.ws.sections.update(s.id, { name })
+        return () => {}
+      })
+      return
+    }
+    case 'smove': {
+      const s = pick(sectionsOf(tab), a.target)
+      if (!s) return
+      const parent = pick(
+        sectionsOf(tab).filter((x) => x.courseId === s.courseId),
+        a.parent,
+      )
+      await edit(tab, () =>
+        unlessRefused(() => tab.ws.sections.move(s.id, a.parent % 4 === 0 || !parent ? null : parent.id)),
+      )
+      return
+    }
+    case 'sbin': {
+      const s = pick(sectionsOf(tab), a.target)
+      if (!s) return
+      await edit(tab, () => {
+        tab.ws.sections[a.op](s.id)
+        return () => {}
+      })
+      return
+    }
+    case 'file': {
+      const items = [
+        ...tab.ws.cards.all().map((e) => ({ kind: 'cards' as const, id: e.id })),
+        ...tab.ws.sources.all().map((e) => ({ kind: 'sources' as const, id: e.id })),
+      ].filter((e) => tab.ws[e.kind].get(e.id) !== undefined)
+      const item = pick(items, a.item)
+      if (!item) return
+      const section = pick(sectionsOf(tab), a.section)
+      await edit(tab, () => {
+        tab.ws.moveItem(item.kind, item.id, a.section % 4 === 0 || !section ? null : section.id)
+        return () => {}
+      })
+      return
+    }
+    case 'swap': {
+      // Another replica (tab of any device) that knows two sections A and B of one course this tab knows too:
+      // A goes under B here, B under A there — a cycle once they merge.
+      const mine = sectionsOf(tab)
+      const candidates = devs
+        .flatMap((d) => d.tabs)
+        .filter((t) => t !== tab)
+        .map((t) => {
+          const known = new Set(sectionsOf(t).map((x) => x.id))
+          return { t, shared: mine.filter((x) => known.has(x.id)) }
+        })
+        .filter((c) => c.shared.some((x) => c.shared.some((y) => y.id !== x.id && y.courseId === x.courseId)))
+      const there = pick(candidates, a.other)
+      if (!there) return
+      const first = pick(
+        there.shared.filter((x) => there.shared.some((y) => y.id !== x.id && y.courseId === x.courseId)),
+        a.pair,
+      ) as (typeof mine)[number]
+      const second = pick(
+        there.shared.filter((x) => x.id !== first.id && x.courseId === first.courseId),
+        a.pair,
+      ) as (typeof mine)[number]
+      await edit(tab, () => unlessRefused(() => tab.ws.sections.move(first.id, second.id)))
+      await edit(there.t, () => unlessRefused(() => there.t.ws.sections.move(second.id, first.id)))
       return
     }
     case 'attach': {

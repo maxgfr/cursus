@@ -1,5 +1,6 @@
-import { lazy, type ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'wouter'
+import { lazyChunk, nothing } from './app/lazyChunk.tsx'
 import { HashRouter, Routes } from './app/router.tsx'
 import { isFocusRoute } from './app/routes.ts'
 import { SaveBanner } from './app/SaveBanner.tsx'
@@ -14,21 +15,25 @@ import { useStudy } from './ui/data/useStudy.ts'
 import { Screen } from './ui/shell/Screen.tsx'
 import { Shell } from './ui/shell/Shell.tsx'
 
-// Not needed to paint Today: fetched right after it.
-const Notices = lazy(() => import('./app/Notices.tsx'))
+// Not needed to paint Today: fetched right after it. Should it fail to load, the app goes on without it.
+const Notices = lazyChunk('notices', () => import('./app/Notices.tsx'), nothing)
 
 const isPaletteKey = (e: KeyboardEvent) =>
   (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k'
 
 let paletteReady: (() => void) | null = null
-const LazyPalette = lazy(() =>
-  import('./ui/CommandPalette.tsx').then(({ CommandPalette }) => ({
-    default: function ReadyPalette() {
-      // Runs after the palette's own effects: its ⌘K listener is in place.
-      useEffect(() => paletteReady?.(), [])
-      return <CommandPalette />
-    },
-  })),
+const LazyPalette = lazyChunk<object>(
+  'palette',
+  () =>
+    import('./ui/CommandPalette.tsx').then(({ CommandPalette }) => ({
+      default: function ReadyPalette() {
+        // Runs after the palette's own effects: its ⌘K listener is in place.
+        useEffect(() => paletteReady?.(), [])
+        return <CommandPalette />
+      },
+    })),
+  // Without its code ⌘K does nothing more; the failure is in the diagnostic report.
+  nothing,
 )
 
 /**

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { Rating, Review } from '../contracts/workspace'
-import { createScheduler, DAY_MS, effectiveReviews, type GradedReview } from './fsrs'
+import { type CardState, createScheduler, DAY_MS, effectiveReviews, type GradedReview } from './fsrs'
+import { buildQueue, inScope, type QueueCard } from './queue'
 
 const T0 = Date.UTC(2026, 0, 5, 9, 0, 0)
 const rv = (id: string, cardId: string, rating: Rating, at: number): GradedReview => ({
@@ -110,6 +111,43 @@ describe('replay cache', () => {
     expect(third.replays).toBe(1)
     // A card the snapshot never saw.
     expect(third.replay('h', history('h', 2)).reps).toBe(2)
+  })
+
+  test('a scoped queue replays only its cards; the cache and its snapshot then serve the whole queue unchanged', () => {
+    const cards: QueueCard[] = [
+      { id: 'p1', courseId: 'law', sections: ['contracts'] },
+      { id: 'p2', courseId: 'law', sections: ['contracts', 'formation'] },
+      { id: 'p3', courseId: 'law', sections: ['torts'] },
+      { id: 'p4', courseId: 'bio' },
+    ]
+    const logs = new Map(cards.map((c, i) => [c.id, history(c.id, 8 + i)]))
+    const now = T0 + 60 * DAY_MS
+    const scope = { courseId: 'law', sectionId: 'contracts' }
+    const replayed = (sch: ReturnType<typeof freshScheduler>, list: readonly QueueCard[]) =>
+      new Map<string, CardState>(list.map((c) => [c.id, sch.replay(c.id, logs.get(c.id) ?? [])]))
+    const queue = (states: Map<string, CardState>, s?: typeof scope) =>
+      buildQueue({ cards, states, now, tzOffsetMin: 0, newPerDay: 0, ...(s ? { scope: s } : {}) })
+
+    const sch = freshScheduler()
+    const scoped = queue(
+      replayed(
+        sch,
+        cards.filter((c) => inScope(c, scope)),
+      ),
+      scope,
+    )
+    expect(sch.replays).toBe(2)
+    const all = queue(replayed(sch, cards))
+    expect(sch.replays).toBe(4)
+    const truth = queue(replayed(freshScheduler(), cards))
+    expect(all).toEqual(truth)
+    expect(scoped.length).toBeGreaterThan(0)
+    expect(scoped).toEqual(truth.filter((q) => q.cardId === 'p1' || q.cardId === 'p2'))
+
+    const next = freshScheduler()
+    next.restore({ ...sch.snapshot(), params: next.snapshot().params })
+    expect(queue(replayed(next, cards))).toEqual(truth)
+    expect(next.replays).toBe(0)
   })
 
   test('effectiveReviews keeps an ordered log as is', () => {
