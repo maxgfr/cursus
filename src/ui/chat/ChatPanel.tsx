@@ -6,6 +6,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -85,7 +86,7 @@ export default function ChatPanel() {
     )
   }
   return (
-    <Sheet open={chat.open} title={t('chat.title')} onClose={chat.close}>
+    <Sheet open={chat.open} title={t('chat.title')} onClose={chat.close} fill>
       <ChatBody docked={false} onClose={chat.close} />
     </Sheet>
   )
@@ -180,12 +181,23 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
     if (chat?.open) input.current?.focus({ preventScroll: true })
   }, [chat?.open])
 
-  // Follows the answer as it streams, unless the student scrolled up to read.
-  useEffect(() => {
+  // A new message or the panel opening shows the end of the thread; a streaming answer is followed unless the
+  // student scrolled up to read.
+  const count = current.messages.length
+  const shownCount = useRef(-1)
+  useLayoutEffect(() => {
     const el = log.current
     if (!el) return
-    if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) el.scrollTop = el.scrollHeight
+    const added = count !== shownCount.current
+    shownCount.current = count
+    if (added || el.scrollHeight - el.scrollTop - el.clientHeight < 160) el.scrollTop = el.scrollHeight
   })
+  useEffect(() => {
+    if (!chat?.open) return
+    shownCount.current = -1
+    const el = log.current
+    if (el) el.scrollTop = el.scrollHeight
+  }, [chat?.open])
 
   const loadChunks = useCallback(
     (ids: string[]): Promise<Chunk[]> => {
@@ -391,6 +403,7 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
     const q = text.trim()
     if (q === '' || busy || !callable) return
     setDraft('')
+    if (input.current) input.current.style.height = ''
     void ask([...current.messages, { role: 'user', text: q }])
   }
 
@@ -637,12 +650,15 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
               id={`${current.id}-q`}
               ref={input}
               className={styles.input}
-              rows={2}
+              rows={1}
               value={draft}
               placeholder={t('chat.placeholder')}
               disabled={!callable}
               enterKeyHint="send"
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => {
+                setDraft(e.target.value)
+                grow(e.currentTarget)
+              }}
               onKeyDown={onKeyDown}
             />
             {busy ? (
@@ -659,6 +675,12 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
       )}
     </div>
   )
+}
+
+/** The question box grows with what is typed, up to its maximum height, then scrolls. */
+function grow(el: HTMLTextAreaElement): void {
+  el.style.height = ''
+  el.style.height = `${el.scrollHeight}px`
 }
 
 function chipLabel(t: ReturnType<typeof useT>, ws: ModelWorkspace, c: ScreenContext): string {

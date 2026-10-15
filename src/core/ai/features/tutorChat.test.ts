@@ -111,9 +111,14 @@ describe('tutor chat: citations', () => {
     expect(segments).toEqual([
       { kind: 'text', text: 'ATP comes from the mitochondrion ' },
       { kind: 'cite', ref: { sourceId: 'bio', page: 3 } },
-      { kind: 'text', text: '. Also  and .' },
+      { kind: 'text', text: '. Also  and.' },
+    ])
+    // A dropped marker before punctuation leaves no space before it.
+    expect(parseCitations('It runs through respiration [[source:INVENTED]].', CHUNKS).segments).toEqual([
+      { kind: 'text', text: 'It runs through respiration.' },
     ])
     expect(keepValidCitations('a [[source:bio:3]] b [[source:nope]]', CHUNKS)).toBe('a [[source:bio:3]] b ')
+    expect(keepValidCitations('through respiration [[source:nope]].', CHUNKS)).toBe('through respiration.')
   })
 
   test('a marker still streaming is hidden until complete', () => {

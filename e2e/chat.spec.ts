@@ -482,3 +482,31 @@ test('the open chat passes axe, and in German at 375 px nothing overflows', asyn
   })
   expect(overflow).toBe(0)
 })
+
+test('a long conversation keeps its latest answer in view above the composer, which grows with the question', async ({
+  page,
+}, info) => {
+  await seedCourse(page)
+  await mockProvider(page)
+  await configureAi(page, LLM)
+  await openCourse(page)
+  await openChat(page)
+  const panel = chatPanel(page, info.project.name)
+  const box = panel.getByRole('textbox', { name: 'Your question' })
+  for (const n of [1, 2, 3, 4]) {
+    await ask(panel, `Question ${n}: what does the mitochondrion do in the cell?`)
+    await expect(panel.getByText(`Question ${n}:`)).toBeVisible()
+    await expect(panel.getByRole('button', { name: 'Stop' })).toHaveCount(0)
+  }
+  // The thread scrolls inside the panel: the last answer and its actions show, the composer stays put.
+  await expect(panel.getByRole('button', { name: 'Copy' }).last()).toBeInViewport()
+  await expect(box).toBeInViewport()
+  // A dropped citation leaves no gap before the full stop that followed it.
+  await expect(panel).not.toContainText('respiration .')
+
+  const oneLine = (await box.boundingBox())?.height ?? 0
+  await box.fill('line one\nline two\nline three')
+  await expect.poll(async () => (await box.boundingBox())?.height ?? 0).toBeGreaterThan(oneLine)
+  await panel.getByRole('button', { name: 'Send', exact: true }).click()
+  await expect.poll(async () => (await box.boundingBox())?.height ?? 0).toBeLessThanOrEqual(oneLine + 1)
+})

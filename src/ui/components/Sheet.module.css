@@ -41,6 +41,25 @@
   padding: var(--space-2) var(--space-5) var(--space-5);
 }
 
+/* Its body fills the sheet and scrolls its own parts; the sheet itself never scrolls. */
+.fill {
+  height: min(90dvh, calc(100dvh - var(--kb-inset) - 2rem));
+  overflow: hidden;
+}
+
+.fill[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.fill .body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding-bottom: var(--space-3);
+}
+
 @keyframes rise {
   from {
     opacity: 0;

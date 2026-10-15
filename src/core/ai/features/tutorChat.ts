@@ -256,7 +256,12 @@ export function parseCitations(
     at = m.index + m[0].length
     const sourceId = m[1] ?? ''
     const ref: SourceRef = m[2] === undefined ? { sourceId } : { sourceId, page: Number(m[2]) }
-    if (chunks && !isValidRef(ref, chunks)) continue
+    if (chunks && !isValidRef(ref, chunks)) {
+      // A dropped marker leaves no gap before the punctuation that followed it (« respiration . »).
+      const last = segments.at(-1)
+      if (last?.kind === 'text' && /^[.,;:!?)]/.test(body.slice(at))) last.text = last.text.trimEnd()
+      continue
+    }
     const prev = segments.at(-1)
     if (prev?.kind === 'cite' && prev.ref.sourceId === ref.sourceId && prev.ref.page === ref.page) continue
     segments.push({ kind: 'cite', ref })
@@ -278,8 +283,13 @@ function dedupe(refs: readonly SourceRef[]): SourceRef[] {
 
 /** The answer with only the markers that point at `chunks`, as it is kept once complete. */
 export function keepValidCitations(text: string, chunks: readonly Chunk[]): string {
-  return text.replace(MARKER, (marker, sourceId: string, page: string | undefined) =>
-    isValidRef(page === undefined ? { sourceId } : { sourceId, page: Number(page) }, chunks) ? marker : '',
+  // A dropped marker takes the space before it along when punctuation follows (« respiration . »).
+  return text.replace(
+    /(\s*)\[\[source:([^\]\s:]+)(?::(\d+))?\]\](?=([.,;:!?)]?))/g,
+    (marker, space: string, sourceId: string, page: string | undefined, next: string) => {
+      if (isValidRef(page === undefined ? { sourceId } : { sourceId, page: Number(page) }, chunks)) return marker
+      return next === '' ? space : ''
+    },
   )
 }
 

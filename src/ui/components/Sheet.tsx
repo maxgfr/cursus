@@ -1,6 +1,7 @@
 import { X } from 'lucide-react'
 import { type ReactNode, type RefObject, useEffect, useId, useRef } from 'react'
 import { useT } from '../../i18n/react.tsx'
+import { cx } from '../cx.ts'
 import { IconButton } from './IconButton.tsx'
 import styles from './Sheet.module.css'
 
@@ -11,13 +12,15 @@ export interface SheetProps {
   children: ReactNode
   /** Element focused on open. Defaults to the first field in the body, else the first control. */
   initialFocus?: RefObject<HTMLElement | null>
+  /** Full height, its body a column that scrolls its own parts (a chat thread above its composer). */
+  fill?: boolean
 }
 
 const FIELD = 'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled])'
 const CONTROL = 'button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
 
 /** Native modal <dialog>: bottom sheet on phones, centred panel elsewhere. Escape closes it. */
-export function Sheet({ open, title, onClose, children, initialFocus }: SheetProps) {
+export function Sheet({ open, title, onClose, children, initialFocus, fill = false }: SheetProps) {
   const ref = useRef<HTMLDialogElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const id = useId()
@@ -40,7 +43,7 @@ export function Sheet({ open, title, onClose, children, initialFocus }: SheetPro
   }, [open, initialFocus])
 
   return (
-    <dialog ref={ref} className={styles.sheet} aria-labelledby={id} onClose={onClose}>
+    <dialog ref={ref} className={cx(styles.sheet, fill && styles.fill)} aria-labelledby={id} onClose={onClose}>
       <div className={styles.header}>
         <h2 id={id} className={styles.title}>
           {title}
