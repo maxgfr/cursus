@@ -12,8 +12,10 @@ import {
   planRun,
   type RunPlan,
   toNewDrafts,
+  unitsLanguage,
 } from './autoQuestions'
 import type { DeckQuestion } from './features/deckQuestions'
+import type { DeckUnitInput } from './features/readDeck'
 
 function setup() {
   const clock = virtualClock(1_000)
@@ -72,6 +74,33 @@ describe('auto questions: notes as units', () => {
   })
 })
 
+describe('auto questions: the language of the document', () => {
+  const unit: DeckUnitInput = {
+    index: 1,
+    kind: 'slide',
+    label: '1',
+    title: 'Die Zellmembran',
+    text: 'Die Zellmembran ist eine dünne Schicht, die das Innere der Zelle von ihrer Umgebung trennt. Sie besteht aus Lipiden und Proteinen und kontrolliert, welche Moleküle in die Zelle gelangen.',
+  }
+  const units = [unit]
+
+  test('follows the document only when neither the settings nor the course name a language', () => {
+    const { ws, courseId, sourceId } = setup()
+    ws.prefs.set('locale', 'fr')
+    const plan = planRun(ws, sourceId, 'added') as RunPlan
+    expect(plan.languageFromContent).toBe(true)
+    // The interface's language is only the fallback.
+    expect(plan.language).toBe('French')
+    expect(unitsLanguage(units, 'fr')).toBe('German')
+    expect(unitsLanguage([{ ...unit, title: 'Zelle', text: 'Membran' }], 'fr')).toBeUndefined()
+    ws.courses.update(courseId, { language: 'en' })
+    expect((planRun(ws, sourceId, 'added') as RunPlan).languageFromContent).toBe(false)
+    ws.courses.update(courseId, { language: undefined })
+    ws.drafts.settings.set({ language: 'fr' })
+    expect((planRun(ws, sourceId, 'added') as RunPlan).languageFromContent).toBe(false)
+  })
+})
+
 describe('auto questions: planning a run', () => {
   test('destination, language and dedupe follow the settings', () => {
     const { ws, courseId, sectionId, sourceId } = setup()
@@ -84,7 +113,7 @@ describe('auto questions: planning a run', () => {
     expect(plan.language).toBe('French')
     expect(plan.input).toMatchObject({
       sourceId,
-      perUnit: 3,
+      perUnit: 'auto',
       types: ['qa', 'cloze'],
       difficulty: 'mixed',
       courseTitle: 'Physiology',

@@ -199,7 +199,6 @@ export const ai = {
   localBadgeMissing: 'Non téléchargé',
   localSearchTerms: 'sur cet appareil local hors ligne navigateur webgpu gratuit',
   // --- S-040 : questions depuis des diapositives ou un document ---
-  deckImportAction: 'Diapos ou document',
   deckImportTitle: 'Importer des diapositives ou un document',
   deckFromFile: 'Créer des questions depuis des diapositives ou un document',
   deckChooseFile: 'Choisir un fichier',
@@ -374,6 +373,9 @@ export const ai = {
   autoOffHint: 'Rien ne se fait tout seul. Vous pouvez toujours proposer des questions depuis un document.',
   autoAdvanced: 'Avancé',
   autoPerUnit: 'Questions par page, diapositive ou section',
+  autoPerUnitAuto: 'Automatique',
+  autoPerUnitHint:
+    'Automatique : l’IA décide selon ce que chacune contient, jusqu’à {max}, et aucune sur une diapo de titre.',
   autoLanguageCourse: 'La langue du cours',
   autoDedupe: 'Écarter les questions proches de vos cartes existantes',
   autoDestinationOwn: 'Le cours du document',

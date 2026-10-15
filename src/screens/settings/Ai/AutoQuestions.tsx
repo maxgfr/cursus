@@ -150,14 +150,19 @@ export function AutoQuestions({ monthCost }: { monthCost: number }) {
               id={perUnitId}
               className={shared.select}
               value={settings.perUnit}
-              onChange={(e) => set({ perUnit: Number(e.target.value) })}
+              aria-describedby={`${perUnitId}-hint`}
+              onChange={(e) => set({ perUnit: e.target.value === 'auto' ? 'auto' : Number(e.target.value) })}
             >
+              <option value="auto">{t('ai.autoPerUnitAuto')}</option>
               {PER_UNIT.map((n) => (
                 <option key={n} value={n}>
                   {n}
                 </option>
               ))}
             </select>
+            <p id={`${perUnitId}-hint`} className={shared.hint}>
+              {t('ai.autoPerUnitHint', { max: AUTO_QUESTION_MAX_PER_UNIT })}
+            </p>
           </div>
           <fieldset className={shared.fieldset}>
             <legend className={shared.label}>{t('ai.deckTypes')}</legend>

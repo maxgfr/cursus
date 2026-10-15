@@ -150,8 +150,8 @@ export type AutoQuestionLanguage = 'course' | 'en' | 'de' | 'fr'
  */
 export interface AutoQuestionSettings {
   mode: AutoQuestionMode
-  /** Questions per slide, page or section. */
-  perUnit: number
+  /** Questions per slide, page or section; `auto` lets the model decide by density, up to the cap. */
+  perUnit: AutoQuestionCount
   types: readonly DraftQuestionType[]
   difficulty: AutoQuestionDifficulty
   language: AutoQuestionLanguage
@@ -165,10 +165,15 @@ export interface AutoQuestionSettings {
   capPerMonth: number
 }
 
+/**
+ * A number of questions per unit, or `auto`. Stored as is in the synced prefs: a version that knows only numbers
+ * reads `auto` as invalid and uses its own default, and a number stored by such a version is still read here.
+ */
+export type AutoQuestionCount = number | 'auto'
 export const AUTO_QUESTION_MAX_PER_UNIT = 10
 export const AUTO_QUESTION_DEFAULTS: AutoQuestionSettings = {
   mode: 'propose',
-  perUnit: 3,
+  perUnit: 'auto',
   types: ['qa', 'cloze'],
   difficulty: 'mixed',
   language: 'course',
@@ -203,7 +208,7 @@ function validSetting(k: SettingKey, v: unknown): boolean {
     case 'mode':
       return MODES.includes(v as AutoQuestionMode)
     case 'perUnit':
-      return typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= AUTO_QUESTION_MAX_PER_UNIT
+      return v === 'auto' || (typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= AUTO_QUESTION_MAX_PER_UNIT)
     case 'types':
       return Array.isArray(v) && v.length > 0 && v.every((t) => TYPES.includes(t)) && new Set(v).size === v.length
     case 'difficulty':

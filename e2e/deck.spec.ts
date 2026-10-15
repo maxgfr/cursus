@@ -126,9 +126,12 @@ async function openImport(page: Page, course: string) {
   await page.goto('./#/')
   await createCourse(page, course)
   await page.getByRole('radio', { name: 'Sources' }).check({ force: true })
+  // One « Add files » for every format: slides and documents are read in the app.
   await page.getByRole('button', { name: 'Add', exact: true }).click()
-  await page.getByRole('link', { name: 'Slides or document' }).click()
-  await expect(page.getByRole('heading', { level: 1, name: 'Import slides or a document' })).toBeVisible()
+  await expect(
+    page.getByRole('dialog', { name: 'Add a source' }).getByRole('button', { name: 'Add files' }),
+  ).toBeVisible()
+  await page.keyboard.press('Escape')
 }
 
 test('slides: preview, questions for a range of slides, review by slide, saved cards with clickable citations', async ({
@@ -140,12 +143,14 @@ test('slides: preview, questions for a range of slides, review by slide, saved c
   await page.getByRole('radio', { name: 'Do nothing' }).check({ force: true })
   await openImport(page, 'Biology')
 
-  await page.getByLabel('Choose a file').setInputFiles(join(DECKS, 'slides.pptx'))
+  await page.getByLabel('Add files').setInputFiles(join(DECKS, 'slides.pptx'))
   await expect(page.getByRole('heading', { level: 1, name: 'Cell Biology 101' })).toBeVisible()
   await expect(page.getByText('4 slides')).toBeVisible()
-  await expect(page.getByText('Saved as a source of this course.', { exact: false })).toBeVisible()
+  // Saved as a source of this course, shown first by its content; the original stays one tap away.
+  await expect(page.getByRole('link', { name: 'Open the original' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Slide 2 Osmosis' })).toBeVisible()
-  await expect(page.getByText('Speaker notes: Stress that water moves, not solutes.')).toBeVisible()
+  await expect(page.getByText('Speaker notes', { exact: true }).first()).toBeVisible()
+  await expect(page.getByText('Stress that water moves, not solutes.')).toBeVisible()
   await expect(page.getByText('Hidden slide')).toBeVisible()
   await expect(page.getByRole('img', { name: 'Diagram of osmosis' })).toBeVisible()
 
@@ -226,7 +231,7 @@ test('Understand reads the slides of a deck source and cites the slide, opening 
   })
   await configureAi(page, LLM)
   await openImport(page, 'Biology')
-  await page.getByLabel('Choose a file').setInputFiles(join(DECKS, 'slides.pptx'))
+  await page.getByLabel('Add files').setInputFiles(join(DECKS, 'slides.pptx'))
   await expect(page.getByRole('heading', { level: 1, name: 'Cell Biology 101' })).toBeVisible()
 
   await page.goto('./#/understand')
@@ -250,14 +255,16 @@ test('a document is saved and readable section by section even without a model; 
 }) => {
   await openImport(page, 'Physiology')
 
-  await page.getByLabel('Choose a file').setInputFiles({
+  await page.getByLabel('Add files').setInputFiles({
     name: 'broken.pptx',
     mimeType: 'application/octet-stream',
     buffer: Buffer.from('PK\u0003\u0004 not a deck'),
   })
-  await expect(page.getByText('This file is damaged and can’t be read. Nothing was saved.')).toBeVisible()
+  await expect(
+    page.getByText('This file is damaged and can’t be read. Nothing was saved.', { exact: false }),
+  ).toBeVisible()
 
-  await page.getByLabel('Choose a file').setInputFiles(join(DECKS, 'notes.docx'))
+  await page.getByLabel('Add files').setInputFiles(join(DECKS, 'notes.docx'))
   await expect(page.getByRole('heading', { level: 1, name: 'Physiology notes' })).toBeVisible()
   await expect(page.getByText('6 sections')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Section 1.1 Osmosis' })).toBeVisible()
@@ -300,7 +307,7 @@ test('a PDF of slides with a text-only model: notice, offline state, stop and re
   await expect(page.getByText('Catalog updated.')).toBeVisible()
   await openImport(page, 'Cells')
 
-  await page.getByLabel('Choose a file').setInputFiles(join(DECKS, 'slides.pdf'))
+  await page.getByLabel('Add files').setInputFiles(join(DECKS, 'slides.pdf'))
   await expect(page.getByRole('heading', { level: 1, name: 'Cell Biology slides' })).toBeVisible()
   await expect(page.getByText('3 slides')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Slide 3 Active transport' })).toBeVisible()
@@ -340,4 +347,34 @@ test('a PDF of slides with a text-only model: notice, offline state, stop and re
   await page.getByRole('button', { name: 'Accept all', exact: true }).click()
   await page.getByRole('button', { name: 'Save 3 cards' }).click()
   await expect(page.getByText('3 cards saved.')).toBeVisible()
+})
+
+test('a PDF kept as a mere file is read in the app in place: same source, notes kept', async ({ page }) => {
+  await openImport(page, 'Anatomy')
+  // The PDF reader fails to load at import: the PDF is still kept, as a file to open in the system viewer.
+  await page.route('**/pdf.worker*', (route) => route.abort())
+  await page.getByLabel('Add files').setInputFiles(join(DECKS, 'slides.pdf'))
+  await expect(page.getByRole('heading', { level: 1, name: 'slides' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Open PDF' })).toBeVisible()
+  const notes = page.getByRole('textbox', { name: 'Notes' })
+  await notes.click()
+  await page.keyboard.type('Pumps need ATP.')
+  // The reader loads again on a fresh page (a failed module load is remembered by the page).
+  await page.unroute('**/pdf.worker*')
+  await page.waitForTimeout(300)
+  await page.reload()
+  await expect(page.getByRole('textbox', { name: 'Notes' })).toContainText('Pumps need ATP.')
+
+  await page.getByRole('button', { name: 'Read this PDF in the app' }).click()
+  await expect(page.getByText('3 slides')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Slide 3 Active transport' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Open the original' })).toHaveAttribute('href', /^blob:/)
+  await expect(page.getByRole('button', { name: 'Read this PDF in the app' })).toHaveCount(0)
+  await expect(page.getByText('My notes')).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Notes' })).toContainText('Pumps need ATP.')
+
+  // Converted in place: still one source in the course.
+  await page.getByRole('link', { name: 'Back' }).click()
+  await page.getByRole('radio', { name: 'Sources' }).check({ force: true })
+  await expect(page.getByRole('main').getByRole('link', { name: /slides/ })).toHaveCount(1)
 })

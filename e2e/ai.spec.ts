@@ -480,7 +480,7 @@ test('Understand streams a cited explanation, then checks an explanation back', 
   await page.keyboard.type('Chlorophyll captures light. The Calvin cycle fixes CO2.')
   await page.getByRole('link', { name: 'Back' }).click()
   await page.getByRole('radio', { name: 'Sources' }).check()
-  await page.getByLabel('Import PDF').setInputFiles(join(FIXTURES, 'sample.pdf'))
+  await page.getByLabel('Add files').setInputFiles(join(FIXTURES, 'sample.pdf'))
   await expect(page.getByRole('heading', { level: 1, name: 'sample' })).toBeVisible()
 
   await page.goto('./#/understand')
@@ -495,7 +495,7 @@ test('Understand streams a cited explanation, then checks an explanation back', 
   await expect(fiche.getByRole('heading', { name: 'Photosynthesis' })).toBeVisible()
   await expect(fiche.getByRole('heading', { name: 'Calvin cycle' })).toBeVisible()
   await expect(fiche.getByRole('link', { name: 'Open source: Untitled note' })).toBeVisible()
-  await expect(fiche.getByRole('link', { name: 'Open source: sample, p. 2' })).toBeVisible()
+  await expect(fiche.getByRole('link', { name: 'Open source: sample · Slide 2' })).toBeVisible()
   expect(prompts.at(-1)).toContain('Chlorophyll captures light')
   expect(prompts.at(-1)).toContain('Second page mitochondria')
   expect(prompts.at(-1)).toContain('cover edge cases')
@@ -505,11 +505,11 @@ test('Understand streams a cited explanation, then checks an explanation back', 
   await expect(page.getByText('72 / 100')).toBeVisible()
   await expect(page.getByText('The Calvin cycle is missing.')).toBeVisible()
 
-  // A page citation opens the PDF at that page.
-  await fiche.getByRole('link', { name: 'Open source: sample, p. 2' }).click()
+  // A page citation opens the PDF at that page, in the app and in the original.
+  await fiche.getByRole('link', { name: 'Open source: sample · Slide 2' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'sample' })).toBeVisible()
-  await expect(page.getByText('Cited on page 2.')).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Open PDF' })).toHaveAttribute('href', /^blob:.+#page=2$/)
+  await expect(page.getByText('Cited: Slide 2')).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Open the original' })).toHaveAttribute('href', /^blob:.+#page=2$/)
   // The page belongs to that citation only: opening the source again starts from the top.
   await page.getByRole('link', { name: 'Back' }).click()
   await page.getByRole('radio', { name: 'Sources' }).check()
@@ -517,7 +517,7 @@ test('Understand streams a cited explanation, then checks an explanation back', 
     .getByRole('main')
     .getByRole('link', { name: /sample/ })
     .click()
-  await expect(page.getByRole('link', { name: 'Open PDF' })).toHaveAttribute('href', /^blob:[^#]+$/)
+  await expect(page.getByRole('link', { name: 'Open the original' })).toHaveAttribute('href', /^blob:[^#]+$/)
 })
 
 test('Generate de-duplicates drafts, lets them be edited, then saves them as cards', async ({ page }) => {

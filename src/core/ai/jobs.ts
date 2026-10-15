@@ -31,6 +31,7 @@ import {
   type RunPlan,
   type SourceContent,
   toNewDrafts,
+  unitsLanguage,
 } from './autoQuestions'
 import type { CatalogModel } from './catalogTrim'
 import type { FeatureCtx } from './client'
@@ -580,7 +581,11 @@ class JobQueue implements AiJobs {
       const docBudget = allowed ? approved : capPerDocument
       const monthBudget = allowed ? monthSpent + approved - already : capPerMonth
       await set({ estimate, progress: { done: [...done].sort((a, b) => a - b), total } })
-      const base = await model.context(controller.signal, plan.language)
+      // In the language of the document itself unless the settings or the course name one.
+      const language = plan.languageFromContent
+        ? (unitsLanguage(content.units, this.deps.ws.prefs.get('locale')) ?? plan.language)
+        : plan.language
+      const base = await model.context(controller.signal, language)
       const ctx: FeatureCtx = {
         ...base,
         signal: controller.signal,

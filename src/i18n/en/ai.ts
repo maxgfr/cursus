@@ -192,7 +192,6 @@ export const ai = {
   localBadgeMissing: 'Not downloaded',
   localSearchTerms: 'on this device local offline browser webgpu free',
   // --- S-040: questions from slides or a document ---
-  deckImportAction: 'Slides or document',
   deckImportTitle: 'Import slides or a document',
   deckFromFile: 'Create cards from slides or a document',
   deckChooseFile: 'Choose a file',
@@ -352,6 +351,8 @@ export const ai = {
   autoOffHint: 'Nothing happens on its own. You can still suggest cards from a document.',
   autoAdvanced: 'Advanced',
   autoPerUnit: 'Cards per page, slide or section',
+  autoPerUnitAuto: 'Automatic',
+  autoPerUnitHint: 'Automatic: the AI decides by how much each one holds, up to {max}, and none on a title slide.',
   autoLanguageCourse: 'The course’s language',
   autoDedupe: 'Skip suggestions close to cards you already have',
   autoDestinationOwn: 'The document’s own course',

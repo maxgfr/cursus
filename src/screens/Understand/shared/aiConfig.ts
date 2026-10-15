@@ -8,6 +8,7 @@ import { costOf } from '../../../core/ai/cost'
 import { checkKey, type DeviceCheck, type DeviceChecks, routeStatus } from '../../../core/ai/deviceCheck'
 import { LOCAL_PROVIDER, LOCAL_PROVIDER_INFO } from '../../../core/ai/local'
 import type { AiUsageEvent } from '../../../core/ai/usage'
+import { detectLanguage } from '../../../core/content/language'
 import type { ModelWorkspace } from '../../../core/model/workspace'
 import { type Secrets, secretsVault } from '../../../core/storage/secrets'
 import { useLocale } from '../../../i18n/react.tsx'
@@ -154,9 +155,64 @@ export function resolveRoute(
   return { provider: effectiveProvider(provider, config.baseUrl), info }
 }
 
-export function languageName(config: AiConfig, courseLanguage: string | undefined, uiLocale: string): string {
+/** The text the AI works on: one text, or several from the most specific (the card) to the broadest (the course). */
+export type AiContent = string | readonly (string | undefined)[]
+
+/** The text of passages (chunks of sources), as content to detect a language on. */
+export function passagesText(chunks: readonly { text: string }[]): string {
+  return chunks.map((c) => c.text).join('\n')
+}
+
+/** The two faces of a card, as content to detect a language on. */
+export function cardText(card: { front: string; back: string } | undefined): string | undefined {
+  return card === undefined ? undefined : `${card.front}\n${card.back}`
+}
+
+/** Enough of a course's own text to tell its language: written notes first, then cards. */
+const COURSE_SAMPLE_CHARS = 8_000
+
+/** A course's notes and cards, as content to detect a language on (files read in the app are not in the doc). */
+export function courseText(ws: ModelWorkspace, courseId: string): string {
+  const parts: string[] = []
+  let size = 0
+  const push = (text: string) => {
+    if (size >= COURSE_SAMPLE_CHARS || text.trim() === '') return
+    parts.push(text)
+    size += text.length
+  }
+  for (const s of ws.sources.list({ courseId })) {
+    if (s.kind === 'note' && s.support === undefined) push(ws.text({ id: s.id, field: 'body' }).toString())
+  }
+  for (const c of ws.cards.list({ courseId })) {
+    push(`${ws.text({ id: c.id, field: 'front' }).toString()}\n${ws.text({ id: c.id, field: 'back' }).toString()}`)
+  }
+  return parts.join('\n')
+}
+
+/** The language of the first part that tells, else of all of them together. */
+export function contentLanguage(content: AiContent | undefined): string | undefined {
+  if (content === undefined) return undefined
+  if (typeof content === 'string') return detectLanguage(content)
+  for (const part of content) {
+    const found = detectLanguage(part)
+    if (found) return found
+  }
+  return detectLanguage(content.filter((p) => p !== undefined).join('\n'))
+}
+
+/**
+ * The language the AI writes in: the one forced in Settings › AI, else the course's own, else the language the
+ * content is written in (detected on `content`: the sources, the card, the open source), else the interface's.
+ */
+export function languageName(
+  config: AiConfig,
+  courseLanguage: string | undefined,
+  uiLocale: string,
+  content?: AiContent,
+): string {
   if (config.language !== 'auto') return outputLanguage(undefined, config.language)
-  return outputLanguage(courseLanguage, uiLocale)
+  if (courseLanguage?.trim()) return outputLanguage(courseLanguage, uiLocale)
+  return outputLanguage(contentLanguage(content), uiLocale)
 }
 
 /**
@@ -214,8 +270,11 @@ export type AiModelState =
       provider: CatalogProvider
       /** The model runs in this browser: it needs no connection (nor a key). */
       runsOffline: boolean
-      /** Builds a feature context; `courseLanguage` picks the output language when set to auto. */
-      context(signal: AbortSignal, courseLanguage?: string): Promise<FeatureCtx>
+      /**
+       * Builds a feature context. In auto, the output language is `courseLanguage` when set, else the language of
+       * `content` (the text the AI works on), else the interface's.
+       */
+      context(signal: AbortSignal, courseLanguage?: string, content?: AiContent): Promise<FeatureCtx>
     }
 
 /**
@@ -253,14 +312,14 @@ export function useAiModel(): AiModelState {
   }, [settings])
 
   const context = useCallback(
-    async (signal: AbortSignal, courseLanguage?: string): Promise<FeatureCtx> => {
+    async (signal: AbortSignal, courseLanguage?: string, content?: AiContent): Promise<FeatureCtx> => {
       if (!settings) throw new Error('AI settings are not loaded')
       if (!route) throw new Error('No model selected')
       const model = await createModel({ provider: route.provider, modelId: route.info.id, apiKey: settings.apiKey })
       return {
         model,
         info: route.info,
-        language: languageName(settings.config, courseLanguage, locale === 'pseudo' ? 'en' : locale),
+        language: languageName(settings.config, courseLanguage, locale === 'pseudo' ? 'en' : locale, content),
         signal,
         onUsage: (e) => recordUsage(ws, e),
       }

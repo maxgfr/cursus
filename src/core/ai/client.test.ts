@@ -226,6 +226,8 @@ describe('client', () => {
     expect(outputLanguage('de', 'fr')).toBe('German')
     expect(outputLanguage(undefined, 'fr')).toBe('French')
     expect(outputLanguage('  ', 'en')).toBe('English')
-    expect(outputLanguage('es', 'en')).toBe('es')
+    expect(outputLanguage('es', 'en')).toBe('Spanish')
+    // A code without a name is passed as is.
+    expect(outputLanguage('ja', 'en')).toBe('ja')
   })
 })

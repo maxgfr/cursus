@@ -38,6 +38,22 @@ export type DifficultyMix = 'easy' | 'mixed' | 'hard'
 
 export const QUESTION_TYPES: readonly QuestionType[] = ['qa', 'cloze', 'explain']
 export const MAX_QUESTIONS_PER_UNIT = 10
+/**
+ * How many questions a unit gets: a fixed number, or `auto`, where the model writes none to
+ * `MAX_QUESTIONS_PER_UNIT` by how much there is to learn in the unit (none on a title or transition slide).
+ */
+export type QuestionCount = number | 'auto'
+/**
+ * What `auto` is priced at: the average number of questions a unit gets. Course slides and pages mostly carry one
+ * to a few notions, and title or transition units none, so 3 questions per unit is a fair, slightly high average.
+ */
+export const AUTO_QUESTIONS_AVERAGE = 3
+
+/** A fixed count for `count`: itself, clamped, or the average `auto` is priced at. */
+export function fixedQuestionCount(count: QuestionCount): number {
+  if (count === 'auto') return AUTO_QUESTIONS_AVERAGE
+  return Math.min(MAX_QUESTIONS_PER_UNIT, Math.max(1, Math.round(count)))
+}
 /** Answer tokens per question, for estimates and output limits. */
 export const QUESTION_OUTPUT_TOKENS = 110
 /** Units per call at most: few enough that each gets the model's attention. */
@@ -67,8 +83,8 @@ export interface DeckQuestionsInput {
   /** The source the deck is filed as: every citation points at it. */
   sourceId: string
   units: readonly DeckUnitInput[]
-  /** Questions per unit, 1 to `MAX_QUESTIONS_PER_UNIT`. */
-  perUnit: number
+  /** Questions per unit, 1 to `MAX_QUESTIONS_PER_UNIT`, or `auto` (the model decides, within that cap). */
+  perUnit: QuestionCount
   /** At least one; default all. */
   types?: readonly QuestionType[]
   difficulty?: DifficultyMix
@@ -183,15 +199,31 @@ function typesOf(input: DeckQuestionsInput): readonly QuestionType[] {
   return types.length > 0 ? types : QUESTION_TYPES
 }
 
+/** Questions kept per unit at most. */
+function perUnitCap(input: DeckQuestionsInput): number {
+  return input.perUnit === 'auto' ? MAX_QUESTIONS_PER_UNIT : fixedQuestionCount(input.perUnit)
+}
+
+/** Questions expected per unit, for estimates and output limits. */
 function perUnitOf(input: DeckQuestionsInput): number {
-  return Math.min(MAX_QUESTIONS_PER_UNIT, Math.max(1, Math.round(input.perUnit)))
+  return fixedQuestionCount(input.perUnit)
+}
+
+function countRule(input: DeckQuestionsInput): string {
+  if (input.perUnit !== 'auto')
+    return `For EACH unit, write exactly ${perUnitOf(input)} question(s) about that unit only, and set its "unit" to the unit's n.`
+  return (
+    `For EACH unit, decide how many questions it deserves, from 0 to ${MAX_QUESTIONS_PER_UNIT}, by how much there is ` +
+    'to learn in it: none for a title, agenda, transition or thank-you unit, one or two for a single idea, more for ' +
+    `a dense unit. Write them about that unit only, and set their "unit" to the unit's n.`
+  )
 }
 
 function questionSystem(input: DeckQuestionsInput, language: string): string {
   const types = typesOf(input)
   return [
     'You write spaced-repetition questions on course material, unit by unit (a unit is a slide, a section or a page).',
-    `For EACH unit, write exactly ${perUnitOf(input)} question(s) about that unit only, and set its "unit" to the unit's n.`,
+    countRule(input),
     'Questions are atomic, unambiguous and answerable from the unit; never ask about the slide layout itself.',
     `Allowed types: ${types.map((t) => `"${t}"`).join(', ')}. Spread them across the questions.`,
     ...types.map((t) => TYPE_RULES[t]),
@@ -229,7 +261,8 @@ function questionPlan(info: CatalogModel, input: DeckQuestionsInput): { vision: 
   const vision = input.images !== false && supportsImages(info)
   const batches = planDeckBatches(pending(input), info, {
     overheadTokens: estimateTokens(questionSystem(input, 'English') + questionHead(input)),
-    outputTokensPerUnit: perUnitOf(input) * QUESTION_OUTPUT_TOKENS,
+    // Room for the most a unit may get, so a dense unit is never cut short.
+    outputTokensPerUnit: perUnitCap(input) * QUESTION_OUTPUT_TOKENS,
     maxUnits: UNITS_PER_CALL,
     vision,
   })
@@ -311,7 +344,7 @@ function toQuestion(
 export async function deckQuestions(ctx: FeatureCtx, input: DeckQuestionsInput): Promise<DeckQuestionsResult> {
   const { vision, batches } = questionPlan(ctx.info, input)
   const types = typesOf(input)
-  const perUnit = perUnitOf(input)
+  const perUnit = perUnitCap(input)
   const done: Record<number, DeckQuestion[]> = { ...input.resume?.done }
   const index = new CardTextIndex(input.existing)
   for (const list of Object.values(done)) for (const q of list) index.add(q.front)

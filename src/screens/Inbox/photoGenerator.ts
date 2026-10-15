@@ -1,6 +1,6 @@
 import type { Runtime } from '../../app/workspaceContext.tsx'
 import type { QuestionGenerator } from '../../core/ai/autoQuestions'
-import { CardTextIndex, type DeckQuestion } from '../../core/ai/features/deckQuestions'
+import { CardTextIndex, type DeckQuestion, fixedQuestionCount } from '../../core/ai/features/deckQuestions'
 import { canSeeImages, PHOTO_MAX_EDGE, VisionRequiredError } from '../../core/ai/features/describePhoto'
 import { estimatePhotoCardsCost, photoToCards } from '../../core/ai/features/photoToCards'
 import { renderPhoto } from '../../core/content/photos'
@@ -27,7 +27,11 @@ export function photoGenerator(rt: Runtime): QuestionGenerator {
   return {
     estimate(info, input) {
       const units = input.resume?.done[PHOTO_UNIT] === undefined ? 1 : 0
-      return { cost: units === 0 ? 0 : estimatePhotoCardsCost(info, 1, input.perUnit), calls: units, units }
+      return {
+        cost: units === 0 ? 0 : estimatePhotoCardsCost(info, 1, fixedQuestionCount(input.perUnit)),
+        calls: units,
+        units,
+      }
     },
     async generate(ctx, input) {
       if (input.resume?.done[PHOTO_UNIT] !== undefined) return { questions: [], duplicates: 0 }
@@ -39,7 +43,7 @@ export function photoGenerator(rt: Runtime): QuestionGenerator {
       const image = { bytes: new Uint8Array(await small.arrayBuffer()), mediaType: small.type || 'image/jpeg' }
       const cards = await photoToCards(ctx, {
         photos: [{ photoId: input.sourceId, image, ...(photo.caption ? { caption: photo.caption } : {}) }],
-        count: input.perUnit,
+        count: fixedQuestionCount(input.perUnit),
         allowCloze: input.types === undefined || input.types.includes('cloze'),
         ...(input.courseTitle ? { courseTitle: input.courseTitle } : {}),
       })

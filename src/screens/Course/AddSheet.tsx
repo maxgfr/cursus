@@ -1,24 +1,20 @@
-import { Camera, ClipboardPaste, FileText, PenLine, Presentation } from 'lucide-react'
-import { Link } from 'wouter'
+import { Camera, ClipboardPaste, FileUp, PenLine } from 'lucide-react'
 import { useT } from '../../i18n/react.tsx'
-import { buttonClass } from '../../ui/components/Button.tsx'
 import { ListGroup, ListRow } from '../../ui/components/List.tsx'
 import { Sheet } from '../../ui/components/Sheet.tsx'
-import styles from './Course.module.css'
 
 export interface AddSheetProps {
   open: boolean
   onClose: () => void
+  /** One or more files: PDF, PowerPoint, Word, photos, text; each is read by what it is. */
+  onFiles: () => void
   onNote: () => void
-  onPdf: () => void
   onPhoto: () => void
   onPaste: () => void
-  /** Slides or a structured document, imported on its own screen. */
-  deckHref: string
 }
 
 /** Every way to add a source to this place; each choice closes the sheet. */
-export function AddSheet({ open, onClose, onNote, onPdf, onPhoto, onPaste, deckHref }: AddSheetProps) {
+export function AddSheet({ open, onClose, onFiles, onNote, onPhoto, onPaste }: AddSheetProps) {
   const t = useT()
   const pick = (action: () => void) => () => {
     onClose()
@@ -26,19 +22,12 @@ export function AddSheet({ open, onClose, onNote, onPdf, onPhoto, onPaste, deckH
   }
   return (
     <Sheet open={open} title={t('course.addTitle')} onClose={onClose}>
-      <ListGroup title={t('course.addTitle')} hideTitle>
+      <ListGroup title={t('course.addTitle')} hideTitle footer={t('course.addFilesHint')}>
+        <ListRow leading={<FileUp size={20} />} title={t('course.addFiles')} onClick={pick(onFiles)} />
         <ListRow leading={<PenLine size={20} />} title={t('course.writeNote')} onClick={pick(onNote)} />
-        <ListRow leading={<FileText size={20} />} title={t('course.importPdf')} onClick={pick(onPdf)} />
         <ListRow leading={<Camera size={20} />} title={t('course.takePhoto')} onClick={pick(onPhoto)} />
         <ListRow leading={<ClipboardPaste size={20} />} title={t('course.pasteText')} onClick={pick(onPaste)} />
       </ListGroup>
-      <div className={styles.actions}>
-        {/* Slides or a structured document (.pptx, .docx, .pdf), read slide by slide or section by section. */}
-        <Link href={deckHref} className={buttonClass({})} onClick={onClose}>
-          <Presentation size={18} aria-hidden="true" />
-          {t('ai.deckImportAction')}
-        </Link>
-      </div>
     </Sheet>
   )
 }

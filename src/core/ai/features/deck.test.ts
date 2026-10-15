@@ -7,12 +7,15 @@ import type { FeatureCtx } from '../client'
 import { brokenModel, INFO } from '../testkit.test'
 import type { AiUsageEvent } from '../usage'
 import {
+  AUTO_QUESTIONS_AVERAGE,
   CardTextIndex,
   cardWords,
   type DeckQuestion,
   type DeckQuestionsProgress,
   deckQuestions,
   estimateDeckQuestionsCost,
+  fixedQuestionCount,
+  MAX_QUESTIONS_PER_UNIT,
   UNITS_PER_CALL,
 } from './deckQuestions'
 import {
@@ -469,6 +472,26 @@ describe('deckQuestions', () => {
     // perUnit is clamped to 1…10, an empty type list means every type.
     const clamped = estimateDeckQuestionsCost(INFO, { ...input, perUnit: 50, types: [] })
     expect(clamped.outputTokens).toBe(2 * 10 * 110)
+  })
+
+  test('automatic count: the model picks 0 to the cap per unit by density, priced at the documented average', async () => {
+    const many = Array.from({ length: MAX_QUESTIONS_PER_UNIT + 3 }, (_, k) => q(1, 'qa', `Distinct fact ${k} osmosis?`))
+    const model = seqModel([{ questions: many }])
+    const out = await deckQuestions(ctx(model), { sourceId: 's', units: UNITS, perUnit: 'auto' })
+    const { system } = sent(model)
+    expect(system).toContain(`decide how many questions it deserves, from 0 to ${MAX_QUESTIONS_PER_UNIT}`)
+    expect(system).toContain('none for a title')
+    expect(system).not.toContain('write exactly')
+    // Within the cap; a unit given none keeps none.
+    expect(out.byUnit.get(1)).toHaveLength(MAX_QUESTIONS_PER_UNIT)
+    expect(out.byUnit.get(2)).toEqual([])
+    const auto = estimateDeckQuestionsCost(INFO, { sourceId: 's', units: UNITS, perUnit: 'auto' })
+    const fixed = estimateDeckQuestionsCost(INFO, { sourceId: 's', units: UNITS, perUnit: AUTO_QUESTIONS_AVERAGE })
+    expect(auto.outputTokens).toBe(UNITS.length * AUTO_QUESTIONS_AVERAGE * 110)
+    expect(auto.outputTokens).toBe(fixed.outputTokens)
+    expect(fixedQuestionCount('auto')).toBe(AUTO_QUESTIONS_AVERAGE)
+    expect(fixedQuestionCount(0)).toBe(1)
+    expect(fixedQuestionCount(99)).toBe(MAX_QUESTIONS_PER_UNIT)
   })
 })
 

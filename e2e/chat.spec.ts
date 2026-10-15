@@ -316,6 +316,51 @@ test('« Summarise this source » streams a cited summary of the source open', a
   expect(errors).toEqual([])
 })
 
+test('in auto, the chat writes in the language of the source open, not the interface’s', async ({ page }, info) => {
+  const errors = watchErrors(page)
+  const prompts = await mockProvider(page)
+  await configureAi(page, LLM)
+  // A course without a language of its own, and a German note in it.
+  await page.goto('./#/')
+  await page.getByRole('button', { name: 'New course' }).first().click()
+  const dialog = page.getByRole('dialog', { name: 'New course' })
+  await dialog.getByLabel('Course name').fill('Klinik')
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Klinik' })).toBeVisible()
+  await page.getByRole('radio', { name: 'Sources' }).check({ force: true })
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await page.getByRole('button', { name: 'Write a note' }).click()
+  await page.getByRole('textbox', { name: 'Source' }).click()
+  await page.keyboard.type(
+    'Natrium und Kalium werden im Serum mit ionenselektiven Elektroden gemessen. Bei einer Hyponatriämie ist die Osmolalität meist erniedrigt, und die Ursache wird über das Volumen gesucht.',
+  )
+  await page.getByRole('link', { name: 'Back' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Klinik' })).toBeVisible()
+  // The interface in French.
+  await page.goto('./?locale=fr#/courses')
+  await page
+    .getByRole('main')
+    .getByRole('link', { name: /Klinik/ })
+    .click()
+  await page.getByRole('radio', { name: 'Sources' }).check({ force: true })
+  await page
+    .getByRole('main')
+    .getByRole('link', { name: /Untitled note/ })
+    .click()
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Untitled note')
+  await page.getByRole('main').getByRole('button', { name: 'Poser une question' }).first().click()
+  const panel = isPhone(info.project.name)
+    ? page.getByRole('dialog', { name: 'Demander' })
+    : page.getByRole('complementary', { name: 'Demander' })
+  await panel.getByRole('textbox', { name: 'Votre question' }).fill('Wie misst man Natrium?')
+  await panel.getByRole('button', { name: 'Envoyer', exact: true }).click()
+  await expect(panel.getByText(/Your notes say the mitochondrion/)).toBeVisible()
+  const sent = prompts.filter((p) => p.includes('study tutor')).at(-1) ?? ''
+  expect(sent).toContain('Write in German.')
+  expect(sent).not.toContain('Write in French.')
+  expect(errors).toEqual([])
+})
+
 test('« Generate cards » opens Generate on the course', async ({ page }, info) => {
   const errors = watchErrors(page)
   await seedCourse(page)

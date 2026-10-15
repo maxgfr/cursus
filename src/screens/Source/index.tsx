@@ -1,4 +1,4 @@
-import { ExternalLink, FolderInput, History, Trash2 } from 'lucide-react'
+import { BookOpen, ExternalLink, FolderInput, History, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useParams, useSearch } from 'wouter'
 import { to } from '../../app/routes.ts'
@@ -13,11 +13,13 @@ import { AskSelection } from '../../ui/ExplainLauncher.tsx'
 import { MarkdownEditor } from '../../ui/editor/MarkdownEditor.tsx'
 import { MoveSheet, moveItemTo } from '../../ui/MoveSheet.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
+import { deckErrorMessage } from '../DeckImport/deckSource.ts'
 import NotFound from '../NotFound/index.tsx'
 import AttachedPhotos from '../Photos/Attached.tsx'
 import { loadFile } from '../Photos/files.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 import { DeckView } from './DeckView.tsx'
+import { readPdfInApp } from './importers.ts'
 import { Proposals } from './Proposals.tsx'
 import styles from './Source.module.css'
 
@@ -75,6 +77,62 @@ function citedPage(search: string): number | undefined {
   return Number.isInteger(n) && n > 0 ? n : undefined
 }
 
+/** « Read this PDF in the app »: a PDF kept as a mere file becomes pages, in place. */
+function ReadInApp({ source }: { source: SourceRecord }) {
+  const t = useT()
+  const rt = useRuntime()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const read = () => {
+    setBusy(true)
+    setError(null)
+    readPdfInApp(rt, source).then(
+      () => setBusy(false),
+      (e: unknown) => {
+        noteError('source.readPdf', e)
+        setBusy(false)
+        setError(deckErrorMessage(t, e))
+      },
+    )
+  }
+  return (
+    <>
+      <p className={styles.note}>{t('course.readPdfHint')}</p>
+      <Button variant="primary" icon={<BookOpen size={18} aria-hidden="true" />} loading={busy} onClick={read}>
+        {t('course.readPdfInApp')}
+      </Button>
+      {error !== null && (
+        <p className={styles.note} role="alert">
+          {error}
+        </p>
+      )}
+    </>
+  )
+}
+
+/** The original of a slide deck or a document read in the app, to open in the system viewer. */
+function Original({ source, page }: { source: SourceRecord; page: number | undefined }) {
+  const t = useT()
+  const file = useSourceFile(source.blobId)
+  if (file.phase !== 'ready') return null
+  // PDF open parameters: the system viewer starts at the cited page.
+  const pdf = source.kind === 'pdf'
+  return (
+    <div className={styles.actions}>
+      <a
+        className={buttonClass({ variant: 'plain' })}
+        href={pdf && page !== undefined ? `${file.url}#page=${page}` : file.url}
+        target="_blank"
+        rel="noopener"
+        {...(pdf ? { type: 'application/pdf' } : { download: source.title })}
+      >
+        <ExternalLink size={18} aria-hidden="true" />
+        {t('course.openOriginal')}
+      </a>
+    </div>
+  )
+}
+
 function Attachment({ source, page }: { source: SourceRecord; page: number | undefined }) {
   const t = useT()
   const file = useSourceFile(source.blobId)
@@ -104,6 +162,7 @@ function Attachment({ source, page }: { source: SourceRecord; page: number | und
         <ExternalLink size={18} aria-hidden="true" />
         {t('course.openPdf')}
       </a>
+      <ReadInApp source={source} />
     </div>
   )
 }
@@ -144,22 +203,33 @@ export default function Source() {
   if (found === null) return <NotFound />
   const { source, sectionId } = found
   const home = to.place(source.courseId, sectionId)
+  const notes = rt.ws.text({ id: source.id, field: 'body' })
   const remove = () => {
     rt.ws.sources.trash(source.id)
     navigate(home)
   }
   return (
     <Screen title={source.title} back={home}>
-      {source.kind !== 'note' && <Attachment source={source} page={page} />}
-      {/* Slides or a structured document: read unit by unit, cited as « slide 12 », « section 2.3 ». */}
-      {source.support !== undefined && <DeckView source={source} cited={page} />}
-      <MarkdownEditor
-        text={rt.ws.text({ id: source.id, field: 'body' })}
-        label={
-          source.kind === 'note' && source.support === undefined ? t('common.sourceTitle') : t('course.sourceNotes')
-        }
-        placeholder={t('common.sourceEmpty')}
-      />
+      {source.support === undefined ? (
+        <>
+          {source.kind !== 'note' && <Attachment source={source} page={page} />}
+          <MarkdownEditor
+            text={notes}
+            label={source.kind === 'note' ? t('common.sourceTitle') : t('course.sourceNotes')}
+            placeholder={source.kind === 'note' ? t('common.sourceEmpty') : t('course.notesEmpty')}
+          />
+        </>
+      ) : (
+        <>
+          {/* Slides or a document: its content first, read unit by unit, cited as « slide 12 », « page 7 ». */}
+          <DeckView source={source} cited={page} />
+          <Original source={source} page={page} />
+          <details className={styles.notes} open={notes.length > 0}>
+            <summary className={styles.notesTitle}>{t('course.myNotes')}</summary>
+            <MarkdownEditor text={notes} label={t('course.sourceNotes')} placeholder={t('course.notesEmpty')} />
+          </details>
+        </>
+      )}
       <AskSelection />
       {source.kind !== 'image' && <AttachedPhotos sourceId={source.id} />}
       <Proposals sourceId={source.id} />

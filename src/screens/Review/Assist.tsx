@@ -11,7 +11,7 @@ import { useT } from '../../i18n/react.tsx'
 import { Button } from '../../ui/components/Button.tsx'
 import { usePartial } from '../../ui/data/usePartial.ts'
 import { Sanitized } from '../../ui/render/Sanitized.tsx'
-import type { AiModelState } from '../Understand/shared/aiConfig.ts'
+import { type AiModelState, cardText } from '../Understand/shared/aiConfig.ts'
 import { describeFailure } from './failure.ts'
 import styles from './Review.module.css'
 import type { CardView } from './session.ts'
@@ -26,7 +26,7 @@ type Call<T> =
  * Runs one AI request at a time, its answer shown as it is written (`partial`); aborts it when the card changes
  * or the view closes. `S` is the shape the model writes, `T` what the request returns.
  */
-function useAiCall<T, S = T>(ai: AiModelState, language: string | undefined) {
+function useAiCall<T, S = T>(ai: AiModelState, language: string | undefined, content?: string) {
   const t = useT()
   const [call, setCall] = useState<Call<T>>({ status: 'idle' })
   const stream = usePartial<S>()
@@ -40,7 +40,7 @@ function useAiCall<T, S = T>(ai: AiModelState, language: string | undefined) {
     stream.reset()
     setCall({ status: 'busy' })
     try {
-      const ctx = await ai.context(controller.signal, language)
+      const ctx = await ai.context(controller.signal, language, content)
       const value = await fn({ ...ctx, onPartial: stream.onPartial })
       if (controller.signal.aborted) return undefined
       stream.reset()
@@ -99,6 +99,7 @@ export function OwnWords({
   const { call, partial, run } = useAiCall<{ rating: Rating; feedback: string }, { feedback: string }>(
     ai,
     card.language,
+    cardText(card),
   )
 
   useEffect(() => {
@@ -168,7 +169,7 @@ export function Improve({
 }) {
   const t = useT()
   const ws = useWorkspace()
-  const { call, partial, run, reset } = useAiCall<CardImprovement>(ai, card.language)
+  const { call, partial, run, reset } = useAiCall<CardImprovement>(ai, card.language, cardText(card))
 
   const apply = (next: CardImprovement) => {
     ws.batch(() => {

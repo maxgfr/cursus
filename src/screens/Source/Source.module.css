@@ -29,6 +29,35 @@
   gap: var(--space-2);
 }
 
+/* « My notes » under a deck or a document read in the app: a quiet disclosure, open once something is written. */
+.notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.notesTitle {
+  align-self: flex-start;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding-inline: var(--space-2);
+  margin-inline-start: calc(-1 * var(--space-2));
+  border-radius: var(--radius-control);
+  color: var(--accent-ink);
+  font-size: var(--text-body);
+  cursor: pointer;
+}
+
+.notesTitle:hover {
+  background: var(--surface-pressed);
+}
+
+.notesTitle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
 .proposals {
   display: grid;
   gap: var(--space-2);

@@ -119,7 +119,7 @@ async function newCourse(page: Page, title: string) {
 }
 
 async function importPdf(page: Page, file: string, title: string) {
-  await page.getByLabel('Import PDF').setInputFiles(file)
+  await page.getByLabel('Add files').setInputFiles(file)
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
 }
 
@@ -135,9 +135,11 @@ test('adding a PDF proposes questions; they are reviewed by slide and the accept
   await expect(page.getByLabel('Limit per document (USD)')).toBeHidden()
 
   await newCourse(page, 'Physiology')
-  await importPdf(page, join(DECKS, 'slides.pdf'), 'slides')
+  await importPdf(page, join(DECKS, 'slides.pdf'), 'Cell Biology slides')
   await expect(page.getByText('6 suggested cards')).toBeVisible()
   expect(calls).toHaveLength(1)
+  // By default the AI decides how many cards each slide deserves, within a cap.
+  expect(textOf(calls[0] as Body)).toContain('decide how many questions it deserves, from 0 to 10')
 
   // Today: one calm line, and the way to the review.
   await go(page, '#/', 'Today')
@@ -148,7 +150,7 @@ test('adding a PDF proposes questions; they are reviewed by slide and the accept
   await expect(page.getByRole('heading', { level: 1, name: 'Suggested cards' })).toBeVisible()
 
   // Grouped by document, then by slide; edit, reject (undoable until saved), accept one, then all of a slide.
-  const slides = doc(page, 'slides')
+  const slides = doc(page, 'Cell Biology slides')
   await expect(slides.getByText('In Physiology')).toBeVisible()
   await expect(slides.getByText('6 to check · 0 accepted')).toBeVisible()
   await expect(slides.getByRole('heading', { name: /^Slide 3 Active transport$/ })).toBeVisible()
@@ -179,7 +181,7 @@ test('adding a PDF proposes questions; they are reviewed by slide and the accept
   await page.getByRole('radio', { name: 'Sources' }).check({ force: true })
   await page
     .getByRole('main')
-    .getByRole('link', { name: /^slides/ })
+    .getByRole('link', { name: /^Cell Biology slides/ })
     .click()
   await page.getByRole('button', { name: 'Suggest cards' }).click()
   await expect.poll(() => calls.length).toBe(2)
@@ -196,7 +198,7 @@ test('« Do nothing » proposes nothing; « Add them directly » puts the questi
   await expect(page.getByText('Nothing happens on its own.', { exact: false })).toBeVisible()
 
   await newCourse(page, 'Botany')
-  await importPdf(page, join(DECKS, 'slides.pdf'), 'slides')
+  await importPdf(page, join(DECKS, 'slides.pdf'), 'Cell Biology slides')
   await expect(page.getByRole('button', { name: 'Suggest cards' })).toBeEnabled()
   await go(page, '#/inbox', 'Suggested cards')
   await expect(page.getByRole('heading', { name: 'No suggested cards' })).toBeVisible()
@@ -233,6 +235,8 @@ test('over the cost cap a document waits for approval with its estimate; offline
   const calls = await mockProvider(page)
   await setUpAi(page)
   await page.locator('summary', { hasText: /^Advanced$/ }).click()
+  // The count per slide is automatic unless chosen here.
+  await expect(page.getByLabel('Cards per page, slide or section')).toHaveValue('auto')
   await expect(
     page.getByText(/^Above a limit, a document waits for your approval.* Spent this month: \$/),
   ).toBeVisible()
@@ -242,9 +246,9 @@ test('over the cost cap a document waits for approval with its estimate; offline
   await cap.press('Enter')
 
   await newCourse(page, 'Cells')
-  await importPdf(page, join(DECKS, 'slides.pdf'), 'slides')
+  await importPdf(page, join(DECKS, 'slides.pdf'), 'Cell Biology slides')
   await go(page, '#/inbox', 'Suggested cards')
-  const slides = doc(page, 'slides')
+  const slides = doc(page, 'Cell Biology slides')
   await expect(
     slides.getByText(/^About \$0\.\d+ for this document, above your limit of \$0\.00 per document\.$/),
   ).toBeVisible()
@@ -264,6 +268,9 @@ test('over the cost cap a document waits for approval with its estimate; offline
   const sample = doc(page, 'sample')
   await expect(sample.getByText('Waiting for a connection: the cards come once you’re back online.')).toBeVisible()
   await context.setOffline(false)
+  // Service workers are blocked here, so the PDF reader that failed to load offline loads on a fresh page; with
+  // the app's service worker it is cached and loads offline too.
+  await page.reload()
   await expect(sample.getByText(/^About \$0\.\d+ for this document, above your limit/)).toBeVisible()
   await sample.getByRole('button', { name: /^Allow \$0\.\d+$/ }).click()
   await expect(sample.getByText(/^\d+ to check · 0 accepted$/)).toBeVisible()
@@ -275,12 +282,11 @@ test('without a model the documents wait with a discreet invitation; slides and 
 }) => {
   const calls = await mockProvider(page)
   await newCourse(page, 'Anatomy')
-  await page.getByRole('button', { name: 'Add', exact: true }).click()
-  await page.getByRole('link', { name: 'Slides or document' }).click()
-  await page.getByLabel('Choose a file').setInputFiles(join(DECKS, 'notes.docx'))
+  await page.getByLabel('Add files').setInputFiles(join(DECKS, 'notes.docx'))
   await expect(page.getByRole('heading', { level: 1, name: 'Physiology notes' })).toBeVisible()
-  await page.getByRole('button', { name: 'Import another file' }).click()
-  await page.getByLabel('Choose a file').setInputFiles(join(DECKS, 'slides.pptx'))
+  await page.getByRole('link', { name: 'Back' }).click()
+  await page.getByRole('radio', { name: 'Sources' }).check({ force: true })
+  await page.getByLabel('Add files').setInputFiles(join(DECKS, 'slides.pptx'))
   await expect(page.getByRole('heading', { level: 1, name: 'Cell Biology 101' })).toBeVisible()
 
   // The course lists a .docx as a document and a .pptx as slides, not as notes.

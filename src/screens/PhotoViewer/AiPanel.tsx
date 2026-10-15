@@ -32,7 +32,7 @@ import { dedupeDrafts } from '../Generate/dedupe.ts'
 import { type Thumb, useFileLoader, useThumbs } from '../Photos/files.ts'
 import { describeFailure } from '../Review/failure.ts'
 import shared from '../Understand/shared/ai.module.css'
-import { type AiModelState, useAiModel } from '../Understand/shared/aiConfig.ts'
+import { type AiModelState, courseText, useAiModel } from '../Understand/shared/aiConfig.ts'
 import styles from './AiPanel.module.css'
 
 type ReadyModel = Extract<AiModelState, { status: 'ready' }>
@@ -261,7 +261,7 @@ function Explain({
     return run(async (signal) => {
       const photo = getPhoto(ws, photoId)
       const course = ws.courses.get(courseId)
-      const ctx = await ai.context(signal, course?.language)
+      const ctx = await ai.context(signal, course?.language, courseText(ws, courseId))
       const description = await describePhoto(
         { ...ctx, onPartial: stream.onPartial },
         {
@@ -418,7 +418,7 @@ function Cards({
     stream.reset()
     return run(async (signal) => {
       const course = ws.courses.get(courseId)
-      const ctx = await ai.context(signal, course?.language)
+      const ctx = await ai.context(signal, course?.language, courseText(ws, courseId))
       const inputs = []
       for (const id of picked) {
         inputs.push({ photoId: id, image: await image(id), caption: getPhoto(ws, id)?.caption })

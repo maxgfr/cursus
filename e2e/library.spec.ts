@@ -181,9 +181,13 @@ test('Sources: a note, a PDF opened natively, a photo and a pasted text', async 
   await page.getByRole('link', { name: 'Back' }).click()
 
   await page.getByRole('radio', { name: 'Sources' }).check()
-  await page.getByLabel('Import PDF').setInputFiles(join(FIXTURES, 'sample.pdf'))
+  await page.getByLabel('Add files').setInputFiles(join(FIXTURES, 'sample.pdf'))
   await expect(page.getByRole('heading', { level: 1, name: 'sample' })).toBeVisible()
-  const open = page.getByRole('link', { name: 'Open PDF' })
+  // Read in the app, page by page; the original stays one tap away.
+  await expect(page.getByText('2 slides')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Slide 2 Second page mitochondria' })).toBeVisible()
+  await expect(page.getByText('This source is empty. Start writing.')).toBeHidden()
+  const open = page.getByRole('link', { name: 'Open the original' })
   await expect(open).toHaveAttribute('href', /^blob:/)
   await expect(open).toHaveAttribute('target', '_blank')
   const pdf = await open.evaluate(async (a) => {
@@ -218,6 +222,58 @@ test('Sources: a note, a PDF opened natively, a photo and a pasted text', async 
     await expect(page.getByRole('main').getByRole('link', { name: new RegExp(name) })).toBeVisible()
   }
   expect(await seriousViolations(page)).toEqual([])
+  expect(errors).toEqual([])
+})
+
+test('Sources: several files at once, each read by what it is, and files dropped on the course', async ({ page }) => {
+  const errors = watchErrors(page)
+  await openToday(page)
+  await createCourse(page, 'Genetics')
+  await page.getByRole('radio', { name: 'Sources' }).check()
+  await page.getByLabel('Add files').setInputFiles([
+    { name: 'sample.pdf', mimeType: 'application/pdf', buffer: await readFile(join(FIXTURES, 'sample.pdf')) },
+    { name: 'large.png', mimeType: 'image/png', buffer: await readFile(join(FIXTURES, 'large.png')) },
+    { name: 'mendel.md', mimeType: 'text/markdown', buffer: Buffer.from('# Mendel\n\nPea plants.') },
+  ])
+  await expect(page.getByText('3 files added')).toBeVisible()
+  await page.getByRole('button', { name: 'Dismiss' }).click()
+  const main = page.getByRole('main')
+  await expect(main.getByRole('link', { name: /sample/ })).toContainText('Slides')
+  await expect(main.getByRole('link', { name: /large/ })).toContainText('Photo')
+  await main.getByRole('link', { name: /mendel/ }).click()
+  await expect(page.getByRole('textbox', { name: 'Source' })).toContainText('Pea plants.')
+  await page.getByRole('link', { name: 'Back' }).click()
+
+  // A file dropped anywhere on the Sources tab is added the same way.
+  await page.getByRole('radio', { name: 'Sources' }).check()
+  const pdf = (await readFile(join(FIXTURES, 'sample.pdf'))).toString('base64')
+  await page.evaluate((b64) => {
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+    const data = new DataTransfer()
+    data.items.add(new File([bytes], 'dropped.pdf', { type: 'application/pdf' }))
+    document.body.dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true }))
+  }, pdf)
+  await expect(page.getByRole('heading', { level: 1, name: 'dropped' })).toBeVisible()
+  await expect(page.getByText('2 slides')).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test('New course from files: a proposed name, every file added, the course opens on its sources', async ({ page }) => {
+  const errors = watchErrors(page)
+  await openToday(page)
+  await page.getByRole('button', { name: 'New course' }).first().click()
+  const dialog = page.getByRole('dialog', { name: 'New course' })
+  await dialog.getByLabel('From files…').setInputFiles([join(FIXTURES, 'sample.pdf'), join(FIXTURES, 'large.png')])
+  await expect(dialog.getByText('2 files: sample.pdf, large.png')).toBeVisible()
+  // The name comes from the first file and stays editable.
+  await expect(dialog.getByLabel('Course name')).toHaveValue('sample')
+  await dialog.getByLabel('Course name').fill('Cell biology')
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Cell biology' })).toBeVisible()
+  await expect(page.getByRole('radio', { name: 'Sources' })).toBeChecked()
+  const main = page.getByRole('main')
+  await expect(main.getByRole('link', { name: /sample/ })).toBeVisible()
+  await expect(main.getByRole('link', { name: /large/ })).toBeVisible()
   expect(errors).toEqual([])
 })
 

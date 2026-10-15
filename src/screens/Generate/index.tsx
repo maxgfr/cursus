@@ -15,7 +15,7 @@ import { streamedKeys, usePartial } from '../../ui/data/usePartial.ts'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { useScopeOnce } from '../Section/scope.ts'
 import styles from '../Understand/shared/ai.module.css'
-import { useAiModel } from '../Understand/shared/aiConfig.ts'
+import { passagesText, useAiModel } from '../Understand/shared/aiConfig.ts'
 import {
   Citation,
   NoModel,
@@ -87,7 +87,11 @@ export default function Generate() {
     stream.reset()
     try {
       const chunks = await loadChunks(selection)
-      const ctx = await ai.context(new AbortController().signal, ws.courses.get(selection.courseId)?.language)
+      const ctx = await ai.context(
+        new AbortController().signal,
+        ws.courses.get(selection.courseId)?.language,
+        passagesText(chunks),
+      )
       const out = await generateCards(
         { ...ctx, onPartial: stream.onPartial },
         {

@@ -17,7 +17,7 @@ import { AskSelection } from '../../ui/ExplainLauncher.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { useScopeOnce } from '../Section/scope.ts'
 import styles from './shared/ai.module.css'
-import { useAiModel } from './shared/aiConfig.ts'
+import { passagesText, useAiModel } from './shared/aiConfig.ts'
 import {
   Citation,
   NoModel,
@@ -114,7 +114,7 @@ export default function Understand() {
     setDone(null)
     try {
       const chunks = await loadAll(selection)
-      const ctx = await ai.context(ctl.signal, courseLanguage)
+      const ctx = await ai.context(ctl.signal, courseLanguage, passagesText(chunks))
       const s = streamUnderstanding(ctx, { topic: topic.trim(), level, chunks })
       setGrounded(s.grounded)
       for await (const part of s.partial) setFiche(part)
@@ -298,7 +298,7 @@ function ExplainBack({ topic, chunks, courseLanguage }: { topic: string; chunks:
     setReview(null)
     stream.reset()
     try {
-      const ctx = await ai.context(new AbortController().signal, courseLanguage)
+      const ctx = await ai.context(new AbortController().signal, courseLanguage, passagesText(chunks))
       setReview(await explainBack({ ...ctx, onPartial: stream.onPartial }, { topic, explanation: text.trim(), chunks }))
     } catch (err) {
       setError(t('ai.failed', { reason: err instanceof Error ? err.message : String(err) }))

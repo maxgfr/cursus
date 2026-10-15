@@ -11,6 +11,7 @@
  * notes split by heading, or a photo given as one unit with its image to a vision model). Another path plugs
  * in as an adapter, e.g. `photoToCards` for photos: wrap it to return `DeckQuestion`s citing unit 1.
  */
+import { detectLanguage } from '../content/language'
 import type { Id, StudyScope } from '../contracts/workspace'
 import type { AutoQuestionSettings, NewDraft } from '../model/drafts'
 import type { CourseRecord, SourceRecord } from '../model/schema'
@@ -163,12 +164,23 @@ export interface RunPlan {
   mode: 'propose' | 'add'
   /** Output language name for the model. */
   language: string
+  /**
+   * Neither the settings nor the course name a language: the questions follow the language the document is
+   * written in, when it tells (`language`, the interface's, is the fallback).
+   */
+  languageFromContent: boolean
   settings: AutoQuestionSettings
   /** Everything `deckQuestions` needs but the units, the progress and its callback. */
   input: Omit<DeckQuestionsInput, 'units' | 'resume' | 'onProgress'>
 }
 
 export type PlanOutcome = RunPlan | 'off' | 'source-gone'
+
+/** The language a document's units are written in, as a name for the model, when it tells. */
+export function unitsLanguage(units: readonly DeckUnitInput[], uiLocale: string): string | undefined {
+  const code = detectLanguage(units.map((u) => [u.title, u.text, u.notes ?? ''].join('\n')).join('\n'))
+  return code === undefined ? undefined : outputLanguage(code, uiLocale)
+}
 
 /** One run over one source, from the current settings; `off` when the mode says to do nothing for an added source. */
 export function planRun(ws: ModelWorkspace, sourceId: Id, reason: JobReason): PlanOutcome {
@@ -182,10 +194,8 @@ export function planRun(ws: ModelWorkspace, sourceId: Id, reason: JobReason): Pl
   if (!course) return 'source-gone'
   const destination = destinationOf(ws, source, settings)
   const target = liveCourse(ws, destination.courseId) ?? course
-  const language = outputLanguage(
-    settings.language === 'course' ? target.language : settings.language,
-    ws.prefs.get('locale'),
-  )
+  const named = settings.language === 'course' ? target.language?.trim() || undefined : settings.language
+  const language = outputLanguage(named, ws.prefs.get('locale'))
   const input: RunPlan['input'] = {
     sourceId,
     perUnit: settings.perUnit,
@@ -196,7 +206,8 @@ export function planRun(ws: ModelWorkspace, sourceId: Id, reason: JobReason): Pl
     isDuplicate: draftDuplicates(ws, sourceId),
   }
   if (settings.dedupe) input.existing = existingCardTexts(ws, destination.courseId)
-  return { source, destination, mode: settings.mode === 'add' ? 'add' : 'propose', language, settings, input }
+  const mode = settings.mode === 'add' ? 'add' : 'propose'
+  return { source, destination, mode, language, languageFromContent: named === undefined, settings, input }
 }
 
 const HAS_CLOZE = /\{\{c\d+::.+?\}\}/s

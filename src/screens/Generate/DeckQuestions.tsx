@@ -271,7 +271,8 @@ export default function DeckQuestions() {
     setSaved(null)
     setLeftOut(0)
     try {
-      const ctx0 = await ai.context(controller.signal, course?.language)
+      const deckText = loaded.deck.units.map((u) => `${u.title}\n${u.text}`).join('\n')
+      const ctx0 = await ai.context(controller.signal, course?.language, deckText)
       const ctx = s.language === '' ? ctx0 : { ...ctx0, language: outputLanguage(s.language, 'en') }
       setPreparing(true)
       const inputs = await runInputs(loaded, remainingUnits(current), supportsImages(ctx.info), controller.signal)

@@ -21,16 +21,33 @@ function imagesFrom(data: DataTransfer): Captured[] {
  * Captures ⌘V / Ctrl+V pastes and drag-and-drop anywhere on the page.
  * Pastes into editable fields are left alone unless they carry images.
  */
-export function usePasteCapture(onCapture: (c: Captured) => void, opts?: { enabled?: boolean }): void {
+export function usePasteCapture(
+  onCapture: (c: Captured) => void,
+  opts?: { enabled?: boolean; onFiles?: (files: File[]) => void },
+): void {
   const enabled = opts?.enabled ?? true
   const handler = useRef(onCapture)
   handler.current = onCapture
+  const filesHandler = useRef(opts?.onFiles)
+  filesHandler.current = opts?.onFiles
 
   useEffect(() => {
     if (!enabled) return
+    /** Files other than photos (a PDF, a slide deck…) go whole to `onFiles` when the screen takes them. */
+    const takeFiles = (data: DataTransfer): boolean => {
+      const onFiles = filesHandler.current
+      const files = Array.from(data.files)
+      if (onFiles === undefined || !files.some((f) => !f.type.startsWith('image/'))) return false
+      onFiles(files)
+      return true
+    }
     const onPaste = (event: ClipboardEvent) => {
       const data = event.clipboardData
       if (data === null) return
+      if (takeFiles(data)) {
+        event.preventDefault()
+        return
+      }
       const images = imagesFrom(data)
       if (images.length > 0) {
         event.preventDefault()
@@ -51,6 +68,10 @@ export function usePasteCapture(onCapture: (c: Captured) => void, opts?: { enabl
     const onDrop = (event: DragEvent) => {
       const data = event.dataTransfer
       if (data === null) return
+      if (takeFiles(data)) {
+        event.preventDefault()
+        return
+      }
       const images = imagesFrom(data)
       if (images.length > 0) {
         event.preventDefault()

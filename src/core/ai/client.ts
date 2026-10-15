@@ -211,7 +211,15 @@ export async function* streamChat(ctx: FeatureCtx, req: ChatRequest): AsyncGener
   }
 }
 
-const LANGUAGE_NAMES: Readonly<Record<string, string>> = { en: 'English', de: 'German', fr: 'French' }
+const LANGUAGE_NAMES: Readonly<Record<string, string>> = {
+  en: 'English',
+  de: 'German',
+  fr: 'French',
+  es: 'Spanish',
+  it: 'Italian',
+  nl: 'Dutch',
+  pt: 'Portuguese',
+}
 
 /** The course's language when set, otherwise the UI's. */
 export function outputLanguage(courseLanguage: string | undefined, uiLocale: string): string {

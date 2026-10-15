@@ -42,10 +42,11 @@ import { proposeFor, proposeWhenWritten } from '../../ui/data/autoQuestions.ts'
 import { MoveSheet, moveItemTo, type Place } from '../../ui/MoveSheet.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { newCardId } from '../CardEditor/draft.ts'
+import { deckErrorMessage } from '../DeckImport/deckSource.ts'
 import NotFound from '../NotFound/index.tsx'
 import { startQueue } from '../Review/session.ts'
 import { NewSectionSheet, SectionSettings } from '../Section/SectionSheets.tsx'
-import { addImage, addNote, addPdf } from '../Source/importers.ts'
+import { addFile, addImage, addNote, FILES_ACCEPT } from '../Source/importers.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 import { ExamCountdown } from '../Today/CourseRows.tsx'
 import { useAiModel } from '../Understand/shared/aiConfig.ts'
@@ -85,10 +86,10 @@ type T = ReturnType<typeof useT>
 
 /** How a source is named in the list: a .pptx or .docx is kept as `note` for older clients, its `support` says what it is. */
 function sourceKind(t: T, s: Pick<SourceRecord, 'kind' | 'support'>): { icon: typeof FileText; label: string } {
-  if (s.kind === 'pdf') return { icon: FileText, label: t('course.kindPdf') }
-  if (s.kind === 'image') return { icon: Image, label: t('course.kindPhoto') }
   if (s.support === 'deck') return { icon: Presentation, label: t('ai.kindSlides') }
   if (s.support === 'document') return { icon: FileText, label: t('ai.kindDocument') }
+  if (s.kind === 'pdf') return { icon: FileText, label: t('course.kindPdf') }
+  if (s.kind === 'image') return { icon: Image, label: t('course.kindPhoto') }
   return { icon: KIND_ICON[s.kind], label: t('course.kindNote') }
 }
 
@@ -112,7 +113,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   )
   const [saved, setSaved] = useState(() => savedFrom(history.state))
   const back = useMemo(() => backTarget(earlierPaths()), [])
-  const pdfInput = useRef<HTMLInputElement>(null)
+  const filesInput = useRef<HTMLInputElement>(null)
   const photoInput = useRef<HTMLInputElement>(null)
   const csvInput = useRef<HTMLInputElement>(null)
   const [reading, setReading] = useState<Id | null>(null)
@@ -187,6 +188,39 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
     }
   }
 
+  /** Adds each file by what it is; one file opens, several stay listed under Sources. */
+  const addFiles = async (files: readonly File[]) => {
+    if (files.length === 0) return
+    setBusy(true)
+    setError(null)
+    const fallback = {
+      note: t('course.untitledNote'),
+      photo: t('course.untitledPhoto'),
+      pdf: t('course.untitledPdf'),
+      deck: t('ai.deckUntitled'),
+    }
+    const added: Id[] = []
+    const failed: string[] = []
+    for (const file of files) {
+      try {
+        const id = await addFile(rt, where, file, fallback)
+        added.push(id)
+        void proposeFor(rt, id)
+      } catch (e) {
+        noteError('course.import', e)
+        failed.push(t('course.fileFailed', { name: file.name, reason: deckErrorMessage(t, e) }))
+      }
+    }
+    setBusy(false)
+    if (failed.length > 0) setError(failed.join(' '))
+    const only = added[0]
+    if (added.length === 1 && failed.length === 0 && only !== undefined) navigate(to.source(only))
+    else if (added.length > 0) {
+      setTab('sources')
+      setNotice(t('course.filesAdded', { count: added.length }))
+    }
+  }
+
   usePasteCapture(
     (c: Captured) => {
       if (c.kind === 'image') void run(() => addImage(rt, where, c.blob, c.name, t('course.untitledPhoto')))
@@ -196,7 +230,10 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
         navigate(to.source(id))
       }
     },
-    { enabled: data !== null && tab === 'sources' && !settings && !adding && !addingSource && moving === null },
+    {
+      enabled: data !== null && tab === 'sources' && !settings && !adding && !addingSource && moving === null,
+      onFiles: (files) => void addFiles(files),
+    },
   )
 
   if (data === null) return <NotFound />
@@ -225,10 +262,10 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
     proposeWhenWritten(id)
     navigate(to.source(id))
   }
-  const onPdf = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.currentTarget.files?.[0]
+  const onFiles = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.currentTarget.files ?? [])
     e.currentTarget.value = ''
-    if (file) void run(() => addPdf(rt, where, file, t('course.untitledPdf')))
+    void addFiles(files)
   }
   const onPhoto = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.currentTarget.files?.[0]
@@ -507,13 +544,14 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
       {tab === 'sources' && (
         <>
           <input
-            ref={pdfInput}
+            ref={filesInput}
             className="sr-only"
             type="file"
-            accept="application/pdf,.pdf"
-            aria-label={t('course.importPdf')}
+            multiple
+            accept={FILES_ACCEPT}
+            aria-label={t('course.addFiles')}
             tabIndex={-1}
-            onChange={onPdf}
+            onChange={onFiles}
           />
           <input
             ref={photoInput}
@@ -597,11 +635,10 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
       <AddSheet
         open={addingSource}
         onClose={() => setAddingSource(false)}
+        onFiles={() => filesInput.current?.click()}
         onNote={newNote}
-        onPdf={() => pdfInput.current?.click()}
         onPhoto={() => photoInput.current?.click()}
         onPaste={pasteText}
-        deckHref={withScope(paths.deckImport, scope)}
       />
       <Sheet open={moreCards} title={t('course.moreCardWays')} onClose={() => setMoreCards(false)}>
         <div className={styles.actions}>{cardImports}</div>

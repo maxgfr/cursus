@@ -199,7 +199,6 @@ export const ai = {
   localBadgeMissing: 'Nicht heruntergeladen',
   localSearchTerms: 'auf diesem gerät lokal offline browser webgpu kostenlos',
   // --- S-040: Fragen aus Folien oder einem Dokument ---
-  deckImportAction: 'Folien oder Dokument',
   deckImportTitle: 'Folien oder ein Dokument importieren',
   deckFromFile: 'Fragen aus Folien oder einem Dokument erstellen',
   deckChooseFile: 'Datei auswählen',
@@ -375,6 +374,9 @@ export const ai = {
   autoOffHint: 'Von selbst passiert nichts. Du kannst trotzdem in einem Dokument Fragen vorschlagen lassen.',
   autoAdvanced: 'Erweitert',
   autoPerUnit: 'Fragen pro Seite, Folie oder Abschnitt',
+  autoPerUnitAuto: 'Automatisch',
+  autoPerUnitHint:
+    'Automatisch: Die KI entscheidet danach, wie viel jede enthält, bis zu {max}, und keine bei einer Titelfolie.',
   autoLanguageCourse: 'Sprache des Kurses',
   autoDedupe: 'Fragen überspringen, die deinen Karten ähneln',
   autoDestinationOwn: 'Kurs des Dokuments',

@@ -282,6 +282,27 @@ describe('auto-question settings', () => {
     expect(s.get().language).toBe('fr')
   })
 
+  test('questions per unit: automatic by default; a number stored by any version still reads as is', () => {
+    const { w, doc } = ws(13)
+    const s = w.drafts.settings
+    expect(AUTO_QUESTION_DEFAULTS.perUnit).toBe('auto')
+    expect(s.get().perUnit).toBe('auto')
+    // A number written by an earlier version (before `auto`) keeps working.
+    doc.getMap('prefs').set('autoQuestions.perUnit', 4)
+    expect(s.get().perUnit).toBe(4)
+    s.set({ perUnit: 'auto' })
+    expect(doc.getMap('prefs').get('autoQuestions.perUnit')).toBe('auto')
+    expect(s.get().perUnit).toBe('auto')
+    s.set({ perUnit: 7 })
+    expect(s.get().perUnit).toBe(7)
+    // An unknown value (a later version's, or a damaged one) falls back to the default, never thrown at the reader.
+    for (const unknown of ['many', 12, 0, 1.5, null, { n: 3 }]) {
+      doc.getMap('prefs').set('autoQuestions.perUnit', unknown)
+      expect(s.get().perUnit).toBe(AUTO_QUESTION_DEFAULTS.perUnit)
+    }
+    expect(() => s.set({ perUnit: 'many' as never })).toThrow(DraftInputError)
+  })
+
   test('two devices changing different settings both keep their change', () => {
     const a = ws(11)
     const b = ws(12)

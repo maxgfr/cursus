@@ -42,7 +42,7 @@ import type { ModelWorkspace } from '../../core/model/workspace'
 import { formatUsd } from '../../i18n/format.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
 import { describeFailure } from '../../screens/Review/failure.ts'
-import { useAiModel } from '../../screens/Understand/shared/aiConfig.ts'
+import { cardText, passagesText, useAiModel } from '../../screens/Understand/shared/aiConfig.ts'
 import { Citation } from '../../screens/Understand/shared/SourcePicker.tsx'
 import { chunksFor, deckReader, estimateCost } from '../../screens/Understand/shared/sources.ts'
 import { Button, buttonClass } from '../components/Button.tsx'
@@ -248,7 +248,12 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
             ? [context.sourceId]
             : ws.sources.list(scoped ? { courseId } : undefined).map((s) => s.id)
         const chunks = await loadChunks(ids)
-        const ctx = await ai.context(ctl.signal, course?.language)
+        // Written in the language of what is on screen: the card, else the open source, else the course's sources.
+        const ctx = await ai.context(ctl.signal, course?.language, [
+          cardText(context.card),
+          passagesText(chunks.filter((c) => c.sourceId === context.sourceId)),
+          passagesText(chunks),
+        ])
         const about = {
           ...describeContext(ws, context),
           ...(excerpt ? { excerpt } : {}),
@@ -302,7 +307,8 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
         const loaded = await loadChunks(ids)
         setCourseChunks(loaded)
         const cost = estimateCost(ai.info, loaded, EXPLAIN_OUTPUT_TOKENS)
-        const ctx = { ...(await ai.context(ctl.signal, course?.language)), onPartial: stream.onPartial }
+        const content = [cardText(card), passagesText(loaded)]
+        const ctx = { ...(await ai.context(ctl.signal, course?.language, content)), onPartial: stream.onPartial }
         const input = { chunks: loaded, courseTitle: course?.title }
         const faces = { front: card.front, back: card.back }
         rich =
