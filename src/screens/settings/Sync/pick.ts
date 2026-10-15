@@ -7,9 +7,12 @@ export interface Device {
   mac: boolean
 }
 
-/** The destination to suggest first: an iCloud Drive folder where the browser can keep one, else an account that syncs on every device. */
-export function recommended(d: Device): DestKind {
-  return d.folders && d.mac ? 'icloud' : 'dropbox'
+/**
+ * What to suggest first: an iCloud Drive folder where the browser can keep one, else the backup file. Google
+ * Drive and Dropbox need the student's own app key (Cursus ships none), so they are never the first suggestion.
+ */
+export function recommended(d: Device): DestKind | 'file' {
+  return d.folders && d.mac ? 'icloud' : 'file'
 }
 
 /** What this browser can do, read once. */

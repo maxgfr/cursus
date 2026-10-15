@@ -13,7 +13,7 @@ export const today = {
   noCourses: 'Aucun cours pour l’instant. Créez-en un pour commencer.',
   streak: { one: '{count} jour d’affilée', other: '{count} jours d’affilée' },
   examIn: { one: 'Examen dans {count} jour', other: 'Examen dans {count} jours' },
-  examCountdown: 'J-{count}',
+  examCountdown: { one: 'Encore {count} jour', other: 'Encore {count} jours' },
   examToday: 'Examen aujourd’hui',
   setupLink: 'Première fois ? Configurer Cursus',
   installTitle: 'Installez Cursus d’abord',
@@ -31,7 +31,7 @@ export const today = {
   storageUnknown: 'Non indiqué par ce navigateur',
   storageUsage: '{used} sur {quota} ({percent})',
   storageHint:
-    'Sans stockage persistant, le navigateur peut effacer votre bibliothèque quand l’espace manque. Ajoutez aussi une destination de sync.',
+    'Sans stockage persistant, le navigateur peut effacer votre bibliothèque quand l’espace manque. Ajoutez aussi une sauvegarde de sync.',
   storageAsk: 'Demander à garder mes données',
   demoTitle: 'Essayer avec un cours de démo',
   demoBody:
@@ -57,14 +57,14 @@ export const today = {
   installHintDismiss: 'Plus tard',
   // --- S-044 ---
   draftsLine: {
-    one: '{count} question proposée depuis {course}',
-    other: '{count} questions proposées depuis {course}',
+    one: '{count} carte suggérée depuis {course}',
+    other: '{count} cartes suggérées depuis {course}',
   },
   draftsLineCourses: {
-    one: '{count} question proposée depuis {courses} cours',
-    other: '{count} questions proposées depuis {courses} cours',
+    one: '{count} carte suggérée depuis {courses} cours',
+    other: '{count} cartes suggérées depuis {courses} cours',
   },
-  draftsReview: 'Relire',
+  draftsReview: 'Accepter ou modifier',
   // --- fin S-044 ---
   unreadableReviewsTitle: 'Une partie de l’historique est illisible.',
   unreadableReviews: {
@@ -74,6 +74,23 @@ export const today = {
   },
   unreadableReviewsDetails: 'Rapport de diagnostic',
   // --- Demo course: every feature, written when the student asks for it ---
+  obLoopTitle: 'Comment fonctionne Cursus',
+  obLoop1Title: 'Ajoutez ce que vous étudiez',
+  obLoop1Body: 'Notes, PDF, diapositives ou photos, rangés dans un cours.',
+  obLoop2Title: 'Transformez-le en cartes',
+  obLoop2Body: 'Écrivez vos questions, ou acceptez celles que l’IA propose à partir de vos sources.',
+  obLoop3Title: 'Révisez quelques minutes par jour',
+  obLoop3Body: 'Aujourd’hui montre ce qui est à revoir. Chaque carte revient juste avant que vous ne l’oubliiez.',
+  obDataBody:
+    'Tout reste sur cet appareil, sans compte. Ajoutez une sauvegarde dans Réglages › Sync pour en garder une copie ailleurs.',
+  obAiTitle: 'L’IA, seulement si vous le souhaitez',
+  obAiBody:
+    'Des explications, des cartes suggérées et une discussion sur vos sources. Cursus fonctionne entièrement sans.',
+  obAiLocal: 'Sur cet appareil (gratuit, hors ligne)',
+  obAiKey: 'Avec ma propre clé',
+  obAiLater: 'Ou plus tard : Réglages › IA, à tout moment.',
+  obCreate: 'Créer mon premier cours',
+  obSkip: 'Aller à Aujourd’hui',
   demoFailed: 'Le cours de démo n’a pas pu être ajouté. Rien n’a été modifié ; réessayez.',
   demoSecMembranes: 'Membranes',
   demoSecStructure: 'Structure',
@@ -152,4 +169,8 @@ export const today = {
   demoR1A: 'Membranes et transport.',
   demoPlanName: 'Révision de la semaine',
   // --- end demo course ---
+  firstCardTitle: 'Ajoutez votre première carte',
+  firstCardBody: 'Écrivez une carte dans un cours, ou ajoutez une source et acceptez les cartes suggérées.',
+  firstCardAction: 'Écrire une carte',
+  practice: 'S’entraîner',
 } as const satisfies Shape<typeof en>

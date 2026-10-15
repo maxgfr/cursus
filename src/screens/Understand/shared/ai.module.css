@@ -325,3 +325,51 @@ a.cite:focus-visible {
 .spacer {
   flex: 1;
 }
+
+/* AI settings: the two simple choices first, the rest behind Advanced. */
+.how {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.howChoices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: var(--space-2);
+}
+
+.howChoice {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border: var(--hairline-width) solid var(--hairline-strong);
+  border-radius: var(--radius-surface);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.howChoice span {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+}
+
+.howChoice[aria-pressed="true"] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.advanced > * + * {
+  margin-top: var(--space-3);
+}
+
+.summary {
+  color: var(--accent-ink);
+  font-weight: 600;
+  cursor: pointer;
+}

@@ -33,7 +33,7 @@ export const sync = {
   connected: '{name} ist verbunden.',
   summaryTitle: 'Schutz',
   summaryNone:
-    'Deine Bibliothek liegt nur auf diesem Gerät. Füge ein Ziel hinzu: Jede Änderung wird dorthin kopiert, und ein verlorenes Gerät kostet dich nichts.',
+    'Deine Bibliothek liegt nur auf diesem Gerät. Füge einen Speicherort hinzu: Jede Änderung wird dorthin kopiert, und ein verlorenes Gerät kostet dich nichts.',
   summaryProtected: {
     one: 'Jede Änderung auf diesem Gerät ist auf {count} Ziel bestätigt.',
     other: 'Jede Änderung auf diesem Gerät ist auf {count} Zielen bestätigt.',
@@ -45,7 +45,7 @@ export const sync = {
     'Die Synchronisierung konnte auf diesem Gerät nicht starten. Lade die Seite neu; passiert es wieder, enthält Einstellungen › Diagnose die Details.',
   alarmTitle: 'Einige Änderungen haben nirgendwo sonst eine Kopie',
   alarmBody:
-    'Seit mehr als einem Tag ist eine Änderung auf diesem Gerät auf keinem Ziel bestätigt. Öffne ein Ziel, um den Grund zu sehen.',
+    'Seit mehr als einem Tag ist eine Änderung auf diesem Gerät auf keinem Ziel bestätigt. Öffne einen Speicherort, um den Grund zu sehen.',
   upgradeTitle: 'Ein anderes Gerät nutzt ein neueres Cursus',
   upgradeBody: {
     one: '{count} Änderung von einem anderen Gerät braucht ein Cursus-Update, um gelesen zu werden. Sie bleibt hier und wird nach dem Update übernommen.',
@@ -140,7 +140,7 @@ export const sync = {
   chooseFolder: 'Ordner wählen',
   folderUnsupported:
     'Dieser Browser kann keinen Ordner synchron halten. Nutze stattdessen eine Backup-Datei unter Daten.',
-  sealTitle: 'Ein Ziel versiegeln',
+  sealTitle: 'Einen Speicherort verschlüsseln',
   sealWhich: 'Ziel',
   sealAgain: 'Passphrase wiederholen',
   sealTooShort: { one: 'Nutze mindestens {count} Zeichen.', other: 'Nutze mindestens {count} Zeichen.' },
@@ -148,18 +148,18 @@ export const sync = {
   sealPlaintextStays:
     'Deine Bibliothek wird verschlüsselt in einen neuen Ordner neben dem alten kopiert. Die alte unverschlüsselte Kopie bleibt dort, bis du sie selbst löschst.',
   sealHowItWorks:
-    'Jedes Gerät braucht diese Passphrase einmal. Ohne sie kann niemand die versiegelte Kopie lesen, auch du nicht.',
-  sealAction: 'Versiegeln',
+    'Jedes Gerät braucht diese Passphrase einmal. Ohne sie kann niemand die verschlüsselte Kopie lesen, auch du nicht.',
+  sealAction: 'Verschlüsseln',
   sealDone: {
-    one: '{count} Objekt versiegelt. „{name}“ ist pausiert; lösche die alte Kopie, wenn du so weit bist.',
-    other: '{count} Objekte versiegelt. „{name}“ ist pausiert; lösche die alte Kopie, wenn du so weit bist.',
+    one: '{count} Objekt verschlüsselt. „{name}“ ist pausiert; lösche die alte Kopie, wenn du so weit bist.',
+    other: '{count} Objekte verschlüsselt. „{name}“ ist pausiert; lösche die alte Kopie, wenn du so weit bist.',
   },
   sealIncomplete: {
-    one: '{count} Objekt ließ sich nicht versiegeln. Nichts wurde geändert; prüfe das Ziel zuerst.',
-    other: '{count} Objekte ließen sich nicht versiegeln. Nichts wurde geändert; prüfe das Ziel zuerst.',
+    one: '{count} Objekt ließ sich nicht verschlüsseln. Nichts wurde geändert; prüfe den Speicherort zuerst.',
+    other: '{count} Objekte ließen sich nicht verschlüsseln. Nichts wurde geändert; prüfe den Speicherort zuerst.',
   },
-  sealNoDestination: 'Füge zuerst ein Ziel hinzu und versiegle es dann hier.',
-  sealNothingToSeal: 'Alle Ziele, die sich versiegeln lassen, sind schon versiegelt.',
+  sealNoDestination: 'Füge zuerst einen Speicherort hinzu und versiegle es dann hier.',
+  sealNothingToSeal: 'Alle Ziele, die sich verschlüsseln lassen, sind schon verschlüsselt.',
   sealUnavailable: 'Dieses Ziel lässt sich auf diesem Gerät nicht öffnen.',
   pairBody:
     'Beim Koppeln werden deine Ziele samt Schlüsseln direkt auf ein anderes Gerät in der Nähe kopiert, ohne Server.',
@@ -208,4 +208,5 @@ export const sync = {
   folderSub: 'Ein Ordner auf diesem Computer, synchron, solange Cursus offen ist.',
   fileSub: 'Eine .cursus-Datei, die du selbst speicherst und aufbewahrst. Nicht automatisch.',
   nearbySub: 'Gibt deine Ziele an ein Gerät in deiner Nähe weiter.',
+  ownAppKey: 'Braucht deinen eigenen App-Schlüssel.',
 } as const satisfies Shape<typeof en>

@@ -70,7 +70,7 @@ export default function Generate() {
   if (ai.status === 'missing')
     return (
       <Screen title={t('ai.generate')} back={paths.understand}>
-        <NoModel />
+        <NoModel reason={ai.reason} />
       </Screen>
     )
 

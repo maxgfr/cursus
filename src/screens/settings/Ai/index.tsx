@@ -1,6 +1,7 @@
 import { Check, RefreshCw } from 'lucide-react'
 import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
+import { useSearch } from 'wouter'
 import { paths } from '../../../app/routes.ts'
 import { useRuntime, useWorkspace } from '../../../app/workspaceContext.tsx'
 import {
@@ -248,6 +249,19 @@ function Editor({ initial }: { initial: Loaded }) {
   )
   const chooseLocal = (modelId: string) => void switchProvider(LOCAL_PROVIDER, modelId)
 
+  // Opened from the welcome on one of its two choices (`?setup=local` or `?setup=key`): that choice, once.
+  const setup = useRef(new URLSearchParams(useSearch()).get('setup'))
+  const switchNow = useRef(switchProvider)
+  switchNow.current = switchProvider
+  const localNow = useRef(isLocal)
+  localNow.current = isLocal
+  useEffect(() => {
+    const asked = setup.current
+    setup.current = null
+    if (asked === 'local' && !localNow.current) void switchNow.current(LOCAL_PROVIDER)
+    else if (asked === 'key' && localNow.current) void switchNow.current(DEFAULT_PROVIDER)
+  }, [])
+
   const applyPreset = (preset: (typeof PRESETS)[number]) => {
     setBaseUrl(preset.baseUrl)
     setCustomModel(preset.model)
@@ -366,6 +380,34 @@ function Editor({ initial }: { initial: Loaded }) {
         )}
       </ListGroup>
 
+      <fieldset className={styles.how}>
+        <legend className={styles.heading}>{t('ai.howTitle')}</legend>
+        <div className={styles.howChoices}>
+          <button
+            type="button"
+            className={styles.howChoice}
+            aria-pressed={isLocal}
+            onClick={() => {
+              if (!isLocal) void switchProvider(LOCAL_PROVIDER)
+            }}
+          >
+            <strong>{t('ai.howLocal')}</strong>
+            <span>{t('ai.howLocalBody')}</span>
+          </button>
+          <button
+            type="button"
+            className={styles.howChoice}
+            aria-pressed={!isLocal}
+            onClick={() => {
+              if (isLocal) void switchProvider(DEFAULT_PROVIDER)
+            }}
+          >
+            <strong>{t('ai.howKey')}</strong>
+            <span>{t('ai.howKeyBody')}</span>
+          </button>
+        </div>
+      </fieldset>
+
       <div className={styles.field}>
         <label className={styles.label} htmlFor={providerSelectId}>
           {t('ai.provider')}
@@ -408,131 +450,85 @@ function Editor({ initial }: { initial: Loaded }) {
 
       {isLocal && onDevice}
 
-      <section className={styles.stack} aria-labelledby="ai-catalog-h">
-        <div className={styles.row}>
-          <h2 id="ai-catalog-h" className={styles.heading}>
-            {t('ai.catalog')}
-          </h2>
-          <span className={styles.spacer} />
-          <Button icon={<RefreshCw size={16} aria-hidden="true" />} loading={refreshing} onClick={refresh}>
-            {t('ai.refreshCatalog')}
-          </Button>
-        </div>
-        <p className={styles.hint}>
-          {t('ai.catalogDate', { date: formatDate(locale, new Date(catalog.generatedAt)) })}
-        </p>
-        {refreshMsg && (
-          <p className={refreshMsg.kind === 'ok' ? styles.success : styles.error} role="status">
-            {refreshMsg.text}
+      <details className={styles.advanced}>
+        <summary className={styles.summary}>{t('ai.advancedModels')}</summary>
+        <section className={styles.stack} aria-labelledby="ai-catalog-h">
+          <div className={styles.row}>
+            <h2 id="ai-catalog-h" className={styles.heading}>
+              {t('ai.catalog')}
+            </h2>
+            <span className={styles.spacer} />
+            <Button icon={<RefreshCw size={16} aria-hidden="true" />} loading={refreshing} onClick={refresh}>
+              {t('ai.refreshCatalog')}
+            </Button>
+          </div>
+          <p className={styles.hint}>
+            {t('ai.catalogDate', { date: formatDate(locale, new Date(catalog.generatedAt)) })}
           </p>
-        )}
-        <Field
-          type="search"
-          label={t('ai.searchModels')}
-          hint={t('ai.searchHint')}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          enterKeyHint="search"
-        />
-        <div className={styles.row}>
-          <label className={styles.check} htmlFor={browserId}>
-            <input
-              id={browserId}
-              type="checkbox"
-              checked={browserOnly}
-              onChange={(e) => setBrowserOnly(e.target.checked)}
-            />
-            {t('ai.filterBrowser')}
-          </label>
-          <label className={styles.check} htmlFor={structuredId}>
-            <input
-              id={structuredId}
-              type="checkbox"
-              checked={structured}
-              onChange={(e) => setStructured(e.target.checked)}
-            />
-            {t('ai.filterStructured')}
-          </label>
-        </div>
-        <p className={styles.hint} role="status">
-          {total > MAX_RESULTS
-            ? t('ai.modelCountMore', { count: total, shown: MAX_RESULTS })
-            : t('ai.modelCount', { count: total })}
-        </p>
-        {total === 0 && !(isCustom && query.trim() === '') && <p className={styles.muted}>{t('ai.noMatch')}</p>}
-        {localHits.length > 0 && (
-          <section className={styles.tight} aria-labelledby="ai-group-on-device">
-            <div className={styles.row}>
-              <h3 id="ai-group-on-device" className={styles.label}>
-                {t('ai.localProvider')}
-              </h3>
-              <span className={styles.hint}>{t('ai.localFree')}</span>
-            </div>
-            <ul className={cx(styles.list, styles.card)} aria-label={t('ai.localProvider')}>
-              {localHits.slice(0, MAX_RESULTS).map((m) => {
-                const isSelected = isLocal && m.id === config.modelId
-                return (
-                  <li key={m.id}>
-                    <button
-                      type="button"
-                      className={styles.modelRow}
-                      aria-pressed={isSelected}
-                      onClick={() => chooseLocal(m.id)}
-                    >
-                      <span className={styles.modelName}>
-                        <span translate="no">{localModelName(m)}</span>
-                        <span translate="no">{m.id}</span>
-                      </span>
-                      <span className={styles.row}>
-                        {localChoice?.model.id === m.id && (
-                          <span className={styles.badge}>{t('ai.recommendedModel')}</span>
-                        )}
-                        {isSelected && <Check size={18} aria-hidden="true" />}
-                      </span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          </section>
-        )}
-        {groups.map((g) => {
-          if (shown >= MAX_RESULTS) return null
-          const hits = g.hits.slice(0, MAX_RESULTS - shown)
-          shown += hits.length
-          const rec = recommendedModel(catalog, g.provider.id)
-          const own = hits.some((h) => h.entry.vendor === g.provider.id)
-          const headingId = `ai-group-${g.provider.id}`
-          return (
-            <section key={g.provider.id} className={styles.tight} aria-labelledby={headingId}>
+          {refreshMsg && (
+            <p className={refreshMsg.kind === 'ok' ? styles.success : styles.error} role="status">
+              {refreshMsg.text}
+            </p>
+          )}
+          <Field
+            type="search"
+            label={t('ai.searchModels')}
+            hint={t('ai.searchHint')}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            enterKeyHint="search"
+          />
+          <div className={styles.row}>
+            <label className={styles.check} htmlFor={browserId}>
+              <input
+                id={browserId}
+                type="checkbox"
+                checked={browserOnly}
+                onChange={(e) => setBrowserOnly(e.target.checked)}
+              />
+              {t('ai.filterBrowser')}
+            </label>
+            <label className={styles.check} htmlFor={structuredId}>
+              <input
+                id={structuredId}
+                type="checkbox"
+                checked={structured}
+                onChange={(e) => setStructured(e.target.checked)}
+              />
+              {t('ai.filterStructured')}
+            </label>
+          </div>
+          <p className={styles.hint} role="status">
+            {total > MAX_RESULTS
+              ? t('ai.modelCountMore', { count: total, shown: MAX_RESULTS })
+              : t('ai.modelCount', { count: total })}
+          </p>
+          {total === 0 && !(isCustom && query.trim() === '') && <p className={styles.muted}>{t('ai.noMatch')}</p>}
+          {localHits.length > 0 && (
+            <section className={styles.tight} aria-labelledby="ai-group-on-device">
               <div className={styles.row}>
-                <h3 id={headingId} className={styles.label} translate="no">
-                  {g.provider.name}
+                <h3 id="ai-group-on-device" className={styles.label}>
+                  {t('ai.localProvider')}
                 </h3>
-                {own && <span className={styles.hint}>{t('ai.ownApi')}</span>}
-                <span className={styles.spacer} />
-                <StatusBadge status={routeStatus(g.provider, checks, now)} />
+                <span className={styles.hint}>{t('ai.localFree')}</span>
               </div>
-              <ul className={cx(styles.list, styles.card)} aria-label={g.provider.name}>
-                {hits.map((h) => {
-                  const isSelected = g.provider.id === config.providerId && h.route.id === config.modelId
+              <ul className={cx(styles.list, styles.card)} aria-label={t('ai.localProvider')}>
+                {localHits.slice(0, MAX_RESULTS).map((m) => {
+                  const isSelected = isLocal && m.id === config.modelId
                   return (
-                    <li key={`${h.route.provider}/${h.route.id}`}>
+                    <li key={m.id}>
                       <button
                         type="button"
                         className={styles.modelRow}
                         aria-pressed={isSelected}
-                        onClick={() => choose(g.provider, h)}
+                        onClick={() => chooseLocal(m.id)}
                       >
                         <span className={styles.modelName}>
-                          <span translate="no">{h.entry.name}</span>
-                          <span>
-                            <span translate="no">{h.route.id}</span>
-                            {h.route.cost ? ` · ${priceText(t, locale, h.route.cost)}` : ''}
-                          </span>
+                          <span translate="no">{localModelName(m)}</span>
+                          <span translate="no">{m.id}</span>
                         </span>
                         <span className={styles.row}>
-                          {rec && rec.route.id === h.route.id && (
+                          {localChoice?.model.id === m.id && (
                             <span className={styles.badge}>{t('ai.recommendedModel')}</span>
                           )}
                           {isSelected && <Check size={18} aria-hidden="true" />}
@@ -543,9 +539,58 @@ function Editor({ initial }: { initial: Loaded }) {
                 })}
               </ul>
             </section>
-          )
-        })}
-      </section>
+          )}
+          {groups.map((g) => {
+            if (shown >= MAX_RESULTS) return null
+            const hits = g.hits.slice(0, MAX_RESULTS - shown)
+            shown += hits.length
+            const rec = recommendedModel(catalog, g.provider.id)
+            const own = hits.some((h) => h.entry.vendor === g.provider.id)
+            const headingId = `ai-group-${g.provider.id}`
+            return (
+              <section key={g.provider.id} className={styles.tight} aria-labelledby={headingId}>
+                <div className={styles.row}>
+                  <h3 id={headingId} className={styles.label} translate="no">
+                    {g.provider.name}
+                  </h3>
+                  {own && <span className={styles.hint}>{t('ai.ownApi')}</span>}
+                  <span className={styles.spacer} />
+                  <StatusBadge status={routeStatus(g.provider, checks, now)} />
+                </div>
+                <ul className={cx(styles.list, styles.card)} aria-label={g.provider.name}>
+                  {hits.map((h) => {
+                    const isSelected = g.provider.id === config.providerId && h.route.id === config.modelId
+                    return (
+                      <li key={`${h.route.provider}/${h.route.id}`}>
+                        <button
+                          type="button"
+                          className={styles.modelRow}
+                          aria-pressed={isSelected}
+                          onClick={() => choose(g.provider, h)}
+                        >
+                          <span className={styles.modelName}>
+                            <span translate="no">{h.entry.name}</span>
+                            <span>
+                              <span translate="no">{h.route.id}</span>
+                              {h.route.cost ? ` · ${priceText(t, locale, h.route.cost)}` : ''}
+                            </span>
+                          </span>
+                          <span className={styles.row}>
+                            {rec && rec.route.id === h.route.id && (
+                              <span className={styles.badge}>{t('ai.recommendedModel')}</span>
+                            )}
+                            {isSelected && <Check size={18} aria-hidden="true" />}
+                          </span>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              </section>
+            )
+          })}
+        </section>
+      </details>
 
       {provider && !orphan && !isLocal && (
         <form className={styles.stack} onSubmit={saveConnection} aria-labelledby="ai-conn-h">
@@ -567,16 +612,6 @@ function Editor({ initial }: { initial: Loaded }) {
               </fieldset>
             </>
           )}
-          {provider.browser.headers && (
-            <p className={styles.hint}>
-              {t('ai.headerNote', {
-                provider: provider.name,
-                header: Object.keys(provider.browser.headers).join(', '),
-              })}
-            </p>
-          )}
-          {provider.browser.limits === 'unreadable_errors' && <p className={styles.hint}>{t('ai.limitUnreadable')}</p>}
-          {selectedStatus && <p className={styles.hint}>{statusText(t, locale, selectedStatus)}</p>}
           <Field
             label={isCustom ? t('ai.apiKeyOptional') : t('ai.apiKey')}
             type="password"
@@ -592,23 +627,38 @@ function Editor({ initial }: { initial: Loaded }) {
             }}
             hint={t('ai.apiKeyHint')}
           />
-          <Field
-            label={t('ai.baseUrl')}
-            type="url"
-            inputMode="url"
-            spellCheck={false}
-            value={baseUrl}
-            placeholder={catalogProvider?.api ?? ''}
-            onChange={(e) => setBaseUrl(e.target.value)}
-            hint={isCustom ? t('ai.corsHint') : t('ai.baseUrlHint')}
-            error={
-              endpoint === 'insecure'
-                ? t('ai.endpointInsecure')
-                : endpoint === 'invalid'
-                  ? t('ai.endpointInvalid')
-                  : undefined
-            }
-          />
+          {selectedStatus && <p className={styles.hint}>{statusText(t, locale, selectedStatus)}</p>}
+          <details className={styles.advanced} open={isCustom || baseUrl.trim() !== '' || undefined}>
+            <summary className={styles.summary}>{t('ai.advancedConnection')}</summary>
+            {provider.browser.headers && (
+              <p className={styles.hint}>
+                {t('ai.headerNote', {
+                  provider: provider.name,
+                  header: Object.keys(provider.browser.headers).join(', '),
+                })}
+              </p>
+            )}
+            {provider.browser.limits === 'unreadable_errors' && (
+              <p className={styles.hint}>{t('ai.limitUnreadable')}</p>
+            )}
+            <Field
+              label={t('ai.baseUrl')}
+              type="url"
+              inputMode="url"
+              spellCheck={false}
+              value={baseUrl}
+              placeholder={catalogProvider?.api ?? ''}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              hint={isCustom ? t('ai.corsHint') : t('ai.baseUrlHint')}
+              error={
+                endpoint === 'insecure'
+                  ? t('ai.endpointInsecure')
+                  : endpoint === 'invalid'
+                    ? t('ai.endpointInvalid')
+                    : undefined
+              }
+            />
+          </details>
           {isCustom && (
             <Field
               label={t('ai.modelName')}

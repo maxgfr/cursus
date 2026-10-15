@@ -12,6 +12,13 @@ html {
   background: var(--bg);
 }
 
+/* Phones and iPad portrait: what scrolls into view (a focused field, a control) stays clear of the tab bar. */
+@media (max-width: 999px) {
+  html {
+    scroll-padding-bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom) + var(--space-4));
+  }
+}
+
 body {
   margin: 0;
   min-height: 100dvh;

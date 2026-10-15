@@ -378,7 +378,7 @@ test('a leech shows its badge and can be rewritten with Improve', async ({ page 
     ],
   })
   await openReview(page)
-  await expect(page.getByText('Leech', { exact: true })).toBeVisible()
+  await expect(page.getByText('Hard card', { exact: true })).toBeVisible()
   await expect(page.getByText('This card keeps slipping. Try rewriting it.')).toBeVisible()
   await page.getByRole('button', { name: 'Improve' }).click()
   await expect(page.getByRole('heading', { name: 'Suggested rewrite' })).toBeVisible()

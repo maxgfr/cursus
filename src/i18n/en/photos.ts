@@ -69,7 +69,7 @@ export const photos = {
   aiNeedVision: '{model} reads text only. To explain photos, choose a model that reads images in the AI settings.',
   aiOnDeviceTextOnly:
     'The on-device model reads text only. To explain photos, choose an online model that reads images in the AI settings.',
-  aiOffline: 'You’re offline. Explaining a photo and drafting cards from it need a connection.',
+  aiOffline: 'You’re offline. Explaining a photo and suggesting cards from it need a connection.',
   aiExplain: 'Explain this photo',
   aiExplainAgain: 'Explain again',
   aiReading: 'Reading the photo…',
@@ -83,8 +83,8 @@ export const photos = {
   aiPhotos: 'Photos to use',
   aiThisPhoto: 'This photo',
   aiPhotosHint: { one: '{count} photo in one request.', other: '{count} photos in one request.' },
-  aiDraft: 'Draft cards',
-  aiDrafting: 'Drafting cards…',
+  aiDraft: 'Suggest cards',
+  aiDrafting: 'Suggesting cards…',
   aiOpenPhoto: 'Open photo: {name}',
   aiUnderstandPhotos: {
     one: 'Includes what AI read on {count} photo.',

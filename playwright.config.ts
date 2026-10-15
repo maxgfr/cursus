@@ -8,7 +8,14 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   reporter: process.env.CI ? [['html', { open: 'never' }], ['list']] : 'list',
-  use: { baseURL: `http://localhost:${port}${base}` },
+  use: {
+    baseURL: `http://localhost:${port}${base}`,
+    // A returning device (see `returningDevice` in e2e/support/page.ts); the welcome's own test starts without it.
+    storageState: {
+      cookies: [],
+      origins: [{ origin: `http://localhost:${port}`, localStorage: [{ name: 'cursus:onboarded', value: '1' }] }],
+    },
+  },
   webServer: {
     command: `bunx vite preview --port ${port} --strictPort`,
     url: `http://localhost:${port}${base}`,

@@ -10,7 +10,7 @@ export const today = {
   noCourses: 'No courses yet. Create one to start studying.',
   streak: { one: '{count}-day streak', other: '{count}-day streak' },
   examIn: { one: 'Exam in {count} day', other: 'Exam in {count} days' },
-  examCountdown: 'D-{count}',
+  examCountdown: { one: '{count} day left', other: '{count} days left' },
   examToday: 'Exam today',
   setupLink: 'New here? Set up Cursus',
   installTitle: 'Install Cursus first',
@@ -27,8 +27,7 @@ export const today = {
   storageUsed: 'Space used',
   storageUnknown: 'Not reported by this browser',
   storageUsage: '{used} of {quota} ({percent})',
-  storageHint:
-    'Without persistent storage the browser may clear your library when space runs low. Add a sync destination too.',
+  storageHint: 'Without persistent storage the browser may clear your library when space runs low. Add a backup too.',
   storageAsk: 'Ask to keep my data',
   demoTitle: 'Try it with a demo course',
   demoBody:
@@ -50,12 +49,12 @@ export const today = {
     'What you add here stays in this tab; the app you install starts empty. Install first: tap Share, then Add to Home Screen.',
   installHintDismiss: 'Not now',
   // --- S-044 ---
-  draftsLine: { one: '{count} question proposed from {course}', other: '{count} questions proposed from {course}' },
+  draftsLine: { one: '{count} card suggested from {course}', other: '{count} cards suggested from {course}' },
   draftsLineCourses: {
-    one: '{count} question proposed from {courses} courses',
-    other: '{count} questions proposed from {courses} courses',
+    one: '{count} card suggested from {courses} courses',
+    other: '{count} cards suggested from {courses} courses',
   },
-  draftsReview: 'Review',
+  draftsReview: 'Accept or edit',
   // --- end S-044 ---
   unreadableReviewsTitle: 'Some study history cannot be read.',
   unreadableReviews: {
@@ -65,6 +64,22 @@ export const today = {
   },
   unreadableReviewsDetails: 'Diagnostic report',
   // --- Demo course: every feature, written when the student asks for it ---
+  obLoopTitle: 'How Cursus works',
+  obLoop1Title: 'Add what you study',
+  obLoop1Body: 'Notes, PDFs, slides or photos, filed in a course.',
+  obLoop2Title: 'Turn it into cards',
+  obLoop2Body: 'Write cards yourself, or accept the ones AI suggests from your sources.',
+  obLoop3Title: 'Review a few minutes a day',
+  obLoop3Body: 'Today shows what is due. Each card comes back just before you would forget it.',
+  obDataBody:
+    'Everything stays on this device, with no account. Add a backup in Settings › Sync to keep a copy elsewhere.',
+  obAiTitle: 'AI, only if you want it',
+  obAiBody: 'Explanations, suggested cards and a chat about your sources. Cursus works fully without it.',
+  obAiLocal: 'On this device (free, offline)',
+  obAiKey: 'With my own key',
+  obAiLater: 'Or later: Settings › AI, any time.',
+  obCreate: 'Create my first course',
+  obSkip: 'Go to Today',
   demoFailed: 'The demo course could not be added. Nothing was changed; try again.',
   demoSecMembranes: 'Membranes',
   demoSecStructure: 'Structure',
@@ -143,4 +158,8 @@ export const today = {
   demoR1A: 'Membranes and transport.',
   demoPlanName: 'Weekly review',
   // --- end demo course ---
+  firstCardTitle: 'Add your first card',
+  firstCardBody: 'Write a card in a course, or add a source and accept the cards suggested from it.',
+  firstCardAction: 'Write a card',
+  practice: 'Practice',
 } as const

@@ -1,4 +1,4 @@
-import { ListChecks, Sparkles } from 'lucide-react'
+import { Lightbulb, ListChecks, NotebookText, Sparkles } from 'lucide-react'
 import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from 'react'
 import { paths, withScope } from '../../app/routes.ts'
 import { useRuntime, useWorkspace } from '../../app/workspaceContext.tsx'
@@ -48,6 +48,7 @@ export default function Understand() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const abort = useRef<AbortController | null>(null)
+  const topicId = useId()
 
   const onSelection = useCallback((s: Selection) => setSelection(s), [])
   useChatContext({
@@ -89,12 +90,12 @@ export default function Understand() {
 
   useEffect(() => () => abort.current?.abort(), [])
 
-  if (ai.status === 'loading') return <Screen title={t('ai.understand')} />
+  if (ai.status === 'loading') return <Screen title={t('ai.studyTools')} />
   if (ai.status === 'missing')
     return (
-      <Screen title={t('ai.understand')}>
-        <NoModel />
-        <MoreTools selection={selection} />
+      <Screen title={t('ai.studyTools')}>
+        <Tools selection={selection} />
+        <NoModel reason={ai.reason} />
       </Screen>
     )
 
@@ -132,9 +133,14 @@ export default function Understand() {
       : null
 
   return (
-    <Screen title={t('ai.understand')}>
-      <form className={styles.stack} onSubmit={submit}>
+    <Screen title={t('ai.studyTools')}>
+      <Tools selection={selection} onExplain={() => document.getElementById(topicId)?.focus()} />
+      <form className={styles.stack} onSubmit={submit} aria-labelledby={`${topicId}-h`}>
+        <h2 id={`${topicId}-h`} className={styles.heading}>
+          {t('ai.understand')}
+        </h2>
         <Field
+          id={topicId}
           label={t('ai.explainPrompt')}
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
@@ -191,6 +197,8 @@ export default function Understand() {
         </article>
       )}
 
+      {done && <SaveSheet result={done} grounded={grounded} selection={selection} />}
+
       <ExplainSelection
         within="article"
         courseId={selection.courseId || undefined}
@@ -198,16 +206,16 @@ export default function Understand() {
       />
 
       {done && <ExplainBack topic={topic.trim()} chunks={grounded} courseLanguage={courseLanguage} />}
-
-      <MoreTools selection={selection} />
     </Screen>
   )
 }
 
-/** Generate and Quiz stay one tap away from Understand, with or without a model set up. */
-function MoreTools({ selection }: { selection: Selection }) {
+/**
+ * The three study tools, each said in a line: Understand (the form below), Generate cards and Quiz me, with or
+ * without a model set up. The chosen course or section carries over.
+ */
+function Tools({ selection, onExplain }: { selection: Selection; onExplain?: () => void }) {
   const t = useT()
-  // The chosen course or section carries over.
   const scope =
     selection.courseId === ''
       ? null
@@ -215,10 +223,95 @@ function MoreTools({ selection }: { selection: Selection }) {
         ? { courseId: selection.courseId }
         : { courseId: selection.courseId, sectionId: selection.sectionId }
   return (
-    <ListGroup title={t('common.more')} hideTitle>
-      <ListRow href={withScope(paths.generate, scope)} leading={<Sparkles size={20} />} title={t('ai.generate')} />
-      <ListRow href={withScope(paths.quiz, scope)} leading={<ListChecks size={20} />} title={t('ai.quiz')} />
+    <ListGroup title={t('ai.studyTools')} hideTitle>
+      {onExplain && (
+        <ListRow
+          onClick={onExplain}
+          leading={<Lightbulb size={20} />}
+          title={t('ai.understand')}
+          subtitle={t('common.understandBody')}
+        />
+      )}
+      <ListRow
+        href={withScope(paths.generate, scope)}
+        leading={<Sparkles size={20} />}
+        title={t('ai.generate')}
+        subtitle={t('common.generateBody')}
+      />
+      <ListRow
+        href={withScope(paths.quiz, scope)}
+        leading={<ListChecks size={20} />}
+        title={t('ai.quiz')}
+        subtitle={t('common.quizBody')}
+      />
     </ListGroup>
+  )
+}
+
+/** The explanation as a study sheet's Markdown: its summary, then each point with the source it cites. */
+function sheetMarkdown(result: Understanding, titleOf: (ref: SourceRef) => string | null): string {
+  const parts = [result.summary.trim()]
+  for (const p of result.points) {
+    parts.push(`## ${p.heading.trim()}`, p.explanation.trim())
+    const cited = p.sourceRef ? titleOf(p.sourceRef) : null
+    if (cited) parts.push(`*${cited}*`)
+  }
+  return parts.filter((s) => s !== '').join('\n\n')
+}
+
+/** « Save as study sheet »: the explanation kept in the course (or section) chosen, read later from its sheets. */
+function SaveSheet({
+  result,
+  grounded,
+  selection,
+}: {
+  result: Understanding
+  grounded: Chunk[]
+  selection: Selection
+}) {
+  const t = useT()
+  const ws = useWorkspace()
+  const [saved, setSaved] = useState<string | null>(null)
+  const courseId = selection.courseId
+  const course = courseId ? ws.courses.get(courseId) : undefined
+  const save = () => {
+    if (!course) return
+    const refs = result.points.flatMap((p) =>
+      p.sourceRef && isValidRef(p.sourceRef, grounded) && ws.sources.get(p.sourceRef.sourceId) ? [p.sourceRef] : [],
+    )
+    const body = sheetMarkdown(result, (ref) =>
+      refs.includes(ref) ? (ws.sources.get(ref.sourceId)?.title ?? null) : null,
+    )
+    const id = ws.batch(() => {
+      const id = ws.fiches.create({
+        courseId: course.id,
+        ...(selection.sectionId ? { sectionId: selection.sectionId } : {}),
+        title: result.title.trim() || t('ai.fiche'),
+        sourceIds: [...new Set(refs.map((r) => r.sourceId))],
+      })
+      ws.text({ id, field: 'body' }).insert(0, body)
+      return id
+    })
+    setSaved(id)
+  }
+  return (
+    <div className={styles.row}>
+      <Button
+        variant="secondary"
+        icon={<NotebookText size={18} strokeWidth={1.75} aria-hidden />}
+        disabled={!course || saved !== null}
+        onClick={save}
+      >
+        {t('ai.saveSheet')}
+      </Button>
+      {saved !== null && course ? (
+        <p className={styles.hint} role="status">
+          {t('ai.sheetSaved', { course: course.title })}
+        </p>
+      ) : (
+        !course && <p className={styles.hint}>{t('ai.sheetNeedsCourse')}</p>
+      )}
+    </div>
   )
 }
 

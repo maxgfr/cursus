@@ -69,7 +69,7 @@ describe('t()', () => {
     const tEn = createTranslator('en')
     expect(tEn('today.due', { count: 1 })).toBe('1 card due')
     expect(tEn('today.due', { count: 3 })).toBe('3 cards due')
-    expect(tEn('sync.protected', { count: 2 })).toBe('Protected on 2 destinations')
+    expect(tEn('sync.protected', { count: 2 })).toBe('Protected in 2 backups')
     expect(tEn('course.deleteConfirm', { name: 'Bio' })).toBe('Delete “Bio” and all its cards?')
     const tDe = createTranslator('de')
     expect(tDe('today.due', { count: 1 })).toBe('1 Karte fällig')

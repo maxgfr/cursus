@@ -5,6 +5,7 @@ import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
 import { extname, join, normalize, sep } from 'node:path'
 import { test as base } from '@playwright/test'
+import { returningDevice } from './page.ts'
 
 const DIST = join(import.meta.dirname, '..', '..', 'dist')
 const BASE = process.env.VITE_BASE ?? '/cursus/'
@@ -147,5 +148,8 @@ export const test = base.extend<{ ownApp: OwnApp }>({
   },
   baseURL: async ({ ownApp }, use) => {
     await use(ownApp.url)
+  },
+  storageState: async ({ ownApp }, use) => {
+    await use(returningDevice(ownApp.url))
   },
 })

@@ -202,9 +202,12 @@ export function sourceCostOf(ws: ModelWorkspace, catalog: Catalog, sourceId: str
   return usageCost(ws, catalog, (e) => e.src === sourceId)
 }
 
+/** Why no model can be called: nothing chosen, no key, the on-device model not downloaded, or the provider moved. */
+export type MissingReason = 'none' | 'noKey' | 'notDownloaded' | 'moved'
+
 export type AiModelState =
   | { status: 'loading' }
-  | { status: 'missing' }
+  | { status: 'missing'; reason: MissingReason }
   | {
       status: 'ready'
       info: CatalogModel
@@ -266,18 +269,19 @@ export function useAiModel(): AiModelState {
   )
 
   return useMemo((): AiModelState => {
-    if (failed) return { status: 'missing' }
+    if (failed) return { status: 'missing', reason: 'none' }
     if (!settings) return { status: 'loading' }
-    if (!route) return { status: 'missing' }
+    if (!route) return { status: 'missing', reason: 'none' }
     if (route.provider.id === LOCAL_PROVIDER) {
-      if (!settings.local?.downloaded) return { status: 'missing' }
+      if (!settings.local?.downloaded) return { status: 'missing', reason: 'notDownloaded' }
       return { status: 'ready', info: route.info, provider: route.provider, runsOffline: true, context }
     }
     // A route this device saw blocked stays on: the settings show it and offer a new test. A
     // provider that moved to an unchecked address gets no key until the user tests it there.
-    if (routeStatus(route.provider, settings.checks, Date.now()).kind === 'moved') return { status: 'missing' }
+    if (routeStatus(route.provider, settings.checks, Date.now()).kind === 'moved')
+      return { status: 'missing', reason: 'moved' }
     // A local server may need no key; every catalog provider does.
-    if (settings.apiKey === '' && route.provider.id !== CUSTOM_PROVIDER) return { status: 'missing' }
+    if (settings.apiKey === '' && route.provider.id !== CUSTOM_PROVIDER) return { status: 'missing', reason: 'noKey' }
     return { status: 'ready', info: route.info, provider: route.provider, runsOffline: false, context }
   }, [failed, settings, route, context])
 }

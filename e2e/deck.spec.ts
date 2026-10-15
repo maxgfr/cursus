@@ -148,23 +148,23 @@ test('slides: preview, questions for a range of slides, review by slide, saved c
   await expect(page.getByText('Hidden slide')).toBeVisible()
   await expect(page.getByRole('img', { name: 'Diagram of osmosis' })).toBeVisible()
 
-  await page.getByRole('link', { name: 'Create questions' }).click()
-  await expect(page.getByRole('heading', { level: 1, name: 'Create questions' })).toBeVisible()
+  await page.getByRole('link', { name: 'Create cards' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Create cards' })).toBeVisible()
   // Hidden slides are left out unless asked for; the range narrows to slides 2–3.
   await expect(page.getByText('3 selected')).toBeVisible()
   await page.getByLabel('From', { exact: true }).selectOption({ label: 'Slide 2 · Osmosis' })
   await page.getByLabel('To', { exact: true }).selectOption({ label: 'Slide 3 · Transport compared' })
   await expect(page.getByText('2 selected')).toBeVisible()
-  await expect(page.getByLabel('Language of the questions')).toHaveValue('')
+  await expect(page.getByLabel('Language of the cards')).toHaveValue('')
   await expect(page.getByTestId('deck-estimate')).toHaveText(
     /^Estimated cost: \$[\d.]+ · 2 slides · Claude Haiku 5\.5$/,
   )
   // This model sees pictures: no text-only notice.
   await expect(page.getByText(/^This model can’t see pictures/)).toHaveCount(0)
-  await page.getByRole('button', { name: 'Create questions' }).click()
+  await page.getByRole('button', { name: 'Create cards' }).click()
 
   await expect(page.getByTestId('deck-progress')).toHaveText('2 of 2 slides done')
-  await expect(page.getByText('4 to review · 0 accepted')).toBeVisible()
+  await expect(page.getByText('4 to check · 0 accepted')).toBeVisible()
   expect(calls.questions).toHaveLength(1)
   const sent = textOf(calls.questions[0] as Body)
   expect(sent).toContain('Title: Osmosis')
@@ -174,13 +174,13 @@ test('slides: preview, questions for a range of slides, review by slide, saved c
 
   // One by one: edit, reject (undoable), accept; then all of a slide at once.
   await page.getByLabel('Question 1, Slide 2', { exact: true }).fill('What is osmosis, exactly?')
-  await page.getByRole('button', { name: 'Reject question 2, Slide 2' }).click()
+  await page.getByRole('button', { name: 'Reject card 2, Slide 2' }).click()
   await expect(page.getByText('Rejected:', { exact: false })).toBeVisible()
-  await page.getByRole('button', { name: 'Undo rejecting question 2, Slide 2' }).click()
-  await page.getByRole('button', { name: 'Reject question 2, Slide 2' }).click()
-  await page.getByRole('button', { name: 'Accept question 1, Slide 2' }).click()
+  await page.getByRole('button', { name: 'Undo rejecting card 2, Slide 2' }).click()
+  await page.getByRole('button', { name: 'Reject card 2, Slide 2' }).click()
+  await page.getByRole('button', { name: 'Accept card 1, Slide 2' }).click()
   await page.getByRole('button', { name: 'Accept all for Slide 3' }).click()
-  await expect(page.getByText('0 to review · 3 accepted')).toBeVisible()
+  await expect(page.getByText('0 to check · 3 accepted')).toBeVisible()
 
   // The citation opens the slide in the source; the drafts wait on this device meanwhile.
   await page.getByRole('link', { name: 'Slide 2', exact: true }).click()
@@ -188,7 +188,7 @@ test('slides: preview, questions for a range of slides, review by slide, saved c
   await expect(page.getByText('Cited: Slide 2')).toBeVisible()
   await expect(page.locator('li[aria-current="location"]')).toContainText('Osmosis')
   await page.goBack()
-  await expect(page.getByText('0 to review · 3 accepted')).toBeVisible()
+  await expect(page.getByText('0 to check · 3 accepted')).toBeVisible()
   await expect(page.getByLabel('Question 1, Slide 2', { exact: true })).toHaveValue('What is osmosis, exactly?')
 
   // Nothing is a card before Save.
@@ -261,8 +261,8 @@ test('a document is saved and readable section by section even without a model; 
   await expect(page.getByText('6 sections')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Section 1.1 Osmosis' })).toBeVisible()
 
-  await page.getByRole('link', { name: 'Create questions' }).click()
-  await expect(page.getByText('Questions need an AI model')).toBeVisible()
+  await page.getByRole('link', { name: 'Create cards' }).click()
+  await expect(page.getByText('Creating cards needs an AI model')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Open AI settings' })).toBeVisible()
 
   // The source stayed: one document in the course, read section by section.
@@ -280,7 +280,7 @@ test('a document is saved and readable section by section even without a model; 
     .click()
   await expect(page.getByRole('heading', { level: 2, name: 'Section 1.2 Diffusion' })).toBeVisible()
   await expect(page.getByRole('img', { name: 'Sodium pump' })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Create questions' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Create cards' })).toBeVisible()
 })
 
 test('a PDF of slides with a text-only model: notice, offline state, stop and resume, then save', async ({
@@ -304,18 +304,18 @@ test('a PDF of slides with a text-only model: notice, offline state, stop and re
   await expect(page.getByText('3 slides')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Slide 3 Active transport' })).toBeVisible()
 
-  await page.getByRole('link', { name: 'Create questions' }).click()
-  await expect(page.getByText(/^This model can’t see pictures: the questions come from the text/)).toBeVisible()
+  await page.getByRole('link', { name: 'Create cards' }).click()
+  await expect(page.getByText(/^This model can’t see pictures: the cards come from the text/)).toBeVisible()
   await page.getByRole('radio', { name: '1', exact: true }).check({ force: true })
 
   // Offline: the document is there, creating questions waits for a connection.
   await context.setOffline(true)
   await expect(page.getByText(/^You’re offline\. Your document is saved/)).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Create questions' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: 'Create cards' })).toBeDisabled()
   await context.setOffline(false)
-  await expect(page.getByRole('button', { name: 'Create questions' })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Create cards' })).toBeEnabled()
 
-  await page.getByRole('button', { name: 'Create questions' }).click()
+  await page.getByRole('button', { name: 'Create cards' }).click()
   await expect(page.getByTestId('deck-progress')).toHaveText('0 of 3 slides done')
   await expect.poll(() => calls.questions.length).toBe(1)
   expect(hasImage(calls.questions[0] as Body)).toBe(false)
@@ -333,9 +333,9 @@ test('a PDF of slides with a text-only model: notice, offline state, stop and re
   await page.getByRole('button', { name: 'Resume' }).click()
   await expect(page.getByTestId('deck-progress')).toHaveText('3 of 3 slides done')
   await expect(
-    page.getByText('The model couldn’t see the pictures: these questions come from the text and speaker notes only.'),
+    page.getByText('The model couldn’t see the pictures: these cards come from the text and speaker notes only.'),
   ).toBeVisible()
-  await expect(page.getByText('3 to review · 0 accepted')).toBeVisible()
+  await expect(page.getByText('3 to check · 0 accepted')).toBeVisible()
   await page.getByRole('button', { name: 'Accept all', exact: true }).click()
   await page.getByRole('button', { name: 'Save 3 cards' }).click()
   await expect(page.getByText('3 cards saved.')).toBeVisible()

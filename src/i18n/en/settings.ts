@@ -29,7 +29,7 @@ export const settings = {
   saved: 'Saved. It applies on all your devices after the next sync.',
   storageTitle: 'Storage on this device',
   persistOn: 'Protected storage is on: the browser won’t clear Cursus to free space.',
-  persistOff: 'Storage is not protected: the browser may clear it when space runs low. Keep a destination.',
+  persistOff: 'Storage is not protected: the browser may clear it when space runs low. Keep a backup.',
   persistAsk: 'Protect storage',
   persistGranted: 'Storage is now protected.',
   persistRefused: 'The browser declined. Installing Cursus to the home screen usually allows it.',
@@ -58,7 +58,7 @@ export const settings = {
   courseImported: 'Course imported.',
   recRestoreTitle: 'Restore on this device',
   recRestoreBody:
-    'Add the same destination here and Cursus downloads your library from it. You can also import a backup file.',
+    'Add the same backup here and Cursus downloads your library from it. You can also import a backup file.',
   recDatabases: 'Local databases',
   recDatabasesFooter:
     'A database that fails to open is kept aside, never deleted. Export a raw copy for support; keys and tokens are left out.',
@@ -72,7 +72,7 @@ export const settings = {
   recPrinted: 'Printed',
   recWorkspace: 'Library',
   recDevice: 'Device',
-  recNoDest: 'No destination yet: this library exists only on this device.',
+  recNoDest: 'No backup yet: this library exists only on this device.',
   recSheetNote: 'Write the passphrase by hand only if this sheet stays somewhere private.',
   recPrint: 'Print recovery sheet',
   diagNoSecrets: 'The report contains no content, keys or tokens. Send it only if you choose to.',

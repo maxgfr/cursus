@@ -142,4 +142,5 @@ export const course = {
   trashedSections: 'Im Papierkorb',
   dueInScope: { one: 'Heute {count} fällig', other: 'Heute {count} fällig' },
   nothingDue: 'Hier ist heute nichts fällig.',
+  emptySheet: 'Dieser Spickzettel ist leer.',
 } as const satisfies Shape<typeof en>

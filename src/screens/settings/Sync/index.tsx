@@ -79,8 +79,18 @@ export default function SyncSettings() {
       subtitle: t(device.folders ? 'sync.icloudSub' : 'sync.icloudSubOff'),
       icon: <Cloud size={ICON} />,
     },
-    { kind: 'gdrive', title: t('sync.googleDrive'), subtitle: t('sync.gdriveSub'), icon: <Triangle size={ICON} /> },
-    { kind: 'dropbox', title: t('sync.dropbox'), subtitle: t('sync.dropboxSub'), icon: <Box size={ICON} /> },
+    {
+      kind: 'gdrive',
+      title: t('sync.googleDrive'),
+      subtitle: `${t('sync.gdriveSub')} ${t('sync.ownAppKey')}`,
+      icon: <Triangle size={ICON} />,
+    },
+    {
+      kind: 'dropbox',
+      title: t('sync.dropbox'),
+      subtitle: `${t('sync.dropboxSub')} ${t('sync.ownAppKey')}`,
+      icon: <Box size={ICON} />,
+    },
   ]
   const advanced: Kind[] = [
     { kind: 's3', title: t('sync.s3'), subtitle: t('sync.s3Sub'), icon: <Server size={ICON} /> },
@@ -187,17 +197,19 @@ export default function SyncSettings() {
 
         <ListGroup title={t('sync.addDestination')} footer={t('sync.addFooter')}>
           {everyday.map(row)}
+          {/* Works everywhere, with nothing to set up: first choice where iCloud Drive can't be kept in sync. */}
+          <ListRow
+            leading={<FileArchive size={ICON} />}
+            title={t('sync.file')}
+            subtitle={t('sync.fileSub')}
+            href={paths.settingsData}
+            trailing={best === 'file' ? <span className={styles.recommended}>{t('sync.recommended')}</span> : undefined}
+          />
         </ListGroup>
         <details className={styles.advanced}>
           <summary>{t('sync.advanced')}</summary>
           <ListGroup title={t('sync.advanced')} hideTitle>
             {advanced.map(row)}
-            <ListRow
-              leading={<FileArchive size={ICON} />}
-              title={t('sync.file')}
-              subtitle={t('sync.fileSub')}
-              href={paths.settingsData}
-            />
             <ListRow
               leading={<Smartphone size={ICON} />}
               title={t('sync.nearby')}

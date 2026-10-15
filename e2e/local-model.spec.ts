@@ -15,7 +15,7 @@ import {
   type WorkerEvent,
 } from '../src/core/ai/local.ts'
 import { createLocalModels } from '../src/core/ai/localModels.ts'
-import { providerGroup, providerPicker } from './support/ai.ts'
+import { openModels, providerGroup, providerPicker } from './support/ai.ts'
 import { createHarness } from './support/harness.ts'
 import { seriousViolations, watchErrors } from './support/page.ts'
 
@@ -546,22 +546,22 @@ test.describe('on-device model, engine injected', () => {
     {
       name: 'no WebGPU',
       setup: { ...ROOMY, gpu: 'none' },
-      text: /^This browser can’t run a model: it doesn’t offer WebGPU\./,
+      text: /^This browser can’t run a model on this device\./,
     },
     {
       name: 'no adapter',
       setup: { ...ROOMY, gpu: 'no-adapter' },
-      text: /^This browser offers WebGPU, but no graphics processor is available to it/,
+      text: /^This browser can’t reach the device’s graphics chip/,
     },
     {
       name: 'limits below the engine’s floor',
       setup: { ...ROOMY, gpu: 'tiny' },
-      text: /^This device’s graphics processor is too limited for any model Cursus can run here\.$/,
+      text: /^This device is too limited for any model Cursus can run here\.$/,
     },
     {
       name: 'no model fits the memory',
       setup: { ...ROOMY, deviceMemory: 0.25 },
-      text: /^No model Cursus can run fits in the 128 MB of graphics memory it can use on this device\.$/,
+      text: /^No model Cursus can run fits in the 128 MB of memory it can use on this device\.$/,
     },
   ]
   for (const c of unsupported) {
@@ -591,6 +591,7 @@ test.describe('on-device model, engine injected', () => {
     // No key, no base URL, no connection form: the card takes its place.
     await expect(page.getByLabel('API key')).toHaveCount(0)
     await expect(page.getByRole('heading', { name: /^Connection to/ })).toHaveCount(0)
+    await openModels(page)
     const list = providerGroup(page, 'On this device')
     await expect(
       list.getByRole('button', { name: new RegExp(`^${escapeRe(nameOf(pick))} ${escapeRe(pick.id)}`) }),

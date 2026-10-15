@@ -131,39 +131,39 @@ test('adding a PDF proposes questions; they are reviewed by slide and the accept
   const calls = await mockProvider(page)
   await setUpAi(page)
   // The one visible setting, proposing by default; the rest is folded.
-  await expect(page.getByRole('radio', { name: 'Propose questions' })).toBeChecked()
+  await expect(page.getByRole('radio', { name: 'Suggest cards' })).toBeChecked()
   await expect(page.getByLabel('Limit per document (USD)')).toBeHidden()
 
   await newCourse(page, 'Physiology')
   await importPdf(page, join(DECKS, 'slides.pdf'), 'slides')
-  await expect(page.getByText('6 questions to review')).toBeVisible()
+  await expect(page.getByText('6 suggested cards')).toBeVisible()
   expect(calls).toHaveLength(1)
 
   // Today: one calm line, and the way to the review.
   await go(page, '#/', 'Today')
-  await expect(page.getByTestId('drafts-line')).toHaveText('6 questions proposed from Physiology · Review')
-  await page.getByTestId('drafts-line').getByRole('link', { name: 'Review' }).click()
-  await expect(page.getByRole('heading', { level: 1, name: 'To review' })).toBeVisible()
+  await expect(page.getByTestId('drafts-line')).toHaveText('6 cards suggested from Physiology · Accept or edit')
+  await page.getByTestId('drafts-line').getByRole('link', { name: 'Accept or edit' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Suggested cards' })).toBeVisible()
 
   // Grouped by document, then by slide; edit, reject (undoable until saved), accept one, then all of a slide.
   const slides = doc(page, 'slides')
   await expect(slides.getByText('In Physiology')).toBeVisible()
-  await expect(slides.getByText('6 to review · 0 accepted')).toBeVisible()
+  await expect(slides.getByText('6 to check · 0 accepted')).toBeVisible()
   await expect(slides.getByRole('heading', { name: /^Slide 3 Active transport$/ })).toBeVisible()
   await slides.getByLabel('Question 1, Slide 1', { exact: true }).fill('What does the first slide cover?')
-  await slides.getByRole('button', { name: 'Reject question 2, Slide 1' }).click()
-  await slides.getByRole('button', { name: 'Undo rejecting question 2, Slide 1' }).click()
-  await slides.getByRole('button', { name: 'Reject question 2, Slide 1' }).click()
-  await slides.getByRole('button', { name: 'Accept question 1, Slide 1' }).click()
+  await slides.getByRole('button', { name: 'Reject card 2, Slide 1' }).click()
+  await slides.getByRole('button', { name: 'Undo rejecting card 2, Slide 1' }).click()
+  await slides.getByRole('button', { name: 'Reject card 2, Slide 1' }).click()
+  await slides.getByRole('button', { name: 'Accept card 1, Slide 1' }).click()
   await slides.getByRole('button', { name: 'Accept all for Slide 2' }).click()
-  await expect(slides.getByText('2 to review · 3 accepted')).toBeVisible()
-  await expect(page.getByText('Rejected questions won’t be proposed again.')).toBeVisible()
+  await expect(slides.getByText('2 to check · 3 accepted')).toBeVisible()
+  await expect(page.getByText('Rejected cards won’t be suggested again.')).toBeVisible()
   await page.getByRole('button', { name: 'Save 3 cards' }).click()
   await expect(page.getByText('3 cards saved.')).toBeVisible()
-  await expect(slides.getByText('2 to review · 0 accepted')).toBeVisible()
+  await expect(slides.getByText('2 to check · 0 accepted')).toBeVisible()
 
   await go(page, '#/', 'Today')
-  await expect(page.getByTestId('drafts-line')).toHaveText('2 questions proposed from Physiology · Review')
+  await expect(page.getByTestId('drafts-line')).toHaveText('2 cards suggested from Physiology · Accept or edit')
 
   // The cards are in the course; asked again, the document brings back neither a rejected nor a known question.
   await page
@@ -173,16 +173,16 @@ test('adding a PDF proposes questions; they are reviewed by slide and the accept
     .click()
   await expect(page.getByRole('heading', { level: 1, name: 'Physiology' })).toBeVisible()
   await expect(page.getByText('What does the first slide cover?')).toBeVisible()
-  await expect(page.getByTestId('course-drafts')).toHaveText('2 questions to review · Review')
+  await expect(page.getByTestId('course-drafts')).toHaveText('2 suggested cards · Accept or edit')
   await page.getByRole('radio', { name: 'Sources' }).check({ force: true })
   await page
     .getByRole('main')
     .getByRole('link', { name: /^slides/ })
     .click()
-  await page.getByRole('button', { name: 'Propose questions' }).click()
+  await page.getByRole('button', { name: 'Suggest cards' }).click()
   await expect.poll(() => calls.length).toBe(2)
-  await expect(page.getByRole('button', { name: 'Propose questions' })).toBeEnabled()
-  await expect(page.getByText('2 questions to review')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Suggest cards' })).toBeEnabled()
+  await expect(page.getByText('2 suggested cards')).toBeVisible()
 })
 
 test('« Do nothing » proposes nothing; « Add them directly » puts the questions straight into the course', async ({
@@ -195,10 +195,10 @@ test('« Do nothing » proposes nothing; « Add them directly » puts the questi
 
   await newCourse(page, 'Botany')
   await importPdf(page, join(DECKS, 'slides.pdf'), 'slides')
-  await expect(page.getByRole('button', { name: 'Propose questions' })).toBeEnabled()
-  await go(page, '#/inbox', 'To review')
-  await expect(page.getByRole('heading', { name: 'Nothing to review' })).toBeVisible()
-  await expect(page.getByText('Questions aren’t proposed when you add a document', { exact: false })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Suggest cards' })).toBeEnabled()
+  await go(page, '#/inbox', 'Suggested cards')
+  await expect(page.getByRole('heading', { name: 'No suggested cards' })).toBeVisible()
+  await expect(page.getByText('Cards aren’t suggested when you add a document', { exact: false })).toBeVisible()
   expect(calls).toHaveLength(0)
 
   // Added directly: a note written in the course becomes cards as soon as it is left.
@@ -229,7 +229,7 @@ test('over the cost cap a document waits for approval with its estimate; offline
 }) => {
   const calls = await mockProvider(page)
   await setUpAi(page)
-  await page.locator('summary', { hasText: 'Advanced' }).click()
+  await page.locator('summary', { hasText: /^Advanced$/ }).click()
   await expect(
     page.getByText(/^Above a limit, a document waits for your approval.* Spent this month: \$/),
   ).toBeVisible()
@@ -240,14 +240,14 @@ test('over the cost cap a document waits for approval with its estimate; offline
 
   await newCourse(page, 'Cells')
   await importPdf(page, join(DECKS, 'slides.pdf'), 'slides')
-  await go(page, '#/inbox', 'To review')
+  await go(page, '#/inbox', 'Suggested cards')
   const slides = doc(page, 'slides')
   await expect(
     slides.getByText(/^About \$0\.\d+ for this document, above your limit of \$0\.00 per document\.$/),
   ).toBeVisible()
   expect(calls).toHaveLength(0)
   await slides.getByRole('button', { name: /^Allow \$0\.\d+$/ }).click()
-  await expect(slides.getByText('6 to review · 0 accepted')).toBeVisible()
+  await expect(slides.getByText('6 to check · 0 accepted')).toBeVisible()
   expect(calls).toHaveLength(1)
 
   // Offline: the document is saved and waits, saying why; back online, it goes on (still within its cap).
@@ -257,13 +257,13 @@ test('over the cost cap a document waits for approval with its estimate; offline
   await context.setOffline(true)
   await expect.poll(() => page.evaluate(() => navigator.onLine)).toBe(false)
   await importPdf(page, join(FIXTURES, 'sample.pdf'), 'sample')
-  await go(page, '#/inbox', 'To review')
+  await go(page, '#/inbox', 'Suggested cards')
   const sample = doc(page, 'sample')
-  await expect(sample.getByText('Waiting for a connection: the questions come once you’re back online.')).toBeVisible()
+  await expect(sample.getByText('Waiting for a connection: the cards come once you’re back online.')).toBeVisible()
   await context.setOffline(false)
   await expect(sample.getByText(/^About \$0\.\d+ for this document, above your limit/)).toBeVisible()
   await sample.getByRole('button', { name: /^Allow \$0\.\d+$/ }).click()
-  await expect(sample.getByText(/^\d+ to review · 0 accepted$/)).toBeVisible()
+  await expect(sample.getByText(/^\d+ to check · 0 accepted$/)).toBeVisible()
   expect(calls).toHaveLength(2)
 })
 
@@ -290,19 +290,19 @@ test('without a model the documents wait with a discreet invitation; slides and 
   await expect(page.getByRole('main').getByRole('link', { name: /Physiology notes/ })).toContainText('Document')
   await expect(page.getByRole('main').getByRole('link', { name: /Cell Biology 101/ })).toContainText('Slides')
 
-  await go(page, '#/inbox', 'To review')
+  await go(page, '#/inbox', 'Suggested cards')
   await expect(
-    page.getByText('Questions are proposed on the documents you add once an AI model is set up.'),
+    page.getByText('Cards are suggested from the documents you add once an AI model is set up.'),
   ).toBeVisible()
   await expect(doc(page, 'Physiology notes').getByText('Waiting for an AI model.')).toBeVisible()
   expect(calls).toHaveLength(0)
 
   // Once a model is set up, the waiting documents get their questions.
   await setUpAi(page)
-  await go(page, '#/inbox', 'To review')
-  await expect(doc(page, 'Physiology notes').getByText(/^\d+ to review · 0 accepted$/)).toBeVisible()
-  await expect(doc(page, 'Cell Biology 101').getByText(/^\d+ to review · 0 accepted$/)).toBeVisible()
+  await go(page, '#/inbox', 'Suggested cards')
+  await expect(doc(page, 'Physiology notes').getByText(/^\d+ to check · 0 accepted$/)).toBeVisible()
+  await expect(doc(page, 'Cell Biology 101').getByText(/^\d+ to check · 0 accepted$/)).toBeVisible()
   await expect(
-    page.getByText('Questions are proposed on the documents you add once an AI model is set up.'),
+    page.getByText('Cards are suggested from the documents you add once an AI model is set up.'),
   ).toHaveCount(0)
 })

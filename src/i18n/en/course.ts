@@ -27,7 +27,7 @@ export const course = {
   untitledPdf: 'PDF',
   settings: 'Course settings',
   emptyCard: 'Empty card',
-  kindCloze: 'Cloze',
+  kindCloze: 'Fill in the blank',
   kindBasic: 'Question and answer',
   kindPdf: 'PDF',
   kindPhoto: 'Photo',
@@ -45,7 +45,7 @@ export const course = {
   cardKind: 'Card type',
   clozeText: 'Text',
   extra: 'Extra (shown with the answer)',
-  clozeTitle: 'Cloze assistant',
+  clozeTitle: 'Fill-in-the-blank assistant',
   clozeHelp: 'Type a word or phrase from the text to hide it. Each hidden part becomes its own card.',
   clozePhrase: 'Word or phrase to hide',
   clozeNotFound: 'This phrase isn’t in the text.',
@@ -66,7 +66,7 @@ export const course = {
     other: '{count} items will disappear from the trash on all your devices.',
   },
   purgeHistory:
-    'Cursus never rewrites your sync history, so the destinations you sync to still hold earlier versions. That is what lets History bring things back.',
+    'Cursus never rewrites your sync history, so the backups you sync to still hold earlier versions. That is what lets History bring things back.',
   purgeConfirm: 'Delete forever',
   historyField: 'Side',
   historyFailed:
@@ -83,7 +83,7 @@ export const course = {
   isCurrent: 'This is the current text',
   restoreVersion: 'Restore this version',
   noCardsTitle: 'No cards yet',
-  noCardsBody: 'A card asks one thing you want to remember. Write one, or let the AI draft some from your sources.',
+  noCardsBody: 'A card asks one thing you want to remember. Write one, or let AI suggest some from your sources.',
   noSourcesTitle: 'No sources yet',
   noSourcesBody: 'Sources are your course material: notes, PDFs and photos. Cards and study sheets are made from them.',
   noSheetsTitle: 'No study sheets yet',
@@ -135,4 +135,5 @@ export const course = {
   trashedSections: 'In the trash',
   dueInScope: { one: '{count} due today', other: '{count} due today' },
   nothingDue: 'Nothing due here today.',
+  emptySheet: 'This study sheet is empty.',
 } as const

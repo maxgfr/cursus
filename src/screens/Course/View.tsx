@@ -1,12 +1,15 @@
 import {
   Camera,
+  Download,
   FileText,
+  FileUp,
   Folder,
   FolderInput,
   FolderPlus,
   Image,
   Images,
   Layers,
+  Lightbulb,
   NotebookText,
   PenLine,
   Play,
@@ -15,12 +18,14 @@ import {
   Settings2,
   Sparkles,
 } from 'lucide-react'
-import { type ChangeEvent, useMemo, useRef, useState } from 'react'
+import { type ChangeEvent, Suspense, useMemo, useRef, useState } from 'react'
 import { Link, useLocation } from 'wouter'
+import { lazyChunk } from '../../app/lazyChunk.tsx'
 import { type Captured, usePasteCapture } from '../../app/paste.ts'
 import { paths, to, withScope } from '../../app/routes.ts'
 import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { Id, StudyScope } from '../../core/contracts/workspace'
+import { importCards } from '../../core/export/csvImport'
 import type { SourceRecord } from '../../core/model/schema'
 import { useT } from '../../i18n/react.tsx'
 import { Breadcrumb } from '../../ui/Breadcrumb.tsx'
@@ -46,6 +51,12 @@ import { backTarget, earlierPaths } from './backTarget.ts'
 import styles from './Course.module.css'
 import { CourseSettings } from './CourseSettings.tsx'
 import { DraftsLine } from './DraftsLine.tsx'
+
+// A study sheet opens read only; its renderer loads with it.
+const LazyFicheSheet = lazyChunk<import('../../ui/FicheSheet.tsx').FicheSheetProps>(
+  'course.ficheSheet',
+  () => import('../../ui/FicheSheet.tsx'),
+)
 
 type Tab = 'cards' | 'sources' | 'fiches'
 
@@ -98,6 +109,9 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   const back = useMemo(() => backTarget(earlierPaths()), [])
   const pdfInput = useRef<HTMLInputElement>(null)
   const photoInput = useRef<HTMLInputElement>(null)
+  const csvInput = useRef<HTMLInputElement>(null)
+  const [reading, setReading] = useState<Id | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const here = sectionId ?? null
   useChatContext(sectionId === undefined ? { courseId } : { courseId, sectionId })
   const data = useWorkspaceData(
@@ -141,9 +155,10 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
       }
     },
   )
-  // A section's own Start: today's queue limited to it and its descendants.
-  const due = useWorkspaceData(['cards', 'sections', 'reviews', 'prefs', { id: sectionId ?? courseId }], (ws) =>
-    sectionId === undefined ? 0 : startQueue(ws, Date.now(), { courseId, sectionId }).queue.length,
+  // Start: today's queue limited to this course, or to this section and its descendants.
+  const due = useWorkspaceData(
+    ['cards', 'sections', 'reviews', 'prefs', { id: sectionId ?? courseId }],
+    (ws) => startQueue(ws, Date.now(), sectionId === undefined ? { courseId } : { courseId, sectionId }).queue.length,
   )
   const where = sectionId === undefined ? { courseId } : { courseId, sectionId }
 
@@ -210,6 +225,23 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
     const file = e.currentTarget.files?.[0]
     e.currentTarget.value = ''
     if (file) void run(() => addImage(rt, where, file, file.name, t('course.untitledPhoto')))
+  }
+  const onCsv = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.currentTarget.files?.[0]
+    e.currentTarget.value = ''
+    if (!file) return
+    file.text().then(
+      (text) => {
+        const { created, skipped } = importCards(rt.ws, courseId, text)
+        const parts = [t('common.importCsvDone', { count: created })]
+        if (skipped > 0) parts.push(t('common.importCsvSkipped', { count: skipped }))
+        setNotice(parts.join(' · '))
+      },
+      (err: unknown) => {
+        noteError('course.csv', err)
+        setError(t('errors.unsupportedFile'))
+      },
+    )
   }
   const trashSection = () => {
     if (section === null) return
@@ -319,20 +351,22 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
           style={{ background: `var(--course-${courseHue(course.color, course.id)})` }}
         />
         <span>{t('course.cardCount', { count: data.total })}</span>
-        {section !== null && <span>{due > 0 ? t('course.dueInScope', { count: due }) : t('course.nothingDue')}</span>}
+        {(section !== null || data.total > 0) && (
+          <span>{due > 0 ? t('course.dueInScope', { count: due }) : t('course.nothingDue')}</span>
+        )}
         <ExamCountdown examDate={examDate} />
       </p>
       {section === null && <DraftsLine courseId={courseId} />}
       {(section !== null || data.total > 0) && (
         <div className={styles.study}>
-          {section !== null && due > 0 && (
+          {due > 0 && (
             <Button variant="primary" onClick={() => navigate(withScope(paths.review, scope))}>
               {t('common.start')}
             </Button>
           )}
           {section !== null && (
             <Link href={withScope(paths.understand, scope)} className={buttonClass({ variant: 'secondary' })}>
-              <Sparkles size={18} aria-hidden="true" />
+              <Lightbulb size={18} aria-hidden="true" />
               {t('course.understand')}
             </Link>
           )}
@@ -397,6 +431,10 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
               <Button variant="primary" icon={<Plus size={18} aria-hidden="true" />} onClick={newCard}>
                 {t('course.addCard')}
               </Button>
+              <Link href={withScope(paths.generate, scope)} className={buttonClass({ variant: 'secondary' })}>
+                <Sparkles size={18} aria-hidden="true" />
+                {t('ai.generate')}
+              </Link>
             </div>
           )}
           {cards.length === 0 ? (
@@ -405,9 +443,41 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
               title={t('course.noCardsTitle')}
               body={t('course.noCardsBody')}
               action={
-                <Button variant="primary" icon={<Plus size={18} aria-hidden="true" />} onClick={newCard}>
-                  {t('course.addCard')}
-                </Button>
+                <div className={styles.actions}>
+                  <Button variant="primary" icon={<Plus size={18} aria-hidden="true" />} onClick={newCard}>
+                    {t('course.addCard')}
+                  </Button>
+                  {sources.length === 0 ? (
+                    <Button icon={<FileText size={18} aria-hidden="true" />} onClick={() => setTab('sources')}>
+                      {t('course.addSource')}
+                    </Button>
+                  ) : (
+                    <Link href={withScope(paths.generate, scope)} className={buttonClass({ variant: 'secondary' })}>
+                      <Sparkles size={18} aria-hidden="true" />
+                      {t('ai.generate')}
+                    </Link>
+                  )}
+                  <Button
+                    variant="plain"
+                    icon={<FileUp size={18} aria-hidden="true" />}
+                    onClick={() => csvInput.current?.click()}
+                  >
+                    {t('common.importCsv')}
+                  </Button>
+                  <Link href={paths.settingsData} className={buttonClass({ variant: 'plain' })}>
+                    <Download size={18} aria-hidden="true" />
+                    {t('anki.importTitle')}
+                  </Link>
+                  <input
+                    ref={csvInput}
+                    className="sr-only"
+                    type="file"
+                    accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain"
+                    aria-label={t('common.importCsv')}
+                    tabIndex={-1}
+                    onChange={onCsv}
+                  />
+                </div>
               }
             />
           ) : (
@@ -473,6 +543,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
                 key={f.id}
                 leading={<NotebookText size={20} />}
                 title={f.title}
+                onClick={() => setReading(f.id)}
                 trailing={
                   <IconButton
                     icon={FolderInput}
@@ -484,6 +555,14 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
             ))}
           </ListGroup>
         ))}
+      {reading !== null && (
+        <Suspense fallback={null}>
+          <LazyFicheSheet ficheId={reading} onClose={() => setReading(null)} />
+        </Suspense>
+      )}
+      {notice !== null && error === null && (
+        <Toast message={notice} actions={[{ label: t('common.dismiss'), onClick: () => setNotice(null) }]} />
+      )}
       <NewSectionSheet
         courseId={courseId}
         parentId={here}

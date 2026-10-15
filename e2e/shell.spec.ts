@@ -119,9 +119,9 @@ test('hash navigation between routes', async ({ page }) => {
   await expect(page).toHaveURL(/#\/courses$/)
   await expect(page.getByRole('heading', { level: 1, name: 'Courses' })).toBeVisible()
 
-  await nav.getByRole('link', { name: 'Understand' }).click()
+  await nav.getByRole('link', { name: 'Study tools' }).click()
   await expect(page).toHaveURL(/#\/understand$/)
-  await expect(page.getByRole('heading', { level: 1, name: 'Understand' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Study tools' })).toBeVisible()
   await page.getByRole('link', { name: 'Generate cards' }).click()
   await expect(page).toHaveURL(/#\/generate$/)
 
@@ -144,7 +144,7 @@ test('hash navigation between routes', async ({ page }) => {
     ['#/settings/pair', 'Pair a device'],
     ['#/settings/data', 'Data'],
     ['#/settings/recovery', 'Recovery'],
-    ['#/settings/review', 'Review'],
+    ['#/settings/review', 'Schedule'],
     ['#/settings/diagnostic', 'Diagnostics'],
     ['#/onboarding', 'Welcome to Cursus'],
     ['#/course/nope', 'This page doesn’t exist'],
@@ -171,7 +171,7 @@ test('a created course appears on Today and in the course list', async ({ page }
   await createCourse(page, 'Makroökonomie II')
   await page.getByRole('link', { name: 'Back' }).click()
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Today' }).click()
-  await expect(page.getByRole('heading', { name: 'All caught up' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Add your first card' })).toBeVisible()
   await expect(page.getByRole('main').getByRole('link', { name: /Makroökonomie II/ })).toBeVisible()
   if (!isPhone(info.project.name)) {
     const nav = page.getByRole('navigation', { name: 'Main' })
@@ -332,7 +332,7 @@ test('Today passes axe with no serious or critical violations', async ({ page })
   expect(empty.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => v.id)).toEqual([])
   await createCourse(page, 'Droit des contrats')
   await page.goto('./#/')
-  await expect(page.getByRole('heading', { name: 'All caught up' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Add your first card' })).toBeVisible()
   const filled = await new AxeBuilder({ page }).analyze()
   expect(filled.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical').map((v) => v.id)).toEqual(
     [],

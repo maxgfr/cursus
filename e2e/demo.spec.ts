@@ -44,10 +44,10 @@ test('Demo: Today comes alive (due cards, exam, next session, proposed questions
   // The course root: its two subsets, the questions waiting, an exam three weeks away.
   const main = page.getByRole('main')
   await expect(page.getByTestId('place-meta')).toContainText('16 cards')
-  await expect(page.getByTestId('place-meta')).toContainText('D-21')
+  await expect(page.getByTestId('place-meta')).toContainText('21 days left')
   await expect(main.getByRole('link', { name: /^Membranes/ })).toContainText('8 cards')
   await expect(main.getByRole('link', { name: /^Organelles/ })).toContainText('6 cards')
-  await expect(page.getByTestId('course-drafts')).toContainText('5 questions to review')
+  await expect(page.getByTestId('course-drafts')).toContainText('5 suggested cards')
   expect(await seriousViolations(page)).toEqual([])
 
   // A subset, then one of its own.
@@ -62,15 +62,15 @@ test('Demo: Today comes alive (due cards, exam, next session, proposed questions
   // Today: three cards due (one being relearned, one overdue, the new illustrated one), led by the exam.
   await go(page, '#/', 'Today')
   await expect(page.getByRole('heading', { level: 2, name: '3 cards due today' })).toBeVisible()
-  await expect(page.getByTestId('exam-lead')).toHaveText(`incl. 3 in ${COURSE} · D-21`)
+  await expect(page.getByTestId('exam-lead')).toHaveText(`incl. 3 in ${COURSE} · 21 days left`)
   await expect(page.getByTestId('session-line')).toHaveText(/^Next session: Weekly review, .+ · Sessions$/)
-  await expect(page.getByTestId('drafts-line')).toContainText(`5 questions proposed from ${COURSE}`)
+  await expect(page.getByTestId('drafts-line')).toContainText(`5 cards suggested from ${COURSE}`)
   await expect(main.getByRole('link', { name: new RegExp(COURSE) })).toContainText('3 due')
   expect(await seriousViolations(page)).toEqual([])
 
   // « To review »: the proposed questions, grouped by slide; a slide's citation opens it in the deck.
   await page.getByTestId('drafts-line').getByRole('link').click()
-  await expect(page.getByRole('heading', { level: 1, name: 'To review' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Suggested cards' })).toBeVisible()
   for (const slide of ['Slide 2', 'Slide 3', 'Slide 4'])
     await expect(main.getByRole('link', { name: slide, exact: true })).toBeVisible()
   await expect(main.getByText('How thick is the plasma membrane?')).toBeVisible()
@@ -138,7 +138,7 @@ test('Demo: a note with maths, a slide deck read slide by slide, photos in the g
   await expect(slides.nth(2)).toContainText('Facilitated diffusion')
   expect(await seriousViolations(page)).toEqual([])
   // Making questions from it needs an AI model: the way to set one up is offered, nothing is called.
-  await main.getByRole('link', { name: 'Create questions' }).first().click()
+  await main.getByRole('link', { name: 'Create cards' }).first().click()
   await expect(page.getByRole('link', { name: 'Open AI settings' })).toBeVisible()
 
   // The gallery: both photos, captioned; the viewer shows one full size.
@@ -186,14 +186,14 @@ test('Demo: a review with an illustrated card, the sessions history relaunched, 
   await go(page, '#/sessions', 'Sessions')
   const past = page.getByRole('region', { name: 'Past sessions' })
   await expect(past.getByTestId('cramming')).toHaveCount(1)
-  await expect(past.getByRole('button', { name: /^Relaunch the missed ones/ })).toHaveCount(2)
+  await expect(past.getByRole('button', { name: /^Go over the forgotten ones/ })).toHaveCount(2)
   await expect(page.getByRole('region', { name: 'Planned sessions' }).getByRole('link')).toContainText('Weekly review')
   expect(await seriousViolations(page)).toEqual([])
   await past
-    .getByRole('button', { name: /^Relaunch the missed ones/ })
+    .getByRole('button', { name: /^Go over the forgotten ones/ })
     .last()
     .click()
-  await expect(page.getByRole('heading', { level: 1, name: 'Missed cards' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Forgotten cards' })).toBeVisible()
   await expect(page.getByTestId('cramming')).toBeVisible()
   await expect(page.getByTestId('remaining')).toHaveText('1 left')
   await expect(page.getByTestId('question')).toContainText('What does Fick’s law say?')
@@ -243,7 +243,7 @@ test('German, dark: the demo course fits every screen and passes axe', async ({ 
   await check('photos')
   for (const [hash, heading] of [
     ['#/', 'Heute'],
-    ['#/inbox', 'Zu prüfen'],
+    ['#/inbox', 'Vorgeschlagene Karten'],
     ['#/sessions', 'Lerneinheiten'],
     ['#/stats', 'Statistik'],
   ] as const) {

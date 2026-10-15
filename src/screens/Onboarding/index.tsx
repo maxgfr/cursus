@@ -1,6 +1,8 @@
-import { CircleCheck, HardDrive, Smartphone, Sparkles, TriangleAlert } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { CircleCheck, HardDrive, Smartphone, Sparkles, TriangleAlert, Wand2 } from 'lucide-react'
+import { Suspense, useCallback, useEffect, useState } from 'react'
 import { Link, useLocation } from 'wouter'
+import { ChunkFailed, lazyChunk } from '../../app/lazyChunk.tsx'
+import { markOnboarded } from '../../app/onboarding.ts'
 import { paths, to } from '../../app/routes.ts'
 import { useRuntime } from '../../app/workspaceContext.tsx'
 import { estimate, persisted, requestPersistence } from '../../core/storage/persist'
@@ -10,6 +12,12 @@ import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 import styles from './Onboarding.module.css'
+
+const NewCourseSheet = lazyChunk<Parameters<typeof import('../Today/NewCourseSheet.tsx').NewCourseSheet>[0]>(
+  'onboarding.newCourse',
+  () => import('../Today/NewCourseSheet.tsx').then((m) => ({ default: m.NewCourseSheet })),
+  ({ open, retry, again }) => (open ? <ChunkFailed retry={retry} again={again} /> : null),
+)
 
 interface InstallState {
   installed: boolean
@@ -46,6 +54,10 @@ function useStorageHealth(): [Health | null, () => Promise<void>] {
   return [health, ask]
 }
 
+/**
+ * The welcome a first launch opens on: how Cursus works (sources, cards, a daily review), keeping the data
+ * safe, AI only if wanted, then a first course or the demo. Seen once, it never opens by itself again.
+ */
 export default function Onboarding() {
   const t = useT()
   const locale = useLocale()
@@ -54,6 +66,9 @@ export default function Onboarding() {
   const [install] = useState(installState)
   const [health, askPersist] = useStorageHealth()
   const [asking, setAsking] = useState(false)
+  const [adding, setAdding] = useState(false)
+
+  useEffect(markOnboarded, [])
 
   const [demoState, setDemoState] = useState<'idle' | 'creating' | 'failed'>('idle')
 
@@ -75,6 +90,26 @@ export default function Onboarding() {
   return (
     <Screen title={t('common.welcomeTitle')}>
       <p className={styles.lead}>{t('common.welcomeBody')}</p>
+
+      <section className={styles.loop} aria-labelledby="ob-loop">
+        <h2 id="ob-loop" className={styles.loopTitle}>
+          {t('today.obLoopTitle')}
+        </h2>
+        <ol className={styles.loopSteps}>
+          <li>
+            <strong>{t('today.obLoop1Title')}</strong>
+            <span>{t('today.obLoop1Body')}</span>
+          </li>
+          <li>
+            <strong>{t('today.obLoop2Title')}</strong>
+            <span>{t('today.obLoop2Body')}</span>
+          </li>
+          <li>
+            <strong>{t('today.obLoop3Title')}</strong>
+            <span>{t('today.obLoop3Body')}</span>
+          </li>
+        </ol>
+      </section>
 
       <section className={styles.step} aria-labelledby="ob-install">
         <span className={styles.icon} aria-hidden="true">
@@ -111,6 +146,7 @@ export default function Onboarding() {
           <h2 id="ob-storage" className={styles.title}>
             {t('today.storageTitle')}
           </h2>
+          <p className={styles.body}>{t('today.obDataBody')}</p>
           {health === null ? (
             <p className={styles.body}>{t('common.loading')}</p>
           ) : (
@@ -157,6 +193,27 @@ export default function Onboarding() {
         </div>
       </section>
 
+      <section className={styles.step} aria-labelledby="ob-ai">
+        <span className={styles.icon} aria-hidden="true">
+          <Wand2 size={20} strokeWidth={1.75} />
+        </span>
+        <div className={styles.stepBody}>
+          <h2 id="ob-ai" className={styles.title}>
+            {t('today.obAiTitle')}
+          </h2>
+          <p className={styles.body}>{t('today.obAiBody')}</p>
+          <div className={styles.choices}>
+            <Link href={`${paths.settingsAi}?setup=local`} className={buttonClass({ variant: 'secondary' })}>
+              {t('today.obAiLocal')}
+            </Link>
+            <Link href={`${paths.settingsAi}?setup=key`} className={buttonClass({ variant: 'secondary' })}>
+              {t('today.obAiKey')}
+            </Link>
+          </div>
+          <p className={styles.body}>{t('today.obAiLater')}</p>
+        </div>
+      </section>
+
       <section className={styles.step} aria-labelledby="ob-demo">
         <span className={styles.icon} aria-hidden="true">
           <Sparkles size={20} strokeWidth={1.75} />
@@ -180,9 +237,17 @@ export default function Onboarding() {
         </div>
       </section>
 
-      <Link href={paths.today} className={buttonClass({ variant: 'primary', size: 'large', full: true })}>
-        {t('common.start')}
-      </Link>
+      <div className={styles.finish}>
+        <Button variant="primary" size="large" full onClick={() => setAdding(true)}>
+          {t('today.obCreate')}
+        </Button>
+        <Link href={paths.today} className={buttonClass({ variant: 'plain' })}>
+          {t('today.obSkip')}
+        </Link>
+      </div>
+      <Suspense fallback={null}>
+        <NewCourseSheet open={adding} onClose={() => setAdding(false)} />
+      </Suspense>
     </Screen>
   )
 }

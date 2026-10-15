@@ -97,7 +97,7 @@ test('Today: first-launch state, "+" action, due counts and the exam countdown',
   await settings.getByLabel('Exam date').fill(exam)
   expect(await dialogViolations(page)).toEqual([])
   await settings.getByRole('button', { name: 'Save' }).click()
-  await expect(page.getByText('D-12')).toBeVisible()
+  await expect(page.getByText('12 days left')).toBeVisible()
 
   // One card makes one new card due today.
   await page.getByRole('button', { name: 'New card' }).click()
@@ -109,7 +109,7 @@ test('Today: first-launch state, "+" action, due counts and the exam countdown',
   await expect(page.getByRole('heading', { level: 2, name: '1 card due today' })).toBeVisible()
   await expect(page.getByText('Due today', { exact: true })).toHaveCount(0)
   // The nearest exam leads the session and is named under the total.
-  await expect(page.getByTestId('exam-lead')).toHaveText('incl. 1 in Physiology · D-12')
+  await expect(page.getByTestId('exam-lead')).toHaveText('incl. 1 in Physiology · 12 days left')
   // Nothing confirmed a copy yet: one calm line leads to a backup.
   // It adds what the sync chip doesn't say: storage status is stated once.
   await expect(page.getByTestId('backup-line')).toContainText('No backup yet')
@@ -118,7 +118,7 @@ test('Today: first-launch state, "+" action, due counts and the exam countdown',
   await expect(page.getByText(/≈ \d+/)).toBeVisible()
   await expect(page.getByRole('button', { name: 'Start' })).toBeVisible()
   const row = page.getByRole('main').getByRole('link', { name: /Physiology/ })
-  await expect(row).toContainText('D-12')
+  await expect(row).toContainText('12 days left')
   await expect(row).toContainText('Exam in 12 days')
   // The meta keeps the card count alone; the due count trails the row as in the sidebar, spelled out
   // for screen readers.
@@ -225,7 +225,7 @@ test('Card editor: the cloze assistant hides phrases and previews one card each'
   await createCourse(page, 'Cells')
   await page.getByRole('button', { name: 'New card' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Card' })).toBeVisible()
-  await page.getByRole('radio', { name: 'Cloze' }).check()
+  await page.getByRole('radio', { name: 'Fill in the blank' }).check()
   await typeInto(page, 'Text', 'The nucleus holds the DNA.')
   const phrase = page.getByLabel('Word or phrase to hide')
   await phrase.fill('nucleus')
@@ -374,20 +374,64 @@ test('Onboarding: install first, Safari tab warning, storage health and an expli
   expect(await seriousViolations(page)).toEqual([])
   await page.getByRole('button', { name: 'Try a demo course' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Demo: Cell biology' })).toBeVisible()
-  // The demo shows every feature at the course's root: the back link, its two subsets, the proposed questions'
-  // Review line and the two cards that live at the root (the rest sit in the subsets).
+  // The demo shows every feature at the course's root: the back link, its two subsets, the suggested cards'
+  // line, Generate cards and the two cards that live at the root (the rest sit in the subsets).
   const main = page.getByRole('main')
   await expect(main.getByRole('link', { name: 'Back' })).toBeVisible()
   await expect(main.getByRole('link', { name: /^Membranes\b/ })).toBeVisible()
   await expect(main.getByRole('link', { name: /^Organelles\b/ })).toBeVisible()
   const drafts = page.getByTestId('course-drafts')
-  await expect(drafts).toContainText('5 questions to review')
-  await expect(drafts.getByRole('link', { name: 'Review' })).toBeVisible()
+  await expect(drafts).toContainText('5 suggested cards')
+  await expect(drafts.getByRole('link', { name: 'Accept or edit' })).toBeVisible()
   await expect(main.getByRole('link', { name: /What is the smallest unit of life\?/ })).toBeVisible()
   await expect(main.getByRole('link', { name: /Why can’t a spherical cell keep growing\?/ })).toBeVisible()
-  await expect(main.getByRole('link')).toHaveCount(6)
+  await expect(main.getByRole('link')).toHaveCount(7)
   await page.goto('./#/')
   await expect(page.getByRole('heading', { name: /due today$/ })).toBeVisible()
   await expect(page.getByRole('main').getByRole('link', { name: /Demo: Cell biology/ })).toContainText('3 due')
   expect(errors).toEqual([])
+})
+
+test('first launch: an empty library opens the welcome once, which ends on a first course', async ({ browser }) => {
+  // A device that never saw the welcome.
+  const context = await browser.newContext({ serviceWorkers: 'block', storageState: { cookies: [], origins: [] } })
+  const page = await context.newPage()
+  const errors = watchErrors(page)
+  await page.goto('./#/')
+  await expect(page.getByRole('heading', { level: 1, name: 'Welcome to Cursus' })).toBeVisible()
+  // The loop in three steps, keeping data, AI only if wanted, then a course or the demo.
+  await expect(page.getByRole('heading', { name: 'How Cursus works' })).toBeVisible()
+  const steps = page.getByRole('main').getByRole('listitem')
+  await expect(steps.filter({ hasText: 'Add what you study' })).toBeVisible()
+  await expect(steps.filter({ hasText: 'Turn it into cards' })).toBeVisible()
+  await expect(steps.filter({ hasText: 'Review a few minutes a day' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Storage on this device' })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'On this device (free, offline)' })).toHaveAttribute(
+    'href',
+    /#\/settings\/ai\?setup=local$/,
+  )
+  await expect(page.getByRole('link', { name: 'With my own key' })).toHaveAttribute(
+    'href',
+    /#\/settings\/ai\?setup=key$/,
+  )
+  await expect(page.getByRole('button', { name: 'Try a demo course' })).toBeVisible()
+  // The way out is a first course, not a jump to Today.
+  await expect(page.getByRole('link', { name: 'Start' })).toHaveCount(0)
+  expect(await seriousViolations(page)).toEqual([])
+
+  // Seen once: an empty library now stays on Today.
+  await page.getByRole('link', { name: 'Go to Today' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Start with a course' })).toBeVisible()
+
+  await page.goto('./#/onboarding')
+  await page.getByRole('button', { name: 'Create my first course' }).click()
+  const dialog = page.getByRole('dialog', { name: 'New course' })
+  await dialog.getByLabel('Course name').fill('Anatomy')
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Anatomy' })).toBeVisible()
+  expect(errors).toEqual([])
+  await context.close()
 })

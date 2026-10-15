@@ -176,7 +176,7 @@ test('Stats: forecast, exam plan, share a course and calendar export', async ({ 
   })
   expect(barColours.bars.length).toBeGreaterThan(0)
   expect(barColours.bars).not.toContain(barColours.accent)
-  await expect(page.getByText(/^D-1[12]: 1 card\/day$/)).toBeVisible()
+  await expect(page.getByText(/^1[12] days left: 1 card\/day$/)).toBeVisible()
   await expect(page.getByTestId('retention')).toHaveText('—')
   // No streaks anywhere.
   await expect(page.getByText(/streak/i)).toHaveCount(0)

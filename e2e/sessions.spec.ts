@@ -56,7 +56,7 @@ test('Cramming from Today: all cards outside the schedule, a summary, the missed
   await page.getByRole('radio', { name: 'All', exact: true }).check()
   await expect(counts).not.toBeChecked()
   await expect(
-    page.getByText('Cramming: your answers are kept apart and leave review dates as they are.'),
+    page.getByText('Practice only: your answers are kept apart and leave review dates as they are.'),
   ).toBeVisible()
   await expect(page.getByTestId('session-preview')).toHaveText('3 cards in this session')
   await page.getByLabel('Number of cards').fill('0')
@@ -68,22 +68,22 @@ test('Cramming from Today: all cards outside the schedule, a summary, the missed
 
   // The run is named and marked as cramming.
   await expect(page.getByRole('heading', { level: 1, name: 'All cards' })).toBeVisible()
-  await expect(page.getByTestId('cramming')).toHaveText('Cramming')
+  await expect(page.getByTestId('cramming')).toHaveText('Practice only')
   await expect(page.getByTestId('remaining')).toHaveText('2 left')
   await answer(page, 'Again')
   await answer(page, 'Good')
   // A session is its own queue: it ends on its results, nothing waits to come back.
   await expect(page.getByRole('heading', { name: 'Session complete' })).toBeVisible()
   await expect(page.getByText('You reviewed 2 cards.')).toBeVisible()
-  await expect(page.getByText('You missed 1 card.')).toBeVisible()
+  await expect(page.getByText('You forgot 1 card.')).toBeVisible()
 
-  await page.getByRole('button', { name: 'Relaunch the missed ones' }).click()
-  await expect(page.getByRole('heading', { level: 1, name: 'Missed cards' })).toBeVisible()
+  await page.getByRole('button', { name: 'Go over the forgotten ones' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Forgotten cards' })).toBeVisible()
   await expect(page.getByTestId('cramming')).toBeVisible()
   await expect(page.getByTestId('remaining')).toHaveText('1 left')
   await answer(page, 'Good')
-  await expect(page.getByText('Nothing missed.')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Relaunch the missed ones' })).toHaveCount(0)
+  await expect(page.getByText('Nothing forgotten.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Go over the forgotten ones' })).toHaveCount(0)
   await page.getByRole('button', { name: 'Done' }).click()
 
   // Back where it was set up from, and the schedule is untouched: the three new cards are still due.
@@ -95,18 +95,18 @@ test('Cramming from Today: all cards outside the schedule, a summary, the missed
   await expect(page.getByRole('heading', { level: 1, name: 'Sessions' })).toBeVisible()
   const past = page.getByRole('region', { name: 'Past sessions' })
   await expect(past.getByRole('listitem')).toHaveCount(2)
-  await expect(past.getByRole('listitem').nth(0)).toContainText('Missed cards')
+  await expect(past.getByRole('listitem').nth(0)).toContainText('Forgotten cards')
   await expect(past.getByTestId('session-facts').nth(0)).toContainText('1 card')
   await expect(past.getByRole('listitem').nth(1)).toContainText('All cards')
-  await expect(past.getByTestId('session-facts').nth(1)).toContainText('2 cards · 1 missed')
+  await expect(past.getByTestId('session-facts').nth(1)).toContainText('2 cards · 1 forgotten')
   await expect(past.getByTestId('cramming')).toHaveCount(2)
-  await expect(past.getByRole('button', { name: 'Relaunch the missed ones: All cards' })).toBeVisible()
+  await expect(past.getByRole('button', { name: 'Go over the forgotten ones: All cards' })).toBeVisible()
 
   // Stats count the cramming apart from the scheduled reviews.
   await page.goto('./#/stats')
   await expect(page.getByTestId('cramming-tile')).toContainText('3 reviews')
   await expect(page.getByTestId('cramming-tile')).toContainText('66.7% recalled · outside your schedule')
-  await expect(page.getByText('incl. 3 cramming')).toBeVisible()
+  await expect(page.getByText('incl. 3 practice only')).toBeVisible()
   await expect(page.getByTestId('retention')).toHaveText('—')
   expect(errors).toEqual([])
 })
@@ -126,7 +126,7 @@ test('A session from a course counts toward the schedule; keyboard only', async 
   const due = page.getByRole('radio', { name: 'Due', exact: true })
   await due.focus()
   await page.keyboard.press('ArrowRight')
-  await expect(page.getByRole('radio', { name: 'Ahead', exact: true })).toBeChecked()
+  await expect(page.getByRole('radio', { name: 'Coming up', exact: true })).toBeChecked()
   await expect(page.getByRole('switch', { name: 'Count toward the schedule' })).not.toBeChecked()
   await page.keyboard.press('ArrowRight')
   await page.keyboard.press('ArrowRight')
@@ -182,7 +182,7 @@ test('Planned sessions: create, show on Today, edit, add to calendar, delete wit
   for (const day of ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'])
     await page.getByRole('checkbox', { name: day }).check()
   await page.getByLabel('Cards from').selectOption({ label: 'Law' })
-  await page.getByRole('radio', { name: 'Missed', exact: true }).check()
+  await page.getByRole('radio', { name: 'Forgotten', exact: true }).check()
   await page.getByLabel('Time').fill('23:59')
   await page.getByRole('button', { name: 'Save' }).click()
 
@@ -190,7 +190,9 @@ test('Planned sessions: create, show on Today, edit, add to calendar, delete wit
   await expect(page.getByText('Session planned')).toBeVisible()
   const planned = page.getByRole('region', { name: 'Planned sessions' })
   const row = planned.getByRole('link', { name: /Evening law/ })
-  await expect(row).toContainText(/Every day at 11:59\sPM · Missed cards · Law · Next: (today|tomorrow) at 11:59\sPM/)
+  await expect(row).toContainText(
+    /Every day at 11:59\sPM · Forgotten cards · Law · Next: (today|tomorrow) at 11:59\sPM/,
+  )
 
   // The next one shows on Today, as one calm line.
   await openToday(page)
@@ -206,7 +208,7 @@ test('Planned sessions: create, show on Today, edit, add to calendar, delete wit
     .click()
   await expect(page.getByRole('heading', { level: 1, name: 'Planned session' })).toBeVisible()
   await expect(page.getByLabel('Name')).toHaveValue('Evening law')
-  await expect(page.getByRole('radio', { name: 'Missed', exact: true })).toBeChecked()
+  await expect(page.getByRole('radio', { name: 'Forgotten', exact: true })).toBeChecked()
   await page.getByLabel('Name').fill('Night law')
   await page.getByRole('switch', { name: 'Count toward the schedule' }).uncheck()
 
@@ -228,7 +230,7 @@ test('Planned sessions: create, show on Today, edit, add to calendar, delete wit
   expect(ics).toContain('RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA,SU')
   expect(ics).toMatch(/DTSTART:\d{8}T235900/)
   expect(ics).toContain('SUMMARY:Evening law')
-  expect(ics).toContain('DESCRIPTION:Missed cards · Law')
+  expect(ics).toContain('DESCRIPTION:Forgotten cards · Law')
   expect(ics).toContain('BEGIN:VALARM')
   await expect(page.getByText('Calendar file saved. Open it to add the reminder.')).toBeVisible()
 

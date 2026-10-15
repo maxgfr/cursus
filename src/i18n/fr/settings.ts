@@ -33,7 +33,7 @@ export const settings = {
   storageTitle: 'Stockage sur cet appareil',
   persistOn: 'Le stockage protégé est actif : le navigateur ne videra pas Cursus pour libérer de la place.',
   persistOff:
-    'Le stockage n’est pas protégé : le navigateur peut le vider s’il manque de place. Gardez une destination.',
+    'Le stockage n’est pas protégé : le navigateur peut le vider s’il manque de place. Gardez une sauvegarde.',
   persistAsk: 'Protéger le stockage',
   persistGranted: 'Le stockage est maintenant protégé.',
   persistRefused: 'Le navigateur a refusé. Installer Cursus sur l’écran d’accueil le permet en général.',
@@ -62,7 +62,7 @@ export const settings = {
   courseImported: 'Cours importé.',
   recRestoreTitle: 'Restaurer sur cet appareil',
   recRestoreBody:
-    'Ajoutez ici la même destination et Cursus y télécharge votre bibliothèque. Vous pouvez aussi importer un fichier de sauvegarde.',
+    'Ajoutez ici la même sauvegarde et Cursus y télécharge votre bibliothèque. Vous pouvez aussi importer un fichier de sauvegarde.',
   recDatabases: 'Bases locales',
   recDatabasesFooter:
     'Une base qui ne s’ouvre plus est mise de côté, jamais supprimée. Exportez une copie brute pour le support ; clés et jetons sont exclus.',
@@ -76,7 +76,7 @@ export const settings = {
   recPrinted: 'Imprimée le',
   recWorkspace: 'Bibliothèque',
   recDevice: 'Appareil',
-  recNoDest: 'Aucune destination : cette bibliothèque n’existe que sur cet appareil.',
+  recNoDest: 'Aucune sauvegarde : cette bibliothèque n’existe que sur cet appareil.',
   recSheetNote: 'N’écrivez la phrase secrète à la main que si cette fiche reste dans un endroit privé.',
   recPrint: 'Imprimer la fiche de secours',
   diagNoSecrets: 'Le rapport ne contient ni contenu, ni clé, ni jeton. Envoyez-le seulement si vous le souhaitez.',

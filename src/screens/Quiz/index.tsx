@@ -53,7 +53,7 @@ export default function Quiz() {
   if (ai.status === 'missing')
     return (
       <Screen title={t('ai.quiz')} back={paths.understand}>
-        <NoModel />
+        <NoModel reason={ai.reason} />
       </Screen>
     )
 

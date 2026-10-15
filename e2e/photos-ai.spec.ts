@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { expect, type Page, type Route, test } from '@playwright/test'
-import { aiSearch, configureAi, providerGroup, providerPicker } from './support/ai'
+import { aiSearch, configureAi, openModels, providerGroup, providerPicker } from './support/ai'
 import { createCourse } from './support/page'
 
 test.use({ serviceWorkers: 'block' })
@@ -216,7 +216,7 @@ test('a photo is explained from a reduced copy, after its cost is shown, then ci
   // Understand grounds in the photo and cites it: thumbnail and link back to the photo.
   await expect(panel(page).getByText('Kept on this device: Understand can now use and cite this photo.')).toBeVisible()
   await panel(page).getByRole('link', { name: 'Understand' }).click()
-  await expect(page.getByRole('heading', { level: 1, name: 'Understand' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Study tools' })).toBeVisible()
   await expect(page.getByRole('checkbox', { name: title })).toBeChecked()
   await expect(page.getByText('Includes what AI read on 1 photo.')).toBeVisible()
   await page.getByLabel('What do you want to understand?').fill('Krebs cycle')
@@ -256,7 +256,7 @@ test('cards from several photos: deduped drafts, saved only when confirmed', asy
   await expect(p.getByText('2 photos in one request.')).toBeVisible()
   await expect(p.getByText(/Estimated cost: \$/).last()).not.toHaveText(before)
 
-  await p.getByRole('button', { name: 'Draft cards' }).click()
+  await p.getByRole('button', { name: 'Suggest cards' }).click()
   await expect(p.getByText('2 cards generated')).toBeVisible()
   await expect(p.getByText('1 duplicate removed')).toBeVisible()
   expect(sent.at(-1)?.images).toHaveLength(2)
@@ -269,7 +269,7 @@ test('cards from several photos: deduped drafts, saved only when confirmed', asy
 
   await page.goBack()
   await openPanel(page)
-  await panel(page).getByRole('button', { name: 'Draft cards' }).click()
+  await panel(page).getByRole('button', { name: 'Suggest cards' }).click()
   await expect(panel(page).getByText('2 cards generated')).toBeVisible()
   await panel(page).getByLabel('Front of card 1').fill('Which molecule starts the Krebs cycle?')
   await panel(page).getByRole('button', { name: 'Save 2 cards' }).click()
@@ -307,10 +307,10 @@ test('a running request can be cancelled; offline, the actions wait for a connec
 
   await context.setOffline(true)
   await expect(
-    p.getByText('You’re offline. Explaining a photo and drafting cards from it need a connection.'),
+    p.getByText('You’re offline. Explaining a photo and suggesting cards from it need a connection.'),
   ).toBeVisible()
   await expect(p.getByRole('button', { name: 'Explain this photo' })).toBeDisabled()
-  await expect(p.getByRole('button', { name: 'Draft cards' })).toBeDisabled()
+  await expect(p.getByRole('button', { name: 'Suggest cards' })).toBeDisabled()
   await context.setOffline(false)
   await expect(p.getByRole('button', { name: 'Explain this photo' })).toBeEnabled()
 })
@@ -329,6 +329,7 @@ test('without a model that reads images, the panel links to the AI settings', as
 
   // A text-only model: the panel says so and leads to the settings.
   await page.goto('./#/settings/ai')
+  await openModels(page)
   await aiSearch(page).fill('302 deepseek v3.2')
   const row = providerGroup(page, '302.AI').getByRole('button', { name: /^DeepSeek V3\.2 deepseek-v3\.2/ })
   await row.click()

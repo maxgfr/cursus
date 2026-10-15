@@ -69,7 +69,7 @@ export const course = {
     other: '{count} éléments vont disparaître de la corbeille sur tous vos appareils.',
   },
   purgeHistory:
-    'Cursus ne réécrit jamais l’historique de sync : vos destinations gardent les versions antérieures. C’est ce qui permet à l’Historique de tout retrouver.',
+    'Cursus ne réécrit jamais l’historique de sync : vos sauvegardes gardent les versions antérieures. C’est ce qui permet à l’Historique de tout retrouver.',
   purgeConfirm: 'Supprimer définitivement',
   historyField: 'Face',
   historyFailed:
@@ -141,4 +141,5 @@ export const course = {
   trashedSections: 'Dans la corbeille',
   dueInScope: { one: '{count} à revoir aujourd’hui', other: '{count} à revoir aujourd’hui' },
   nothingDue: 'Rien à revoir ici aujourd’hui.',
+  emptySheet: 'Cette fiche est vide.',
 } as const satisfies Shape<typeof en>

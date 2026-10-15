@@ -59,7 +59,7 @@ async function addS3(page: Page, bucket: string) {
   const dialog = await fillS3(page, { endpoint: S3.endpoint, bucket })
   await dialog.getByRole('button', { name: 'Add', exact: true }).click()
   await expect(dialog).toBeHidden()
-  const row = page.getByRole('region', { name: 'Destinations' }).getByRole('button', { name: new RegExp(bucket) })
+  const row = page.getByRole('region', { name: 'Backups' }).getByRole('button', { name: new RegExp(bucket) })
   await expect(row).toBeVisible()
   return row
 }
@@ -103,14 +103,14 @@ test('S3: the connection test says what is wrong, then verify, restore drill and
   await open(page, '#/settings/sync', 'Sync & backup')
   await expect(async () => {
     await page.getByRole('button', { name: 'Sync now' }).click()
-    await expect(page.getByTestId('sync-summary')).toContainText('confirmed on 1 destination', { timeout: 2_000 })
+    await expect(page.getByTestId('sync-summary')).toContainText('confirmed in 1 backup', { timeout: 2_000 })
   }).toPass({ timeout: 30_000 })
 
-  const row = page.getByRole('region', { name: 'Destinations' }).getByRole('button', { name: new RegExp(bucket) })
+  const row = page.getByRole('region', { name: 'Backups' }).getByRole('button', { name: new RegExp(bucket) })
   await row.click()
   dialog = page.getByRole('dialog', { name: new RegExp(bucket) })
   await dialog.getByRole('button', { name: 'Verify' }).click()
-  await expect(dialog.getByText('Everything on this destination reads back intact.')).toBeVisible({ timeout: 20_000 })
+  await expect(dialog.getByText('Everything in this backup reads back intact.')).toBeVisible({ timeout: 20_000 })
   await dialog.getByRole('button', { name: 'Restore drill' }).click()
   await expect(dialog.getByText('A new device would get exactly this library back.')).toBeVisible({ timeout: 20_000 })
   await dialog.getByRole('button', { name: 'Pause' }).click()
@@ -204,13 +204,11 @@ test('Dropbox: coming back from consent finishes the connection', async ({ page 
   await page.evaluate(() => {
     location.hash = '#/settings/sync'
   })
-  await expect(
-    page.getByRole('region', { name: 'Destinations' }).getByRole('button', { name: /Dropbox/ }),
-  ).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Backups' }).getByRole('button', { name: /Dropbox/ })).toBeVisible()
   expect(new URL(page.url()).searchParams.has('oauth')).toBe(false)
 })
 
-test('a remembered destination syncs from launch, without opening Settings', async ({ page }) => {
+test('a remembered backup syncs from launch, without opening Settings', async ({ page }) => {
   test.setTimeout(90_000)
   const bucket = await newBucket()
   await addS3(page, bucket)
@@ -288,7 +286,7 @@ test('Data: storage health, backup to a file and back on another device, Anki im
 })
 
 test('review preferences are written only on Save; the theme on pick', async ({ page }) => {
-  await open(page, '#/settings/review', 'Review')
+  await open(page, '#/settings/review', 'Schedule')
   const save = page.getByRole('button', { name: 'Save' })
   await expect(save).toBeDisabled()
   const daily = page.getByLabel('New cards per day')
@@ -297,7 +295,7 @@ test('review preferences are written only on Save; the theme on pick', async ({ 
   await save.click()
   await expect(page.getByText(/^Saved\./)).toBeVisible()
   await page.waitForTimeout(300)
-  await open(page, '#/settings/review', 'Review')
+  await open(page, '#/settings/review', 'Schedule')
   await expect(page.getByLabel('New cards per day')).toHaveValue('15')
 
   await open(page, '#/settings/general', 'General')
@@ -305,7 +303,7 @@ test('review preferences are written only on Save; the theme on pick', async ({ 
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
 })
 
-test('sealing copies a destination encrypted and says the old copy stays', async ({ page }) => {
+test('sealing copies a backup encrypted and says the old copy stays', async ({ page }) => {
   test.setTimeout(90_000)
   const bucket = await newBucket()
   await createCourse(page, 'Toxicology')
@@ -316,17 +314,17 @@ test('sealing copies a destination encrypted and says the old copy stays', async
   await page.getByLabel('Repeat passphrase').fill('correct horse battery')
   // Submitted from the keyboard: on phones a bottom prompt may cover the button.
   await page.getByLabel('Repeat passphrase').press('Enter')
-  await expect(page.getByText(/objects? sealed\./)).toBeVisible({ timeout: 60_000 })
+  await expect(page.getByText(/objects? encrypted\./)).toBeVisible({ timeout: 60_000 })
   await expect(
     page
       .getByRole('listitem')
       .filter({ hasText: `${bucket}` })
-      .filter({ hasText: 'Sealed' })
+      .filter({ hasText: 'Encrypted' })
       .first(),
   ).toBeVisible()
 })
 
-test('Sync: three everyday destinations say where they work, one is recommended, the technical ones wait behind Advanced', async ({
+test('Sync: three everyday backups say where they work, one is recommended, the technical ones wait behind Advanced', async ({
   page,
 }) => {
   await open(page, '#/settings/sync', 'Sync & backup')
@@ -334,7 +332,7 @@ test('Sync: three everyday destinations say where they work, one is recommended,
   // over the list, whose Recommended row is the action.
   await expect(page.getByTestId('sync-summary')).toContainText('every change is copied there')
   await expect(page.getByRole('heading', { name: 'No copy yet' })).toHaveCount(0)
-  await expect(page.getByRole('heading', { name: 'Destinations' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Backups' })).toHaveCount(0)
   for (const name of [/^iCloud Drive/, /^Google Drive/, /^Dropbox/])
     await expect(page.getByRole('button', { name })).toBeVisible()
   await expect(page.getByRole('button', { name: /^Google Drive/ })).toContainText('iPad and iPhone')
@@ -345,9 +343,14 @@ test('Sync: three everyday destinations say where they work, one is recommended,
   await expect(page.getByRole('button', { name: /^CloudKit/ })).toBeVisible()
   await expect(page.getByRole('link', { name: /^Nearby device/ })).toBeVisible()
   await expect(page.getByRole('link', { name: /^Backup file/ })).toBeVisible()
-  // The Recommended row opens the recommended destination.
-  await page.getByRole('button', { name: /Recommended/ }).click()
-  await expect(page.getByRole('dialog', { name: /iCloud Drive|Dropbox/ })).toBeVisible()
+  // Drive and Dropbox say they need the student's own app key.
+  await expect(page.getByRole('button', { name: /^Google Drive/ })).toContainText('Needs your own app key.')
+  await expect(page.getByRole('button', { name: /^Dropbox/ })).toContainText('Needs your own app key.')
+  // The Recommended row opens the recommended backup: iCloud Drive where it can be kept, else the backup file.
+  await page.getByRole('main').getByText('Recommended', { exact: true }).click()
+  await expect(
+    page.getByRole('dialog', { name: /iCloud Drive/ }).or(page.getByRole('heading', { level: 1, name: 'Data' })),
+  ).toBeVisible()
 })
 
 test('Sync: the protection chip sits with the summary under the title, in French too', async ({ page }) => {

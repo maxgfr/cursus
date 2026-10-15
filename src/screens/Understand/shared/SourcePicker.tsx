@@ -15,6 +15,7 @@ import { buttonClass } from '../../../ui/components/Button.tsx'
 import { EmptyState } from '../../../ui/components/EmptyState.tsx'
 import { useThumbs } from '../../Photos/files.ts'
 import styles from './ai.module.css'
+import type { MissingReason } from './aiConfig.ts'
 import { citationText, useCitedUnit } from './citations.ts'
 import { chunksFor, deckReader, PASTED } from './sources.ts'
 
@@ -185,14 +186,21 @@ export function useChunkLoader(): (s: Selection) => Promise<Chunk[]> {
   return useCallback((s: Selection) => chunksFor(ws, blobs, s.sourceIds, s.pasted, readDeck), [ws, blobs, readDeck])
 }
 
-/** Shown instead of an AI screen until a model and key are set up. */
-export function NoModel() {
+const MISSING_BODY = {
+  none: 'ai.noKey',
+  noKey: 'ai.missingKey',
+  notDownloaded: 'ai.missingDownload',
+  moved: 'ai.missingMoved',
+} as const
+
+/** Shown instead of an AI screen until a model is set up, saying what is missing. */
+export function NoModel({ reason = 'none' }: { reason?: MissingReason }) {
   const t = useT()
   return (
     <EmptyState
       icon={Sparkles}
       title={t('common.aiEmptyTitle')}
-      body={t('ai.noKey')}
+      body={t(MISSING_BODY[reason])}
       action={
         <Link href={paths.settingsAi} className={buttonClass({ variant: 'primary' })}>
           {t('ai.openSettings')}

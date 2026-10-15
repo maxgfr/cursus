@@ -1,6 +1,13 @@
 import { join } from 'node:path'
 import { expect, type Page, type Route, test } from '@playwright/test'
-import { providerPicker as aiPicker, aiSearch, configureAi, providerGroup } from './support/ai'
+import {
+  providerPicker as aiPicker,
+  aiSearch,
+  configureAi,
+  openConnection,
+  openModels,
+  providerGroup,
+} from './support/ai'
 
 test.use({ serviceWorkers: 'block' })
 
@@ -188,6 +195,7 @@ test('AI settings: route chosen explicitly, key in the device vault, test, cost 
   await expect(page.getByLabel('Base URL')).toHaveValue(LLM)
   await expect(page.getByRole('radio', { name: 'Français' })).toBeChecked()
 
+  await openModels(page)
   await page.getByRole('button', { name: 'Refresh catalog' }).click()
   await expect(page.getByText('Catalog updated.')).toBeVisible()
   await expect(group(page, '302.AI').getByRole('button', { name: /^Claude Haiku 5\.5 claude-haiku-5-5/ })).toBeVisible()
@@ -196,6 +204,7 @@ test('AI settings: route chosen explicitly, key in the device vault, test, cost 
 test('one search finds providers by name and a model across providers, the maker’s API first', async ({ page }) => {
   await page.goto('./#/settings/ai')
   await expect(page.getByRole('heading', { level: 1, name: 'AI' })).toBeVisible()
+  await openModels(page)
 
   // A provider's name lists that provider's models.
   await search(page).fill('302')
@@ -217,6 +226,7 @@ test('one search finds providers by name and a model across providers, the maker
   await picked.click()
   await expect(picked).toHaveAttribute('aria-pressed', 'true')
   await expect(providerPicker(page)).toHaveValue('anthropic')
+  await openConnection(page)
   await expect(
     page.getByText(/^Anthropic answers a browser only when it sends anthropic-dangerous-direct-browser-access/),
   ).toBeVisible()
@@ -242,6 +252,7 @@ test('the Test on this device overrides the catalog: CORS failure, then success'
   // The server itself answers (the no-cors reachability check): the failure is CORS, not the network.
   await page.route('https://api.302.ai/', (route) => route.fulfill({ status: 200, body: '' }))
   await page.goto('./#/settings/ai')
+  await openModels(page)
   await search(page).fill('302 haiku 5.5')
   const picked = group(page, '302.AI').getByRole('button', { name: /^Claude Haiku 5\.5 claude-haiku-5-5/ })
   await picked.click()
@@ -278,6 +289,7 @@ async function putSecret(page: Page, name: string, value: unknown) {
 
 test('offline, a failed Test records nothing: the route keeps its catalog status', async ({ page, context }) => {
   await page.goto('./#/settings/ai')
+  await openModels(page)
   await search(page).fill('anthropic haiku 5.5')
   const picked = group(page, 'Anthropic').getByRole('button', { name: /^Claude Haiku 5\.5 claude-haiku-5-5/ })
   await picked.click()
@@ -307,6 +319,7 @@ test('picking a route without touching the key shows that route’s saved key', 
   await page.goto('./#/settings/ai')
   await expect(page.getByRole('heading', { level: 1, name: 'AI' })).toBeVisible()
   await putSecret(page, 'ai-key-302ai', 'sk-saved-earlier')
+  await openModels(page)
   await search(page).fill('302 haiku 5.5')
   await group(page, '302.AI')
     .getByRole('button', { name: /^Claude Haiku 5\.5 claude-haiku-5-5/ })
@@ -318,6 +331,7 @@ test('a key typed right after picking a route is kept, even when that route has 
   await page.goto('./#/settings/ai')
   await expect(page.getByRole('heading', { level: 1, name: 'AI' })).toBeVisible()
   await putSecret(page, 'ai-key-302ai', 'sk-saved-earlier')
+  await openModels(page)
   await search(page).fill('302 haiku 5.5')
   const row = group(page, '302.AI').getByRole('button', { name: /^Claude Haiku 5\.5 claude-haiku-5-5/ })
   // A user types at once: no waiting for the selection or the saved key to load.
@@ -426,7 +440,7 @@ test('a custom OpenAI-compatible endpoint: the Ollama preset', async ({ page }) 
 
 test('AI screens ask for a model until one is set up', async ({ page }) => {
   await page.goto('./#/understand')
-  await expect(page.getByText('Add an API key in Settings to use the AI.')).toBeVisible()
+  await expect(page.getByText('Set up AI: on this device or with your key.')).toBeVisible()
   await page.getByRole('link', { name: 'Open AI settings' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'AI' })).toBeVisible()
 })
@@ -503,7 +517,7 @@ test('Generate de-duplicates drafts, lets them be edited, then saves them as car
   await page.goto('./#/generate')
   await expect(page.getByRole('combobox', { name: 'Course', exact: true })).toHaveValue(/.+/)
   await page.getByLabel('Paste text (optional)').fill('Light reactions happen in the thylakoids.')
-  await page.getByRole('button', { name: 'Draft cards' }).click()
+  await page.getByRole('button', { name: 'Suggest cards' }).click()
   await expect(page.getByText('2 cards generated')).toBeVisible()
   await expect(page.getByText('1 duplicate removed')).toBeVisible()
 

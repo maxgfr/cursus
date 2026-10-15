@@ -286,7 +286,7 @@ test('Understand from a section is grounded in that section’s sources only', a
   await crumb(page, 'Leaves')
 
   await page.getByRole('link', { name: 'Understand…' }).click()
-  await expect(page.getByRole('heading', { level: 1, name: 'Understand' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Study tools' })).toBeVisible()
   await expect(page.getByLabel('Section', { exact: true })).toHaveValue(/.+/)
   await expect(page.getByLabel('Section', { exact: true }).locator('option:checked')).toHaveText('Leaves')
   // Leaves itself has no note; its child Cells has one: descendants count, the course root's note doesn't.
@@ -314,13 +314,13 @@ test('A section exam date shows on the section and leads Today', async ({ page }
   await s.getByLabel('Exam date').fill(await isoIn(page, 5))
   await s.getByRole('button', { name: 'Save' }).click()
   await expect(s).toBeHidden()
-  await expect(page.getByTestId('place-meta')).toContainText('D-5')
+  await expect(page.getByTestId('place-meta')).toContainText('5 days left')
   await crumb(page, 'Law')
-  await expect(page.getByRole('main').getByRole('link', { name: /^Contracts/ })).toContainText('D-5')
+  await expect(page.getByRole('main').getByRole('link', { name: /^Contracts/ })).toContainText('5 days left')
 
   await openToday(page)
   await expect(page.getByRole('heading', { level: 2, name: '2 cards due today' })).toBeVisible()
-  await expect(page.getByTestId('exam-lead')).toHaveText('incl. 1 in Contracts · D-5')
+  await expect(page.getByTestId('exam-lead')).toHaveText('incl. 1 in Contracts · 5 days left')
   expect(errors).toEqual([])
 })
 

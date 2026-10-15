@@ -1,10 +1,11 @@
-import { BookOpen, Plus } from 'lucide-react'
+import { BookOpen, ChartColumn, ListChecks, Play, Plus } from 'lucide-react'
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Link, useLocation } from 'wouter'
 import { noteLoadFailure } from '../../app/chunkGuard.ts'
 import { ChunkFailed, lazyChunk, nothing } from '../../app/lazyChunk.tsx'
-import { paths } from '../../app/routes.ts'
+import { onboarded } from '../../app/onboarding.ts'
+import { paths, to } from '../../app/routes.ts'
 import { useSync } from '../../app/syncContext.tsx'
 import { useWorkspaceData } from '../../app/workspaceContext.tsx'
 import { formatDuration } from '../../i18n/format.ts'
@@ -16,9 +17,10 @@ import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { EmptyState } from '../../ui/components/EmptyState.tsx'
 import { IconButton } from '../../ui/components/IconButton.tsx'
 import { Keycap } from '../../ui/components/Keycap.tsx'
-import { ListGroup } from '../../ui/components/List.tsx'
+import { ListGroup, ListRow } from '../../ui/components/List.tsx'
 import { useStudy } from '../../ui/data/useStudy.ts'
 import { Screen } from '../../ui/shell/Screen.tsx'
+import { newCardId } from '../CardEditor/draft.ts'
 import { formatInterval } from '../Review/interval.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 import { CourseRows } from './CourseRows.tsx'
@@ -114,6 +116,12 @@ export default function Today() {
   const unreadable = useWorkspaceData(['reviews'], (ws) => ws.reviews.quarantined().length)
   const [adding, setAdding] = useState(false)
   const add = () => setAdding(true)
+  const [, navigate] = useLocation()
+  // A first launch on an empty library opens the welcome, once per device.
+  const firstLaunch = study.courses.length === 0 && !onboarded()
+  useEffect(() => {
+    if (firstLaunch) navigate(paths.onboarding, { replace: true })
+  }, [firstLaunch, navigate])
   useStartKey(study.due > 0 && !adding, start)
   const now = Date.now()
   const date = new Intl.DateTimeFormat(intlTag(locale), { weekday: 'long', day: 'numeric', month: 'long' }).format(now)
@@ -195,6 +203,19 @@ export default function Today() {
                   <Keycap>{t('today.startKey')}</Keycap>
                 </Button>
               </>
+            ) : study.totalCards === 0 ? (
+              <>
+                <h2 id="today-hero" className={styles.caughtUp}>
+                  {t('today.firstCardTitle')}
+                </h2>
+                <p className={styles.meta}>{t('today.firstCardBody')}</p>
+                {/* Straight to the editor, in the course: no detour through it. */}
+                {study.courses[0] && (
+                  <Link href={to.card(newCardId(study.courses[0].id))} className={buttonClass({ variant: 'primary' })}>
+                    {t('today.firstCardAction')}
+                  </Link>
+                )}
+              </>
             ) : study.later !== null ? (
               <>
                 <h2 id="today-hero" className={styles.caughtUp}>
@@ -211,11 +232,7 @@ export default function Today() {
                   {t('today.caughtUp')}
                 </h2>
                 <p className={styles.meta}>
-                  {study.totalCards === 0
-                    ? t('common.noCardsYet')
-                    : study.tomorrow > 0
-                      ? t('common.tomorrow', { count: study.tomorrow })
-                      : t('common.nothingTomorrow')}
+                  {study.tomorrow > 0 ? t('common.tomorrow', { count: study.tomorrow }) : t('common.nothingTomorrow')}
                 </p>
               </>
             )}
@@ -243,6 +260,13 @@ export default function Today() {
           <ListGroup title={t('today.courses')}>
             <CourseRows courses={study.courses} />
           </ListGroup>
+          {hasData && (
+            <ListGroup title={t('today.practice')}>
+              <ListRow href={paths.sessions} leading={<Play size={20} />} title={t('review.sessions')} />
+              <ListRow href={paths.quiz} leading={<ListChecks size={20} />} title={t('ai.quiz')} />
+              <ListRow href={paths.stats} leading={<ChartColumn size={20} />} title={t('common.cmdStats')} />
+            </ListGroup>
+          )}
         </>
       )}
     </Screen>

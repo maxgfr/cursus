@@ -60,3 +60,14 @@ export async function seriousViolations(page: Page, include?: string): Promise<s
     .filter((v) => v.impact === 'serious' || v.impact === 'critical')
     .map((v) => `${v.id} ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`)
 }
+
+/**
+ * A device that has already seen the welcome screen (the app's `cursus:onboarded` flag): specs start where a
+ * returning student does. The first-launch welcome has its own test, without it.
+ */
+export function returningDevice(baseURL: string) {
+  return {
+    cookies: [],
+    origins: [{ origin: new URL(baseURL).origin, localStorage: [{ name: 'cursus:onboarded', value: '1' }] }],
+  }
+}

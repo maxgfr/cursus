@@ -32,7 +32,8 @@ export const settings = {
   saved: 'Gespeichert. Gilt nach der nächsten Synchronisierung auf allen Geräten.',
   storageTitle: 'Speicher auf diesem Gerät',
   persistOn: 'Geschützter Speicher ist aktiv: Der Browser löscht Cursus nicht, um Platz zu schaffen.',
-  persistOff: 'Der Speicher ist nicht geschützt: Der Browser kann ihn bei Platzmangel leeren. Richte ein Ziel ein.',
+  persistOff:
+    'Der Speicher ist nicht geschützt: Der Browser kann ihn bei Platzmangel leeren. Richte einen Speicherort ein.',
   persistAsk: 'Speicher schützen',
   persistGranted: 'Der Speicher ist jetzt geschützt.',
   persistRefused: 'Der Browser hat abgelehnt. Wenn du Cursus zum Home-Bildschirm hinzufügst, klappt es meist.',

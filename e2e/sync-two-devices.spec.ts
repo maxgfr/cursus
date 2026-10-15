@@ -1,5 +1,6 @@
 import { type Browser, type BrowserContext, chromium, expect, type Page, test, webkit } from '@playwright/test'
 import { AwsClient } from 'aws4fetch'
+import { returningDevice } from './support/page.ts'
 
 // One Chromium device and one WebKit device, each its own browser, syncing through the S3 emulator
 // of docker-compose.test.yml (run under `bun scripts/with-s3.ts`). The destination is configured
@@ -86,7 +87,11 @@ test('a Chromium and a WebKit device merge concurrent offline edits through S3',
   try {
     const [a, b] = await Promise.all(
       browsers.map(async (browser) => {
-        const context = await browser.newContext({ baseURL, serviceWorkers: 'block' })
+        const context = await browser.newContext({
+          baseURL,
+          serviceWorkers: 'block',
+          storageState: returningDevice(baseURL ?? ''),
+        })
         contexts.push(context)
         const page = await context.newPage()
         await page.goto('./#/')
@@ -109,7 +114,7 @@ test('a Chromium and a WebKit device merge concurrent offline edits through S3',
       await syncNow(a)
       await expect(chip(a)).toHaveAttribute('data-sync', 'protected', { timeout: 2_000 })
     }).toPass({ timeout: 30_000 })
-    await expect(a.getByTestId('sync-summary')).toContainText('confirmed on 1 destination')
+    await expect(a.getByTestId('sync-summary')).toContainText('confirmed in 1 backup')
     // …and drops it right after a new local edit.
     await createCourse(a, 'Dynamics')
     await go(a, '#/', /Today/)

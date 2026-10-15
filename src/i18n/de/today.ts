@@ -13,7 +13,7 @@ export const today = {
   noCourses: 'Noch keine Kurse. Leg einen an, um loszulegen.',
   streak: { one: '{count} Tag in Folge', other: '{count} Tage in Folge' },
   examIn: { one: 'Prüfung in {count} Tag', other: 'Prüfung in {count} Tagen' },
-  examCountdown: 'T-{count}',
+  examCountdown: { one: 'Noch {count} Tag', other: 'Noch {count} Tage' },
   examToday: 'Prüfung heute',
   setupLink: 'Neu hier? Cursus einrichten',
   installTitle: 'Installiere Cursus zuerst',
@@ -56,12 +56,12 @@ export const today = {
     'Was du hier hinzufügst, bleibt in diesem Tab; die installierte App startet leer. Installiere zuerst: Teilen, dann Zum Home-Bildschirm.',
   installHintDismiss: 'Später',
   // --- S-044 ---
-  draftsLine: { one: '{count} Frage zu {course} vorgeschlagen', other: '{count} Fragen zu {course} vorgeschlagen' },
+  draftsLine: { one: '{count} Karte zu {course} vorgeschlagen', other: '{count} Karten zu {course} vorgeschlagen' },
   draftsLineCourses: {
-    one: '{count} Frage zu {courses} Kursen vorgeschlagen',
-    other: '{count} Fragen zu {courses} Kursen vorgeschlagen',
+    one: '{count} Karte zu {courses} Kursen vorgeschlagen',
+    other: '{count} Karten zu {courses} Kursen vorgeschlagen',
   },
-  draftsReview: 'Prüfen',
+  draftsReview: 'Annehmen oder bearbeiten',
   // --- Ende S-044 ---
   unreadableReviewsTitle: 'Ein Teil des Lernverlaufs ist nicht lesbar.',
   unreadableReviews: {
@@ -71,6 +71,22 @@ export const today = {
   },
   unreadableReviewsDetails: 'Diagnosebericht',
   // --- Demo course: every feature, written when the student asks for it ---
+  obLoopTitle: 'So funktioniert Cursus',
+  obLoop1Title: 'Füge hinzu, was du lernst',
+  obLoop1Body: 'Notizen, PDFs, Folien oder Fotos, abgelegt in einem Kurs.',
+  obLoop2Title: 'Mach Karten daraus',
+  obLoop2Body: 'Schreib Fragen selbst oder übernimm die, die die KI aus deinen Quellen vorschlägt.',
+  obLoop3Title: 'Wiederhole ein paar Minuten am Tag',
+  obLoop3Body: 'Heute zeigt, was fällig ist. Jede Karte kommt, kurz bevor du sie vergessen würdest.',
+  obDataBody:
+    'Alles bleibt auf diesem Gerät, ohne Konto. Leg unter Einstellungen › Sync eine Sicherung an, um eine Kopie woanders zu haben.',
+  obAiTitle: 'KI, nur wenn du willst',
+  obAiBody: 'Erklärungen, vorgeschlagene Karten und ein Chat zu deinen Quellen. Cursus funktioniert auch ganz ohne.',
+  obAiLocal: 'Auf diesem Gerät (kostenlos, offline)',
+  obAiKey: 'Mit eigenem Schlüssel',
+  obAiLater: 'Oder später: Einstellungen › KI, jederzeit.',
+  obCreate: 'Ersten Kurs anlegen',
+  obSkip: 'Zu Heute',
   demoFailed: 'Der Demokurs konnte nicht angelegt werden. Es wurde nichts geändert; versuch es noch einmal.',
   demoSecMembranes: 'Membranen',
   demoSecStructure: 'Aufbau',
@@ -149,4 +165,9 @@ export const today = {
   demoR1A: 'Membranen und Transport.',
   demoPlanName: 'Wochenwiederholung',
   // --- end demo course ---
+  firstCardTitle: 'Leg deine erste Karte an',
+  firstCardBody:
+    'Schreib eine Karte in einem Kurs oder füge eine Quelle hinzu und übernimm die vorgeschlagenen Karten.',
+  firstCardAction: 'Karte schreiben',
+  practice: 'Üben',
 } as const satisfies Shape<typeof en>
