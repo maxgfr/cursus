@@ -1,4 +1,10 @@
-import { expect, type Page } from '@playwright/test'
+import { expect, type Locator, type Page } from '@playwright/test'
+import { isPhone } from './page.ts'
+
+/** The chat, where every AI action answers: docked beside the page from 1000px, a full-screen dialog on phones. */
+export function chatPanel(page: Page, project: string): Locator {
+  return isPhone(project) ? page.getByRole('dialog', { name: 'Ask' }) : page.getByRole('complementary', { name: 'Ask' })
+}
 
 /** The AI settings' provider picker, its per-provider result lists and its one search field. */
 export const providerPicker = (page: Page) => page.getByLabel('Provider', { exact: true })

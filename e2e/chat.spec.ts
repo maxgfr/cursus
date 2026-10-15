@@ -5,7 +5,7 @@ import { isPhone, seriousViolations } from './support/page.ts'
 
 // The chat beside every screen, against an intercepted provider that streams its answers: it knows what is on
 // screen (a course, a source, a card), cites the course's sources, never gives a hidden answer away, keeps its
-// conversations on the device, and is a sheet on phones.
+// conversations on the device, and fills the screen on phones.
 test.use({ serviceWorkers: 'block' })
 
 const harness = createHarness()
@@ -76,6 +76,51 @@ async function mockProvider(page: Page): Promise<string[]> {
     const body = req.postDataJSON() as Body
     const text = textOf(body)
     prompts.push(text)
+    // The study actions answer in structure: cards drafted from the sources (one already in the course), a quiz.
+    const structured = text.includes('flashcards')
+      ? JSON.stringify({
+          cards: [
+            { kind: 'basic', front: 'Which organelle makes ATP?', back: 'The mitochondrion' },
+            { kind: 'basic', front: 'Powerhouse of the cell?', back: 'The mitochondrion' },
+            { kind: 'basic', front: 'What do ribosomes build?', back: 'Proteins' },
+          ],
+        })
+      : text.includes('multiple-choice')
+        ? JSON.stringify({
+            questions: [
+              {
+                question: 'Which organelle makes ATP?',
+                choices: ['The mitochondrion', 'The ribosome'],
+                answerIndex: 0,
+                explanation: 'Respiration runs there.',
+              },
+              {
+                question: 'What do ribosomes build?',
+                choices: ['Lipids', 'Proteins'],
+                answerIndex: 1,
+                explanation: 'Proteins.',
+              },
+            ],
+          })
+        : null
+    if (structured !== null) {
+      if (body.stream === true) {
+        return route.fulfill({ status: 200, headers: CORS, contentType: 'text/event-stream', body: sse([structured]) })
+      }
+      return route.fulfill({
+        status: 200,
+        headers: CORS,
+        contentType: 'application/json',
+        json: {
+          id: 'cmpl-1',
+          object: 'chat.completion',
+          created: 1,
+          model: 'claude-haiku-5-5',
+          choices: [{ index: 0, message: { role: 'assistant', content: structured }, finish_reason: 'stop' }],
+          usage: { prompt_tokens: 10, completion_tokens: 2 },
+        },
+      })
+    }
     if (body.stream === true && text.includes('study tutor')) {
       const note = noteId(text)
       return route.fulfill({
@@ -107,13 +152,34 @@ async function mockProvider(page: Page): Promise<string[]> {
   return prompts
 }
 
+/** How many drafts the conversations kept on this device (the `kv` store) mark as saved. */
+function savedDrafts(page: Page): Promise<number> {
+  return page.evaluate(
+    () =>
+      new Promise<number>((resolve, reject) => {
+        const open = indexedDB.open('cursus-v1')
+        open.onerror = () => reject(open.error)
+        open.onsuccess = () => {
+          const all = open.result.transaction('kv').objectStore('kv').getAll()
+          all.onerror = () => reject(all.error)
+          all.onsuccess = () => {
+            type Kept = { chats?: { messages?: { rich?: { drafts?: { savedId?: string }[] } }[] }[] }
+            const kept = (all.result as (Kept | null)[]).flatMap((v) => v?.chats ?? [])
+            const drafts = kept.flatMap((c) => c.messages ?? []).flatMap((m) => m.rich?.drafts ?? [])
+            resolve(drafts.filter((d) => d.savedId !== undefined).length)
+          }
+        }
+      }),
+  )
+}
+
 function watchErrors(page: Page): string[] {
   const errors: string[] = []
   page.on('pageerror', (e) => errors.push(e.message))
   return errors
 }
 
-/** The chat: docked beside the page from 1000px, a sheet on phones. */
+/** The chat: docked beside the page from 1000px, a full-screen dialog on phones. */
 function chatPanel(page: Page, project: string): Locator {
   return isPhone(project) ? page.getByRole('dialog', { name: 'Ask' }) : page.getByRole('complementary', { name: 'Ask' })
 }
@@ -149,7 +215,7 @@ test('from a course: the chat knows the course, streams a cited answer and its c
   const panel = chatPanel(page, info.project.name)
   await expect(panel).toBeVisible()
   await expect(panel.getByText('About: Biology')).toBeVisible()
-  await expect(panel.getByRole('link', { name: 'Quiz me' })).toBeVisible()
+  await expect(panel.getByRole('button', { name: 'Quiz me' })).toBeVisible()
 
   await ask(panel, 'Where is ATP made?')
   await expect(panel.getByText(/Your notes say the mitochondrion produces ATP/)).toBeVisible()
@@ -289,11 +355,11 @@ test('the panel offers actions suited to the screen: a card before and after the
   if (phone) await openChat(page)
   await expect(panel.getByText('About: Biology')).toBeVisible()
   expect(await actionNames(panel)).toEqual(['Generate cards', 'Write a study sheet', 'Quiz me'])
-  await expect(panel.getByRole('link', { name: 'Write a study sheet' })).toHaveAttribute(
-    'href',
-    /#\/understand\?course=/,
-  )
-  await expect(panel.getByRole('link', { name: 'Quiz me' })).toHaveAttribute('href', /#\/quiz\?course=/)
+  // Each one answers in this thread, on the course: none leaves for a screen of its own.
+  for (const name of ['Generate cards', 'Write a study sheet', 'Quiz me']) {
+    await expect(panel.getByRole('button', { name, exact: true })).toBeEnabled()
+    await expect(panel.getByRole('link', { name, exact: true })).toHaveCount(0)
+  }
   expect(errors).toEqual([])
 })
 
@@ -364,40 +430,119 @@ test('in auto, the chat writes in the language of the source open, not the inter
   expect(errors).toEqual([])
 })
 
-test('« Generate cards » opens Generate on the course', async ({ page }, info) => {
+test('« Generate cards » drafts cards from the course in the thread: one saved alone, the rest at once, duplicates left out', async ({
+  page,
+}, info) => {
+  const errors = watchErrors(page)
+  await seedCourse(page)
+  const prompts = await mockProvider(page)
+  await configureAi(page, LLM)
+  await openCourse(page)
+  await openChat(page)
+  const panel = chatPanel(page, info.project.name)
+  await panel.getByRole('button', { name: 'Generate cards' }).click()
+  // The action is the student's turn; the drafts answer it, from the course's own sources. The answer opens on its
+  // start, not scrolled to its end.
+  await expect(panel.getByText('2 cards generated')).toBeVisible()
+  await expect(panel.getByText('2 cards generated')).toBeInViewport()
+  expect(prompts.at(-1)).toContain('ATP through cellular respiration')
+  // The card the course has already is flagged, and left out of « Save all ».
+  await expect(panel.getByText('1 duplicate flagged: Save all leaves it out')).toBeVisible()
+  await expect(panel.getByText('Already there')).toHaveCount(1)
+  await expect(panel.getByRole('button', { name: 'Save 2 cards' })).toBeVisible()
+  // The compact options say what it ran with.
+  await expect(panel.getByText('10 cards · Sources: all of Biology')).toBeVisible()
+
+  await panel.getByRole('button', { name: 'Save card 3' }).click()
+  await expect(panel.getByRole('button', { name: 'Save card 3' })).toHaveCount(0)
+  await expect(panel.getByRole('button', { name: 'Save 1 card' })).toBeVisible()
+  await panel.getByRole('button', { name: 'Save 1 card' }).click()
+  await expect(panel.getByText('1 card saved.')).toBeVisible()
+  if (isPhone(info.project.name)) await panel.getByRole('button', { name: 'Close chat' }).click()
+  const main = page.getByRole('main')
+  await expect(main.getByRole('link', { name: /Which organelle makes ATP\?/ })).toBeVisible()
+  await expect(main.getByRole('link', { name: /What do ribosomes build\?/ })).toBeVisible()
+  await expect(main.getByRole('link', { name: /Powerhouse of the cell\?/ })).toHaveCount(1)
+
+  // Saved in the thread: kept on the device, then reopened after a reload, the drafts still say so.
+  await expect.poll(() => savedDrafts(page)).toBe(2)
+  await page.reload()
+  await expect(page.getByRole('heading', { level: 1, name: 'Biology' })).toBeVisible()
+  await openChat(page)
+  await panel.getByRole('button', { name: 'Earlier chats' }).click()
+  await panel.getByRole('button', { name: 'Open “Generate cards”' }).click()
+  await expect(panel.getByText('Saved', { exact: true })).toHaveCount(2)
+  expect(errors).toEqual([])
+})
+
+test('« Quiz me » on a course asks one question at a time in the thread and leaves the review schedule as it was', async ({
+  page,
+}, info) => {
   const errors = watchErrors(page)
   await seedCourse(page)
   await mockProvider(page)
   await configureAi(page, LLM)
   await openCourse(page)
-  await openChat(page)
+  const meta = await page.getByTestId('place-meta').textContent()
+  // The course's own button opens the chat and starts the quiz at once.
+  await page.getByRole('main').getByRole('button', { name: 'Quiz me' }).click()
   const panel = chatPanel(page, info.project.name)
-  const generate = panel.getByRole('link', { name: 'Generate cards' })
-  await expect(generate).toHaveAttribute('href', /#\/generate\?course=[^&]+$/)
-  await generate.click()
-  await expect(page.getByRole('heading', { level: 1, name: 'Generate cards' })).toBeVisible()
-  // On a phone the sheet steps aside for the screen.
-  if (isPhone(info.project.name)) await expect(panel).toBeHidden()
+  await expect(panel.getByText('Practice only: your review schedule is not affected.')).toBeVisible()
+  await expect(panel.getByText('Question 1 of 2')).toBeVisible()
+  await expect(panel.getByText('What do ribosomes build?')).toHaveCount(0)
+  // The question sits inside its card, not on its top edge.
+  const question = panel.getByRole('group', { name: /Which organelle makes ATP\?/ })
+  const card = await question.boundingBox()
+  const legend = await question.locator('legend').boundingBox()
+  expect(card && legend && legend.y >= card.y).toBe(true)
+  // Corrected, the right choice is ringed (in green, a wrong pick in red); the others keep their hairline.
+  const ring = (name: string) =>
+    panel.getByRole('button', { name, exact: true }).evaluate((b) => getComputedStyle(b).boxShadow)
+  const neutral = await ring('The ribosome')
+  await panel.getByRole('button', { name: 'The mitochondrion' }).click()
+  await expect(panel.getByText('Correct', { exact: true })).toBeVisible()
+  await expect(panel.getByText('Respiration runs there.')).toBeVisible()
+  expect(await ring('The mitochondrion')).toContain('0px 0px 0px 2px')
+  expect(await ring('The ribosome')).toBe(neutral)
+  await panel.getByRole('button', { name: 'Next question' }).click()
+  await expect(panel.getByText('Question 2 of 2')).toBeVisible()
+  await panel.getByRole('button', { name: 'Lipids' }).click()
+  await expect(panel.getByText('Not quite')).toBeVisible()
+  const right = await ring('Proteins')
+  const wrong = await ring('Lipids')
+  expect(right).toContain('0px 0px 0px 2px')
+  expect(wrong).toContain('0px 0px 0px 2px')
+  expect(wrong).not.toBe(right)
+  await expect(panel.getByRole('button', { name: 'Lipids', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(panel.getByText('Score: 1 / 2')).toBeVisible()
+  await expect(panel.getByRole('button', { name: 'Next question' })).toHaveCount(0)
+
+  // Nothing reached the schedule: the course says the same, and its card is still due in review.
+  if (isPhone(info.project.name)) await panel.getByRole('button', { name: 'Close chat' }).click()
+  await expect(page.getByTestId('place-meta')).toHaveText(meta ?? '')
+  await page.goto('./#/review')
+  await expect(page.getByTestId('question')).toContainText('Powerhouse of the cell?')
   expect(errors).toEqual([])
 })
 
-test('without a model there are no actions in the panel and no AI buttons in review', async ({ page }, info) => {
+test('without a model there is no chat, no actions and no AI buttons in review', async ({ page }, info) => {
   await seedCourse(page)
   const panel = chatPanel(page, info.project.name)
   await page.goto('./#/review')
   await expect(page.getByTestId('question')).toContainText('Powerhouse of the cell?')
+  await page.waitForLoadState('networkidle')
   await expect(page.getByRole('button', { name: 'Explain the question' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Answer in your own words' })).toHaveCount(0)
-  await openChat(page)
-  await expect(panel.getByText('Set up AI to ask questions')).toBeVisible()
-  await expect(panel.getByRole('list', { name: 'Actions for this screen' })).toHaveCount(0)
-  await expect(panel.getByRole('button', { name: 'A hint' })).toHaveCount(0)
-  if (isPhone(info.project.name)) await panel.getByRole('button', { name: 'Close' }).click()
+  await expect(page.getByRole('button', { name: 'Ask about this' })).toHaveCount(0)
+  await expect(panel).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'A hint' })).toHaveCount(0)
 
   await openCourse(page)
-  if (isPhone(info.project.name)) await openChat(page)
-  await expect(panel.getByText('Set up AI to ask questions')).toBeVisible()
-  await expect(panel.getByRole('link', { name: 'Generate cards' })).toHaveCount(0)
+  await page.waitForLoadState('networkidle')
+  await expect(page.getByRole('button', { name: 'Ask about this' })).toHaveCount(0)
+  await expect(panel).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Generate cards' })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Set up AI' })).toHaveCount(0)
 })
 
 test('conversations stay on the device, can be reopened after a reload and deleted', async ({ page }, info) => {
@@ -437,22 +582,37 @@ test('a chat answer becomes a card in the course', async ({ page }, info) => {
   await expect(page.getByRole('main').getByRole('link', { name: 'Where is ATP made?' })).toBeVisible()
 })
 
-test('⌘J and the palette open the chat; without a model it points to the AI settings', async ({ page }, info) => {
+test('⌘J and the palette open the chat once a model is set up; without one they offer nothing', async ({
+  page,
+}, info) => {
   await seedCourse(page)
   await page.goto('./#/courses')
   await expect(page.getByRole('heading', { level: 1, name: 'Courses' })).toBeVisible()
+  await page.waitForLoadState('networkidle')
   const panel = chatPanel(page, info.project.name)
   await page.keyboard.press('ControlOrMeta+j')
-  await expect(panel.getByText('Set up AI to ask questions')).toBeVisible()
-  await expect(panel.getByRole('link', { name: 'Set up AI' })).toHaveAttribute('href', /#\/settings\/ai/)
+  await expect(panel).toHaveCount(0)
+  await page.keyboard.press('ControlOrMeta+k')
+  const palette = page.getByRole('dialog', { name: 'Command palette' })
+  await palette.getByRole('combobox').fill('Ask')
+  await expect(palette.getByRole('option', { name: 'Ask about this' })).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(palette).toBeHidden()
+
+  await mockProvider(page)
+  await configureAi(page, LLM)
+  await page.goto('./#/courses')
+  await expect(page.getByRole('heading', { level: 1, name: 'Courses' })).toBeVisible()
+  await expect(page.getByRole('main').getByRole('button', { name: 'Ask about this' }).first()).toBeVisible()
+  await page.keyboard.press('ControlOrMeta+j')
+  await expect(panel.getByRole('textbox', { name: 'Your question' })).toBeVisible()
   await page.keyboard.press(isPhone(info.project.name) ? 'Escape' : 'ControlOrMeta+j')
   await expect(panel).toBeHidden()
 
   await page.keyboard.press('ControlOrMeta+k')
-  const palette = page.getByRole('dialog', { name: 'Command palette' })
   await palette.getByRole('combobox').fill('Ask')
   await palette.getByRole('option', { name: 'Ask about this' }).click()
-  await expect(panel.getByText('Set up AI to ask questions')).toBeVisible()
+  await expect(panel.getByRole('textbox', { name: 'Your question' })).toBeVisible()
 })
 
 test('the open chat passes axe, and in German at 375 px nothing overflows', async ({ page }, info) => {
@@ -483,6 +643,93 @@ test('the open chat passes axe, and in German at 375 px nothing overflows', asyn
   expect(overflow).toBe(0)
 })
 
+test('on a 375 px phone in German the chat fills the screen: one header row, only the thread scrolls, nothing overflows', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 667 })
+  await seedCourse(page)
+  await mockProvider(page)
+  await configureAi(page, LLM)
+  await page.goto('./?locale=de#/courses')
+  await page
+    .getByRole('main')
+    .getByRole('link', { name: /Biology/ })
+    .click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Biology' })).toBeVisible()
+  await page.getByRole('main').getByRole('button', { name: 'Dazu fragen' }).first().click()
+  const chat = page.getByRole('dialog', { name: 'Fragen' })
+  await expect(chat.getByText('Zu: Biology')).toBeVisible()
+
+  // The whole screen, not a sheet over part of the page (once it has risen into place).
+  await expect
+    .poll(async () => {
+      const b = await chat.boundingBox()
+      return b && [b.x, b.y, b.width, b.height].map(Math.round)
+    })
+    .toEqual([0, 0, 375, 667])
+
+  // One header row: close, the context, earlier chats, new chat, side by side.
+  const close = chat.getByRole('button', { name: 'Chat schließen' })
+  const header = [
+    close,
+    chat.getByText('Zu: Biology'),
+    chat.getByRole('button', { name: 'Frühere Chats' }),
+    chat.getByRole('button', { name: 'Neuer Chat' }),
+  ]
+  const boxes: { x: number; y: number; width: number; height: number }[] = []
+  for (const part of header) {
+    await expect(part).toBeInViewport({ ratio: 1 })
+    const b = await part.boundingBox()
+    expect(b).not.toBeNull()
+    if (b) boxes.push(b)
+  }
+  const middles = boxes.map((b) => b.y + b.height / 2)
+  expect(Math.max(...middles) - Math.min(...middles)).toBeLessThanOrEqual(2)
+  boxes.reduce((before, after) => {
+    expect(after.x).toBeGreaterThanOrEqual(before.x + before.width)
+    return after
+  })
+  // The screen's actions on one line, scrolled sideways when they do not fit (faded at the edge where more is
+  // hidden), right above the composer, within a thumb's reach.
+  const row = chat.getByRole('list', { name: 'Aktionen für diesen Bildschirm' })
+  const actions = row.getByRole('listitem')
+  const tops = await actions.evaluateAll((items) => items.map((i) => Math.round(i.getBoundingClientRect().top)))
+  expect(new Set(tops).size).toBe(1)
+  if (await row.evaluate((r) => r.scrollWidth > r.clientWidth)) await expect(row).toHaveAttribute('data-more', 'end')
+  const rowBox = await row.boundingBox()
+  const logBox = await chat.getByRole('log').boundingBox()
+  const composerBox = await chat.getByRole('textbox', { name: 'Deine Frage' }).boundingBox()
+  if (!rowBox || !logBox || !composerBox) throw new Error('missing box')
+  expect(rowBox.y).toBeGreaterThanOrEqual(logBox.y + logBox.height - 1)
+  expect(rowBox.y + rowBox.height).toBeLessThanOrEqual(composerBox.y + 1)
+
+  const box = chat.getByRole('textbox', { name: 'Deine Frage' })
+  for (const n of [1, 2, 3, 4]) {
+    await box.fill(`Frage ${n}: Was macht das Mitochondrium in der Zelle?`)
+    await chat.getByRole('button', { name: 'Senden', exact: true }).click()
+    await expect(chat.getByText(`Frage ${n}:`)).toBeVisible()
+    await expect(chat.getByRole('button', { name: 'Stopp' })).toHaveCount(0)
+  }
+  // The last answer and the composer are on screen; the thread scrolls, the screen does not.
+  await expect(chat.getByRole('button', { name: 'Kopieren' }).last()).toBeInViewport()
+  await expect(box).toBeInViewport({ ratio: 1 })
+  await expect(chat.getByRole('button', { name: 'Senden', exact: true })).toBeInViewport({ ratio: 1 })
+  await expect(close).toBeInViewport({ ratio: 1 })
+  const scroll = await chat.evaluate((d) => {
+    const log = d.querySelector('[role="log"]')
+    return {
+      dialog: d.scrollHeight - d.clientHeight,
+      thread: log ? log.scrollHeight - log.clientHeight : 0,
+      wide: d.scrollWidth - d.clientWidth,
+      page: document.documentElement.scrollWidth - window.innerWidth,
+    }
+  })
+  expect(scroll.dialog).toBe(0)
+  expect(scroll.thread).toBeGreaterThan(0)
+  expect(scroll.wide).toBe(0)
+  expect(scroll.page).toBeLessThanOrEqual(0)
+})
+
 test('a long conversation keeps its latest answer in view above the composer, which grows with the question', async ({
   page,
 }, info) => {
@@ -509,4 +756,128 @@ test('a long conversation keeps its latest answer in view above the composer, wh
   await expect.poll(async () => (await box.boundingBox())?.height ?? 0).toBeGreaterThan(oneLine)
   await panel.getByRole('button', { name: 'Send', exact: true }).click()
   await expect.poll(async () => (await box.boundingBox())?.height ?? 0).toBeLessThanOrEqual(oneLine + 1)
+})
+
+test('a chat action runs once: the model removed, then set up again, sends nothing more', async ({ page }, info) => {
+  const errors = watchErrors(page)
+  await seedCourse(page)
+  const prompts = await mockProvider(page)
+  await configureAi(page, LLM)
+  await openCourse(page)
+  await page.getByRole('main').getByRole('button', { name: 'Generate cards' }).click()
+  const panel = chatPanel(page, info.project.name)
+  await expect(panel.getByText('2 cards generated')).toBeVisible()
+  const generated = () => prompts.filter((p) => p.includes('flashcards')).length
+  expect(generated()).toBe(1)
+  await panel.getByRole('button', { name: 'Close chat' }).click()
+  await expect(panel).toBeHidden()
+
+  // In the same page: the key removed, the AI is gone from the course.
+  const hop = (hash: string) =>
+    page.evaluate((h) => {
+      location.hash = h
+    }, hash)
+  await hop('/settings/ai')
+  await expect(page.getByRole('heading', { level: 1, name: 'AI' })).toBeVisible()
+  await page.getByLabel('API key').fill('')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await hop('/courses')
+  await page
+    .getByRole('main')
+    .getByRole('link', { name: /Biology/ })
+    .click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Biology' })).toBeVisible()
+  await expect(page.getByRole('main').getByRole('button', { name: 'Ask about this' })).toHaveCount(0)
+
+  // The key back: the chat comes back, and « Generate cards » is not asked again on its own.
+  await hop('/settings/ai')
+  await expect(page.getByRole('heading', { level: 1, name: 'AI' })).toBeVisible()
+  await page.getByLabel('API key').fill('sk-test-123')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await page.goBack()
+  await expect(page.getByRole('heading', { level: 1, name: 'Biology' })).toBeVisible()
+  await expect(page.getByRole('main').getByRole('button', { name: 'Ask about this' }).first()).toBeVisible()
+  await page.waitForLoadState('networkidle')
+  await page.waitForTimeout(500)
+  expect(generated()).toBe(1)
+  await expect(panel).toBeHidden()
+  // Opened by hand, it is the chat it was: one answer, not a second one.
+  await page.getByRole('main').getByRole('button', { name: 'Ask about this' }).first().click()
+  await expect(panel.getByText('2 cards generated')).toHaveCount(0)
+  expect(generated()).toBe(1)
+  expect(errors).toEqual([])
+})
+
+test('with the keyboard up the chat stays above it: over the page the thread takes the room, docked the panel ends at the keyboard', async ({
+  page,
+}, info) => {
+  await seedCourse(page)
+  await mockProvider(page)
+  await configureAi(page, LLM)
+  await openCourse(page)
+  await openChat(page)
+  const panel = chatPanel(page, info.project.name)
+  await panel.getByRole('button', { name: 'Generate cards' }).click()
+  await expect(panel.getByText('2 cards generated')).toBeVisible()
+  const actions = panel.getByRole('list', { name: 'Actions for this screen' })
+  await expect(actions).toBeVisible()
+
+  // The keyboard as iOS reports it (useKeyboardInset): 300 px of the screen's bottom.
+  const KEYBOARD = 300
+  await page.evaluate((inset) => {
+    document.documentElement.style.setProperty('--kb-inset', `${inset}px`)
+    document.documentElement.dataset.keyboard = 'open'
+  }, KEYBOARD)
+  await panel.getByLabel('Front of card 1').focus()
+  const viewport = page.viewportSize()
+  if (!viewport) throw new Error('no viewport')
+  const composer = await panel.getByRole('textbox', { name: 'Your question' }).boundingBox()
+  if (!composer) throw new Error('missing box')
+  // Whatever the layout, the composer stays above the keyboard.
+  expect(composer.y + composer.height).toBeLessThanOrEqual(viewport.height - KEYBOARD + 1)
+  if (await page.getByRole('dialog', { name: 'Ask' }).isVisible()) {
+    // Over the page, the actions step aside: the thread keeps the draft being edited and its Save in view.
+    await expect(actions).toBeHidden()
+    const thread = await panel.getByRole('log').evaluate((l) => l.clientHeight)
+    expect(thread).toBeGreaterThanOrEqual(180)
+  } else {
+    // Docked beside the page, nothing is covered: the actions stay.
+    await expect(actions).toBeVisible()
+  }
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty('--kb-inset', '0px')
+    delete document.documentElement.dataset.keyboard
+  })
+  await expect(actions).toBeVisible()
+})
+
+test('on a panel wider than a phone, every action shows whole: none is cut at the edge', async ({ page }, info) => {
+  await seedCourse(page)
+  await mockProvider(page)
+  await configureAi(page, LLM)
+  await page.goto('./?locale=de#/courses')
+  await page
+    .getByRole('main')
+    .getByRole('link', { name: /Biology/ })
+    .click()
+  await page.getByRole('main').getByRole('button', { name: 'Dazu fragen' }).first().click()
+  const panel = isPhone(info.project.name)
+    ? page.getByRole('dialog', { name: 'Fragen' })
+    : page.getByRole('complementary', { name: 'Fragen' })
+  const row = panel.getByRole('list', { name: 'Aktionen für diesen Bildschirm' })
+  await expect(row).toBeVisible()
+  const width = await panel.evaluate((p) => p.getBoundingClientRect().width)
+  if (width < 600) {
+    // A phone: one line that scrolls, said by a fade where more is hidden.
+    if (await row.evaluate((r) => r.scrollWidth > r.clientWidth)) await expect(row).toHaveAttribute('data-more', 'end')
+    return
+  }
+  const box = await panel.boundingBox()
+  if (!box) throw new Error('missing box')
+  for (const chip of await row.getByRole('button').all()) {
+    await expect(chip).toBeInViewport({ ratio: 1 })
+    const b = await chip.boundingBox()
+    expect(b && b.x + b.width <= box.x + box.width + 0.5).toBe(true)
+  }
+  expect(await row.evaluate((r) => r.scrollWidth - r.clientWidth)).toBeLessThanOrEqual(0)
 })

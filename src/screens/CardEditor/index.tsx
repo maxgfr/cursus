@@ -130,15 +130,15 @@ export default function CardEditor() {
   const [kind, setKind] = useState<Kind>('basic')
   const [fields, setFields] = useState<CardFields>(EMPTY)
   const [restored, setRestored] = useState(false)
-  const [justSaved, setJustSaved] = useState(false)
   const [asking, setAsking] = useState(false)
   const [moving, setMoving] = useState(false)
   const [movedTo, setMovedTo] = useState<string | null>(null)
   const [shareStatus, setShareStatus] = useState<string | null>(null)
   const loadFile = useFileLoader()
-  const formRef = useRef<HTMLDivElement>(null)
   const pageRef = useRef<HTMLDivElement>(null)
+  const formRef = useRef<HTMLDivElement>(null)
   const exists = card !== null
+  // Opened to write the next card (« Card added · New card »): the cursor waits in the front, as it did after a save.
 
   // Seed the draft once per card: an unsaved draft kept on this device wins over the saved card.
   useEffect(() => {
@@ -175,7 +175,6 @@ export default function CardEditor() {
     if (!draft) return
     const update = () => {
       setFields((f) => ({ ...f, front: draft.front.toString(), back: draft.back.toString() }))
-      setJustSaved(false)
     }
     draft.doc.on('update', update)
     return () => draft.doc.off('update', update)
@@ -285,7 +284,7 @@ export default function CardEditor() {
         return
       }
     }
-    // Saved means on disk before leaving, not at the next idle seal.
+    // Saved means on disk before leaving, not at the next idle seal. A new card's place offers the next one.
     void Promise.all([rt.seal(), dropDraft(rt.store, id)])
       .catch((e: unknown) => noteError('card.save', e))
       .finally(() => leave(newCourse !== null ? { cardSaved: true, cardAdded: true } : { cardSaved: true }))
@@ -377,7 +376,7 @@ export default function CardEditor() {
       <Keycap>{shortcut}</Keycap>
     </Button>
   )
-  const status = dirty ? t('course.unsaved') : justSaved || newCourse === null ? t('course.saved') : ''
+  const status = dirty ? t('course.unsaved') : newCourse === null ? t('course.saved') : ''
 
   return (
     <div ref={pageRef} className={styles.page}>
@@ -423,10 +422,7 @@ export default function CardEditor() {
             <Segmented<Kind>
               label={t('course.cardKind')}
               value={kind}
-              onChange={(k) => {
-                setKind(k)
-                setJustSaved(false)
-              }}
+              onChange={setKind}
               options={[
                 { value: 'basic', label: t('course.kindBasic') },
                 { value: 'cloze', label: t('course.kindCloze') },

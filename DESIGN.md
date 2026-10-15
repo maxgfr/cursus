@@ -213,10 +213,11 @@ Four radii, each with one job: small (4px) only for marks inside text or charts 
 - Grades: four equal 10px tiles on Surface with the 1px lift; the AI-suggested grade takes soft blue with an accent border. Key hints (Space, 1–4) are inline keycaps shown only with a fine pointer that can hover.
 
 ### Card editor
-- Editing works on a draft kept on this device; nothing touches the card until an explicit Save (also ⌘S / Ctrl S) or Save & new. A footnote status line reports unsaved / saved; Save sits top right on iPad and Mac and in the thumb zone on iPhone.
+- Editing works on a draft kept on this device; nothing touches the card until an explicit Save (also ⌘S / Ctrl S), the only save. A new card saved goes back to the course with a "Card added" toast that offers the next new card. A footnote status line reports unsaved / saved; Save sits top right on iPad and Mac and in the thumb zone on iPhone.
 
 ### Sheet, Toast, Empty state
 - Sheet: native modal `<dialog>`, bottom sheet under 600px, centred panel above.
+- Chat: docked on the right from 1000px, its bottom on the keyboard's top edge too. Below, a filled sheet: the whole screen under 600px (inside the safe areas, its bottom on the keyboard's top edge), a full-height panel on the right from 600px. One compact header row (close, the context chip truncated, earlier chats, new chat), then the thread, the only part that scrolls, then the screen's actions right above the composer: on phones one line that scrolls sideways, faded at the edge where more is hidden, and hidden while the keyboard is up; on wider panels wrapped so each shows whole. A structured answer just in shows from its start. While the student answers a card in their own words, the card's question stays above the composer.
 - Toast: an ink-on-ground 12px block (Footnote) above the tab bar and keyboard, with optional text actions. A reversible delete never asks first: it acts and offers Undo in the toast.
 - Empty state: a surface with a soft-blue icon tile, title, one teaching sentence and the next action. Where the screen's own content is the next action (Sync's destination list, Search's field), the empty state stops at the sentence.
 - Nudge lines are a single footnote sentence plus one link, e.g. "No backup yet · Add a backup" under Today's hero.

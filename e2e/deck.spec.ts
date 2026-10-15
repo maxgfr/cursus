@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { expect, type Page, type Route, test } from '@playwright/test'
-import { configureAi } from './support/ai'
+import { chatPanel, configureAi } from './support/ai'
 import { createCourse } from './support/page'
 
 test.use({ serviceWorkers: 'block' })
@@ -136,7 +136,7 @@ async function openImport(page: Page, course: string) {
 
 test('slides: preview, questions for a range of slides, review by slide, saved cards with clickable citations', async ({
   page,
-}) => {
+}, info) => {
   const calls = await mockProvider(page)
   await configureAi(page, LLM)
   // Since S-044 adding a document proposes questions on its own (auto-questions.spec.ts): off for this manual flow.
@@ -154,7 +154,13 @@ test('slides: preview, questions for a range of slides, review by slide, saved c
   await expect(page.getByText('Hidden slide')).toBeVisible()
   await expect(page.getByRole('img', { name: 'Diagram of osmosis' })).toBeVisible()
 
-  await page.getByRole('link', { name: 'Create cards' }).click()
+  // « Create cards » proposes cards on the slides in the chat, through the queue; the slides can be picked by hand too.
+  await page.getByRole('button', { name: 'Create cards' }).click()
+  const chat = chatPanel(page, info.project.name)
+  await expect(chat.getByText(/cards? wait in Suggested cards\./)).toBeVisible()
+  await expect(chat.getByRole('link', { name: 'Open Suggested cards' })).toBeVisible()
+  const before = calls.questions.length
+  await chat.getByRole('link', { name: 'Choose the slides or sections' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Create cards' })).toBeVisible()
   // Hidden slides are left out unless asked for; the range narrows to slides 2–3.
   await expect(page.getByText('3 selected')).toBeVisible()
@@ -171,12 +177,13 @@ test('slides: preview, questions for a range of slides, review by slide, saved c
 
   await expect(page.getByTestId('deck-progress')).toHaveText('2 of 2 slides done')
   await expect(page.getByText('4 to check · 0 accepted')).toBeVisible()
-  expect(calls.questions).toHaveLength(1)
-  const sent = textOf(calls.questions[0] as Body)
+  // One request for the slides chosen here.
+  expect(calls.questions).toHaveLength(before + 1)
+  const sent = textOf(calls.questions.at(-1) as Body)
   expect(sent).toContain('Title: Osmosis')
   expect(sent).toContain('Speaker notes: Stress that water moves, not solutes.')
   expect(sent).not.toContain('Title: Backup')
-  expect(hasImage(calls.questions[0] as Body)).toBe(true)
+  expect(hasImage(calls.questions.at(-1) as Body)).toBe(true)
 
   // One by one: edit, reject (undoable), accept; then all of a slide at once.
   await page.getByLabel('Question 1, Slide 2', { exact: true }).fill('What is osmosis, exactly?')
@@ -207,9 +214,9 @@ test('slides: preview, questions for a range of slides, review by slide, saved c
   await expect(page.getByText('What is Osmosis about?')).toHaveCount(0)
 })
 
-test('a study sheet reads the slides of a deck source and cites the slide, opening it in the source', async ({
+test('a study sheet in the chat reads the slides of a deck source and cites the slide, opening it in the source', async ({
   page,
-}) => {
+}, info) => {
   await mockProvider(page)
   const prompts: string[] = []
   // Registered last, so it answers first: the explanation call, cited at slide 2; the rest falls through.
@@ -237,11 +244,15 @@ test('a study sheet reads the slides of a deck source and cites the slide, openi
   await expect(page.getByRole('heading', { level: 1, name: 'Cell Biology 101' })).toBeVisible()
 
   await page.goto('./#/understand')
-  await page.getByText('Sources: all of Biology').click()
-  await expect(page.getByRole('checkbox', { name: 'Cell Biology 101' })).toBeChecked()
-  await page.getByLabel('What should the sheet cover?').fill('osmosis')
-  await page.getByRole('button', { name: 'Write the sheet', exact: true }).click()
-  const fiche = page.getByRole('article', { name: 'Study sheet' })
+  const chat = chatPanel(page, info.project.name)
+  const fiche = chat.getByRole('article', { name: 'Study sheet' })
+  await expect(fiche.getByRole('heading', { name: 'Water moves' })).toBeVisible()
+  await chat.getByText('Sources: all of Biology').click()
+  await expect(chat.getByRole('checkbox', { name: 'Cell Biology 101' })).toBeChecked()
+  await chat.getByLabel('What should the sheet cover?').fill('osmosis')
+  await chat.getByRole('button', { name: 'Run again', exact: true }).click()
+  await expect.poll(() => prompts.at(-1) ?? '').toContain('Topic: osmosis')
+  await expect(chat.getByRole('log')).not.toHaveAttribute('aria-busy', 'true')
   await expect(fiche.getByRole('heading', { name: 'Water moves' })).toBeVisible()
   // The model read the deck slide by slide, each slide numbered for citations.
   expect(prompts.at(-1)).toMatch(/<<<SOURCE id="[^"]+" page="2">>>\nOsmosis\n/)
@@ -272,9 +283,11 @@ test('a document is saved and readable section by section even without a model; 
   await expect(page.getByText('6 sections')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Section 1.1 Osmosis' })).toBeVisible()
 
-  await page.getByRole('link', { name: 'Create cards' }).click()
-  await expect(page.getByText('Creating cards needs an AI model')).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Open AI settings' })).toBeVisible()
+  // Without a model nothing of the AI shows: the document is saved and read, nothing offers to create cards.
+  await page.waitForLoadState('networkidle')
+  await expect(page.getByRole('button', { name: 'Create cards' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Suggest cards' })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Open AI settings' })).toHaveCount(0)
 
   // The source stayed: one document in the course, read section by section.
   await page.goto('./#/courses')
@@ -291,13 +304,15 @@ test('a document is saved and readable section by section even without a model; 
     .click()
   await expect(page.getByRole('heading', { level: 2, name: 'Section 1.2 Diffusion' })).toBeVisible()
   await expect(page.getByRole('img', { name: 'Sodium pump' })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Create cards' })).toBeVisible()
+  await expect(page.getByText('6 sections')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Create cards' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Suggest cards' })).toHaveCount(0)
 })
 
 test('a PDF of slides with a text-only model: notice, offline state, stop and resume, then save', async ({
   page,
   context,
-}) => {
+}, info) => {
   let release = () => {}
   const held = new Promise<void>((resolve) => {
     release = resolve
@@ -315,7 +330,14 @@ test('a PDF of slides with a text-only model: notice, offline state, stop and re
   await expect(page.getByText('3 slides')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Slide 3 Active transport' })).toBeVisible()
 
-  await page.getByRole('link', { name: 'Create cards' }).click()
+  // « Create cards » starts the queue in the chat; stopped there, the slides are picked by hand instead.
+  await page.getByRole('button', { name: 'Create cards' }).click()
+  const chat = chatPanel(page, info.project.name)
+  await expect.poll(() => calls.questions.length).toBe(1)
+  await chat.getByRole('button', { name: 'Cancel' }).click()
+  await expect(chat.getByText('Cancelled.')).toBeVisible()
+  const before = calls.questions.length
+  await chat.getByRole('link', { name: 'Choose the slides or sections' }).click()
   await expect(page.getByText(/^This model can’t see pictures: the cards come from the text/)).toBeVisible()
   await page.getByRole('radio', { name: '1', exact: true }).check({ force: true })
 
@@ -328,8 +350,8 @@ test('a PDF of slides with a text-only model: notice, offline state, stop and re
 
   await page.getByRole('button', { name: 'Create cards' }).click()
   await expect(page.getByTestId('deck-progress')).toHaveText('0 of 3 slides done')
-  await expect.poll(() => calls.questions.length).toBe(1)
-  expect(hasImage(calls.questions[0] as Body)).toBe(false)
+  await expect.poll(() => calls.questions.length).toBe(before + 1)
+  expect(hasImage(calls.questions.at(-1) as Body)).toBe(false)
   await page.getByRole('button', { name: 'Stop' }).click()
   await expect(page.getByText(/^Stopped\. What was done is kept on this device/)).toBeVisible()
   await expect(page.getByText('Not done yet')).toHaveCount(3)

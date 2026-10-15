@@ -28,13 +28,13 @@ test('functional journey: course, note, cards, review, search, stats, reload', a
   ]
   for (const [front, back] of cards) {
     await page.getByRole('radio', { name: 'Cards' }).check()
-    await page.getByRole('button', { name: 'New card' }).click()
+    await page.getByRole('button', { name: 'New card' }).first().click()
     await expect(page.getByRole('heading', { level: 1, name: 'Card' })).toBeVisible()
     await typeInto(page, 'Front', front)
     await typeInto(page, 'Back', back)
     // The editor works on a draft: nothing reaches the card until Save, which goes back to the course.
     await page.getByRole('button', { name: 'Save', exact: true }).click()
-    await expect(page.getByText('Card saved.')).toBeVisible()
+    await expect(page.getByText('Card added.')).toBeVisible()
     await expect(
       page.getByRole('main').getByRole('link', { name: new RegExp(front.replace('?', '\\?')) }),
     ).toBeVisible()

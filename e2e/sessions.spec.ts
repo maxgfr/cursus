@@ -316,12 +316,12 @@ test('Practice offers « Quiz me » only with an AI model ready', async ({ page 
   await page.goto('./#/sessions')
   await expect(page.getByRole('heading', { level: 1, name: 'Practice' })).toBeVisible()
   await expect(page.getByRole('link', { name: /New session/ })).toBeVisible()
-  await expect(page.getByRole('link', { name: /Quiz me/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /Quiz me/ })).toHaveCount(0)
 
   await configureAi(page, 'https://llm.mock.test/v1')
   await page.goto('./#/sessions')
   await expect(page.getByRole('heading', { level: 1, name: 'Practice' })).toBeVisible()
-  await expect(page.getByRole('link', { name: /Quiz me/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /Quiz me/ })).toBeVisible()
 })
 
 test('German, dark: sessions screens neither overflow nor fail axe', async ({ page }) => {

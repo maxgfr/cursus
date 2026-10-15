@@ -432,26 +432,3 @@ fieldset.grades {
   padding: 0;
   border: 0;
 }
-
-/* No AI model yet: a quiet footnote link, well below "Show answer" in weight. */
-.setupLink {
-  display: inline-flex;
-  align-items: center;
-  min-height: 2.75rem;
-  padding-inline: var(--space-2);
-  border-radius: var(--radius-control);
-  color: var(--ink-2);
-  font-size: var(--text-footnote);
-  text-decoration: underline;
-  text-decoration-color: var(--hairline-strong);
-  text-underline-offset: 0.2em;
-}
-
-.setupLink:hover {
-  color: var(--ink);
-}
-
-.setupLink:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}

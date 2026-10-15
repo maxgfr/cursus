@@ -559,7 +559,7 @@ test('Course: empty states teach and offer the next action; Back returns to Toda
   await page.getByRole('textbox', { name: 'Front' }).click()
   await page.keyboard.type('Basement membrane')
   await page.keyboard.press('ControlOrMeta+s')
-  // The « Card saved. » toast can sit over the row on a phone.
+  // The « Card added. » toast can sit over the row on a phone.
   await page.getByRole('button', { name: 'Dismiss' }).click()
   await main.getByRole('link', { name: /Basement membrane/ }).click()
   await page.getByRole('button', { name: 'Move to trash' }).click()

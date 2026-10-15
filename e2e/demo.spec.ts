@@ -185,9 +185,10 @@ test('Demo: a note with maths, a slide deck read slide by slide, photos in the g
   ).toBeVisible()
   await expect(slides.nth(2)).toContainText('Facilitated diffusion')
   expect(await seriousViolations(page)).toEqual([])
-  // Making questions from it needs an AI model: the way to set one up is offered, nothing is called.
-  await main.getByRole('link', { name: 'Create cards' }).first().click()
-  await expect(page.getByRole('link', { name: 'Open AI settings' })).toBeVisible()
+  // Making questions from it needs an AI model: without one nothing of the AI shows, nothing is called.
+  await page.waitForLoadState('networkidle')
+  await expect(main.getByRole('button', { name: 'Create cards' })).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Open AI settings' })).toHaveCount(0)
 
   // The gallery: both photos, captioned; the viewer shows one full size.
   await go(page, course, COURSE)

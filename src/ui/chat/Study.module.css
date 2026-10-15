@@ -1,0 +1,209 @@
+/* The study answers of the chat: generated cards, a quiz, a study sheet, a photo read, a card rewritten. */
+
+.section {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* A duplicate stays readable but steps back: « Save all » leaves it out. */
+.draft[data-duplicate] {
+  background: var(--surface-raised);
+}
+
+.saved {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.choices {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A quiz choice: a full-width button, at least a fingertip tall. */
+.choice {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  box-shadow: 0 0 0 var(--hairline-width) var(--hairline-strong);
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.choice:hover:not(:disabled) {
+  background: var(--surface-pressed);
+}
+
+.choice:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.choice:disabled {
+  cursor: default;
+}
+
+/*
+ * Corrected: the right choice ringed in green, the student's wrong pick in red, each with its mark. Declared on
+ * `.choice` itself so they win over its hairline.
+ */
+.choice.right {
+  box-shadow: 0 0 0 2px var(--success);
+}
+
+.choice.wrong {
+  box-shadow: 0 0 0 2px var(--danger);
+}
+
+.choice.right,
+.choice.wrong {
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-weight: 600;
+}
+
+.mark {
+  flex: none;
+}
+
+.right .mark {
+  color: var(--success);
+}
+
+.wrong .mark {
+  color: var(--danger);
+}
+
+.face {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/*
+ * A transcribed table always fits the thread: columns share its width and a word breaks only when it is wider
+ * than its column, so nothing scrolls sideways on a phone.
+ */
+.transcription {
+  min-width: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-small);
+  background: var(--surface-raised);
+}
+
+.transcription :global(table) {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.transcription :global(th),
+.transcription :global(td) {
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.thumb {
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--radius-small);
+  background: var(--surface-raised);
+  object-fit: cover;
+}
+
+.thumb[data-rotation="90"],
+.attachedImage[data-rotation="90"] {
+  transform: rotate(90deg);
+}
+
+.thumb[data-rotation="180"],
+.attachedImage[data-rotation="180"] {
+  transform: rotate(180deg);
+}
+
+.thumb[data-rotation="270"],
+.attachedImage[data-rotation="270"] {
+  transform: rotate(270deg);
+}
+
+/* The photo a question is about, attached to the student's turn: on the student's side, above their bubble. */
+.attached {
+  display: block;
+  align-self: flex-end;
+  border-radius: var(--radius-small);
+}
+
+.attached:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.attachedImage {
+  display: block;
+  width: 7.5rem;
+  height: 5.5rem;
+  border-radius: var(--radius-small);
+  background: var(--surface-raised);
+  object-fit: cover;
+}
+
+.link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-small);
+}
+
+/* The four grades, given from the thread to the card on screen; the suggested one stands out. */
+.grades {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+/* Done: the action steps back to a ticked, quiet state beside the line that says so. */
+.done:disabled {
+  color: var(--success);
+  opacity: 1;
+}
+
+/*
+ * A quiz question: where it stands in the quiz, then the question itself. Floated, the legend sits inside the
+ * card's box instead of on its top edge.
+ */
+.legend {
+  display: grid;
+  float: left;
+  gap: var(--space-1);
+  width: 100%;
+  margin-bottom: var(--space-3);
+  padding: 0;
+}
+
+.legend + * {
+  clear: both;
+}

@@ -4,6 +4,7 @@ import type { JobReason } from '../../core/ai/autoQuestions'
 import type { AiJob, AiJobs, JobsState } from '../../core/ai/jobs'
 import type { Id } from '../../core/contracts/workspace'
 import { noteError } from '../../screens/settings/Diagnostic/recent.ts'
+import { isAiReady } from '../ai/ready.ts'
 
 /**
  * Questions proposed when a source is added, as every add path and screen sees them: `proposeFor(rt, id)` after
@@ -50,11 +51,13 @@ export function autoQuestions(rt: Runtime): Promise<AiJobs> {
 
 /**
  * Queues questions for a source just added (`added`: follows the « When I add a document » setting) or asked for
- * (`manual`). Resolves with the job id, or null when the setting says to do nothing.
+ * (`manual`). Resolves with the job id, or null when the setting says to do nothing or no model is set up (a
+ * source added without one is never queued for later).
  */
 export async function proposeFor(rt: Runtime, sourceId: Id, reason: JobReason = 'added'): Promise<string | null> {
   if (reason === 'added' && rt.ws.drafts.settings.get().mode === 'off') return null
   try {
+    if (reason === 'added' && !(await isAiReady(rt))) return null
     return await (await autoQuestions(rt)).enqueue(sourceId, reason)
   } catch (e) {
     noteError('autoQuestions.enqueue', e)

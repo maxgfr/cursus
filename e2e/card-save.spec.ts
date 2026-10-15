@@ -19,6 +19,8 @@ async function typeInto(page: Page, label: string, text: string) {
 
 const save = (page: Page) => page.getByRole('button', { name: /^Save( ⌘S| Ctrl\+S)?$/ })
 const cardRows = (page: Page) => page.getByRole('main').getByRole('list').getByRole('link')
+/** The course's own « New card » (the « Card added » toast offers one too, after it). */
+const newCard = (page: Page) => page.getByRole('main').getByRole('button', { name: 'New card' }).first()
 
 test('a new card exists only once saved; « New card » after saving keeps going; Cancel leaves no empty card', async ({
   page,
@@ -40,14 +42,16 @@ test('a new card exists only once saved; « New card » after saving keeps going
   // One Save: back on the course, the notice offers the next card straight away.
   await save(page).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Botany' })).toBeVisible()
-  await expect(page.getByText('Card saved.')).toBeVisible()
+  await expect(page.getByText('Card added.')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Save & new' })).toHaveCount(0)
   await page.getByRole('status').getByRole('button', { name: 'Add another' }).click()
   await expect(page.getByRole('textbox', { name: 'Front' })).toBeFocused()
+  await expect(page.getByRole('textbox', { name: 'Front' })).toHaveText('')
+  await expect(save(page)).toBeDisabled()
   await typeInto(page, 'Front', 'Phloem carries?')
   await save(page).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Botany' })).toBeVisible()
-  await expect(page.getByText('Card saved.')).toBeVisible()
+  await expect(page.getByText('Card added.')).toBeVisible()
   await expect(cardRows(page)).toHaveText([/Xylem carries\?/, /Phloem carries\?/])
 })
 
@@ -63,7 +67,7 @@ test('typing changes nothing until Save; Save survives a reload; a reload mid-dr
   await expect(row).toBeVisible()
 
   // Edit without saving: the course still shows the saved text.
-  // The « Card saved. » toast can sit over the row on a phone.
+  // The « Card added. » toast can sit over the row on a phone.
   await page.getByRole('button', { name: 'Dismiss' }).click()
   await row.click()
   await typeInto(page, 'Front', ' Gills')
@@ -106,7 +110,7 @@ test('a double-click on Save, or a held ⌘S, creates exactly one card', async (
   await expect(cardRows(page)).toHaveText([/Spores spread by\?/])
 
   await page.getByRole('radio', { name: 'Cards' }).check()
-  await page.getByRole('button', { name: 'New card' }).click()
+  await newCard(page).click()
   await typeInto(page, 'Front', 'Hyphae form a?')
   // A held key: one press, then repeats.
   await page.keyboard.down('ControlOrMeta')
@@ -162,7 +166,7 @@ test('a Save still writing when the draft copy comes due leaves no draft: the ne
   await expect(cardRows(page)).toHaveText([/Genes are made of\? DNA/])
 
   await page.getByRole('radio', { name: 'Cards' }).check()
-  await page.getByRole('button', { name: 'New card' }).click()
+  await newCard(page).click()
   await expect(page.getByRole('textbox', { name: 'Front' })).toHaveText('')
   await expect(page.getByText('Unsaved draft restored.')).toHaveCount(0)
   await expect(save(page)).toBeDisabled()

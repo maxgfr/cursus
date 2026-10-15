@@ -104,7 +104,7 @@ test('Today: first-launch state, "+" action, due counts and the exam countdown',
   await page.getByRole('button', { name: 'New card' }).click()
   await typeInto(page, 'Front', 'What does the sinoatrial node do?')
   await page.getByRole('button', { name: 'Save', exact: true }).click()
-  await expect(page.getByText('Card saved.')).toBeVisible()
+  await expect(page.getByText('Card added.')).toBeVisible()
   await page.goto('./#/')
   // One sentence: the count and "due today" together, no eyebrow above it.
   await expect(page.getByRole('heading', { level: 2, name: '1 card due today' })).toBeVisible()
@@ -311,7 +311,7 @@ test('Card editor: the cloze assistant hides phrases and previews one card each'
 
   // The editor works on a draft: Save creates the card and goes back to the course.
   await page.getByRole('button', { name: 'Save', exact: true }).click()
-  await expect(page.getByText('Card saved.')).toBeVisible()
+  await expect(page.getByText('Card added.')).toBeVisible()
   await expect(page.getByRole('main').getByRole('link', { name: /The nucleus holds the DNA\./ })).toBeVisible()
   expect(errors).toEqual([])
 })
@@ -325,7 +325,7 @@ test('Trash: restore, then delete forever with the history caveat explained', as
   await typeInto(page, 'Front', 'Consideration')
   // A new card exists only once saved; then, opened again, it can go to the trash.
   await page.getByRole('button', { name: 'Save', exact: true }).click()
-  await expect(page.getByText('Card saved.')).toBeVisible()
+  await expect(page.getByText('Card added.')).toBeVisible()
   // The toast can sit over the row on a phone.
   await page.getByRole('button', { name: 'Dismiss' }).click()
   await page

@@ -67,8 +67,19 @@ export function useScopedSources(value: Pick<Selection, 'courseId' | 'sectionId'
   )
 }
 
-/** Course, sources and optional pasted text an AI request is grounded in. */
-export function SourcePicker({ value, onChange }: { value: Selection; onChange: (s: Selection) => void }) {
+/**
+ * Course, sources and optional pasted text an AI request is grounded in. Choosing a course or section checks all of
+ * its sources; `chosen` keeps the sources of `value` as they are until then (a request run before, changed again).
+ */
+export function SourcePicker({
+  value,
+  onChange,
+  chosen = false,
+}: {
+  value: Selection
+  onChange: (s: Selection) => void
+  chosen?: boolean
+}) {
   const t = useT()
   const courseId = useId()
   const sectionId = useId()
@@ -84,8 +95,8 @@ export function SourcePicker({ value, onChange }: { value: Selection; onChange: 
     if (value.courseId === '' && first) onChange({ ...value, courseId: first.id })
   }, [courses, value, onChange])
 
-  const [seeded, setSeeded] = useState('')
   const seedKey = `${value.courseId}/${value.sectionId}`
+  const [seeded, setSeeded] = useState(chosen ? seedKey : '')
   useEffect(() => {
     if (value.courseId && seeded !== seedKey) {
       setSeeded(seedKey)

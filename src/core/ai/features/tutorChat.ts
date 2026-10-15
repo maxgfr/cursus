@@ -20,7 +20,15 @@ import {
   type RetrievalScope,
   SOURCES_RULE,
 } from '../retrieval'
-import type { SourceRef } from '../schemas'
+import type {
+  CardDraft,
+  CardImprovement,
+  ExplainBackReview,
+  PhotoDescription,
+  QuizQuestion,
+  SourceRef,
+  Understanding,
+} from '../schemas'
 import type { AnswerExplanation } from './explainCard'
 import {
   answerTerms,
@@ -30,23 +38,111 @@ import {
   keepValidRefs,
   type QuestionExplanation,
 } from './explainQuestion'
+import type { Detail } from './understand'
 
-/** A structured answer kept in the thread: « Explain the question » or « Why? » on a card. */
-export type RichResult = (
+type Faces = { front: string; back: string }
+
+/** « Explain the question » or « Why? » on a card. */
+export type CardRich = (
   | { kind: 'explainQuestion'; value: QuestionExplanation }
   | { kind: 'explainCard'; value: AnswerExplanation }
 ) & {
   /** The card it explains. */
-  card: { front: string; back: string }
+  card: Faces
   /** The cost estimated before the call, in USD. */
   cost?: number
 }
+
+/**
+ * What a study action (cards, quiz, study sheet) works from and asks for: a course or one of its sections, the
+ * sources chosen there and any pasted text, a topic, how many items and how deep. Changed in the answer, then run
+ * again.
+ */
+export interface StudyOptions {
+  courseId: string
+  /** A section of the course, its descendants included; none for the whole course. */
+  sectionId?: string
+  sourceIds: string[]
+  pasted: string
+  topic: string
+  count: number | 'all'
+  detail: Detail
+}
+
+/** A generated card in the thread: kept unsaved until « Save », flagged when the course has it already. */
+export interface ChatDraft extends CardDraft {
+  duplicate: boolean
+  /** The card it became once saved. */
+  savedId?: string
+  /** Dismissed from the answer. */
+  removed?: boolean
+}
+
+/** A grade suggested for an answer in the student's own words, 1 (Again) to 4 (Easy). */
+export type SuggestedRating = 1 | 2 | 3 | 4
+
+/** A structured answer kept in the thread, with what its buttons need (saving, applying, running again). */
+export type RichResult =
+  | CardRich
+  | {
+      kind: 'cards'
+      options: StudyOptions
+      drafts: ChatDraft[]
+      /** Drafted from these photos instead of the sources. */
+      photoIds?: string[]
+      cost?: number
+      /** The sources held nothing to read: nothing was asked, the options wait for a choice. */
+      empty?: boolean
+    }
+  | {
+      kind: 'quiz'
+      options: StudyOptions
+      questions: QuizQuestion[]
+      /** The choice made on each question answered so far, in order. */
+      answers: number[]
+      /** The question on screen: one answered shows its correction until the next one is asked. */
+      step: number
+      cost?: number
+      empty?: boolean
+    }
+  | {
+      kind: 'sheet'
+      options: StudyOptions
+      value: Understanding
+      /** The study sheet it was saved as. */
+      savedId?: string
+      /** The student's explanation of the topic, checked against the sources. */
+      review?: ExplainBackReview
+      cost?: number
+      empty?: boolean
+    }
+  | {
+      kind: 'grade'
+      card: Faces
+      answer: string
+      rating: SuggestedRating
+      feedback: string
+      /** The grade then given to the card from the chat, if any. */
+      rated?: SuggestedRating
+    }
+  | { kind: 'photo'; photoId: string; courseId: string; description: PhotoDescription; cost?: number }
+  | { kind: 'improve'; cardId: string; card: Faces; value: CardImprovement; applied?: boolean }
+  /** Cards proposed on a source by the background queue: its progress and where the drafts wait. */
+  | { kind: 'job'; sourceId: string }
+
+/** A structured answer about a card, whose answer may still be hidden. */
+export const isCardRich = (rich: RichResult): rich is CardRich =>
+  rich.kind === 'explainQuestion' || rich.kind === 'explainCard'
 
 export interface ChatMessage {
   role: 'user' | 'assistant'
   /** The message as plain text; for a structured answer, a readable rendition sent as history. */
   text: string
   rich?: RichResult
+  /** A structured answer's own id: it changes in place (a card saved, a quiz answered, run again). */
+  id?: string
+  /** A photo attached to the student's turn. */
+  photoId?: string
 }
 
 /** What a guided turn asks of the tutor, beyond the student's words. */
@@ -64,14 +160,38 @@ const INTENTS: Record<ChatIntent, string> = {
 
 /** The readable rendition of a structured answer: what the thread says, as the model reads it back. */
 export function richText(rich: RichResult): string {
-  if (rich.kind === 'explainQuestion') {
-    const v = rich.value
-    return [v.restatement.text, ...v.terms.map((t) => `- ${t.term.text}: ${t.definition.text}`), v.context.text]
-      .filter((s) => s.trim() !== '')
-      .join('\n\n')
+  const join = (parts: readonly string[]) => parts.filter((s) => s.trim() !== '').join('\n\n')
+  switch (rich.kind) {
+    case 'explainQuestion': {
+      const v = rich.value
+      return join([v.restatement.text, ...v.terms.map((t) => `- ${t.term.text}: ${t.definition.text}`), v.context.text])
+    }
+    case 'explainCard': {
+      const v = rich.value
+      return join([v.explanation, v.example ?? '', v.mnemonic ?? ''])
+    }
+    case 'cards':
+      return rich.drafts
+        .filter((d) => !d.removed)
+        .map((d) => `- ${d.front}${d.back.trim() ? ` → ${d.back}` : ''}`)
+        .join('\n')
+    case 'quiz':
+      return rich.questions.map((q, i) => `${i + 1}. ${q.question}`).join('\n')
+    case 'sheet':
+      return join([
+        rich.value.title,
+        rich.value.summary,
+        ...rich.value.points.map((p) => `${p.heading}: ${p.explanation}`),
+      ])
+    case 'grade':
+      return rich.feedback
+    case 'photo':
+      return join([rich.description.title, rich.description.explanation, ...rich.description.keyPoints])
+    case 'improve':
+      return join([rich.value.front, rich.value.back, rich.value.rationale])
+    case 'job':
+      return 'Cards are being proposed on this source; they wait among the suggested cards.'
   }
-  const v = rich.value
-  return [v.explanation, v.example ?? '', v.mnemonic ?? ''].filter((s) => s.trim() !== '').join('\n\n')
 }
 
 /** What the student is looking at; every field is optional, an empty context is the whole library. */

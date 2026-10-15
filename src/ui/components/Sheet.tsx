@@ -12,14 +12,18 @@ export interface SheetProps {
   children: ReactNode
   /** Element focused on open. Defaults to the first field in the body, else the first control. */
   initialFocus?: RefObject<HTMLElement | null>
-  /** Full height, its body a column that scrolls its own parts (a chat thread above its composer). */
+  /**
+   * The whole screen on phones and a full-height panel on the right from 600px, its body a column that scrolls its
+   * own parts (a chat thread above its composer). The body brings its own header and close button; `title` only
+   * names the sheet.
+   */
   fill?: boolean
 }
 
 const FIELD = 'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled])'
 const CONTROL = 'button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
 
-/** Native modal <dialog>: bottom sheet on phones, centred panel elsewhere. Escape closes it. */
+/** Native modal <dialog>: bottom sheet on phones, centred panel elsewhere (see `fill`). Escape closes it. */
 export function Sheet({ open, title, onClose, children, initialFocus, fill = false }: SheetProps) {
   const ref = useRef<HTMLDialogElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
@@ -44,12 +48,18 @@ export function Sheet({ open, title, onClose, children, initialFocus, fill = fal
 
   return (
     <dialog ref={ref} className={cx(styles.sheet, fill && styles.fill)} aria-labelledby={id} onClose={onClose}>
-      <div className={styles.header}>
-        <h2 id={id} className={styles.title}>
+      {fill ? (
+        <h2 id={id} className="sr-only">
           {title}
         </h2>
-        <IconButton icon={X} label={t('common.close')} onClick={onClose} />
-      </div>
+      ) : (
+        <div className={styles.header}>
+          <h2 id={id} className={styles.title}>
+            {title}
+          </h2>
+          <IconButton icon={X} label={t('common.close')} onClick={onClose} />
+        </div>
+      )}
       <div ref={bodyRef} className={styles.body}>
         {children}
       </div>

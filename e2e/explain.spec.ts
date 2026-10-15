@@ -322,22 +322,22 @@ test('a whole passage selected in a source is still asked about, as a passage', 
   expect(errors).toEqual([])
 })
 
-test('without a model review offers no explanation and a term in a source leads to the AI settings', async ({
+test('without a model review offers no explanation and a term selected in a source offers nothing', async ({
   page,
 }, info) => {
   await seedCourse(page)
   await openReview(page)
   await expect(page.getByRole('button', { name: 'Show answer' })).toBeVisible()
+  await page.waitForLoadState('networkidle')
   await expect(reviewButton(page, 'Explain the question')).toHaveCount(0)
   await expect(page.getByRole('button', { name: /^Ask about “/ })).toHaveCount(0)
 
   await openNote(page)
+  await page.waitForLoadState('networkidle')
   await selectText(page, '.cm-content', 'ATP')
-  await page.getByRole('button', { name: 'Ask about “ATP”' }).click()
-  const panel = chatPanel(page, info.project.name)
-  await expect(panel.getByText('Set up AI to ask questions')).toBeVisible()
-  await panel.getByRole('link', { name: 'Set up AI' }).click()
-  await expect(page.getByRole('heading', { level: 1, name: 'AI' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Ask about/ })).toHaveCount(0)
+  await expect(chatPanel(page, info.project.name)).toHaveCount(0)
+  await expect(page.getByRole('link', { name: 'Set up AI' })).toHaveCount(0)
 })
 
 test('offline the explanations are disabled, saying why', async ({ page, context }) => {

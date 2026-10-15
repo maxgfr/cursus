@@ -183,9 +183,9 @@ test('adding a PDF proposes questions; they are reviewed by slide and the accept
     .getByRole('main')
     .getByRole('link', { name: /^Cell Biology slides/ })
     .click()
-  await page.getByRole('button', { name: 'Suggest cards' }).click()
+  await page.getByRole('button', { name: 'Create cards' }).click()
   await expect.poll(() => calls.length).toBe(2)
-  await expect(page.getByRole('button', { name: 'Suggest cards' })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Create cards' })).toBeEnabled()
   await expect(page.getByText('2 suggested cards')).toBeVisible()
 })
 
@@ -199,7 +199,7 @@ test('« Do nothing » proposes nothing; « Add them directly » puts the questi
 
   await newCourse(page, 'Botany')
   await importPdf(page, join(DECKS, 'slides.pdf'), 'Cell Biology slides')
-  await expect(page.getByRole('button', { name: 'Suggest cards' })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Create cards' })).toBeEnabled()
   await go(page, '#/inbox', 'Suggested cards')
   await expect(page.getByRole('heading', { name: 'No suggested cards' })).toBeVisible()
   await expect(page.getByText('Cards aren’t suggested when you add a document', { exact: false })).toBeVisible()
@@ -253,6 +253,12 @@ test('over the cost cap a document waits for approval with its estimate; offline
     slides.getByText(/^About \$0\.\d+ for this document, above your limit of \$0\.00 per document\.$/),
   ).toBeVisible()
   expect(calls).toHaveLength(0)
+  // Its limits are a link away; the AI settings opened from here go back to the suggested cards, not to Settings.
+  await slides.getByRole('link', { name: 'Change limits' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'AI' })).toBeVisible()
+  await page.getByRole('main').getByRole('link', { name: 'Back', exact: true }).first().click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Suggested cards' })).toBeVisible()
+  await expect(page).toHaveURL(/#\/inbox$/)
   await slides.getByRole('button', { name: /^Allow \$0\.\d+$/ }).click()
   await expect(slides.getByText('6 to check · 0 accepted')).toBeVisible()
   expect(calls).toHaveLength(1)
@@ -280,7 +286,7 @@ test('over the cost cap a document waits for approval with its estimate; offline
   expect(calls).toHaveLength(2)
 })
 
-test('without a model the documents wait with a discreet invitation; slides and documents are named as such', async ({
+test('without a model nothing is suggested nor said about AI; slides and documents are named as such', async ({
   page,
 }) => {
   const calls = await mockProvider(page)
@@ -303,19 +309,32 @@ test('without a model the documents wait with a discreet invitation; slides and 
   await expect(page.getByRole('main').getByRole('link', { name: /Physiology notes/ })).toContainText('Document')
   await expect(page.getByRole('main').getByRole('link', { name: /Cell Biology 101/ })).toContainText('Slides')
 
+  // Nothing was queued: the box is empty and says nothing of AI.
   await go(page, '#/inbox', 'Suggested cards')
-  await expect(
-    page.getByText('Cards are suggested from the documents you add once an AI model is set up.'),
-  ).toBeVisible()
-  await expect(doc(page, 'Physiology notes').getByText('Waiting for an AI model.')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'No suggested cards' })).toBeVisible()
+  await expect(page.getByText('No card is waiting for your approval.')).toBeVisible()
+  await expect(page.getByRole('main').getByText(/\bAI\b/)).toHaveCount(0)
+  await expect(doc(page, 'Physiology notes')).toHaveCount(0)
+  await expect(doc(page, 'Cell Biology 101')).toHaveCount(0)
   expect(calls).toHaveLength(0)
 
-  // Once a model is set up, the waiting documents get their questions.
+  // Once a model is set up, the documents added before stay as they were; one added now gets its questions.
   await setUpAi(page)
   await go(page, '#/inbox', 'Suggested cards')
-  await expect(doc(page, 'Physiology notes').getByText(/^\d+ to check · 0 accepted$/)).toBeVisible()
-  await expect(doc(page, 'Cell Biology 101').getByText(/^\d+ to check · 0 accepted$/)).toBeVisible()
-  await expect(
-    page.getByText('Cards are suggested from the documents you add once an AI model is set up.'),
-  ).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'No suggested cards' })).toBeVisible()
+  await expect(doc(page, 'Physiology notes')).toHaveCount(0)
+  expect(calls).toHaveLength(0)
+  await go(page, '#/courses', 'Courses')
+  await page
+    .getByRole('main')
+    .getByRole('link', { name: /Anatomy/ })
+    .first()
+    .click()
+  await page.getByRole('radio', { name: 'Sources' }).check({ force: true })
+  await importPdf(page, join(DECKS, 'slides.pdf'), 'Cell Biology slides')
+  await expect(page.getByText('6 suggested cards')).toBeVisible()
+  expect(calls).toHaveLength(1)
+  await go(page, '#/inbox', 'Suggested cards')
+  await expect(doc(page, 'Cell Biology slides').getByText('6 to check · 0 accepted')).toBeVisible()
+  await expect(doc(page, 'Physiology notes')).toHaveCount(0)
 })

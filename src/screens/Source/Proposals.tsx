@@ -1,36 +1,39 @@
-import { Sparkles } from 'lucide-react'
-import { useState } from 'react'
+import { ScrollText, Sparkles } from 'lucide-react'
 import { Link } from 'wouter'
 import { paths } from '../../app/routes.ts'
 import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { Id } from '../../core/contracts/workspace'
 import { useT } from '../../i18n/react.tsx'
+import { useAiReady } from '../../ui/ai/ready.ts'
+import { useChat } from '../../ui/chat/context.tsx'
 import { Button } from '../../ui/components/Button.tsx'
-import { isActiveJob, jobOf, liveQueue, proposeFor, useAutoJobs } from '../../ui/data/autoQuestions.ts'
+import { isActiveJob, jobOf, liveQueue, useAutoJobs } from '../../ui/data/autoQuestions.ts'
 import inbox from '../Inbox/Inbox.module.css'
 import { type JobActions, JobLine } from '../Inbox/JobLine.tsx'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 import styles from './Source.module.css'
 
 /**
- * « Propose questions » on this source (whatever the « When I add a document » setting), where its proposals
- * stand, and how many wait in « To review ».
+ * The source's AI actions, each answered in the chat beside it: « Suggest cards » (whatever the « When I add a
+ * document » setting) and « Summarise this source »; then where its proposals stand, and how many wait in
+ * « Suggested cards ». Without a model only the cards already suggested show.
  */
 export function Proposals({ sourceId }: { sourceId: Id }) {
   const t = useT()
   const rt = useRuntime()
+  const ready = useAiReady()
   const queue = useAutoJobs(rt)
   const waiting = useWorkspaceData(
     ['drafts', 'sources', 'courses', 'sections'],
     (ws) => ws.drafts.list({ sourceId }).length,
   )
-  const [asking, setAsking] = useState(false)
+  const chat = useChat()
+  // Slides and documents offer « Create cards » with their content (DeckView): the same queue, one button.
+  const deck = useWorkspaceData([{ id: sourceId }], (ws) => ws.sources.get(sourceId)?.support !== undefined)
+  // A photo has no text of its own to summarise: it is explained instead, in the photo viewer.
+  const text = useWorkspaceData([{ id: sourceId }], (ws) => ws.sources.get(sourceId)?.kind !== 'image')
   const job = jobOf(queue.jobs, sourceId)
   const active = job !== undefined && isActiveJob(job)
-  const propose = () => {
-    setAsking(true)
-    void proposeFor(rt, sourceId, 'manual').finally(() => setAsking(false))
-  }
   const q = liveQueue()
   const act =
     (what: string, fn: (id: string) => Promise<void>) =>
@@ -44,12 +47,29 @@ export function Proposals({ sourceId }: { sourceId: Id }) {
         approve: act('approve', (id) => q.approve(id)),
       }
     : undefined
+  if (!ready && waiting === 0) return null
   return (
     <div className={styles.proposals}>
       <div className={styles.proposalsRow}>
-        <Button icon={<Sparkles size={18} aria-hidden="true" />} loading={asking} disabled={active} onClick={propose}>
-          {t('ai.sourcePropose')}
-        </Button>
+        {ready && chat && !deck && (
+          // Proposed by the background queue, followed in the chat beside the source.
+          <Button
+            icon={<Sparkles size={18} aria-hidden="true" />}
+            disabled={active}
+            onClick={() => chat.run('suggestCards')}
+          >
+            {t('ai.sourcePropose')}
+          </Button>
+        )}
+        {ready && chat && text && (
+          <Button
+            variant="plain"
+            icon={<ScrollText size={18} aria-hidden="true" />}
+            onClick={() => chat.run('summarise')}
+          >
+            {t('chat.actionSummarise')}
+          </Button>
+        )}
         {waiting > 0 && (
           <p className={inbox.line}>
             {t('ai.sourceProposed', { count: waiting })} ·{' '}
@@ -59,7 +79,7 @@ export function Proposals({ sourceId }: { sourceId: Id }) {
           </p>
         )}
       </div>
-      {job && (active || job.status === 'failed') && <JobLine job={job} actions={actions} />}
+      {ready && job && (active || job.status === 'failed') && <JobLine job={job} actions={actions} />}
     </div>
   )
 }

@@ -5,7 +5,8 @@
   display: flex;
   flex-direction: column;
   width: var(--chat-width);
-  height: 100dvh;
+  /* Above the on-screen keyboard (an iPad in landscape), like the sheet below 1000px. */
+  height: calc(100dvh - var(--kb-inset));
   padding-top: env(safe-area-inset-top);
   padding-right: env(safe-area-inset-right);
   border-left: var(--hairline-width) solid var(--hairline);
@@ -14,26 +15,32 @@
 
 .body {
   /* The side padding around the panel's content: the thread's rules run edge to edge across it. */
-  --chat-pad: var(--space-5);
+  --chat-pad: var(--space-4);
 
   display: flex;
   flex: 1;
   flex-direction: column;
   gap: var(--space-3);
   min-height: 0;
+  padding: var(--space-1) var(--chat-pad) var(--space-3);
 }
 
 .docked .body {
-  --chat-pad: var(--space-4);
-
   padding: var(--space-3) var(--chat-pad) var(--space-4);
 }
 
 .toolbar {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
+}
+
+/* One row: close, the context, the tools; the buttons' edges sit on the panel's padding, their icons inside it. */
+.compact {
+  gap: var(--space-1);
+  margin-inline: calc(-1 * var(--space-2));
 }
 
 .title {
@@ -41,8 +48,16 @@
   font-weight: 700;
 }
 
+.heading {
+  overflow: hidden;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .tools {
   display: flex;
+  flex-shrink: 0;
   gap: var(--space-1);
   margin-inline-start: auto;
 }
@@ -50,6 +65,10 @@
 .context {
   display: flex;
   min-width: 0;
+}
+
+.compact .context {
+  flex: 1;
 }
 
 .chip {
@@ -99,6 +118,8 @@
 }
 
 .log {
+  /* Holds its visually hidden labels too: they must not stretch the panel's own scroll area. */
+  position: relative;
   display: flex;
   flex: 1;
   flex-direction: column;
@@ -116,16 +137,41 @@
   gap: var(--space-3);
 }
 
-/* The screen's actions, above the thread: always there, whatever was said, on one line that scrolls sideways. */
+/*
+ * The screen's actions, right above the composer (within a thumb's reach): always there, whatever was said. On
+ * phones one line that scrolls sideways, faded at the edge where more is hidden; on wider panels, wrapped so every
+ * action shows whole.
+ */
 .actionRow {
   display: flex;
   flex-shrink: 0;
+  flex-wrap: wrap;
   gap: var(--space-2);
-  margin: 0 calc(-1 * var(--chat-pad));
-  padding: 0 var(--chat-pad) var(--space-1);
-  overflow-x: auto;
+  margin: 0;
+  padding: 0;
   list-style: none;
-  scrollbar-width: none;
+}
+
+@media (max-width: 599px) {
+  .actionRow {
+    flex-wrap: nowrap;
+    margin: 0 calc(-1 * var(--chat-pad));
+    padding: var(--space-1) var(--chat-pad);
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .actionRow[data-more="end"] {
+    mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent);
+  }
+
+  .actionRow[data-more="start"] {
+    mask-image: linear-gradient(to left, #000 calc(100% - 2.5rem), transparent);
+  }
+
+  .actionRow[data-more="both"] {
+    mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent);
+  }
 }
 
 .actionRow::-webkit-scrollbar {
@@ -134,6 +180,34 @@
 
 .actionRow > li {
   flex-shrink: 0;
+}
+
+/* Over the page with the keyboard up, the thread keeps the room: the actions wait until it is down. */
+:global(html[data-keyboard="open"]) .covering .actionRow {
+  display: none;
+}
+
+/* The card's question while the student answers it in their own words, kept above the answer box. */
+.answering {
+  display: grid;
+  flex-shrink: 0;
+  gap: var(--space-1);
+  max-height: 30dvh;
+  overflow-y: auto;
+}
+
+.answeringLabel {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+  font-weight: 600;
+}
+
+.answeringQuestion {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-small);
+  background: var(--surface-raised);
+  font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .suggestion {
@@ -307,13 +381,18 @@ a.suggestion {
 
 .history {
   display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
   justify-items: start;
   gap: var(--space-2);
+  min-height: 0;
   overflow-y: auto;
 }
 
 .historyList {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   width: 100%;
   margin: 0;
   padding: 0;

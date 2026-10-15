@@ -7,6 +7,7 @@ import { useSync } from '../../app/syncContext.tsx'
 import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { SourceRecord } from '../../core/model/schema'
 import { useT } from '../../i18n/react.tsx'
+import { useAiReady } from '../../ui/ai/ready.ts'
 import { useChatContext } from '../../ui/chat/context.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { leftNote } from '../../ui/data/autoQuestions.ts'
@@ -82,6 +83,7 @@ function citedPage(search: string): number | undefined {
 function ReadInApp({ source }: { source: SourceRecord }) {
   const t = useT()
   const rt = useRuntime()
+  const aiReady = useAiReady()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const read = () => {
@@ -98,7 +100,7 @@ function ReadInApp({ source }: { source: SourceRecord }) {
   }
   return (
     <>
-      <p className={styles.note}>{t('course.readPdfHint')}</p>
+      <p className={styles.note}>{aiReady ? t('course.readPdfHint') : t('course.readPdfHintNoAi')}</p>
       <Button variant="primary" icon={<BookOpen size={18} aria-hidden="true" />} loading={busy} onClick={read}>
         {t('course.readPdfInApp')}
       </Button>

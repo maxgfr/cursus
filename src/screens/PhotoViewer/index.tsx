@@ -15,7 +15,7 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react'
-import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useParams } from 'wouter'
 import { goBack, leaveTo } from '../../app/nav.ts'
 import { to } from '../../app/routes.ts'
@@ -24,8 +24,9 @@ import { renderPhoto, withPhoto } from '../../core/content/photos'
 import { blobStore } from '../../core/log/blobs'
 import { attachableSources, attachPhoto, getPhoto, listPhotos, photoLabel, rotatePhoto } from '../../core/model/photos'
 import { useT } from '../../i18n/react.tsx'
+import { useAiReady } from '../../ui/ai/ready.ts'
 import { ChatButton } from '../../ui/chat/ChatButton.tsx'
-import { useChatContext } from '../../ui/chat/context.tsx'
+import { useChat, useChatContext } from '../../ui/chat/context.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { Field } from '../../ui/components/Field.tsx'
 import { IconButton } from '../../ui/components/IconButton.tsx'
@@ -40,8 +41,6 @@ import { sharePhoto } from '../Photos/share.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 import styles from './PhotoViewer.module.css'
 import { clampZoom, Stage } from './Stage.tsx'
-
-const AiPanel = lazy(() => import('./AiPanel'))
 
 const STEP = 1.5
 
@@ -63,7 +62,8 @@ export default function PhotoViewer() {
   const [caption, setCaptionDraft] = useState<{ id: string; text: string } | null>(null)
   const [attaching, setAttaching] = useState(false)
   const [moving, setMoving] = useState(false)
-  const [ai, setAi] = useState(false)
+  const aiReady = useAiReady()
+  const chat = useChat()
   const [toast, setToast] = useState<string | null>(null)
   const [working, setWorking] = useState<'card' | 'share' | null>(null)
 
@@ -84,7 +84,15 @@ export default function PhotoViewer() {
     }
   })
 
-  useChatContext(data ? { courseId: data.photo.courseId, sourceId: data.photo.id } : {})
+  useChatContext(
+    data
+      ? {
+          courseId: data.photo.courseId,
+          ...(data.sectionId ? { sectionId: data.sectionId } : {}),
+          photoId: data.photo.id,
+        }
+      : {},
+  )
 
   // A new photo starts fitted.
   const [shownId, setShownId] = useState(id)
@@ -92,7 +100,6 @@ export default function PhotoViewer() {
     setShownId(id)
     setZoom(1)
     setFile(null)
-    setAi(false)
   }
 
   const gallery = data ? to.photos(data.photo.courseId, data.sectionId) : null
@@ -288,19 +295,13 @@ export default function PhotoViewer() {
             >
               {t('photos.makeCard')}
             </Button>
-            <Button
-              icon={<Sparkles size={18} aria-hidden="true" />}
-              onClick={() => setAi((v) => !v)}
-              aria-expanded={ai}
-            >
-              {t('photos.explain')}
-            </Button>
+            {aiReady && chat && (
+              // Read in the chat beside the photo, with the photo attached.
+              <Button icon={<Sparkles size={18} aria-hidden="true" />} onClick={() => chat.run('explainPhoto')}>
+                {t('chat.actionExplainPhoto')}
+              </Button>
+            )}
           </div>
-          {ai && (
-            <Suspense fallback={<p className={styles.keys}>{t('common.loading')}</p>}>
-              <AiPanel photoId={photo.id} courseId={photo.courseId} onClose={() => setAi(false)} />
-            </Suspense>
-          )}
           <div className={styles.actions}>
             <Button variant="plain" icon={<Link2 size={18} aria-hidden="true" />} onClick={() => setAttaching(true)}>
               {t('photos.attach')}

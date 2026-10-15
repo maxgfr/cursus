@@ -76,6 +76,7 @@ export const today = {
   obLoop1Body: 'In a course, tap “{add}”: a note, a PDF, slides or photos.',
   obLoop2Title: 'Turn it into cards',
   obLoop2Body: 'Tap “{generate}” to have AI suggest them from your sources, or “{newCard}” to write one.',
+  obLoop2BodyNoAi: 'Tap “{newCard}” to write one: a question on one side, the answer on the other.',
   obLoop3Title: 'Review a few minutes a day',
   obLoop3Body: 'On {today}, tap “{start}”. Each card comes back just before you would forget it.',
   obDataBody:
@@ -204,5 +205,6 @@ export const today = {
   // --- end demo course ---
   firstCardTitle: 'Add your first card',
   firstCardBody: 'Write a card in a course, or add a source and accept the cards suggested from it.',
+  firstCardBodyNoAi: 'Write a card in a course: a question on one side, the answer on the other.',
   firstCardAction: 'Write a card',
 } as const

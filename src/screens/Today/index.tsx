@@ -12,6 +12,7 @@ import { nextPlanned, planSession } from '../../core/model/sessions'
 import { formatDuration } from '../../i18n/format.ts'
 import { intlTag } from '../../i18n/index.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
+import { useAiReady } from '../../ui/ai/ready.ts'
 import { SyncBadge } from '../../ui/components/Badges.tsx'
 import { Banner } from '../../ui/components/Banner.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
@@ -113,6 +114,7 @@ export default function Today() {
   const t = useT()
   const locale = useLocale()
   const study = useStudy()
+  const aiReady = useAiReady()
   const { summary, status } = useSync()
   const start = useStartReview()
   // Synced review events this version cannot read: kept in the library, left out of the schedule, said here.
@@ -260,7 +262,7 @@ export default function Today() {
                 <h2 id="today-hero" className={styles.caughtUp}>
                   {t('today.firstCardTitle')}
                 </h2>
-                <p className={styles.meta}>{t('today.firstCardBody')}</p>
+                <p className={styles.meta}>{aiReady ? t('today.firstCardBody') : t('today.firstCardBodyNoAi')}</p>
                 {/* Straight to the editor, in the course: no detour through it. */}
                 {study.courses[0] && (
                   <Link href={to.card(newCardId(study.courses[0].id))} className={buttonClass({ variant: 'primary' })}>

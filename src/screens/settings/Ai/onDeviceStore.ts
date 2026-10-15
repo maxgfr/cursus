@@ -16,6 +16,7 @@ import {
   WEBLLM_SCOPES,
 } from '../../../core/ai/local'
 import type { LocalChoice, LocalModels } from '../../../core/ai/localModels'
+import { aiSettingsChanged } from '../../../ui/ai/ready.ts'
 // The URL of the engine's worker script (the same file core starts), not its code.
 import engineScript from '../../../workers/localModel.worker.ts?worker&url'
 
@@ -196,6 +197,8 @@ export async function downloadModel(model: BrowserModel): Promise<void> {
     if (controller === own) controller = null
     publish({ downloading: null })
     patchModel(model.id, { progress: null })
+    // Downloaded, the model may now be ready: the app reads its readiness again at once.
+    aiSettingsChanged()
   }
 }
 
@@ -214,6 +217,8 @@ export async function removeModel(model: BrowserModel): Promise<void> {
     patchModel(model.id, { outcome: { kind: 'failed', message: message(e) } })
   }
   await refreshModel(model)
+  // Removed, the model is no longer ready: the app reads its readiness again at once, not only on leaving.
+  aiSettingsChanged()
 }
 
 /** Frees the engine (its worker and GPU memory) unless a download needs it; the next use starts it again. */

@@ -87,6 +87,7 @@ export const today = {
   obLoop2Title: 'Transformez-le en cartes',
   obLoop2Body:
     'Touchez « {generate} » pour que l’IA les propose à partir de vos sources, ou « {newCard} » pour en écrire une.',
+  obLoop2BodyNoAi: 'Touchez « {newCard} » pour en écrire une : une question au recto, la réponse au verso.',
   obLoop3Title: 'Révisez quelques minutes par jour',
   obLoop3Body: 'Dans {today}, touchez « {start} ». Chaque carte revient juste avant que vous ne l’oubliiez.',
   obDataBody:
@@ -220,5 +221,6 @@ export const today = {
   // --- end demo course ---
   firstCardTitle: 'Ajoutez votre première carte',
   firstCardBody: 'Écrivez une carte dans un cours, ou ajoutez une source et acceptez les cartes suggérées.',
+  firstCardBodyNoAi: 'Écrivez une carte dans un cours : une question au recto, la réponse au verso.',
   firstCardAction: 'Écrire une carte',
 } as const satisfies Shape<typeof en>

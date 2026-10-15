@@ -9,6 +9,7 @@ import { useRuntime, useWorkspaceData, WorkspaceProvider } from './app/workspace
 import { detectFromEnvironment, UI_LOCALE_KEY } from './i18n/index.ts'
 import { I18nProvider, useSetLocale, useT } from './i18n/react.tsx'
 import UpdateToast from './screens/UpdateToast/index.tsx'
+import { AiReadinessCheck } from './ui/ai/ready.ts'
 import { ChatSlot } from './ui/chat/ChatButton.tsx'
 import { ChatProvider } from './ui/chat/context.tsx'
 import { Button } from './ui/components/Button.tsx'
@@ -169,6 +170,7 @@ export function App() {
           <LocaleBoot>
             <SyncProvider>
               <ThemeSync />
+              <AiReadinessCheck />
               <ChatProvider>
                 <AppShell />
                 <SaveBanner />

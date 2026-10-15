@@ -5,6 +5,8 @@ import { paths, to } from '../../app/routes.ts'
 import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import { importDeck, titleFromName } from '../../core/content/deck'
 import { useT } from '../../i18n/react.tsx'
+import { useAiReady } from '../../ui/ai/ready.ts'
+import { useChat, useChatContext } from '../../ui/chat/context.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { EmptyState } from '../../ui/components/EmptyState.tsx'
 import { ListGroup, ListRow } from '../../ui/components/List.tsx'
@@ -37,6 +39,8 @@ function isEditable(target: EventTarget | null): boolean {
 export default function DeckImport() {
   const t = useT()
   const rt = useRuntime()
+  const aiReady = useAiReady()
+  const chat = useChat()
   const opened = useScopeOnce()
   const courses = useWorkspaceData(['courses'], (ws) => ws.courses.list())
   const [place, setPlace] = useState<Place>(() => ({
@@ -47,6 +51,18 @@ export default function DeckImport() {
   const [over, setOver] = useState(false)
   const input = useRef<HTMLInputElement>(null)
   const thumbs = useUnitThumbs(phase.step === 'saved' ? phase.loaded : null)
+  // Once saved, the document is what the chat beside it works on (« Create cards »).
+  useChatContext(
+    phase.step === 'saved' && place.courseId
+      ? {
+          courseId: place.courseId,
+          ...(place.sectionId ? { sectionId: place.sectionId } : {}),
+          sourceId: phase.sourceId,
+        }
+      : place.courseId
+        ? { courseId: place.courseId }
+        : {},
+  )
 
   // Default to the first course when the screen was not opened from one.
   useEffect(() => {
@@ -154,7 +170,7 @@ export default function DeckImport() {
         <div className={styles.stack}>
           <div className={styles.summary} role="status">
             <p className={styles.summaryTitle}>{unitCount(t, deck)}</p>
-            <p className={styles.hint}>{t('ai.deckSavedSource')}</p>
+            <p className={styles.hint}>{aiReady ? t('ai.deckSavedSource') : t('ai.deckSavedSourceNoAi')}</p>
             {skipped > 0 && <p className={styles.hint}>{t('ai.deckImagesSkipped', { count: skipped })}</p>}
             {deck.warnings.some((w) => w.startsWith('unit-limit')) && (
               <p className={styles.hint}>{t('ai.deckUnitLimit', { count: deck.units.length })}</p>
@@ -162,11 +178,20 @@ export default function DeckImport() {
           </div>
           <div className={styles.row}>
             {/* The import is done: what it opens takes its place, so Back goes where the import was started from. */}
-            <Link replace href={to.deckQuestions(phase.sourceId)} className={buttonClass({ variant: 'primary' })}>
-              <Sparkles size={18} aria-hidden="true" />
-              {t('ai.deckCreateQuestions')}
-            </Link>
-            <Link replace href={to.source(phase.sourceId)} className={buttonClass({ variant: 'secondary' })}>
+            {aiReady && (
+              <Button
+                variant="primary"
+                icon={<Sparkles size={18} aria-hidden="true" />}
+                onClick={() => chat?.run('suggestCards')}
+              >
+                {t('ai.deckCreateQuestions')}
+              </Button>
+            )}
+            <Link
+              replace
+              href={to.source(phase.sourceId)}
+              className={buttonClass({ variant: aiReady ? 'secondary' : 'primary' })}
+            >
               {t('ai.deckOpenSource')}
             </Link>
             <Button variant="plain" onClick={() => setPhase({ step: 'choose' })}>
@@ -227,13 +252,7 @@ export default function DeckImport() {
         {decks.length > 0 && (
           <ListGroup title={t('ai.deckAlreadyImported')}>
             {decks.map((s) => (
-              <ListRow
-                key={s.id}
-                href={to.deckQuestions(s.id)}
-                leading={<Presentation size={20} />}
-                title={s.title}
-                subtitle={t('ai.deckCreateQuestions')}
-              />
+              <ListRow key={s.id} href={to.source(s.id)} leading={<Presentation size={20} />} title={s.title} />
             ))}
           </ListGroup>
         )}

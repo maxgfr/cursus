@@ -121,6 +121,91 @@ describe('chat store', () => {
     expect(list.find((c) => c.id === 'old')?.messages).toEqual(chat('old', 0).messages)
   })
 
+  test('the study answers are kept with what their buttons need: drafts, quiz progress, a saved sheet', async () => {
+    const store = memoryStore()
+    const options = {
+      courseId: 'c',
+      sectionId: 's',
+      sourceIds: ['n1'],
+      pasted: '',
+      topic: 'Cells',
+      count: 'all' as const,
+      detail: 'deep' as const,
+    }
+    const rich: ChatMessage['rich'][] = [
+      {
+        kind: 'cards',
+        options: { ...options, count: 10 },
+        drafts: [
+          { kind: 'basic', front: 'Q?', back: 'A', duplicate: false, savedId: 'card1' },
+          { kind: 'cloze', front: 'The {{c1::cell}}.', back: '', duplicate: true, sourceRef: { sourceId: 'n1' } },
+        ],
+        photoIds: ['p1'],
+        cost: 0.01,
+      },
+      {
+        kind: 'quiz',
+        options,
+        questions: [{ question: 'Q?', choices: ['a', 'b'], answerIndex: 1, explanation: 'b' }],
+        answers: [0],
+        step: 0,
+      },
+      {
+        kind: 'sheet',
+        options,
+        value: { title: 'Cells', summary: 'Small.', points: [{ heading: 'Walls', explanation: 'Rigid.' }] },
+        savedId: 'f1',
+        review: { score: 70, strengths: ['ok'], gaps: [], misconceptions: [], feedback: 'Good.' },
+      },
+      { kind: 'grade', card: { front: 'Q?', back: 'A' }, answer: 'a', rating: 3, feedback: 'Right.' },
+      {
+        kind: 'photo',
+        photoId: 'p1',
+        courseId: 'c',
+        description: { kind: 'table', title: 'T', transcription: '', explanation: 'E', keyPoints: ['k'] },
+      },
+      {
+        kind: 'improve',
+        cardId: 'card1',
+        card: { front: 'Q?', back: 'A' },
+        value: { front: 'Q2?', back: 'A2', rationale: 'Clearer.' },
+        applied: true,
+      },
+      { kind: 'job', sourceId: 'n1' },
+    ]
+    const messages: ChatMessage[] = rich.map((r) => ({ role: 'assistant', text: 'x', ...(r ? { rich: r } : {}) }))
+    await saveConversation(store, 'c', {
+      id: 'study',
+      updatedAt: 1,
+      messages: [{ role: 'user', text: 'Go' }, ...messages],
+    })
+    const [kept] = await listConversations(store, 'c')
+    expect(kept?.messages.slice(1)).toEqual(messages)
+  })
+
+  test('a grade given to the card from the chat is kept with its suggestion; an impossible one is refused', async () => {
+    const store = memoryStore()
+    const graded: ChatMessage = {
+      role: 'assistant',
+      text: 'x',
+      rich: { kind: 'grade', card: { front: 'Q?', back: 'A' }, answer: 'a', rating: 3, feedback: 'Right.', rated: 4 },
+    }
+    await saveConversation(store, 'c', { id: 'g', updatedAt: 1, messages: [{ role: 'user', text: 'a' }, graded] })
+    expect((await listConversations(store, 'c'))[0]?.messages[1]).toEqual(graded)
+
+    await store.commit([
+      {
+        put: 'kv',
+        key: chatKey('c'),
+        value: {
+          v: 1,
+          chats: [{ id: 'g', title: 'a', updatedAt: 1, messages: [{ ...graded, rich: { ...graded.rich, rated: 7 } }] }],
+        },
+      },
+    ])
+    expect(await listConversations(store, 'c')).toEqual([])
+  })
+
   test('a malformed structured answer makes its conversation unreadable', async () => {
     const store = memoryStore()
     const bad = { role: 'assistant', text: 'x', rich: { kind: 'explainCard', card: { front: 'q' }, value: {} } }

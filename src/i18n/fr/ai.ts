@@ -34,7 +34,6 @@ export const ai = {
   detailShort: 'Courte',
   detailStandard: 'Standard',
   detailDeep: 'Approfondie',
-  writeSheetSubmit: 'Écrire la fiche',
   fiche: 'Fiche',
   checkUnderstood: 'Vérifier que vous avez compris',
   explainBackHint: 'Expliquez-le avec vos mots. Vous verrez ce qui est juste et ce qui manque.',
@@ -47,7 +46,6 @@ export const ai = {
   wholeSelection: 'Les idées principales de ces sources',
   topicOptional: 'Sujet (facultatif)',
   cardCount: 'Nombre de cartes',
-  generateDrafts: 'Proposer des cartes',
   needCourse: 'Créez d’abord un cours : les cartes sont enregistrées dans un cours.',
   saved: { one: '{count} carte enregistrée.', other: '{count} cartes enregistrées.' },
   openCourse: 'Ouvrir le cours',
@@ -61,9 +59,7 @@ export const ai = {
   back: 'Verso de la carte {n}',
   questionCount: 'Nombre de questions',
   quizAll: 'Tout',
-  startQuiz: 'Lancer le quiz',
   quizNoFsrs: 'Entraînement seulement : votre planning de révision ne change pas.',
-  checkAnswers: 'Vérifier les réponses',
   savedConnection: 'Enregistré sur cet appareil.',
   testOk: 'La connexion fonctionne.',
   catalogUpdated: 'Catalogue mis à jour.',
@@ -201,7 +197,6 @@ export const ai = {
   localSearchTerms: 'sur cet appareil local hors ligne navigateur webgpu gratuit',
   // --- S-040 : questions depuis des diapositives ou un document ---
   deckImportTitle: 'Importer des diapositives ou un document',
-  deckFromFile: 'Créer des questions depuis des diapositives ou un document',
   deckChooseFile: 'Choisir un fichier',
   deckDropHint:
     'PowerPoint (.pptx), Word (.docx) ou PDF. Keynote et Google Slides : exportez d’abord en PDF ou en PowerPoint. Vous pouvez aussi déposer le fichier ici ou le coller.',
@@ -211,6 +206,7 @@ export const ai = {
   deckNeedCourseTitle: 'Aucun cours pour l’instant',
   deckOpenCourses: 'Ouvrir les cours',
   deckAlreadyImported: 'Déjà importés',
+  deckSavedSourceNoAi: 'Enregistré comme source de ce cours.',
   deckSavedSource:
     'Enregistré comme source de ce cours. Vous pouvez créer des questions maintenant ou y revenir plus tard.',
   deckImagesSkipped: {
@@ -250,8 +246,6 @@ export const ai = {
   deckCited: 'Cité : {name}',
   deckLoading: 'Lecture du document…',
   deckQuestionsTitle: 'Créer les questions',
-  deckNoModelTitle: 'Les questions demandent un modèle d’IA',
-  deckNoModel: 'Votre document est enregistré. Configurez un modèle, puis revenez ici pour en tirer des questions.',
   deckOffline: 'Vous êtes hors ligne. Votre document est enregistré ; créer des questions demande une connexion.',
   deckRange: 'Quelle partie',
   deckFrom: 'De',
@@ -323,10 +317,9 @@ export const ai = {
   inboxEmptyTitle: 'Aucune carte suggérée',
   inboxEmptyBody:
     'Quand vous ajoutez un document, les questions que l’IA propose dessus arrivent ici. Rien n’entre dans vos révisions sans votre accord.',
+  inboxEmptyNoAi: 'Aucune carte n’attend votre accord.',
   inboxEmptyOff:
     'Aucune question n’est proposée quand vous ajoutez un document : vous pouvez l’activer dans les réglages IA.',
-  inboxNeedsModel:
-    'Des questions sont proposées sur les documents que vous ajoutez dès qu’un modèle d’IA est configuré.',
   inboxInCourse: 'Dans {course}',
   inboxQueued: 'En attente de son tour.',
   inboxRunning: 'Questions en cours de proposition…',
@@ -389,7 +382,6 @@ export const ai = {
   writingCards: { one: 'Rédaction… {count} carte pour l’instant', other: 'Rédaction… {count} cartes pour l’instant' },
   saveSheetTo: 'Enregistrer dans {place}',
   openSheets: 'Ouvrir les fiches',
-  rewrite: 'Réécrire',
   sheetSourcesAll: 'Sources : toutes celles de {place}',
   sheetSourcesSome: 'Sources : {count} sur {total} dans {place}',
   sheetSourcesNone: 'Sources : aucune choisie',
@@ -397,7 +389,6 @@ export const ai = {
   sheetSourcesPasted: 'Sources : texte collé seulement',
   sheetPlusPasted: '{sources}, plus le texte collé',
   sheetSaved: 'Enregistrée dans les fiches de {course}.',
-  sheetNeedsCourse: 'Choisissez un cours ci-dessus pour garder ceci comme fiche.',
   missingKey: 'Ajoutez votre clé d’API dans Réglages › IA, ou utilisez un modèle sur cet appareil.',
   missingDownload: 'Le modèle sur cet appareil n’est pas encore téléchargé. Téléchargez-le dans Réglages › IA.',
   missingMoved: 'Votre fournisseur a changé d’adresse. Testez-le à nouveau dans Réglages › IA avant de l’utiliser.',

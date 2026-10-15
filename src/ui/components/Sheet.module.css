@@ -41,25 +41,6 @@
   padding: var(--space-2) var(--space-5) var(--space-5);
 }
 
-/* Its body fills the sheet and scrolls its own parts; the sheet itself never scrolls. */
-.fill {
-  height: min(90dvh, calc(100dvh - var(--kb-inset) - 2rem));
-  overflow: hidden;
-}
-
-.fill[open] {
-  display: flex;
-  flex-direction: column;
-}
-
-.fill .body {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-  padding-bottom: var(--space-3);
-}
-
 @keyframes rise {
   from {
     opacity: 0;
@@ -76,6 +57,63 @@
     border-end-end-radius: 0;
     padding-bottom: env(safe-area-inset-bottom);
     margin-bottom: var(--kb-inset);
+  }
+}
+
+/*
+ * Filled: the whole screen on phones, down to the keyboard's top edge, inside the safe areas. Its body fills it and
+ * scrolls its own parts; the sheet itself never scrolls.
+ */
+.sheet.fill {
+  width: 100%;
+  max-width: none;
+  height: calc(100dvh - var(--kb-inset));
+  max-height: none;
+  margin: 0;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  border-radius: 0;
+  box-shadow: none;
+  overflow: hidden;
+}
+
+/* The keyboard covers the home indicator: the composer sits right on top of it. */
+:global(html[data-keyboard="open"]) .sheet.fill {
+  padding-bottom: 0;
+}
+
+.fill[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.fill .body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+  padding: 0;
+}
+
+/* From 600px: a full-height panel on the right, the page dimmed beside it. */
+@media (min-width: 600px) {
+  .sheet.fill {
+    width: min(var(--chat-width, 24rem), 100%);
+    margin: 0 0 0 auto;
+    padding-left: 0;
+    border-left: var(--hairline-width) solid var(--hairline);
+    box-shadow: var(--lift);
+  }
+
+  .fill[open] {
+    animation-name: slide;
+  }
+}
+
+@keyframes slide {
+  from {
+    opacity: 0;
+    transform: translateX(1.5rem);
   }
 }
 

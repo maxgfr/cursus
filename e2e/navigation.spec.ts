@@ -1,7 +1,8 @@
 import { join } from 'node:path'
 import { expect, type Page, type Route, test } from '@playwright/test'
-import { completionReply, configureAi } from './support/ai'
+import { chatPanel, completionReply, configureAi } from './support/ai'
 import { createHarness } from './support/harness.ts'
+import { isPhone } from './support/page.ts'
 
 // Back and Close return to the screen the student came from (else to the screen's logical parent), the browser's
 // back button agrees with them, and leaving a screen after an action never leaves a dead or looping entry behind.
@@ -343,11 +344,14 @@ test('a settings page goes back to its opener, and the browser back does not reo
   await page.goBack()
   await at(page, 'Today', /#\/$/)
 
-  await hop(page, '/inbox', 'Suggested cards')
-  await page.getByRole('link', { name: 'Open AI settings' }).click()
-  await at(page, 'AI', /#\/settings\/ai$/)
+  // Opened from another screen (Today's sync status), a settings page goes back there, not to Settings.
+  await page
+    .getByRole('main')
+    .getByRole('link', { name: /^Sync status:/ })
+    .click()
+  await at(page, 'Sync & backup', /#\/settings\/sync$/)
   await back(page).click()
-  await at(page, 'Suggested cards', /#\/inbox$/)
+  await at(page, 'Today', /#\/$/)
 })
 
 test('the palette: Search returns to its opener, other screens to their logical parent', async ({ page }) => {
@@ -448,10 +452,23 @@ test('Sync opened from Today or from Recovery goes back to its opener', async ({
   await expect(page).toHaveURL(/#\/settings\/recovery$/)
 })
 
-test('AI screens opened from a course return to it, and its Back then goes to Courses', async ({ page }) => {
+test('AI actions opened from a course run in the chat beside it; the course and its Back stay as they were', async ({
+  page,
+}, info) => {
+  const quiz = JSON.stringify({
+    questions: [
+      {
+        question: 'What makes a contract?',
+        choices: ['An offer and its acceptance', 'A signature'],
+        answerIndex: 0,
+        explanation: 'Both.',
+      },
+    ],
+  })
   await page.route(`${LLM}/**`, async (route: Route) => {
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS })
-    return route.fulfill(completionReply(route.request(), 'OK', CORS))
+    const asked = route.request().postData() ?? ''
+    return route.fulfill(completionReply(route.request(), asked.includes('multiple-choice') ? quiz : 'OK', CORS))
   })
   await seedLaw(page)
   await configureAi(page, LLM)
@@ -459,11 +476,17 @@ test('AI screens opened from a course return to it, and its Back then goes to Co
   await hop(page, '/courses', 'Courses')
   await page.getByRole('main').getByRole('link', { name: /^Law/ }).click()
   await at(page, 'Law', /#\/course\//)
-  await page.getByRole('link', { name: /Quiz me/ }).click()
-  await at(page, 'Quiz me', /quiz/)
+  const course = page.url()
+  await page
+    .getByRole('main')
+    .getByRole('button', { name: /Quiz me/ })
+    .click()
+  // The quiz answers in the chat, on the course: no screen of its own, the course stays on screen.
+  const chat = chatPanel(page, info.project.name)
+  await expect(chat.getByRole('button', { name: 'An offer and its acceptance' })).toBeVisible()
+  await expect(page).toHaveURL(course)
+  if (isPhone(info.project.name)) await chat.getByRole('button', { name: 'Close chat' }).click()
   await page.reload()
-  await at(page, 'Quiz me', /quiz/)
-  await back(page).click()
   await at(page, 'Law', /#\/course\//)
   await back(page).click()
   await at(page, 'Courses', /#\/courses$/)

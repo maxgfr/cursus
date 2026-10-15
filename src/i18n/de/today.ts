@@ -84,6 +84,7 @@ export const today = {
   obLoop2Title: 'Mach Karten daraus',
   obLoop2Body:
     'Tippe auf „{generate}“, damit die KI sie aus deinen Quellen vorschlägt, oder auf „{newCard}“, um selbst eine zu schreiben.',
+  obLoop2BodyNoAi: 'Tippe auf „{newCard}“, um eine zu schreiben: vorne eine Frage, hinten die Antwort.',
   obLoop3Title: 'Wiederhole ein paar Minuten am Tag',
   obLoop3Body: 'Tippe unter {today} auf „{start}“. Jede Karte kommt, kurz bevor du sie vergessen würdest.',
   obDataBody:
@@ -214,5 +215,6 @@ export const today = {
   firstCardTitle: 'Leg deine erste Karte an',
   firstCardBody:
     'Schreib eine Karte in einem Kurs oder füge eine Quelle hinzu und übernimm die vorgeschlagenen Karten.',
+  firstCardBodyNoAi: 'Schreib eine Karte in einem Kurs: vorne eine Frage, hinten die Antwort.',
   firstCardAction: 'Karte schreiben',
 } as const satisfies Shape<typeof en>

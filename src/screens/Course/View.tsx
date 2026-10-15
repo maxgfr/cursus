@@ -30,8 +30,9 @@ import { importCards } from '../../core/export/csvImport'
 import { clozePlain } from '../../core/model/cloze'
 import type { SourceRecord } from '../../core/model/schema'
 import { useT } from '../../i18n/react.tsx'
+import { useAiReady } from '../../ui/ai/ready.ts'
 import { Breadcrumb } from '../../ui/Breadcrumb.tsx'
-import { useChatContext } from '../../ui/chat/context.tsx'
+import { useChat, useChatContext } from '../../ui/chat/context.tsx'
 import { courseHue } from '../../ui/components/Badges.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { EmptyState } from '../../ui/components/EmptyState.tsx'
@@ -52,7 +53,6 @@ import { PracticeSheet } from '../Sessions/PracticeSheet.tsx'
 import { addFile, addImage, addNote, FILES_ACCEPT } from '../Source/importers.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 import { ExamCountdown } from '../Today/CourseRows.tsx'
-import { useAiModel } from '../Understand/shared/aiConfig.ts'
 import { AddSheet } from './AddSheet.tsx'
 import styles from './Course.module.css'
 import { CourseSettings } from './CourseSettings.tsx'
@@ -67,8 +67,9 @@ const LazyFicheSheet = lazyChunk<import('../../ui/FicheSheet.tsx').FicheSheetPro
 type Tab = 'cards' | 'sources' | 'fiches'
 
 /**
- * History state the course is opened with: a trashed card or section to undo, a calm "saved", or the tab to
- * open on (a study sheet just saved opens the course on its study sheets).
+ * History state the course is opened with: a trashed card or section to undo, a calm "saved" (or "added", for a
+ * new card, with the next one a tap away), or the tab to open on (a study sheet just saved opens the course on its
+ * study sheets).
  */
 export interface CardNotice {
   trashedCard?: string
@@ -85,11 +86,12 @@ const stateString = (state: unknown, key: 'trashedCard' | 'trashedSection'): str
   return typeof v === 'string' ? v : null
 }
 
-const savedFrom = (state: unknown): boolean =>
-  typeof state === 'object' && state !== null && 'cardSaved' in state && state.cardSaved === true
-
-const addedFrom = (state: unknown): boolean =>
-  typeof state === 'object' && state !== null && 'cardAdded' in state && state.cardAdded === true
+const savedFrom = (state: unknown): 'saved' | 'added' | null => {
+  if (typeof state !== 'object' || state === null) return null
+  if ('cardAdded' in state && state.cardAdded === true) return 'added'
+  if ('cardSaved' in state && state.cardSaved === true) return 'saved'
+  return null
+}
 
 const tabFrom = (state: unknown): 'fiches' | null =>
   typeof state === 'object' && state !== null && 'tab' in state && state.tab === 'fiches' ? 'fiches' : null
@@ -127,7 +129,6 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
     stateString(history.state, 'trashedSection'),
   )
   const [saved, setSaved] = useState(() => savedFrom(history.state))
-  const [added] = useState(() => addedFrom(history.state))
   const filesInput = useRef<HTMLInputElement>(null)
   const photoInput = useRef<HTMLInputElement>(null)
   const csvInput = useRef<HTMLInputElement>(null)
@@ -135,7 +136,10 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   const [notice, setNotice] = useState<string | null>(null)
   const here = sectionId ?? null
   // AI only explains, improves or gets a start: its actions show once a model is ready, never a setup link here.
-  const aiReady = useAiModel().status === 'ready'
+  const aiReady = useAiReady()
+  const chat = useChat()
+  // Each AI action opens the chat beside the course and starts there at once.
+  const ask = (id: 'generate' | 'quiz' | 'understand') => chat?.run(id)
   useChatContext(sectionId === undefined ? { courseId } : { courseId, sectionId })
   const data = useWorkspaceData(
     ['courses', 'sections', 'cards', 'sources', 'fiches', { id: sectionId ?? courseId }],
@@ -372,10 +376,9 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   )
 
   const newSheet = (
-    <Link href={withScope(paths.understand, scope)} className={buttonClass({ variant: 'primary' })}>
-      <NotebookPen size={18} aria-hidden="true" />
+    <Button variant="primary" icon={<NotebookPen size={18} aria-hidden="true" />} onClick={() => ask('understand')}>
       {t('course.newSheet')}
-    </Link>
+    </Button>
   )
 
   const title = section?.name ?? course.title
@@ -439,10 +442,13 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
             </Button>
           )}
           {aiReady && data.total > 0 && (
-            <Link href={withScope(paths.quiz, scope)} className={buttonClass({ variant: 'secondary' })}>
-              <MessageCircleQuestion size={18} aria-hidden="true" />
+            <Button
+              variant="secondary"
+              icon={<MessageCircleQuestion size={18} aria-hidden="true" />}
+              onClick={() => ask('quiz')}
+            >
               {t('ai.quiz')}
-            </Link>
+            </Button>
           )}
           {/* Practice over this course or subset (descendants included): due, all, new, forgotten… in one tap. */}
           {data.total > 0 && (
@@ -516,10 +522,13 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
                 {t('course.addCard')}
               </Button>
               {aiReady && (
-                <Link href={withScope(paths.generate, scope)} className={buttonClass({ variant: 'plain' })}>
-                  <Sparkles size={18} aria-hidden="true" />
+                <Button
+                  variant="plain"
+                  icon={<Sparkles size={18} aria-hidden="true" />}
+                  onClick={() => ask('generate')}
+                >
                   {t('ai.generate')}
-                </Link>
+                </Button>
               )}
               <IconButton icon={Ellipsis} label={t('course.moreCardWays')} onClick={() => setMoreCards(true)} />
             </div>
@@ -528,7 +537,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
             <EmptyState
               icon={Layers}
               title={t('course.noCardsTitle')}
-              body={t('course.noCardsBody')}
+              body={aiReady ? t('course.noCardsBody') : t('course.noCardsBodyNoAi')}
               action={
                 <div className={styles.actions}>
                   <Button variant="primary" icon={<Plus size={18} aria-hidden="true" />} onClick={newCard}>
@@ -539,10 +548,13 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
                       {t('course.addSource')}
                     </Button>
                   ) : (
-                    <Link href={withScope(paths.generate, scope)} className={buttonClass({ variant: 'secondary' })}>
-                      <Sparkles size={18} aria-hidden="true" />
+                    <Button
+                      variant="secondary"
+                      icon={<Sparkles size={18} aria-hidden="true" />}
+                      onClick={() => ask('generate')}
+                    >
                       {t('ai.generate')}
-                    </Link>
+                    </Button>
                   )}
                   {cardImports}
                 </div>
@@ -628,7 +640,11 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
             icon={NotebookText}
             title={data.fichesBelow > 0 ? t('course.sheetsBelowTitle') : t('course.noSheetsTitle')}
             body={
-              data.fichesBelow > 0 ? t('course.sheetsBelow', { count: data.fichesBelow }) : t('course.noSheetsBody')
+              data.fichesBelow > 0
+                ? t('course.sheetsBelow', { count: data.fichesBelow })
+                : aiReady
+                  ? t('course.noSheetsBody')
+                  : t('course.noSheetsBodyNoAi')
             }
             action={aiReady ? newSheet : undefined}
           />
@@ -712,16 +728,16 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
       {moved !== null && trashed === null && trashedSection === null && error === null && (
         <Toast message={moved} actions={[{ label: t('common.dismiss'), onClick: () => setMoved(null) }]} />
       )}
-      {saved && trashed === null && error === null && (
+      {saved !== null && trashed === null && error === null && (
         <Toast
-          message={t('course.cardSaved')}
+          message={saved === 'added' ? t('course.cardAdded') : t('course.cardSaved')}
           actions={[
-            ...(added
+            ...(saved === 'added'
               ? [
                   {
                     label: t('course.addAnother'),
                     onClick: () => {
-                      setSaved(false)
+                      setSaved(null)
                       clearEntryState()
                       newCard()
                     },
@@ -731,7 +747,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
             {
               label: t('common.dismiss'),
               onClick: () => {
-                setSaved(false)
+                setSaved(null)
                 clearEntryState()
               },
             },

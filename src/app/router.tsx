@@ -27,9 +27,14 @@ const screens: Record<Exclude<RouteName, 'today'>, Screen> = {
   history: lazyChunk('history', () => import('../screens/History/index.tsx')),
   onboarding: lazyChunk('onboarding', () => import('../screens/Onboarding/index.tsx')),
   review: lazyChunk('review', () => import('../screens/Review/index.tsx')),
-  understand: lazyChunk('understand', () => import('../screens/Understand/index.tsx')),
-  generate: lazyChunk('generate', () => import('../screens/Generate/index.tsx')),
-  quiz: lazyChunk('quiz', () => import('../screens/Quiz/index.tsx')),
+  // Former screens of their own, now actions of the chat: the routes open it on them.
+  understand: lazyChunk('understand', () =>
+    import('../screens/ChatRoute/index.tsx').then((m) => ({ default: m.Understand })),
+  ),
+  generate: lazyChunk('generate', () =>
+    import('../screens/ChatRoute/index.tsx').then((m) => ({ default: m.Generate })),
+  ),
+  quiz: lazyChunk('quiz', () => import('../screens/ChatRoute/index.tsx').then((m) => ({ default: m.Quiz }))),
   stats: lazyChunk('stats', () => import('../screens/Stats/index.tsx')),
   sessions: lazyChunk('sessions', () => import('../screens/Sessions/index.tsx')),
   sessionNew: lazyChunk('sessionNew', () => import('../screens/SessionSetup/index.tsx')),

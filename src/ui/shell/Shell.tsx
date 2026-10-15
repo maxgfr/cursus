@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { Link, useLocation } from 'wouter'
 import { paths, to } from '../../app/routes.ts'
 import { useT } from '../../i18n/react.tsx'
+import { useAiReady } from '../ai/ready.ts'
 import { useChat } from '../chat/context.tsx'
 import { CourseDot, type CourseHue } from '../components/Badges.tsx'
 import { cx } from '../cx.ts'
@@ -68,6 +69,7 @@ export function Shell({ children, focus, courses, aside }: ShellProps) {
   // Only the most specific row is the page: on a course, its sidebar row wins over the Courses tab.
   const courseRowCurrent = courses.some((c) => to.course(c.id) === location)
   const chat = useChat()
+  const aiReady = useAiReady()
   return (
     <div className={cx(styles.shell, focus && styles.focus, chat?.open && styles.withChat)}>
       <a className={styles.skip} href="#main">
@@ -135,7 +137,7 @@ export function Shell({ children, focus, courses, aside }: ShellProps) {
                 <kbd>{isApple() ? '⌘K' : 'Ctrl K'}</kbd>
               </span>
             </Link>
-            {chat && (
+            {chat && aiReady && (
               <button
                 type="button"
                 className={styles.search}

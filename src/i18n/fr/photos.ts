@@ -47,7 +47,6 @@ export const photos = {
   downloaded: 'Téléchargée',
   notes: 'Notes et historique',
   trashed: 'Photo placée dans la corbeille',
-  explain: 'Expliquer avec l’IA',
   shortcuts: 'Touches : + et − zooment, 0 ajuste, R pivote, ← et → font défiler.',
   addToCard: 'Ajouter une photo',
   fromCourse: 'Depuis ce cours',
@@ -68,13 +67,10 @@ export const photos = {
     other: '{count} fichiers n’étaient pas sur cet appareil et manquent dans le paquet.',
   },
   // « Explain with AI » panel and Understand citations (S-031).
-  aiNeedModel: 'Configurez un modèle d’IA capable de lire les images pour expliquer vos photos et en tirer des cartes.',
   aiNeedVision:
     '{model} ne lit que du texte. Pour expliquer des photos, choisissez dans les réglages IA un modèle capable de lire les images.',
   aiOnDeviceTextOnly:
     'Le modèle sur cet appareil ne lit que du texte. Pour expliquer des photos, choisissez dans les réglages IA un modèle en ligne capable de lire les images.',
-  aiOffline: 'Vous êtes hors ligne. Expliquer une photo ou en tirer des cartes demande une connexion.',
-  aiExplain: 'Expliquer cette photo',
   aiExplainAgain: 'Expliquer à nouveau',
   aiReading: 'Lecture de la photo…',
   aiReduced: 'La photo est envoyée réduite à {size} px au plus.',
@@ -88,7 +84,6 @@ export const photos = {
   aiThisPhoto: 'Cette photo',
   aiPhotosHint: { one: '{count} photo en une seule requête.', other: '{count} photos en une seule requête.' },
   aiDraft: 'Préparer des cartes',
-  aiDrafting: 'Préparation des cartes…',
   aiOpenPhoto: 'Ouvrir la photo : {name}',
   aiUnderstandPhotos: {
     one: 'Inclut ce que l’IA a lu sur {count} photo.',

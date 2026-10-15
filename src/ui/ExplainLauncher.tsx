@@ -2,6 +2,7 @@ import { MessageCircle } from 'lucide-react'
 import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { useT } from '../i18n/react.tsx'
 import type { AiModelState } from '../screens/Understand/shared/aiConfig.ts'
+import { useAiReady } from './ai/ready.ts'
 import { useChat } from './chat/context.tsx'
 import { Button } from './components/Button.tsx'
 import styles from './ExplainLauncher.module.css'
@@ -88,8 +89,10 @@ export function useSelectedTerm(scopeOf: (el: Element) => Element | null): {
       const term = sel?.toString().replace(/\s+/g, ' ').trim() ?? ''
       const node = sel && sel.rangeCount > 0 && !sel.isCollapsed ? sel.getRangeAt(0).commonAncestorContainer : null
       const el = node ? elementOf(node) : null
-      // Text in a sheet (or any dialog) is not the screen's.
-      const within = el && el.closest('dialog') === null ? scope.current(el) : null
+      // Text in a sheet (or any dialog) is not the screen's: only a scope inside that dialog takes it.
+      const scoped = el ? scope.current(el) : null
+      const dialog = el?.closest('dialog') ?? null
+      const within = scoped && (dialog === null || dialog.contains(scoped)) ? scoped : null
       if (within === null || term === '') {
         if (!held()) setSelected(null)
         return
@@ -128,14 +131,15 @@ export interface AskSelectionProps {
 /**
  * « Ask about “term” » for text selected in a reader (a source, an explanation): a button pinned above the tab
  * bar and the keyboard while a short selection lasts. It opens the chat on the term, with the passage it was
- * selected in and what the screen shows; the chat says how to set up AI when no model is ready.
+ * selected in and what the screen shows; nothing without a model ready.
  */
 export function AskSelection({ within = 'main' }: AskSelectionProps) {
   const t = useT()
   const chat = useChat()
+  const ready = useAiReady()
   const scopeOf = useCallback((el: Element) => el.closest(within), [within])
   const { selected, launcher, clear } = useSelectedTerm(scopeOf)
-  if (!chat || !selected) return null
+  if (!chat || !ready || !selected) return null
   const ask = () => {
     const { question, excerpt } = askAbout(t, selected)
     chat.ask(question, excerpt)

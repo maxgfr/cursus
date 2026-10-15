@@ -45,7 +45,8 @@ export function ExplainActions({ card, revealed, ai }: { card: CardView; reveale
   const scopeOf = useCallback((el: Element) => el.closest(FACES), [])
   const { selected, launcher, clear } = useSelectedTerm(scopeOf)
 
-  if (ai.status !== 'ready' || !chat) return null
+  // Shown by the card once the app's readiness says a model is ready; `ai` only says whether it runs offline.
+  if (!chat) return null
 
   const askTerm = () => {
     if (!selected) return

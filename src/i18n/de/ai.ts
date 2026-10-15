@@ -34,7 +34,6 @@ export const ai = {
   detailShort: 'Kurz',
   detailStandard: 'Standard',
   detailDeep: 'Ausführlich',
-  writeSheetSubmit: 'Den Spickzettel schreiben',
   fiche: 'Spickzettel',
   checkUnderstood: 'Prüfen, ob du es verstanden hast',
   explainBackHint: 'Erkläre es mit eigenen Worten. Du siehst, was stimmt und was fehlt.',
@@ -47,7 +46,6 @@ export const ai = {
   wholeSelection: 'Die Hauptgedanken dieser Quellen',
   topicOptional: 'Thema (optional)',
   cardCount: 'Anzahl der Karten',
-  generateDrafts: 'Kartenentwürfe erstellen',
   needCourse: 'Lege zuerst einen Kurs an: Karten werden in einem Kurs gespeichert.',
   saved: { one: '{count} Karte gespeichert.', other: '{count} Karten gespeichert.' },
   openCourse: 'Kurs öffnen',
@@ -61,9 +59,7 @@ export const ai = {
   back: 'Rückseite von Karte {n}',
   questionCount: 'Anzahl der Fragen',
   quizAll: 'Alles',
-  startQuiz: 'Quiz starten',
   quizNoFsrs: 'Nur zur Übung: dein Wiederholungsplan bleibt unverändert.',
-  checkAnswers: 'Antworten prüfen',
   savedConnection: 'Auf diesem Gerät gespeichert.',
   testOk: 'Die Verbindung funktioniert.',
   catalogUpdated: 'Katalog aktualisiert.',
@@ -201,7 +197,6 @@ export const ai = {
   localSearchTerms: 'auf diesem gerät lokal offline browser webgpu kostenlos',
   // --- S-040: Fragen aus Folien oder einem Dokument ---
   deckImportTitle: 'Folien oder ein Dokument importieren',
-  deckFromFile: 'Fragen aus Folien oder einem Dokument erstellen',
   deckChooseFile: 'Datei auswählen',
   deckDropHint:
     'PowerPoint (.pptx), Word (.docx) oder PDF. Keynote und Google Präsentationen: zuerst als PDF oder PowerPoint exportieren. Du kannst die Datei auch hier ablegen oder einfügen.',
@@ -211,6 +206,7 @@ export const ai = {
   deckNeedCourseTitle: 'Noch kein Kurs',
   deckOpenCourses: 'Kurse öffnen',
   deckAlreadyImported: 'Bereits importiert',
+  deckSavedSourceNoAi: 'Als Quelle dieses Kurses gespeichert.',
   deckSavedSource:
     'Als Quelle dieses Kurses gespeichert. Du kannst jetzt Fragen erstellen oder später darauf zurückkommen.',
   deckImagesSkipped: {
@@ -250,9 +246,6 @@ export const ai = {
   deckCited: 'Zitiert: {name}',
   deckLoading: 'Das Dokument wird gelesen …',
   deckQuestionsTitle: 'Fragen erstellen',
-  deckNoModelTitle: 'Für Fragen braucht es ein KI-Modell',
-  deckNoModel:
-    'Dein Dokument ist gespeichert. Richte ein Modell ein und komm dann hierher zurück, um Fragen daraus zu erstellen.',
   deckOffline: 'Du bist offline. Dein Dokument ist gespeichert; zum Erstellen von Fragen braucht es eine Verbindung.',
   deckRange: 'Welcher Teil',
   deckFrom: 'Von',
@@ -322,9 +315,9 @@ export const ai = {
   inboxEmptyTitle: 'Keine vorgeschlagenen Karten',
   inboxEmptyBody:
     'Wenn du ein Dokument hinzufügst, landen die Fragen, die die KI dazu vorschlägt, hier. Nichts kommt in deine Wiederholungen, bevor du es annimmst.',
+  inboxEmptyNoAi: 'Keine Karte wartet auf deine Zustimmung.',
   inboxEmptyOff:
     'Beim Hinzufügen eines Dokuments werden keine Fragen vorgeschlagen: Du kannst das in den KI-Einstellungen einschalten.',
-  inboxNeedsModel: 'Fragen zu deinen Dokumenten werden vorgeschlagen, sobald ein KI-Modell eingerichtet ist.',
   inboxInCourse: 'In {course}',
   inboxQueued: 'Wartet, bis es an der Reihe ist.',
   inboxRunning: 'Fragen werden vorgeschlagen …',
@@ -389,7 +382,6 @@ export const ai = {
   writingCards: { one: 'Schreibt… bisher {count} Karte', other: 'Schreibt… bisher {count} Karten' },
   saveSheetTo: 'In {place} speichern',
   openSheets: 'Spickzettel öffnen',
-  rewrite: 'Neu schreiben',
   sheetSourcesAll: 'Quellen: alle aus {place}',
   sheetSourcesSome: 'Quellen: {count} von {total} in {place}',
   sheetSourcesNone: 'Quellen: keine ausgewählt',
@@ -397,7 +389,6 @@ export const ai = {
   sheetSourcesPasted: 'Quellen: nur eingefügter Text',
   sheetPlusPasted: '{sources}, dazu eingefügter Text',
   sheetSaved: 'In den Spickzetteln von {course} gespeichert.',
-  sheetNeedsCourse: 'Wähle oben einen Kurs, um das als Spickzettel zu behalten.',
   missingKey: 'Hinterlege deinen API-Schlüssel unter Einstellungen › KI oder nutze ein Modell auf diesem Gerät.',
   missingDownload: 'Das Modell auf diesem Gerät ist noch nicht geladen. Lade es unter Einstellungen › KI herunter.',
   missingMoved: 'Dein Anbieter hat eine neue Adresse. Teste ihn unter Einstellungen › KI erneut, bevor du ihn nutzt.',

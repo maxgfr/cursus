@@ -1,7 +1,7 @@
 import { join } from 'node:path'
 import { expect, type Page, type Route, test } from '@playwright/test'
-import { aiSearch, configureAi, openModels, providerGroup, providerPicker } from './support/ai'
-import { createCourse } from './support/page'
+import { aiSearch, chatPanel, configureAi, openModels, providerGroup, providerPicker } from './support/ai'
+import { createCourse, isPhone } from './support/page'
 
 test.use({ serviceWorkers: 'block' })
 
@@ -166,40 +166,47 @@ async function openFirstPhoto(page: Page): Promise<string> {
   return title
 }
 
-const panel = (page: Page) => page.getByRole('region', { name: 'Explain with AI' })
+/** « Explain this photo » on the photo: it is read in the chat beside it, the photo attached to the question. */
+const explainWithAi = (page: Page) => page.getByRole('main').getByRole('button', { name: 'Explain this photo' })
 
-async function openPanel(page: Page) {
-  await page.getByRole('button', { name: 'Explain with AI' }).click()
-  await expect(panel(page)).toBeVisible()
-}
-
-test('a photo is explained from a reduced copy, after its cost is shown, then cited in a study sheet', async ({
+test('a photo is explained in the chat from a reduced copy, its cost shown, then cited in a study sheet', async ({
   page,
-}) => {
+}, info) => {
   const sent = await mockProvider(page)
   await configureAi(page, LLM)
   // Since S-044 adding a document proposes questions on its own (auto-questions.spec.ts): off for this manual flow.
   await page.getByRole('radio', { name: 'Do nothing' }).check({ force: true })
   await courseWithPhotos(page, 'Biochemistry', [LARGE])
   const title = await openFirstPhoto(page)
-  await openPanel(page)
-
-  const p = panel(page)
-  await expect(p.getByText(/Estimated cost: \$.* · Claude Haiku 5\.5/).first()).toBeVisible()
-  await expect(p.getByText('The photo is sent reduced to 1,024 px at most.')).toBeVisible()
+  const phone = isPhone(info.project.name)
+  const chat = chatPanel(page, info.project.name)
   expect(sent).toHaveLength(0)
 
   // Keyboard: the action runs from Enter, and focus lands on the result for VoiceOver.
-  await p.getByRole('button', { name: 'Explain this photo' }).focus()
+  await explainWithAi(page).focus()
   await page.keyboard.press('Enter')
-  await expect(p.getByText('Krebs cycle steps')).toBeVisible()
-  await expect(p.getByRole('heading', { name: 'Text on the photo' })).toBeVisible()
-  await expect(p.getByRole('table').getByRole('cell', { name: 'Citrate', exact: true })).toBeVisible()
-  await expect(p.getByText('The cycle oxidises acetyl-CoA to make NADH.')).toBeVisible()
-  await expect(p.getByRole('listitem').filter({ hasText: 'Citrate starts the cycle' })).toBeVisible()
+  await expect(chat.getByText('Krebs cycle steps')).toBeVisible()
+  // The chat says it is about the photo, and the question carries the photo, on the student's side of the thread.
+  await expect(chat.getByText('About: this photo')).toBeVisible()
+  const attached = chat.getByRole('link', { name: `Open photo: ${title}` }).first()
+  await expect(attached).toBeVisible()
+  const photoBox = await attached.boundingBox()
+  // The student's bubble right below it.
+  const turn = attached.locator('xpath=following-sibling::div[1]')
+  await expect(turn).toHaveText('You: Explain this photo')
+  const turnBox = await turn.boundingBox()
+  if (!photoBox || !turnBox) throw new Error('missing box')
+  expect(Math.abs(photoBox.x + photoBox.width - (turnBox.x + turnBox.width))).toBeLessThanOrEqual(24)
+  expect(photoBox.x).toBeGreaterThan(turnBox.x - 1)
+  await expect(chat.getByRole('heading', { name: 'Text on the photo' })).toBeVisible()
+  await expect(chat.getByRole('table').getByRole('cell', { name: 'Citrate', exact: true })).toBeVisible()
+  await expect(chat.getByText('The cycle oxidises acetyl-CoA to make NADH.')).toBeVisible()
+  await expect(chat.getByRole('listitem').filter({ hasText: 'Citrate starts the cycle' })).toBeVisible()
   await expect
     .poll(() => page.evaluate(() => document.activeElement?.textContent?.includes('Krebs cycle steps') ?? false))
     .toBe(true)
+  await expect(chat.getByText(/Estimated cost: \$.* · Claude Haiku 5\.5/).first()).toBeVisible()
+  await expect(chat.getByText('The photo is sent reduced to 1,024 px at most.')).toBeVisible()
 
   // One request, with the photo as an image no larger than 1024 px, turned into a JPEG.
   expect(sent).toHaveLength(1)
@@ -208,25 +215,27 @@ test('a photo is explained from a reduced copy, after its cost is shown, then ci
   expect(jpegSize(request?.images[0] ?? '')).toEqual({ mime: 'image/jpeg', width: 1024, height: 512 })
   expect(request?.text).toContain('Course: Biochemistry')
 
-  // What was read is kept: reopening the panel shows it without a new request.
-  await p.getByRole('button', { name: 'Close' }).click()
-  await openPanel(page)
-  await expect(panel(page).getByText('Krebs cycle steps')).toBeVisible()
-  await expect(panel(page).getByRole('button', { name: 'Explain again' })).toBeVisible()
+  // What was read is kept: asked again, it shows without a new request.
+  if (phone) await chat.getByRole('button', { name: 'Close chat' }).click()
+  await explainWithAi(page).click()
+  await expect(chat.getByText('Krebs cycle steps')).toHaveCount(2)
+  await expect(chat.getByRole('button', { name: 'Explain again' }).last()).toBeVisible()
   expect(sent).toHaveLength(1)
 
   // A study sheet grounds in the photo and cites it: thumbnail and link back to the photo.
   await expect(
-    panel(page).getByText('Kept on this device: study sheets can now use and cite this photo.'),
+    chat.getByText('Kept on this device: study sheets can now use and cite this photo.').last(),
   ).toBeVisible()
-  await panel(page).getByRole('link', { name: 'Write a study sheet' }).click()
-  await expect(page.getByRole('heading', { level: 1, name: 'New study sheet' })).toBeVisible()
-  await page.getByText('Sources: all of Biochemistry').click()
-  await expect(page.getByRole('checkbox', { name: title })).toBeChecked()
-  await expect(page.getByText('Includes what AI read on 1 photo.')).toBeVisible()
-  await page.getByLabel('What should the sheet cover?').fill('Krebs cycle')
-  await page.getByRole('button', { name: 'Write the sheet', exact: true }).click()
-  const fiche = page.getByRole('article', { name: 'Study sheet' })
+  await chat.getByRole('button', { name: 'Write a study sheet' }).last().click()
+  const fiche = chat.getByRole('article', { name: 'Study sheet' })
+  await expect(fiche.getByRole('heading', { name: 'Krebs cycle', exact: true })).toBeVisible()
+  await chat.getByText('Sources: all of Biochemistry').click()
+  await expect(chat.getByRole('checkbox', { name: title })).toBeChecked()
+  await expect(chat.getByText('Includes what AI read on 1 photo.')).toBeVisible()
+  await chat.getByLabel('What should the sheet cover?').fill('Krebs cycle')
+  await chat.getByRole('button', { name: 'Run again', exact: true }).click()
+  await expect.poll(() => sent.at(-1)?.text ?? '').toContain('Topic: Krebs cycle\n')
+  await expect(chat.getByRole('log')).not.toHaveAttribute('aria-busy', 'true')
   const cite = fiche.getByRole('link', { name: `Open photo: ${title}` })
   await expect(cite).toBeVisible()
   await expect(cite.locator('img')).toBeVisible()
@@ -237,53 +246,59 @@ test('a photo is explained from a reduced copy, after its cost is shown, then ci
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
 })
 
-test('cards from several photos: deduped drafts, saved only when confirmed', async ({ page }) => {
+test('cards from several photos in the chat: duplicates flagged, saved only when confirmed', async ({ page }, info) => {
   const sent = await mockProvider(page)
   await configureAi(page, LLM)
   // Since S-044 adding a document proposes questions on its own (auto-questions.spec.ts): off for this manual flow.
   await page.getByRole('radio', { name: 'Do nothing' }).check({ force: true })
   const courseId = await courseWithPhotos(page, 'Metabolism', [LARGE, LARGE])
   await openFirstPhoto(page)
-  await openPanel(page)
-  const p = panel(page)
+  await explainWithAi(page).click()
+  const chat = chatPanel(page, info.project.name)
 
-  await expect(p.getByRole('heading', { name: 'Create cards from this photo' })).toBeVisible()
-  const others = p.getByRole('group', { name: 'Photos to use' }).getByRole('checkbox')
+  await expect(chat.getByRole('heading', { name: 'Create cards from this photo' })).toBeVisible()
+  const others = chat.getByRole('group', { name: 'Photos to use' }).getByRole('checkbox')
   await expect(others).toHaveCount(2)
   await expect(others.first()).toBeChecked()
   await expect(others.first()).toBeDisabled()
   const before =
-    (await p
+    (await chat
       .getByText(/Estimated cost: \$/)
       .last()
       .textContent()) ?? ''
   await others.nth(1).check()
-  await expect(p.getByText('2 photos in one request.')).toBeVisible()
-  await expect(p.getByText(/Estimated cost: \$/).last()).not.toHaveText(before)
+  await expect(chat.getByText('2 photos in one request.')).toBeVisible()
+  await expect(chat.getByText(/Estimated cost: \$/).last()).not.toHaveText(before)
 
-  await p.getByRole('button', { name: 'Suggest cards' }).click()
-  await expect(p.getByText('2 cards generated')).toBeVisible()
-  await expect(p.getByText('1 duplicate removed')).toBeVisible()
+  await chat.getByRole('button', { name: 'Suggest cards' }).click()
+  await expect(chat.getByText('2 cards generated')).toBeVisible()
+  await expect(chat.getByText('1 duplicate flagged: Save all leaves it out')).toBeVisible()
   expect(sent.at(-1)?.images).toHaveLength(2)
 
   // Nothing is saved until confirmed: discarding leaves the course without cards.
-  await p.getByRole('button', { name: 'Discard' }).click()
+  await chat.getByRole('button', { name: 'Discard' }).click()
+  await expect(chat.getByText('Suggestions discarded.')).toBeVisible()
+  if (isPhone(info.project.name)) await chat.getByRole('button', { name: 'Close chat' }).click()
   await page.goto(`./#/course/${encodeURIComponent(courseId)}`)
   await expect(page.getByRole('heading', { level: 1, name: 'Metabolism' })).toBeVisible()
   await expect(page.getByText('What starts the Krebs cycle?')).toHaveCount(0)
 
   await page.goBack()
-  await openPanel(page)
-  await panel(page).getByRole('button', { name: 'Suggest cards' }).click()
-  await expect(panel(page).getByText('2 cards generated')).toBeVisible()
-  await panel(page).getByLabel('Front of card 1').fill('Which molecule starts the Krebs cycle?')
-  await panel(page).getByRole('button', { name: 'Save 2 cards' }).click()
-  await expect(panel(page).getByText('2 cards saved.')).toBeVisible()
-  await panel(page).getByRole('link', { name: 'Open course' }).click()
-  await expect(page.getByText('Which molecule starts the Krebs cycle?')).toBeVisible()
+  await explainWithAi(page).click()
+  // The thread kept the earlier answers: the cards are drafted from the newest one.
+  await chat.getByRole('button', { name: 'Suggest cards' }).last().click()
+  await expect(chat.getByText('2 cards generated')).toBeVisible()
+  await chat.getByLabel('Front of card 1').fill('Which molecule starts the Krebs cycle?')
+  await chat.getByRole('button', { name: 'Save 2 cards' }).click()
+  await expect(chat.getByText('2 cards saved.')).toBeVisible()
+  await chat.getByRole('link', { name: 'Open course' }).click()
+  await expect(page.getByRole('main').getByText('Which molecule starts the Krebs cycle?')).toBeVisible()
 })
 
-test('a running request can be cancelled; offline, the actions wait for a connection', async ({ page, context }) => {
+test('a running request can be stopped in the chat; offline, its actions wait for a connection', async ({
+  page,
+  context,
+}, info) => {
   let release: () => void = () => undefined
   const hold = new Promise<void>((resolve) => {
     release = resolve
@@ -294,45 +309,56 @@ test('a running request can be cancelled; offline, the actions wait for a connec
   await page.getByRole('radio', { name: 'Do nothing' }).check({ force: true })
   await courseWithPhotos(page, 'Genetics', [LARGE])
   await openFirstPhoto(page)
-  await openPanel(page)
-  const p = panel(page)
+  await explainWithAi(page).click()
+  const chat = chatPanel(page, info.project.name)
 
-  await p.getByRole('button', { name: 'Explain this photo' }).click()
-  await expect(p.getByRole('status').filter({ hasText: 'Reading the photo…' })).toBeVisible()
-  await expect(p.getByRole('button', { name: 'Cancel' })).toBeFocused()
+  await expect(chat.getByRole('status').filter({ hasText: 'Reading the photo…' })).toBeVisible()
   await expect.poll(() => sent.length).toBe(1)
-  await p.getByRole('button', { name: 'Cancel' }).click()
-  await expect(p.getByText('Reading the photo…')).toHaveCount(0)
-  await expect(p.getByRole('button', { name: 'Explain this photo' })).toBeEnabled()
-  // Focus goes back to the action, never to the top of the page.
-  await expect(p.getByRole('button', { name: 'Explain this photo' })).toBeFocused()
+  // While it runs, the keyboard's focus is in the chat, on the question box beside Stop.
+  await expect(chat.getByRole('textbox', { name: 'Your question' })).toBeFocused()
+  await expect(chat.getByRole('button', { name: 'Stop' })).toBeVisible()
+  await chat.getByRole('button', { name: 'Stop' }).click()
+  await expect(chat.getByText('Reading the photo…')).toHaveCount(0)
+  await expect(chat.getByRole('button', { name: 'Explain this photo' })).toBeEnabled()
+  // Focus stays in the chat, on the question box, never at the top of the page.
+  await expect(chat.getByRole('textbox', { name: 'Your question' })).toBeFocused()
   release()
-  await expect(p.getByText('Krebs cycle steps')).toHaveCount(0)
-  await expect(p.getByRole('alert')).toHaveCount(0)
+  await expect(chat.getByText('Krebs cycle steps')).toHaveCount(0)
+  await expect(chat.getByRole('alert')).toHaveCount(0)
 
   await context.setOffline(true)
-  await expect(
-    p.getByText('You’re offline. Explaining a photo and suggesting cards from it need a connection.'),
-  ).toBeVisible()
-  await expect(p.getByRole('button', { name: 'Explain this photo' })).toBeDisabled()
-  await expect(p.getByRole('button', { name: 'Suggest cards' })).toBeDisabled()
+  await expect(chat.getByText('You are offline. Asking needs a connection, or a model on this device.')).toBeVisible()
+  await expect(chat.getByRole('button', { name: 'Explain this photo' })).toBeDisabled()
+  await expect(chat.getByRole('textbox', { name: 'Your question' })).toBeDisabled()
   await context.setOffline(false)
-  await expect(p.getByRole('button', { name: 'Explain this photo' })).toBeEnabled()
+  await expect(chat.getByRole('button', { name: 'Explain this photo' })).toBeEnabled()
+
+  // Explained, the photo's « Suggest cards » waits for a connection too.
+  await chat.getByRole('button', { name: 'Explain this photo' }).click()
+  await expect(chat.getByText('Krebs cycle steps')).toBeVisible()
+  await expect(chat.getByRole('button', { name: 'Suggest cards' })).toBeEnabled()
+  await context.setOffline(true)
+  await expect(chat.getByRole('button', { name: 'Suggest cards' })).toBeDisabled()
+  await context.setOffline(false)
+  await expect(chat.getByRole('button', { name: 'Suggest cards' })).toBeEnabled()
 })
 
-test('without a model that reads images, the panel links to the AI settings', async ({ page }) => {
+test('without a model nothing of the AI shows; with one that reads no images, the chat links to the AI settings', async ({
+  page,
+}, info) => {
   await courseWithPhotos(page, 'Anatomy', [LARGE])
   const photoUrl = await (async () => {
     await openFirstPhoto(page)
     return page.url()
   })()
-  await openPanel(page)
-  await expect(
-    panel(page).getByText('Set up an AI model that reads images to explain photos and turn them into cards.'),
-  ).toBeVisible()
-  await expect(panel(page).getByRole('button', { name: 'Explain this photo' })).toHaveCount(0)
+  const chat = chatPanel(page, info.project.name)
+  await page.waitForLoadState('networkidle')
+  await expect(page.getByRole('button', { name: 'New card with this photo' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Explain this photo' })).toHaveCount(0)
+  await expect(chat).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Ask about this' })).toHaveCount(0)
 
-  // A text-only model: the panel says so and leads to the settings.
+  // A text-only model: the chat says so and leads to the settings.
   await page.goto('./#/settings/ai')
   await openModels(page)
   await aiSearch(page).fill('302 deepseek v3.2')
@@ -345,12 +371,12 @@ test('without a model that reads images, the panel links to the AI settings', as
   await expect(page.getByText('Saved on this device.')).toBeVisible()
 
   await page.goto(photoUrl)
-  await openPanel(page)
+  await explainWithAi(page).click()
   await expect(
-    panel(page).getByText(
+    chat.getByText(
       'DeepSeek V3.2 reads text only. To explain photos, choose a model that reads images in the AI settings.',
     ),
   ).toBeVisible()
-  await panel(page).getByRole('link', { name: 'Open AI settings' }).click()
+  await chat.getByRole('link', { name: 'Open AI settings' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'AI' })).toBeVisible()
 })

@@ -64,10 +64,36 @@ can use a language model, in one of two ways:
   never synchronised. Usage and estimated cost are recorded per month. Local servers such as Ollama or LM
   Studio work from Chrome on the same Mac, not from an iPad (mixed content is blocked).
 
+Without a model set up, no AI feature shows anywhere (Settings › AI and the welcome's AI step aside): no chat, no
+AI buttons, and documents added are not queued for suggested cards later.
+
 The chat opens beside any screen (its icon, ⌘J / Ctrl+J, or « Ask about this » in the command palette). It
 knows what the screen shows (a course, a section, a source, a card, a quiz question), answers from the
 course's sources with citations, and never gives a card's answer before it is revealed. Conversations are
 kept on the device, per course, and are not synchronised.
+
+Every AI action answers in the chat, started from a button where it is needed (a course or section, its Cards and
+Study sheets tabs, a source, slides, a photo, a card in review, Practice) or from the chat's own actions:
+
+- **Generate cards**: drafts to edit, saved one by one or all at once; cards the course already has are flagged
+  and left out of « Save all ».
+- **Quiz me**: one question at a time, corrected as it is answered, then a score; nothing reaches the review
+  schedule.
+- **Write a study sheet**: a sheet cited from the sources, saved to the course or section, with an « explain it
+  back » check.
+- **Answer in your own words** (review): the answer is typed in the chat, the card's question shown above it, and
+  graded there; the suggested grade comes back to the card, whose answer stays hidden until then, and the grade
+  can be given to the card from the chat.
+- **Explain this photo**: the photo is read from a reduced copy and explained, then cards can be drafted from it.
+- **Improve** (a card that keeps slipping): a rewrite applied with « Use this version »; before the card's answer
+  shows, the proposed answer stays folded.
+- **Suggest cards** on a source, **Create cards** on slides or a document: the background queue proposes cards
+  (within the cost limits) into « Suggested cards », and the chat follows its progress.
+
+The cards, quiz and study sheet answers show what they ran with in one line (« 10 cards · Sources: all of
+Biology »), unfolding into their options (topic, number, detail, sources, pasted text) with « Run again ». The
+former `#/generate`, `#/quiz` and `#/understand` links open the chat on that action, in the course or section
+they name. A term selected in a study sheet of the chat can be asked about there.
 
 ## Anki
 

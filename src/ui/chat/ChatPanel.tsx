@@ -11,7 +11,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Link, useLocation } from 'wouter'
+import { Link } from 'wouter'
 import { paths, to } from '../../app/routes.ts'
 import { useRuntime, useWorkspace } from '../../app/workspaceContext.tsx'
 import {
@@ -21,27 +21,43 @@ import {
   listConversations,
   saveConversation,
 } from '../../core/ai/chatStore'
+import { VisionRequiredError } from '../../core/ai/features/describePhoto'
 import { explainCard } from '../../core/ai/features/explainCard'
 import { EXPLAIN_OUTPUT_TOKENS, explainQuestion } from '../../core/ai/features/explainQuestion'
 import {
   buildTutorTurn,
+  type CardRich,
   type ChatContext,
   type ChatIntent,
   type ChatMessage,
   type ChatSegment,
   guardReply,
+  isCardRich,
   keepValidCitations,
   parseCitations,
   type RichResult,
   richText,
+  type StudyOptions,
   tutorChat,
 } from '../../core/ai/features/tutorChat'
 import type { Chunk } from '../../core/ai/retrieval'
-import type { CardExplanation, QuestionExplanationDraft, SourceRef } from '../../core/ai/schemas'
+import type {
+  CardDraft,
+  CardExplanation,
+  CardImprovement,
+  PhotoDescription,
+  QuestionExplanationDraft,
+  QuizQuestion,
+  SourceRef,
+  Understanding,
+} from '../../core/ai/schemas'
+import { renderPhoto } from '../../core/content/photos'
 import { blobStore } from '../../core/log/blobs'
+import { getPhoto } from '../../core/model/photos'
 import type { ModelWorkspace } from '../../core/model/workspace'
 import { formatUsd } from '../../i18n/format.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
+import { useFileLoader } from '../../screens/Photos/files.ts'
 import { describeFailure } from '../../screens/Review/failure.ts'
 import { cardText, passagesText, useAiModel } from '../../screens/Understand/shared/aiConfig.ts'
 import { Citation } from '../../screens/Understand/shared/SourcePicker.tsx'
@@ -50,15 +66,44 @@ import { Button, buttonClass } from '../components/Button.tsx'
 import { IconButton } from '../components/IconButton.tsx'
 import { Sheet } from '../components/Sheet.tsx'
 import { cx } from '../cx.ts'
+import { proposeFor } from '../data/autoQuestions.ts'
 import { usePartial } from '../data/usePartial.ts'
 import { useCanCallAi } from '../ExplainLauncher.tsx'
 import { Sanitized } from '../render/Sanitized.tsx'
-import { actionById, actionsFor, type ChatAction } from './actions.ts'
+import { actionById, actionsFor, type ChatAction, type StudyKind } from './actions.ts'
 import styles from './ChatPanel.module.css'
 import { type ScreenContext, useChat } from './context.tsx'
 import { keyed, PartialRich, RichAnswer, RichNote } from './RichAnswer.tsx'
+import {
+  AttachedPhoto,
+  PartialCards,
+  PartialGrade,
+  PartialImprove,
+  PartialPhoto,
+  PartialQuiz,
+  PartialSheet,
+  StudyAnswer,
+  type StudyApi,
+  StudyProvider,
+} from './StudyAnswer.tsx'
+import {
+  checkExplanation,
+  chunkLoader,
+  type PhotoImages,
+  PhotoUnavailableError,
+  type Run,
+  runGrade,
+  runImprove,
+  runPhoto,
+  runPhotoCards,
+  runStudy,
+  type StudyDeps,
+  startOptions,
+} from './studyRun.ts'
 
 const DOCKED = '(min-width: 1000px)'
+/** Room left above a structured answer scrolled to its start. */
+const SCROLL_MARGIN = 12
 
 function useDocked(): boolean {
   const [docked, setDocked] = useState(() => window.matchMedia(DOCKED).matches)
@@ -71,7 +116,10 @@ function useDocked(): boolean {
   return docked
 }
 
-/** The chat beside the screens: docked on the right from 1000px, a sheet below. Loaded on first opening. */
+/**
+ * The chat beside the screens: docked on the right from 1000px, below it a sheet over the page (the whole screen on
+ * phones, a full-height panel on the right from 600px). Loaded on first opening.
+ */
 export default function ChatPanel() {
   const t = useT()
   const chat = useChat()
@@ -113,8 +161,62 @@ interface Live {
 
 /** A structured answer being written: which one, about which card. */
 interface LiveRich {
-  kind: RichResult['kind']
+  kind: CardRich['kind']
   card: { front: string; back: string; revealed: boolean }
+}
+
+/** A study answer being written: which one, in place of which answer (run again) or below the thread. */
+interface LiveStudy {
+  kind: RichResult['kind']
+  replacing: string | null
+  card?: { front: string; back: string }
+}
+
+/** One run of a study answer: the student's turn it answers (none when run again in place), and the work. */
+interface StudyRunSpec {
+  kind: RichResult['kind']
+  label?: string
+  photoId?: string
+  replacing?: string
+  card?: { front: string; back: string }
+  work: (run: Run) => Promise<RichResult | null>
+  /** Done once the answer is in the thread (a grade handed to the card on screen). */
+  done?: (rich: RichResult) => void
+}
+
+const STUDY_KIND: Record<StudyKind, RichResult['kind']> = { generate: 'cards', quiz: 'quiz', understand: 'sheet' }
+
+type Streamed = 'cards' | 'quiz' | 'sheet' | 'grade' | 'photo' | 'improve'
+
+/** Where a kind of answer streams what it has written so far; nothing for the others. */
+function onPartialOf(on: Record<Streamed, (p: unknown) => void>, kind: RichResult['kind']): (p: unknown) => void {
+  switch (kind) {
+    case 'cards':
+    case 'quiz':
+    case 'sheet':
+    case 'grade':
+    case 'photo':
+    case 'improve':
+      return on[kind]
+    default:
+      return () => undefined
+  }
+}
+
+/** A photo's pixels as sent to a model: fetched if it is not here yet, turned upright, at most 1024 px. */
+function usePhotoImages(): PhotoImages {
+  const ws = useWorkspace()
+  const loadFile = useFileLoader()
+  return useCallback(
+    async (id: string) => {
+      const photo = getPhoto(ws, id)
+      const file = photo ? await loadFile(photo.blobId) : null
+      if (!photo || !file) throw new PhotoUnavailableError(id)
+      const small = await renderPhoto(file, photo.rotation, 1024)
+      return { bytes: new Uint8Array(await small.arrayBuffer()), mediaType: small.type || 'image/jpeg' }
+    },
+    [ws, loadFile],
+  )
 }
 
 type Card = NonNullable<ScreenContext['card']>
@@ -126,7 +228,6 @@ const revealedFor = (faces: { front: string; back: string }, card: ScreenContext
 function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void }) {
   const t = useT()
   const locale = useLocale()
-  const [, navigate] = useLocation()
   const ws = useWorkspace()
   const rt = useRuntime()
   const chat = useChat()
@@ -154,11 +255,62 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
   const [courseChunks, setCourseChunks] = useState<Chunk[]>([])
   const questionStream = usePartial<QuestionExplanationDraft>()
   const answerStream = usePartial<CardExplanation>()
+  // What a study answer has written so far, one stream per kind of answer.
+  const cardsStream = usePartial<{ cards: CardDraft[] }>()
+  const quizStream = usePartial<{ questions: QuizQuestion[] }>()
+  const sheetStream = usePartial<Understanding>()
+  const gradeStream = usePartial<{ feedback: string }>()
+  const photoStream = usePartial<PhotoDescription>()
+  const improveStream = usePartial<CardImprovement>()
+  const onPartials = {
+    cards: cardsStream.onPartial,
+    quiz: quizStream.onPartial,
+    sheet: sheetStream.onPartial,
+    grade: gradeStream.onPartial,
+    photo: photoStream.onPartial,
+    improve: improveStream.onPartial,
+  }
+  const resets = [
+    cardsStream.reset,
+    quizStream.reset,
+    sheetStream.reset,
+    gradeStream.reset,
+    photoStream.reset,
+    improveStream.reset,
+  ]
+  const streams = useRef({ onPartials, resets })
+  streams.current = { onPartials, resets }
+  const [liveStudy, setLiveStudy] = useState<LiveStudy | null>(null)
+  /** The card whose answer the student is typing in their own words, in place of a question. */
+  const [answering, setAnswering] = useState<NonNullable<ScreenContext['card']> | null>(null)
   const [error, setError] = useState<string | null>(null)
+  /** The error asks for another model (one that reads images): the AI settings are offered. */
+  const [needsSettings, setNeedsSettings] = useState(false)
+  const retryRun = useRef<StudyRunSpec | null>(null)
+  const [focusId, setFocusId] = useState<string | null>(null)
+  const images = usePhotoImages()
+  const load = useMemo(() => chunkLoader(ws, rt), [ws, rt])
   const abort = useRef<AbortController | null>(null)
   const chunkCache = useRef(new Map<string, Promise<Chunk[]>>())
   const input = useRef<HTMLTextAreaElement>(null)
   const log = useRef<HTMLDivElement>(null)
+  const actionList = useRef<HTMLUListElement>(null)
+  const [actionsMore, setActionsMore] = useState<'start' | 'end' | 'both' | null>(null)
+  const measureActions = useCallback(() => {
+    const el = actionList.current
+    if (!el) return
+    const before = el.scrollLeft > 1
+    const after = el.scrollWidth - el.clientWidth - el.scrollLeft > 1
+    setActionsMore(before && after ? 'both' : before ? 'start' : after ? 'end' : null)
+  }, [])
+  useEffect(() => {
+    const el = actionList.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    measureActions()
+    const seen = new ResizeObserver(measureActions)
+    seen.observe(el)
+    return () => seen.disconnect()
+  })
 
   useEffect(() => () => abort.current?.abort(), [])
 
@@ -177,12 +329,15 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
     }
   }, [rt, courseId])
 
+  // The question box takes the focus on opening, or as soon as it shows once the model is known.
+  const status = ai.status
   useEffect(() => {
-    if (chat?.open) input.current?.focus({ preventScroll: true })
-  }, [chat?.open])
+    if (chat?.open && status === 'ready') input.current?.focus({ preventScroll: true })
+  }, [chat?.open, status])
 
-  // A new message or the panel opening shows the end of the thread; a streaming answer is followed unless the
-  // student scrolled up to read.
+  // A new message or the panel opening shows the end of the thread, except a structured answer just in, which
+  // shows from its start (its heading, its first drafts) when it is taller than the thread; a streaming answer is
+  // followed unless the student scrolled up to read.
   const count = current.messages.length
   const shownCount = useRef(-1)
   useLayoutEffect(() => {
@@ -190,7 +345,9 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
     if (!el) return
     const added = count !== shownCount.current
     shownCount.current = count
-    if (added || el.scrollHeight - el.scrollTop - el.clientHeight < 160) el.scrollTop = el.scrollHeight
+    const start = added ? el.querySelector<HTMLElement>('[data-latest-rich]') : null
+    if (start) el.scrollTop = Math.min(el.scrollHeight - el.clientHeight, start.offsetTop - SCROLL_MARGIN)
+    else if (added || el.scrollHeight - el.scrollTop - el.clientHeight < 160) el.scrollTop = el.scrollHeight
   })
   useEffect(() => {
     if (!chat?.open) return
@@ -213,20 +370,26 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
     [ws, rt],
   )
 
+  // Saved one after another, in the order they happened: two quick changes (a card saved, then all the others)
+  // never land the older one last.
+  const saving = useRef<Promise<void>>(Promise.resolve())
   const persist = useCallback(
     (id: string, messages: ChatMessage[], forCourse: string | undefined) => {
-      saveConversation(rt.store, forCourse, { id, messages, updatedAt: Date.now() }).then(
-        (list) => {
-          if (forCourse === courseId) setChats(list)
-        },
-        (e: unknown) => console.warn('chat not saved', e),
-      )
+      const updatedAt = Date.now()
+      saving.current = saving.current
+        .then(() => saveConversation(rt.store, forCourse, { id, messages, updatedAt }))
+        .then(
+          (list) => {
+            if (forCourse === courseId) setChats(list)
+          },
+          (e: unknown) => console.warn('chat not saved', e),
+        )
     },
     [rt, courseId],
   )
 
   // The course's passages, from which the structured answers quote what they cite.
-  const hasRich = current.messages.some((m) => m.rich !== undefined)
+  const hasRich = current.messages.some((m) => m.rich !== undefined && isCardRich(m.rich))
   useEffect(() => {
     if (!hasRich) return
     let alive = true
@@ -300,7 +463,7 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
 
   // « Explain the question » and « Why? »: a structured answer, written into the thread as it comes.
   const explain = useCallback(
-    async (kind: RichResult['kind'], label: string, card: Card) => {
+    async (kind: CardRich['kind'], label: string, card: Card) => {
       if (ai.status !== 'ready') return
       abort.current?.abort()
       const ctl = new AbortController()
@@ -309,6 +472,8 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
       const history: ChatMessage[] = [...conv.messages, { role: 'user', text: label }]
       setCurrent({ ...conv, messages: history })
       setError(null)
+      setNeedsSettings(false)
+      retryRun.current = null
       const stream = kind === 'explainQuestion' ? questionStream : answerStream
       questionStream.reset()
       answerStream.reset()
@@ -349,16 +514,128 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
     [ai, current, courseId, ws, loadChunks, course, t, persist, questionStream, answerStream],
   )
 
-  const busy = live !== null || liveRich !== null
+  // A study answer (cards, a quiz, a sheet, a grade, a photo, a rewrite): written into the thread as it comes, below
+  // the student's turn, or in place of the answer it runs again.
+  const runRich = useCallback(
+    async (spec: StudyRunSpec) => {
+      if (ai.status !== 'ready') return
+      abort.current?.abort()
+      const ctl = new AbortController()
+      abort.current = ctl
+      const conv = current
+      const turn: ChatMessage | null = spec.label
+        ? { role: 'user', text: spec.label, ...(spec.photoId ? { photoId: spec.photoId } : {}) }
+        : null
+      const history = turn ? [...conv.messages, turn] : conv.messages
+      setCurrent({ ...conv, messages: history })
+      setError(null)
+      setNeedsSettings(false)
+      retryRun.current = null
+      for (const reset of streams.current.resets) reset()
+      setLiveStudy({ kind: spec.kind, replacing: spec.replacing ?? null, ...(spec.card ? { card: spec.card } : {}) })
+      let rich: RichResult | null = null
+      try {
+        rich = await spec.work({ signal: ctl.signal, onPartial: onPartialOf(streams.current.onPartials, spec.kind) })
+      } catch (e) {
+        if (!ctl.signal.aborted) {
+          console.warn('Study request failed', e)
+          // Tried again, it answers the same turn.
+          retryRun.current = { ...spec, label: undefined }
+          if (e instanceof VisionRequiredError) {
+            setNeedsSettings(true)
+            setError(
+              ai.runsOffline ? t('photos.aiOnDeviceTextOnly') : t('photos.aiNeedVision', { model: ai.info.name }),
+            )
+          } else if (e instanceof PhotoUnavailableError) setError(t('photos.unavailable'))
+          else setError(t('chat.failed', { reason: describeFailure(e, t) }))
+        }
+      }
+      if (abort.current === ctl) abort.current = null
+      for (const reset of streams.current.resets) reset()
+      setLiveStudy(null)
+      if (rich === null || ctl.signal.aborted) return
+      const id = spec.replacing ?? rt.rng.id()
+      const answer: ChatMessage = { role: 'assistant', text: richText(rich), rich, id }
+      const messages = spec.replacing
+        ? history.map((m) => (m.id === spec.replacing ? answer : m))
+        : [...history, answer]
+      setCurrent((c) => (c.id === conv.id ? { ...c, messages } : c))
+      persist(conv.id, messages, conv.courseId)
+      // A photo read is announced: the answer takes the focus.
+      if (rich.kind === 'photo') setFocusId(id)
+      spec.done?.(rich)
+    },
+    [ai, current, rt, persist, t],
+  )
+
+  const deps: StudyDeps | null = useMemo(
+    () => (ai.status === 'ready' ? { ws, rt, ai, t, load } : null),
+    [ai, ws, rt, t, load],
+  )
+
+  const study = useCallback(
+    (kind: StudyKind, options: StudyOptions, o: { label?: string; replacing?: string }) => {
+      if (!deps) return
+      void runRich({ kind: STUDY_KIND[kind], ...o, work: (run) => runStudy(deps, kind, options, run) })
+    },
+    [deps, runRich],
+  )
+
+  const busy = live !== null || liveRich !== null || liveStudy !== null
 
   const perform = useCallback(
     (action: ChatAction, on: ScreenContext) => {
-      if (action.kind === 'link') {
-        navigate(action.href)
-        return
-      }
       if (action.kind === 'guided') {
         void ask([...current.messages, { role: 'user', text: action.label }], { intent: action.intent })
+        return
+      }
+      if (action.kind === 'study') {
+        const options = startOptions(ws, action.id, on)
+        if (!options) {
+          setError(t('ai.needCourse'))
+          return
+        }
+        study(action.id, options, { label: action.label })
+        return
+      }
+      if (action.kind === 'answer') {
+        // The answer is typed in the question box; nothing is asked before it is sent.
+        if (on.card) setAnswering(on.card)
+        setShowHistory(false)
+        input.current?.focus()
+        return
+      }
+      if (action.kind === 'improve') {
+        const cardId = on.card?.id
+        if (!deps || !cardId) return
+        void runRich({ kind: 'improve', label: action.label, work: (run) => runImprove(deps, cardId, run) })
+        return
+      }
+      if (action.kind === 'photo') {
+        const photoId = on.photoId
+        if (!deps || !photoId) return
+        void runRich({
+          kind: 'photo',
+          label: action.label,
+          photoId,
+          work: (run) => runPhoto(deps, photoId, images, false, run),
+        })
+        return
+      }
+      if (action.kind === 'job') {
+        const sourceId = on.sourceId
+        if (!sourceId) return
+        // The source's cards are proposed by the background queue, within its cost limits; the thread follows it.
+        void proposeFor(rt, sourceId, 'manual')
+        const conv = current
+        const job: RichResult = { kind: 'job', sourceId }
+        const messages: ChatMessage[] = [
+          ...conv.messages,
+          { role: 'user', text: action.label },
+          { role: 'assistant', text: richText(job), rich: job, id: rt.rng.id() },
+        ]
+        setCurrent({ ...conv, messages })
+        persist(conv.id, messages, conv.courseId)
         return
       }
       const card = on.card
@@ -370,23 +647,105 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
       )
       if (!given) void explain(kind, action.label, card)
     },
-    [navigate, ask, current.messages, explain],
+    [ask, current, explain, ws, t, study, deps, runRich, images, rt, persist],
+  )
+
+  // The answer typed in one's own words concerns the card it was asked for: another card, or its reveal, ends it.
+  const cardKey = screen.card ? `${screen.card.front}\u0000${screen.card.back}` : ''
+  const cardRevealed = screen.card?.revealed === true
+  useEffect(() => {
+    setAnswering((a) => (a && `${a.front}\u0000${a.back}` === cardKey && !cardRevealed ? a : null))
+  }, [cardKey, cardRevealed])
+
+  const grade = (answer: string) => {
+    const card = answering
+    if (!deps || !card) return
+    setAnswering(null)
+    const faces = { front: card.front, back: card.back }
+    const language = screen.courseId ? ws.courses.get(screen.courseId)?.language : undefined
+    void runRich({
+      kind: 'grade',
+      label: answer,
+      card: faces,
+      work: (run) => runGrade(deps, faces, answer, language, run),
+      done: (rich) => {
+        if (rich.kind === 'grade') chat?.grade({ card: faces, rating: rich.rating, feedback: rich.feedback })
+      },
+    })
+  }
+
+  // A grade picked in the chat goes to the card on screen; over the page (below 1000px) the chat then steps aside
+  // so the next card shows.
+  const rateCard = useCallback(
+    (faces: { front: string; back: string }, rating: 1 | 2 | 3 | 4) => {
+      chat?.rate({ card: faces, rating })
+      if (!docked) onClose()
+    },
+    [chat, docked, onClose],
+  )
+
+  const update = useCallback(
+    (id: string, rich: RichResult) => {
+      const messages = current.messages.map((m) => (m.id === id ? { ...m, rich, text: richText(rich) } : m))
+      setCurrent({ ...current, messages })
+      persist(current.id, messages, current.courseId)
+    },
+    [current, persist],
+  )
+
+  const studyApi: StudyApi | null = useMemo(
+    () =>
+      deps && {
+        ai: deps.ai,
+        blocked: busy || !callable,
+        load,
+        update,
+        rerun: (id, kind, options) => study(kind, options, { replacing: id }),
+        rate: rateCard,
+        start: (kind, options) => study(kind, options, { label: actionById(t, {}, kind)?.label ?? '' }),
+        explainPhoto: (photoId) => {
+          void runRich({
+            kind: 'photo',
+            label: t('chat.actionExplainPhoto'),
+            photoId,
+            work: (run) => runPhoto(deps, photoId, images, true, run),
+          })
+        },
+        photoCards: (courseId, photoIds, count) => {
+          void runRich({
+            kind: 'cards',
+            label: t('photos.aiCards'),
+            ...(photoIds[0] ? { photoId: photoIds[0] } : {}),
+            work: (run) => runPhotoCards(deps, courseId, photoIds, count, images, run),
+          })
+        },
+        checkExplanation: (options, explanation, onPartial) =>
+          checkExplanation(deps, options, explanation, { signal: new AbortController().signal, onPartial }),
+      },
+    [deps, busy, callable, load, update, study, t, runRich, images, rateCard],
   )
 
   // Run from the screen (« Explain the question » in review): as soon as the chat can, with the screen's context.
+  // Once carried out it is settled in the hub, so a panel mounted again later (the model set up again) never runs
+  // it a second time.
   const running = chat?.running
+  const settle = chat?.settle
   const ran = useRef<number | null>(null)
   useEffect(() => {
     if (!running || ran.current === running.seq) return
-    // Waits for the course's conversation when the screen just moved to another course.
+    // Waits for the course's conversation when the screen just moved to another course, and for the course (and
+    // section) asked for when the action was run with one.
     if (ai.status !== 'ready' || !callable || busy || current.courseId !== courseId) return
+    const scope = running.scope
+    if (scope && (scope.courseId !== screen.courseId || (scope.sectionId ?? '') !== (screen.sectionId ?? ''))) return
     ran.current = running.seq
+    settle?.(running.seq)
     setShowHistory(false)
     setDetached(null)
     const action = actionById(t, screen, running.id)
     if (action) perform(action, screen)
     else console.warn(`Chat action "${running.id}" has nothing to act on here`)
-  }, [running, ai.status, callable, busy, current.courseId, courseId, t, screen, perform])
+  }, [running, settle, ai.status, callable, busy, current.courseId, courseId, t, screen, perform])
 
   // Asked from the screen (a term selected there): sent as soon as the chat can answer, in the chat on screen.
   const asked = chat?.asked
@@ -395,16 +754,18 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
     if (!asked || handled.current === asked.seq) return
     if (ai.status !== 'ready' || !callable || busy) return
     handled.current = asked.seq
+    settle?.(asked.seq)
     setShowHistory(false)
     void ask([...current.messages, { role: 'user', text: asked.text }], asked.excerpt ? { excerpt: asked.excerpt } : {})
-  }, [asked, ai.status, callable, busy, current.messages, ask])
+  }, [asked, settle, ai.status, callable, busy, current.messages, ask])
 
   const send = (text: string) => {
     const q = text.trim()
     if (q === '' || busy || !callable) return
     setDraft('')
     if (input.current) input.current.style.height = ''
-    void ask([...current.messages, { role: 'user', text: q }])
+    if (answering) grade(q)
+    else void ask([...current.messages, { role: 'user', text: q }])
   }
 
   const submit = (e: FormEvent) => {
@@ -419,22 +780,33 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
     }
   }
 
-  const stop = () => abort.current?.abort()
+  // Stopped, the button goes: the focus stays in the panel, on the question box, never back to the page's top.
+  const stop = () => {
+    abort.current?.abort()
+    input.current?.focus()
+  }
 
   const startNew = () => {
     abort.current?.abort()
     setError(null)
+    setNeedsSettings(false)
+    setAnswering(null)
     setShowHistory(false)
     setCurrent({ id: rt.rng.id(), messages: [], ...(courseId ? { courseId } : {}) })
     input.current?.focus()
   }
 
   const retry = () => {
+    const again = retryRun.current
+    if (again) {
+      void runRich(again)
+      return
+    }
     const history = current.messages
     if (history.at(-1)?.role === 'user') void ask(history)
   }
 
-  // On a phone the sheet covers the page: following a citation or a link closes it.
+  // Below 1000px the sheet covers the page: following a citation or a link closes it.
   const body = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const el = body.current
@@ -448,11 +820,69 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
 
   const chip = chipLabel(t, ws, screen)
   const actions = actionsFor(t, context)
+  // The screen's actions sit right above the composer, within a thumb's reach: one line that scrolls sideways
+  // on phones (faded where more is hidden), wrapped on wider panels. Hidden while the keyboard is up.
+  const actionRow = actions.length > 0 && (
+    <ul
+      ref={actionList}
+      className={styles.actionRow}
+      aria-label={t('chat.actions')}
+      data-more={actionsMore || undefined}
+      onScroll={measureActions}
+    >
+      {actions.map((a) => (
+        <li key={a.id}>
+          <button
+            type="button"
+            className={styles.suggestion}
+            disabled={!callable || busy}
+            onClick={() => perform(a, context)}
+          >
+            {a.label}
+          </button>
+        </li>
+      ))}
+    </ul>
+  )
   const card = context.card
-  const costOf = (rich: RichResult) =>
-    rich.cost === undefined || ai.status !== 'ready'
+  const costOf = (rich: RichResult) => {
+    const cost = 'cost' in rich ? rich.cost : undefined
+    return cost === undefined || ai.status !== 'ready'
       ? null
-      : `${t('ai.cost', { amount: formatUsd(locale, rich.cost) })} · ${ai.info.name}`
+      : `${t('ai.cost', { amount: formatUsd(locale, cost) })} · ${ai.info.name}`
+  }
+  const liveView = (l: LiveStudy) => {
+    switch (l.kind) {
+      case 'cards':
+        return cardsStream.partial ? (
+          <PartialCards partial={cardsStream.partial} />
+        ) : (
+          <Writing text={t('chat.writing')} />
+        )
+      case 'quiz':
+        return <PartialQuiz partial={quizStream.partial} />
+      case 'sheet':
+        return sheetStream.partial ? (
+          <PartialSheet partial={sheetStream.partial} />
+        ) : (
+          <Writing text={t('chat.writing')} />
+        )
+      case 'grade':
+        return <PartialGrade partial={gradeStream.partial} card={l.card ?? { front: '', back: '' }} />
+      case 'photo':
+        return <PartialPhoto partial={photoStream.partial} />
+      case 'improve':
+        return <PartialImprove partial={improveStream.partial} hideBack={screen.card?.revealed === false} />
+      default:
+        return <Writing text={t('chat.writing')} />
+    }
+  }
+  const liveAnswer = liveStudy && (
+    <div className={styles.answer}>
+      <span className="sr-only">{t('chat.tutor')}: </span>
+      {liveView(liveStudy)}
+    </div>
+  )
 
   const contextChip = screenOn ? (
     <span className={styles.chip}>
@@ -478,28 +908,43 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
     </span>
   )
 
-  // Docked, the panel carries its own title; in the sheet (titled already) the context shares the tools' row.
-  const toolbar = (
+  const tools = (
+    <>
+      <IconButton
+        icon={History}
+        label={t('chat.history')}
+        aria-pressed={showHistory}
+        onClick={() => setShowHistory((s) => !s)}
+      />
+      <IconButton icon={SquarePen} label={t('chat.newChat')} onClick={startNew} />
+    </>
+  )
+  // Docked, the panel carries its own title. Full screen or as a side panel, one compact row: close, the context
+  // (or the list's name), then the tools.
+  const toolbar = docked ? (
     <div className={styles.toolbar}>
-      {docked ? (
-        <h2 className={styles.title}>{t('chat.title')}</h2>
-      ) : (
-        ai.status === 'ready' && !showHistory && <div className={styles.context}>{contextChip}</div>
-      )}
+      <h2 className={styles.title}>{t('chat.title')}</h2>
       <div className={styles.tools}>
-        <IconButton
-          icon={History}
-          label={t('chat.history')}
-          aria-pressed={showHistory}
-          onClick={() => setShowHistory((s) => !s)}
-        />
-        <IconButton icon={SquarePen} label={t('chat.newChat')} onClick={startNew} />
-        {docked && <IconButton icon={X} label={t('chat.closePanel')} onClick={onClose} />}
+        {tools}
+        <IconButton icon={X} label={t('chat.closePanel')} onClick={onClose} />
       </div>
+    </div>
+  ) : (
+    <div className={cx(styles.toolbar, styles.compact)}>
+      <IconButton icon={X} label={t('chat.closePanel')} onClick={onClose} />
+      <div className={styles.context}>
+        {showHistory ? (
+          <span className={styles.heading}>{t('chat.history')}</span>
+        ) : (
+          ai.status === 'ready' && contextChip
+        )}
+      </div>
+      <div className={styles.tools}>{tools}</div>
     </div>
   )
 
-  if (ai.status === 'loading') return toolbar
+  if (ai.status === 'loading') return <div className={styles.body}>{toolbar}</div>
+  // The panel only mounts once a model is ready (ChatSlot); this covers the moment a model goes away while it is open.
   if (ai.status === 'missing') {
     return (
       <div className={styles.body}>
@@ -520,7 +965,7 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
   }
 
   return (
-    <div ref={body} className={styles.body}>
+    <div ref={body} className={cx(styles.body, !docked && styles.covering)}>
       {toolbar}
       {showHistory ? (
         <HistoryList
@@ -547,39 +992,19 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
       ) : (
         <>
           {docked && <div className={styles.context}>{contextChip}</div>}
-          {actions.length > 0 && (
-            <ul className={styles.actionRow} aria-label={t('chat.actions')}>
-              {actions.map((a) => (
-                <li key={a.id}>
-                  {a.kind === 'link' ? (
-                    <Link href={a.href} className={styles.suggestion}>
-                      {a.label}
-                    </Link>
-                  ) : (
-                    <button
-                      type="button"
-                      className={styles.suggestion}
-                      disabled={!callable || busy}
-                      onClick={() => perform(a, context)}
-                    >
-                      {a.label}
-                    </button>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
           <div ref={log} className={styles.log} role="log" aria-label={t('chat.title')} aria-busy={busy || undefined}>
-            {current.messages.length === 0 && !busy && (
+            {current.messages.length === 0 && !busy && !answering && (
               <div className={styles.intro}>
                 <p className={styles.muted}>{t('chat.intro')}</p>
               </div>
             )}
             {keyed(
               current.messages.map((m, at) => ({ m, before: current.messages[at - 1] })),
-              ({ m }) => `${m.role}:${m.text}`,
+              // A structured answer keeps its id while it changes (a card saved, a quiz answered).
+              ({ m }) => m.id ?? `${m.role}:${m.text}`,
             ).map(({ item: { m, before }, key }) => {
-              if (!m.rich) {
+              const rich = m.rich
+              if (!rich) {
                 return (
                   <Message
                     key={key}
@@ -591,20 +1016,44 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
                   />
                 )
               }
-              const cost = costOf(m.rich)
+              // Run again, the answer gives way to the new one as it is written.
+              if (liveStudy && m.id !== undefined && liveStudy.replacing === m.id) {
+                return <div key={key}>{liveAnswer}</div>
+              }
+              const cost = costOf(rich)
               return (
-                <div key={key} className={styles.answer}>
+                <div
+                  key={key}
+                  ref={focusId !== null && m.id === focusId ? focusOnce(setFocusId) : undefined}
+                  tabIndex={focusId !== null && m.id === focusId ? -1 : undefined}
+                  className={styles.answer}
+                  data-latest-rich={m === current.messages.at(-1) || undefined}
+                >
                   <span className="sr-only">{t('chat.tutor')}: </span>
-                  <RichAnswer
-                    rich={m.rich}
-                    revealed={revealedFor(m.rich.card, screen.card)}
-                    chunks={courseChunks}
-                    courseId={current.courseId}
-                    footer={cost && <RichNote>{cost}</RichNote>}
-                  />
+                  {isCardRich(rich) ? (
+                    <RichAnswer
+                      rich={rich}
+                      revealed={revealedFor(rich.card, screen.card)}
+                      chunks={courseChunks}
+                      courseId={current.courseId}
+                      footer={cost && <RichNote>{cost}</RichNote>}
+                    />
+                  ) : (
+                    studyApi && (
+                      <StudyProvider value={studyApi}>
+                        <StudyAnswer
+                          id={m.id ?? key}
+                          rich={rich}
+                          revealed={studyRevealed(rich, screen.card)}
+                          onScreen={onScreen(rich, screen.card)}
+                        />
+                      </StudyProvider>
+                    )
+                  )}
                 </div>
               )
             })}
+            {liveStudy && liveStudy.replacing === null && liveAnswer}
             {liveRich && (
               <div className={styles.answer}>
                 <span className="sr-only">{t('chat.tutor')}: </span>
@@ -635,16 +1084,35 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
             {error && (
               <div className={styles.error} role="alert">
                 <p>{error}</p>
-                <Button variant="plain" onClick={retry}>
-                  {t('chat.retry')}
-                </Button>
+                {needsSettings ? (
+                  <Link href={paths.settingsAi} className={buttonClass({ variant: 'plain' })}>
+                    {t('ai.openSettings')}
+                  </Link>
+                ) : (
+                  <Button variant="plain" onClick={retry}>
+                    {t('chat.retry')}
+                  </Button>
+                )}
               </div>
             )}
           </div>
+          {actionRow}
           {!callable && <p className={styles.note}>{t('chat.offline')}</p>}
+          {answering && !busy && (
+            // The question being answered stays in sight above the answer box, the keyboard up or not.
+            <section className={styles.answering} aria-labelledby={`${current.id}-answering`}>
+              <p id={`${current.id}-answering`} className={styles.answeringLabel}>
+                {t('chat.answeringTitle')}
+              </p>
+              <div className={styles.answeringQuestion}>
+                <Sanitized markdown={answering.front} />
+              </div>
+              <p className={styles.note}>{t('chat.answerPrompt')}</p>
+            </section>
+          )}
           <form className={styles.composer} onSubmit={submit}>
             <label className="sr-only" htmlFor={`${current.id}-q`}>
-              {t('chat.inputLabel')}
+              {answering ? t('review.yourAnswer') : t('chat.inputLabel')}
             </label>
             <textarea
               id={`${current.id}-q`}
@@ -652,7 +1120,7 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
               className={styles.input}
               rows={1}
               value={draft}
-              placeholder={t('chat.placeholder')}
+              placeholder={answering ? t('review.ownWordsPlaceholder') : t('chat.placeholder')}
               disabled={!callable}
               enterKeyHint="send"
               onChange={(e) => {
@@ -667,7 +1135,7 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
               </Button>
             ) : (
               <Button type="submit" variant="primary" disabled={!callable || draft.trim() === ''}>
-                {t('chat.send')}
+                {answering ? t('review.check') : t('chat.send')}
               </Button>
             )}
           </form>
@@ -675,6 +1143,33 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
       )}
     </div>
   )
+}
+
+/** Whether a study answer may show the card's answer: a grade or a rewrite of the card on screen waits for its reveal. */
+function studyRevealed(rich: RichResult, card: ScreenContext['card']): boolean {
+  if (rich.kind === 'grade') return revealedFor(rich.card, card)
+  if (rich.kind === 'improve') return !(card && !card.revealed && card.id === rich.cardId)
+  return true
+}
+
+/** Whether a grade is about the card on screen, so it can still be given to it from here. */
+function onScreen(rich: RichResult, card: ScreenContext['card']): boolean {
+  return rich.kind === 'grade' && card !== undefined && card.front === rich.card.front && card.back === rich.card.back
+}
+
+function Writing({ text }: { text: string }) {
+  return (
+    <p className={styles.muted} role="status">
+      {text}
+    </p>
+  )
+}
+
+/** Focuses an answer as it arrives (VoiceOver reads it from there), once. */
+const focusOnce = (done: (id: null) => void) => (el: HTMLDivElement | null) => {
+  if (!el) return
+  el.focus({ preventScroll: true })
+  done(null)
 }
 
 /** The question box grows with what is typed, up to its maximum height, then scrolls. */
@@ -686,6 +1181,7 @@ function grow(el: HTMLTextAreaElement): void {
 function chipLabel(t: ReturnType<typeof useT>, ws: ModelWorkspace, c: ScreenContext): string {
   if (c.card) return t('chat.aboutCard')
   if (c.question) return t('chat.aboutQuestion')
+  if (c.photoId) return t('chat.aboutPhoto')
   const source = c.sourceId ? ws.sources.get(c.sourceId) : undefined
   if (source) return source.title
   const section = c.sectionId ? ws.sections.get(c.sectionId) : undefined
@@ -719,10 +1215,13 @@ function Message({
   const t = useT()
   if (message.role === 'user') {
     return (
-      <div className={styles.user}>
-        <span className="sr-only">{t('chat.you')}: </span>
-        {message.text}
-      </div>
+      <>
+        {message.photoId && <AttachedPhoto photoId={message.photoId} />}
+        <div className={styles.user}>
+          <span className="sr-only">{t('chat.you')}: </span>
+          {message.text}
+        </div>
+      </>
     )
   }
   const segments = parseCitations(message.text).segments

@@ -9,6 +9,7 @@ import { useRuntime } from '../../app/workspaceContext.tsx'
 import { estimate, persisted, requestPersistence } from '../../core/storage/persist'
 import { formatBytes, formatPercent } from '../../i18n/format.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
+import { useAiReady } from '../../ui/ai/ready.ts'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { noteError } from '../settings/Diagnostic/recent.ts'
@@ -61,6 +62,7 @@ function useStorageHealth(): [Health | null, () => Promise<void>] {
  */
 export default function Onboarding() {
   const t = useT()
+  const aiReady = useAiReady()
   const locale = useLocale()
   const rt = useRuntime()
   const [, navigate] = useLocation()
@@ -107,7 +109,11 @@ export default function Onboarding() {
           </li>
           <li>
             <strong>{t('today.obLoop2Title')}</strong>
-            <span>{t('today.obLoop2Body', { generate: t('ai.generate'), newCard: t('course.addCard') })}</span>
+            <span>
+              {aiReady
+                ? t('today.obLoop2Body', { generate: t('ai.generate'), newCard: t('course.addCard') })
+                : t('today.obLoop2BodyNoAi', { newCard: t('course.addCard') })}
+            </span>
           </li>
           <li>
             <strong>{t('today.obLoop3Title')}</strong>

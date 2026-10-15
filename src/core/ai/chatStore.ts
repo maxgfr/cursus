@@ -6,6 +6,14 @@
 import { z } from 'zod'
 import type { LocalStore } from '../contracts/ports'
 import type { ChatMessage } from './features/tutorChat'
+import {
+  cardDraftSchema,
+  explainBackSchema,
+  improveCardSchema,
+  photoDescriptionSchema,
+  quizQuestionSchema,
+  understandSchema,
+} from './schemas'
 
 export const MAX_CONVERSATIONS = 20
 const TITLE_CHARS = 60
@@ -39,10 +47,79 @@ export function titleOf(messages: readonly ChatMessage[]): string {
 
 const ref = z.object({ sourceId: z.string(), page: z.number().optional() })
 const guarded = z.object({ text: z.string(), leaked: z.boolean(), original: z.string().optional() })
-const common = { card: z.object({ front: z.string(), back: z.string() }), cost: z.number().optional() }
+const faces = z.object({ front: z.string(), back: z.string() })
+const common = { card: faces, cost: z.number().optional() }
 
-/** A structured answer as stored: « Explain the question » or « Why? ». */
+const options = z.object({
+  courseId: z.string(),
+  sectionId: z.string().optional(),
+  sourceIds: z.array(z.string()),
+  pasted: z.string(),
+  topic: z.string(),
+  count: z.union([z.number(), z.literal('all')]),
+  detail: z.enum(['short', 'standard', 'deep']),
+})
+
+const draft = cardDraftSchema.extend({
+  duplicate: z.boolean(),
+  savedId: z.string().optional(),
+  removed: z.boolean().optional(),
+})
+
+/**
+ * A structured answer as stored: « Explain the question », « Why? », generated cards, a quiz, a study sheet, a
+ * graded answer, a photo read, a card rewritten, or cards proposed on a source.
+ */
 const richSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('cards'),
+    options,
+    drafts: z.array(draft),
+    photoIds: z.array(z.string()).optional(),
+    cost: z.number().optional(),
+    empty: z.boolean().optional(),
+  }),
+  z.object({
+    kind: z.literal('quiz'),
+    options,
+    questions: z.array(quizQuestionSchema),
+    answers: z.array(z.number()),
+    step: z.number(),
+    cost: z.number().optional(),
+    empty: z.boolean().optional(),
+  }),
+  z.object({
+    kind: z.literal('sheet'),
+    options,
+    value: understandSchema,
+    savedId: z.string().optional(),
+    review: explainBackSchema.optional(),
+    cost: z.number().optional(),
+    empty: z.boolean().optional(),
+  }),
+  z.object({
+    kind: z.literal('grade'),
+    card: faces,
+    answer: z.string(),
+    rating: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]),
+    feedback: z.string(),
+    rated: z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)]).optional(),
+  }),
+  z.object({
+    kind: z.literal('photo'),
+    photoId: z.string(),
+    courseId: z.string(),
+    description: photoDescriptionSchema,
+    cost: z.number().optional(),
+  }),
+  z.object({
+    kind: z.literal('improve'),
+    cardId: z.string(),
+    card: faces,
+    value: improveCardSchema,
+    applied: z.boolean().optional(),
+  }),
+  z.object({ kind: z.literal('job'), sourceId: z.string() }),
   z.object({
     kind: z.literal('explainQuestion'),
     value: z.object({
@@ -72,6 +149,10 @@ const isMessage = (m: unknown): m is ChatMessage =>
   m !== null &&
   ((m as ChatMessage).role === 'user' || (m as ChatMessage).role === 'assistant') &&
   typeof (m as ChatMessage).text === 'string' &&
+  ['id', 'photoId'].every((k) => {
+    const v = (m as Record<string, unknown>)[k]
+    return v === undefined || typeof v === 'string'
+  }) &&
   ((m as ChatMessage).rich === undefined || richSchema.safeParse((m as ChatMessage).rich).success)
 
 const isConversation = (c: unknown): c is Conversation =>

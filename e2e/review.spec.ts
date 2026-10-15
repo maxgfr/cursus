@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, join, resolve } from 'node:path'
 import { expect, type Page, type Route, test } from '@playwright/test'
-import { completionReply } from './support/ai.ts'
+import { chatPanel, completionReply } from './support/ai.ts'
 import { seriousViolations } from './support/page.ts'
 
 // Review needs cards with a history. Instead of a test path in the app, a throwaway harness
@@ -328,15 +328,20 @@ test('own words: the AI suggests a grade to confirm; Why? explains and makes a c
     ],
   })
   await openReview(page)
+  // Answered in the chat beside the card: typed there, graded in its thread, the grade offered back on the card.
   await page.getByRole('button', { name: 'Answer in your own words' }).click()
-  const answer = page.getByRole('textbox', { name: 'Your answer' })
+  const chat = chatPanel(page, info.project.name)
+  const answer = chat.getByRole('textbox', { name: 'Your answer' })
   await expect(answer).toBeFocused()
-  const front = await page.getByText(/\?$/).first().textContent()
+  const front = await page.getByTestId('question').getByText(/\?$/).first().textContent()
   await answer.fill('the mitochondria, where energy is made')
-  await page.getByRole('button', { name: 'Check' }).click()
+  await chat.getByRole('button', { name: 'Check' }).click()
 
-  await expect(page.getByText('Suggested grade: Easy')).toBeVisible()
-  await expect(page.getByText(/Spot on/)).toBeVisible()
+  await expect(chat.getByText('Suggested grade: Easy')).toBeVisible()
+  await expect(chat.getByText(/Spot on/)).toBeVisible()
+  if (phone) await chat.getByRole('button', { name: 'Close chat' }).click()
+  await expect(page.getByRole('main').getByText('Suggested grade: Easy')).toBeVisible()
+  await expect(page.getByRole('main').getByText(/Spot on/)).toBeVisible()
   const easy = page.getByRole('button', { name: /^Easy, next review in/ })
   await expect(easy).toHaveAttribute('data-suggested', 'true')
   // Suggested, not preselected: focus is on the grades group.
@@ -359,7 +364,50 @@ test('own words: the AI suggests a grade to confirm; Why? explains and makes a c
   expect(errors).toEqual([])
 })
 
-test('a leech shows its badge and can be rewritten with Improve', async ({ page }) => {
+test('own words in the chat: the question stays in sight, and the grade is given there to the card', async ({
+  page,
+}, info) => {
+  const phone = isPhone(info.project.name)
+  const errors = watchErrors(page)
+  const features = await fakeProvider(page)
+  await seed(page, {
+    course: 'Biology',
+    ai: true,
+    cards: [
+      { front: 'Powerhouse of the cell?', back: 'The mitochondrion' },
+      { front: 'Site of photosynthesis?', back: 'The chloroplast' },
+    ],
+  })
+  await openReview(page)
+  const front = (await page.getByTestId('question').getByText(/\?$/).first().textContent()) ?? ''
+  await page.getByRole('button', { name: 'Answer in your own words' }).click()
+  const chat = chatPanel(page, info.project.name)
+  // The question being answered shows in the chat, above the answer box, even full screen over the card; one
+  // instruction, not the chat's own greeting too.
+  const question = chat.getByRole('region', { name: 'Question' })
+  await expect(question).toContainText(front)
+  await expect(question).toBeInViewport()
+  await expect(chat.getByText(/^Ask anything about/)).toHaveCount(0)
+  await chat.getByRole('textbox', { name: 'Your answer' }).fill('the mitochondria, where energy is made')
+  await chat.getByRole('button', { name: 'Check' }).click()
+  await expect(chat.getByText('Suggested grade: Easy')).toBeVisible()
+
+  // Graded from the thread: Answer, Check, Easy. The card takes it and the next card shows.
+  const grades = chat.getByRole('group', { name: 'How well did you remember?' })
+  await expect(grades.getByRole('button')).toHaveText(['Again', 'Hard', 'Good', 'Easy'])
+  await grades.getByRole('button', { name: 'Easy' }).click()
+  await expect(page.getByTestId('remaining')).toHaveText('1 left')
+  await expect(page.getByTestId('question')).not.toContainText(front)
+  if (phone) await expect(chat).toBeHidden()
+  else {
+    await expect(chat.getByText('Grade given: Easy.')).toBeVisible()
+    await expect(grades).toHaveCount(0)
+  }
+  expect(features).toEqual(['gradeAnswer'])
+  expect(errors).toEqual([])
+})
+
+test('a leech shows its badge and can be rewritten with Improve, in the chat', async ({ page }, info) => {
   const errors = watchErrors(page)
   const features = await fakeProvider(page)
   await seed(page, {
@@ -373,11 +421,17 @@ test('a leech shows its badge and can be rewritten with Improve', async ({ page 
   await expect(page.getByText('Hard card', { exact: true })).toBeVisible()
   await expect(page.getByText('This card keeps slipping. Try rewriting it.')).toBeVisible()
   await page.getByRole('button', { name: 'Improve' }).click()
-  await expect(page.getByRole('heading', { name: 'Suggested rewrite' })).toBeVisible()
-  await expect(page.getByText('One clear question.')).toBeVisible()
-  await page.getByRole('button', { name: 'Use this version' }).click()
-  await expect(page.getByText('Card rewritten')).toBeVisible()
-  await expect(page.getByText('Capital city of Australia?', { exact: true })).toBeVisible()
+  const chat = chatPanel(page, info.project.name)
+  await expect(chat.getByRole('heading', { name: 'Suggested rewrite' })).toBeVisible()
+  await expect(chat.getByText('One clear question.')).toBeVisible()
+  // The card's answer is not shown yet: the proposed one waits folded, as every answer of the chat does.
+  await expect(chat.getByText('Canberra')).toBeHidden()
+  await chat.getByText('Show the proposed answer').click()
+  await expect(chat.getByText('Canberra', { exact: true })).toBeVisible()
+  await chat.getByRole('button', { name: 'Use this version' }).click()
+  await expect(chat.getByText('Card rewritten')).toBeVisible()
+  if (isPhone(info.project.name)) await chat.getByRole('button', { name: 'Close chat' }).click()
+  await expect(page.getByTestId('question').getByText('Capital city of Australia?', { exact: true })).toBeVisible()
   await expect(page.getByText('Australia capital (not Sydney!!) city name?')).toHaveCount(0)
   expect(features).toEqual(['improveCard'])
   expect(errors).toEqual([])

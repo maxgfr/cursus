@@ -8,7 +8,8 @@ import type { Id } from '../../core/contracts/workspace'
 import type { Draft, DraftSourceGroup, DraftUnitGroup } from '../../core/model/drafts'
 import type { SourceRecord } from '../../core/model/schema'
 import { useT } from '../../i18n/react.tsx'
-import { Button, buttonClass } from '../../ui/components/Button.tsx'
+import { useAiReady } from '../../ui/ai/ready.ts'
+import { Button } from '../../ui/components/Button.tsx'
 import { EmptyState } from '../../ui/components/EmptyState.tsx'
 import { Toast } from '../../ui/components/Toast.tsx'
 import { jobOf, liveQueue, useAutoJobs } from '../../ui/data/autoQuestions.ts'
@@ -18,7 +19,6 @@ import { useUnitThumbs } from '../DeckImport/thumbs.ts'
 import { type DraftGroup, DraftReview, type ReviewDraft } from '../Generate/DraftReview.tsx'
 import { useThumbs } from '../Photos/files.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
-import { useAiModel } from '../Understand/shared/aiConfig.ts'
 import styles from './Inbox.module.css'
 import { type JobActions, JobLine, jobWorthShowing } from './JobLine.tsx'
 
@@ -150,12 +150,14 @@ function SourceBlock({ entry, actions, local }: { entry: Entry; actions: JobActi
  * « À relire »: the questions AI proposed on the documents added, grouped by document and by slide, page or
  * section, with each document's progress. Accept all, one by one, edit or reject; nothing is written until
  * Save (a rejection is final, so it can be undone only before), and rejected questions never come back.
+ * Without a model only the cards already suggested show: no job, nothing about AI.
  */
 export default function Inbox() {
   const t = useT()
   const rt = useRuntime()
-  const queue = useAutoJobs(rt, { start: true })
-  const model = useAiModel()
+  const ready = useAiReady()
+  // Without a model the queue's code is never loaded: nothing could run.
+  const queue = useAutoJobs(rt, { start: ready })
   const groups = useWorkspaceData(['drafts', 'sources', 'courses', 'sections'], (ws) => ws.drafts.groups())
   const summary = useWorkspaceData(['drafts', 'sources', 'courses', 'sections'], (ws) => ws.drafts.summary())
   const [decisions, setDecisions] = useState<ReadonlyMap<Id, Decision>>(new Map())
@@ -172,7 +174,7 @@ export default function Inbox() {
     if (!source) continue
     entries.set(g.sourceId, { source, course: courseTitle(source.courseId), group: g, at: latest.get(g.sourceId) ?? 0 })
   }
-  for (const sourceId of new Set(queue.jobs.map((j) => j.sourceId))) {
+  for (const sourceId of new Set(ready ? queue.jobs.map((j) => j.sourceId) : [])) {
     const job = jobOf(queue.jobs, sourceId)
     const known = entries.get(sourceId)
     if (!job || !jobWorthShowing(job, known !== undefined, now)) continue
@@ -186,7 +188,6 @@ export default function Inbox() {
     entries.set(sourceId, { source, course: courseTitle(source.courseId), job, at: job.updatedAt })
   }
   const list = [...entries.values()].sort((a, b) => b.at - a.at)
-  const waitingForModel = queue.jobs.some((j) => j.status === 'needs-model')
 
   const q = liveQueue()
   const run = (what: string, fn: () => Promise<void>) => {
@@ -254,24 +255,16 @@ export default function Inbox() {
     }
   }
 
-  const invitation = (waitingForModel || (list.length === 0 && model.status === 'missing')) && (
-    <div className={styles.invite}>
-      <p className={styles.inviteText}>{t('ai.inboxNeedsModel')}</p>
-      <Link href={paths.settingsAi} className={buttonClass({ variant: 'secondary' })}>
-        {t('ai.openSettings')}
-      </Link>
-    </div>
-  )
+  const emptyBody = !ready
+    ? t('ai.inboxEmptyNoAi')
+    : rt.ws.drafts.settings.get().mode === 'off'
+      ? t('ai.inboxEmptyOff')
+      : t('ai.inboxEmptyBody')
 
   return (
     <Screen title={t('ai.inboxTitle')} back={paths.today}>
-      {invitation}
       {list.length === 0 ? (
-        <EmptyState
-          icon={InboxIcon}
-          title={t('ai.inboxEmptyTitle')}
-          body={rt.ws.drafts.settings.get().mode === 'off' ? t('ai.inboxEmptyOff') : t('ai.inboxEmptyBody')}
-        />
+        <EmptyState icon={InboxIcon} title={t('ai.inboxEmptyTitle')} body={emptyBody} />
       ) : (
         list.map((e) => <SourceBlock key={e.source.id} entry={e} actions={actions} local={local} />)
       )}

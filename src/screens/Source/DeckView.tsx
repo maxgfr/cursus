@@ -1,11 +1,11 @@
 import { Sparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link } from 'wouter'
-import { to } from '../../app/routes.ts'
 import { useRuntime } from '../../app/workspaceContext.tsx'
 import type { SourceRecord } from '../../core/model/schema'
 import { useT } from '../../i18n/react.tsx'
-import { buttonClass } from '../../ui/components/Button.tsx'
+import { useAiReady } from '../../ui/ai/ready.ts'
+import { useChat } from '../../ui/chat/context.tsx'
+import { Button } from '../../ui/components/Button.tsx'
 import base from '../DeckImport/DeckImport.module.css'
 import { DeckUnitList } from '../DeckImport/DeckUnitList.tsx'
 import { deckErrorMessage, type LoadedDeck, loadDeck, unitCount, unitName } from '../DeckImport/deckSource.ts'
@@ -19,6 +19,8 @@ import { noteError } from '../settings/Diagnostic/recent.ts'
 export function DeckView({ source, cited }: { source: SourceRecord; cited: number | undefined }) {
   const t = useT()
   const rt = useRuntime()
+  const ready = useAiReady()
+  const chat = useChat()
   const [loaded, setLoaded] = useState<LoadedDeck | null>(null)
   const [error, setError] = useState<string | null>(null)
   const thumbs = useUnitThumbs(loaded)
@@ -42,13 +44,21 @@ export function DeckView({ source, cited }: { source: SourceRecord; cited: numbe
   const citedUnit = cited === undefined ? undefined : loaded?.deck.units.find((u) => u.index === cited)
   return (
     <div className={base.stack}>
-      <div className={base.row}>
-        <Link href={to.deckQuestions(source.id)} className={buttonClass({ variant: 'primary' })}>
-          <Sparkles size={18} aria-hidden="true" />
-          {t('ai.deckCreateQuestions')}
-        </Link>
-        {loaded && <span className={base.hint}>{unitCount(t, loaded.deck)}</span>}
-      </div>
+      {(ready || loaded) && (
+        <div className={base.row}>
+          {ready && chat && (
+            // The cards are proposed by the background queue, unit by unit, and followed in the chat.
+            <Button
+              variant="primary"
+              icon={<Sparkles size={18} aria-hidden="true" />}
+              onClick={() => chat.run('suggestCards')}
+            >
+              {t('ai.deckCreateQuestions')}
+            </Button>
+          )}
+          {loaded && <span className={base.hint}>{unitCount(t, loaded.deck)}</span>}
+        </div>
+      )}
       {error !== null && (
         <p className={base.error} role="alert">
           {error}

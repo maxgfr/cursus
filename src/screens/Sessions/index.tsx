@@ -9,13 +9,14 @@ import type { PlanRecord } from '../../core/model/schema'
 import { nextOccurrence, planScope, relaunchFailed, sessionHistory } from '../../core/model/sessions'
 import { formatDateTime, formatDuration } from '../../i18n/format.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
+import { useAiReady } from '../../ui/ai/ready.ts'
+import { useChat } from '../../ui/chat/context.tsx'
 import { Button } from '../../ui/components/Button.tsx'
 import { ListGroup, ListRow } from '../../ui/components/List.tsx'
 import { Toast } from '../../ui/components/Toast.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import type { PlanNotice } from '../SessionSetup/PlanEditor.tsx'
 import { noteError } from '../settings/Diagnostic/recent.ts'
-import { useAiModel } from '../Understand/shared/aiConfig.ts'
 import { downloadPlans } from './calendar.ts'
 import { formatWhen, KIND_LABEL, planSchedule, scopeName, sessionLabel } from './describe.ts'
 import { PracticeChip } from './PracticeChip.tsx'
@@ -35,7 +36,9 @@ export default function Sessions() {
   const ws = useWorkspace()
   const [, navigate] = useLocation()
   // « Quiz me » is the AI's: offered only with a model ready.
-  const aiReady = useAiModel().status === 'ready'
+  const aiReady = useAiReady()
+  // « Quiz me » runs in the chat, on the first course until another is chosen in its options.
+  const chat = useChat()
   const [showAll, setShowAll] = useState(false)
   const [practicing, setPracticing] = useState<SessionScope | null>(null)
   const courses = useWorkspaceData(['courses', 'cards'], (w) =>
@@ -83,9 +86,9 @@ export default function Sessions() {
           title={t('review.newSession')}
           subtitle={t('review.newSessionBody')}
         />
-        {aiReady && (
+        {aiReady && chat && (
           <ListRow
-            href={paths.quiz}
+            onClick={() => chat?.run('quiz')}
             leading={<ListChecks size={20} strokeWidth={1.75} />}
             title={t('ai.quiz')}
             subtitle={t('common.quizBody')}

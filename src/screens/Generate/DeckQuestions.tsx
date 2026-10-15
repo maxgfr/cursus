@@ -1,7 +1,7 @@
 import { Play, Save, Sparkles, Square, Trash2, WifiOff } from 'lucide-react'
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Link, useParams } from 'wouter'
-import { paths, to } from '../../app/routes.ts'
+import { useLocation, useParams } from 'wouter'
+import { to } from '../../app/routes.ts'
 import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import { outputLanguage } from '../../core/ai/client'
 import {
@@ -17,8 +17,8 @@ import { supportsImages } from '../../core/ai/features/readDeck'
 import type { DeckUnit } from '../../core/content/deck'
 import { formatUsd } from '../../i18n/format.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
-import { Button, buttonClass } from '../../ui/components/Button.tsx'
-import { EmptyState } from '../../ui/components/EmptyState.tsx'
+import { useAiReadiness } from '../../ui/ai/ready.ts'
+import { Button } from '../../ui/components/Button.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
 import { Toast } from '../../ui/components/Toast.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
@@ -85,6 +85,19 @@ const isActive = (run: DeckRun | null): run is DeckRun =>
  * device), then review the drafts grouped by unit and save the accepted ones as cards.
  */
 export default function DeckQuestions() {
+  const readiness = useAiReadiness()
+  const { id = '' } = useParams<{ id: string }>()
+  const [, navigate] = useLocation()
+  const missing = readiness === 'missing'
+  // Without a model nothing of the AI shows: an old link to this screen opens the source itself.
+  useEffect(() => {
+    if (missing) navigate(to.source(id), { replace: true })
+  }, [missing, id, navigate])
+  if (missing) return null
+  return <DeckQuestionsScreen />
+}
+
+function DeckQuestionsScreen() {
   const t = useT()
   const locale = useLocale()
   const rt = useRuntime()
@@ -386,19 +399,6 @@ export default function DeckQuestions() {
   return (
     <Screen title={title} subtitle={source.title} back={back}>
       <div className={base.stack}>
-        {ai.status === 'missing' && (
-          <EmptyState
-            icon={Sparkles}
-            level={2}
-            title={t('ai.deckNoModelTitle')}
-            body={t('ai.deckNoModel')}
-            action={
-              <Link href={paths.settingsAi} className={buttonClass({ variant: 'primary' })}>
-                {t('ai.openSettings')}
-              </Link>
-            }
-          />
-        )}
         {ai.status === 'ready' && !online && !ai.runsOffline && (
           <p className={styles.notice} role="status">
             <WifiOff size={18} aria-hidden="true" />

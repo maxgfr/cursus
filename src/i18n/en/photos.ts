@@ -44,7 +44,6 @@ export const photos = {
   downloaded: 'Downloaded',
   notes: 'Notes and history',
   trashed: 'Photo moved to Trash',
-  explain: 'Explain with AI',
   shortcuts: 'Keys: + and − zoom, 0 fits, R rotates, ← and → browse.',
   addToCard: 'Add photo',
   fromCourse: 'From this course',
@@ -65,12 +64,9 @@ export const photos = {
     other: '{count} files weren’t on this device and were left out of the package.',
   },
   // « Explain with AI » panel and Understand citations (S-031).
-  aiNeedModel: 'Set up an AI model that reads images to explain photos and turn them into cards.',
   aiNeedVision: '{model} reads text only. To explain photos, choose a model that reads images in the AI settings.',
   aiOnDeviceTextOnly:
     'The on-device model reads text only. To explain photos, choose an online model that reads images in the AI settings.',
-  aiOffline: 'You’re offline. Explaining a photo and suggesting cards from it need a connection.',
-  aiExplain: 'Explain this photo',
   aiExplainAgain: 'Explain again',
   aiReading: 'Reading the photo…',
   aiReduced: 'The photo is sent reduced to {size} px at most.',
@@ -84,7 +80,6 @@ export const photos = {
   aiThisPhoto: 'This photo',
   aiPhotosHint: { one: '{count} photo in one request.', other: '{count} photos in one request.' },
   aiDraft: 'Suggest cards',
-  aiDrafting: 'Suggesting cards…',
   aiOpenPhoto: 'Open photo: {name}',
   aiUnderstandPhotos: {
     one: 'Includes what AI read on {count} photo.',

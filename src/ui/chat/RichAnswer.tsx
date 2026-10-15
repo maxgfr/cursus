@@ -12,7 +12,7 @@ import {
   guardAnswer,
   type QuestionExplanation,
 } from '../../core/ai/features/explainQuestion'
-import type { RichResult } from '../../core/ai/features/tutorChat'
+import type { CardRich } from '../../core/ai/features/tutorChat'
 import type { Chunk } from '../../core/ai/retrieval'
 import type { CardExplanation, QuestionExplanationDraft, SourceRef } from '../../core/ai/schemas'
 import { useT } from '../../i18n/react.tsx'
@@ -49,7 +49,7 @@ export function RichAnswer({
   courseId,
   footer,
 }: {
-  rich: RichResult
+  rich: CardRich
   revealed: boolean
   /** The course's passages, from which the cited ones are quoted. */
   chunks: readonly Chunk[]
@@ -85,7 +85,7 @@ export function PartialRich({
   card,
   revealed,
 }: {
-  kind: RichResult['kind']
+  kind: CardRich['kind']
   question: DeepPartial<QuestionExplanationDraft> | null
   answer: DeepPartial<CardExplanation> | null
   card: Faces

@@ -47,7 +47,6 @@ export const photos = {
   downloaded: 'Heruntergeladen',
   notes: 'Notizen und Verlauf',
   trashed: 'Foto in den Papierkorb gelegt',
-  explain: 'Mit KI erklären',
   shortcuts: 'Tasten: + und − zoomen, 0 passt an, R dreht, ← und → blättern.',
   addToCard: 'Foto hinzufügen',
   fromCourse: 'Aus diesem Kurs',
@@ -68,15 +67,10 @@ export const photos = {
     other: '{count} Dateien waren nicht auf diesem Gerät und fehlen im Paket.',
   },
   // « Explain with AI » panel and Understand citations (S-031).
-  aiNeedModel:
-    'Richte ein KI-Modell ein, das Bilder lesen kann, um Fotos erklären zu lassen und daraus Karten zu erstellen.',
   aiNeedVision:
     '{model} liest nur Text. Um Fotos erklären zu lassen, wähle in den KI-Einstellungen ein Modell, das Bilder lesen kann.',
   aiOnDeviceTextOnly:
     'Das Modell auf diesem Gerät liest nur Text. Um Fotos erklären zu lassen, wähle in den KI-Einstellungen ein Online-Modell, das Bilder lesen kann.',
-  aiOffline:
-    'Du bist offline. Zum Erklären eines Fotos und zum Erstellen von Karten daraus brauchst du eine Verbindung.',
-  aiExplain: 'Dieses Foto erklären',
   aiExplainAgain: 'Erneut erklären',
   aiReading: 'Foto wird gelesen …',
   aiReduced: 'Das Foto wird auf höchstens {size} px verkleinert gesendet.',
@@ -90,7 +84,6 @@ export const photos = {
   aiThisPhoto: 'Dieses Foto',
   aiPhotosHint: { one: '{count} Foto in einer Anfrage.', other: '{count} Fotos in einer Anfrage.' },
   aiDraft: 'Kartenentwürfe erstellen',
-  aiDrafting: 'Kartenentwürfe werden erstellt …',
   aiOpenPhoto: 'Foto öffnen: {name}',
   aiUnderstandPhotos: {
     one: 'Enthält, was die KI auf {count} Foto gelesen hat.',
