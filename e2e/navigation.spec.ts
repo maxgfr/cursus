@@ -277,7 +277,11 @@ test('Practice screens go back to Practice', async ({ page }) => {
 
 test('course → New session → Back → course Back goes to Courses, not back to New session', async ({ page }) => {
   await openLaw(page)
-  await page.getByRole('button', { name: 'New session' }).click()
+  await page.getByRole('button', { name: 'Practice', exact: true }).click()
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: /Custom session/ })
+    .click()
   await at(page, 'New session', /#\/sessions\/new/)
   await back(page).click()
   await at(page, 'Law', /#\/course\//)
@@ -287,7 +291,11 @@ test('course → New session → Back → course Back goes to Courses, not back 
 
 test('New session keeps its course through a reload', async ({ page }) => {
   await openLaw(page)
-  await page.getByRole('button', { name: 'New session' }).click()
+  await page.getByRole('button', { name: 'Practice', exact: true }).click()
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: /Custom session/ })
+    .click()
   await at(page, 'New session', /course=.*#\/sessions\/new|#\/sessions\/new\?course=/)
   await page.reload()
   await at(page, 'New session', /course=.*#\/sessions\/new|#\/sessions\/new\?course=/)

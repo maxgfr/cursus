@@ -127,7 +127,11 @@ test('A session from a course counts toward the schedule; keyboard only', async 
   await expect(page.getByRole('heading', { level: 2, name: '4 cards due today' })).toBeVisible()
   await page.getByRole('main').getByRole('link', { name: /^Law/ }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Law' })).toBeVisible()
-  await page.getByRole('button', { name: 'New session' }).click()
+  await page.getByRole('button', { name: 'Practice', exact: true }).click()
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: /Custom session/ })
+    .click()
 
   // The course is the scope; arrow keys move the type, and the toggle follows it until it is set by hand.
   await expect(page.getByLabel('Cards from')).toHaveValue(/^c:/)
@@ -361,5 +365,37 @@ test('German, dark: sessions screens neither overflow nor fail axe', async ({ pa
   await expect(page.getByRole('button', { name: /^Vergessene noch einmal üben/ })).toBeVisible()
   await check('sessions')
   expect(problems).toEqual([])
+  expect(errors).toEqual([])
+})
+
+test('Practice: a course or every course in one tap, all cards included, with no form', async ({ page }) => {
+  const errors = watchErrors(page)
+  await harness.seed(page, { courses: [LAW, { title: 'Biology', cards: [{ front: 'Cell?', back: 'Unit of life' }] }] })
+  await openToday(page)
+  await page.getByRole('main').getByRole('link', { name: /^Law/ }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Law' })).toBeVisible()
+
+  // Each choice says how many cards it holds; an empty one cannot be started.
+  await page.getByRole('button', { name: 'Practice', exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: 'Practice · Law' })
+  await expect(sheet.getByRole('button', { name: /^All cards/ })).toContainText('3 cards')
+  await expect(sheet.getByRole('button', { name: /^Forgotten cards/ })).toHaveCount(0)
+  await expect(sheet.getByText('No card here').first()).toBeVisible()
+  await sheet.getByRole('button', { name: /^All cards/ }).click()
+
+  // The run goes through every card of the course, off the schedule.
+  await expect(page.getByRole('heading', { level: 1, name: 'All cards' })).toBeVisible()
+  await expect(page.getByTestId('cramming')).toHaveText('Practice only')
+  for (let i = 0; i < 3; i++) await answer(page, 'Good')
+  await expect(page.getByText('Session complete')).toBeVisible()
+
+  // From the Practice tab: every course at once, or the custom session for the fine settings.
+  await page.goto('./#/sessions')
+  await page.getByRole('button', { name: /^All courses/ }).click()
+  const all = page.getByRole('dialog', { name: 'Practice · All courses' })
+  await expect(all.getByRole('button', { name: /^All cards/ })).toContainText('4 cards')
+  await all.getByRole('button', { name: /Custom session/ }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'New session' })).toBeVisible()
+  await expect(page.getByLabel('Cards from')).toHaveValue('')
   expect(errors).toEqual([])
 })

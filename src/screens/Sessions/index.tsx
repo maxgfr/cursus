@@ -4,6 +4,7 @@ import { useLocation } from 'wouter'
 import { clearEntryState } from '../../app/nav.ts'
 import { paths, to } from '../../app/routes.ts'
 import { useWorkspace, useWorkspaceData } from '../../app/workspaceContext.tsx'
+import type { SessionScope } from '../../core/contracts/workspace'
 import type { PlanRecord } from '../../core/model/schema'
 import { nextOccurrence, planScope, relaunchFailed, sessionHistory } from '../../core/model/sessions'
 import { formatDateTime, formatDuration } from '../../i18n/format.ts'
@@ -18,6 +19,7 @@ import { useAiModel } from '../Understand/shared/aiConfig.ts'
 import { downloadPlans } from './calendar.ts'
 import { formatWhen, KIND_LABEL, planSchedule, scopeName, sessionLabel } from './describe.ts'
 import { PracticeChip } from './PracticeChip.tsx'
+import { PracticeSheet } from './PracticeSheet.tsx'
 import styles from './Sessions.module.css'
 
 /** Past sessions shown before "Show all sessions". */
@@ -35,6 +37,10 @@ export default function Sessions() {
   // « Quiz me » is the AI's: offered only with a model ready.
   const aiReady = useAiModel().status === 'ready'
   const [showAll, setShowAll] = useState(false)
+  const [practicing, setPracticing] = useState<SessionScope | null>(null)
+  const courses = useWorkspaceData(['courses', 'cards'], (w) =>
+    w.courses.list().map((c) => ({ id: c.id, title: c.title, cards: w.cards.list({ courseId: c.id }).length })),
+  )
   const [notice, setNotice] = useState<PlanNotice>(() => noticeFrom(history.state))
   const [message, setMessage] = useState<string | null>(null)
   const plans = useWorkspaceData(['plans'], (w) => w.plans.list())
@@ -92,6 +98,30 @@ export default function Sessions() {
           subtitle={t('review.statsBody')}
         />
       </ListGroup>
+      {courses.some((c) => c.cards > 0) && (
+        <ListGroup title={t('review.practiceCourses')}>
+          {courses.length > 1 && (
+            <ListRow
+              leading={<Play size={20} strokeWidth={1.75} />}
+              title={t('review.allCourses')}
+              subtitle={t('course.cardCount', { count: courses.reduce((n, c) => n + c.cards, 0) })}
+              onClick={() => setPracticing({})}
+            />
+          )}
+          {courses
+            .filter((c) => c.cards > 0)
+            .map((c) => (
+              <ListRow
+                key={c.id}
+                leading={<Play size={20} strokeWidth={1.75} />}
+                title={c.title}
+                subtitle={t('course.cardCount', { count: c.cards })}
+                onClick={() => setPracticing({ courseId: c.id })}
+              />
+            ))}
+        </ListGroup>
+      )}
+      <PracticeSheet open={practicing !== null} scope={practicing ?? {}} onClose={() => setPracticing(null)} />
       <ListGroup title={t('review.plannedSessions')} footer={plans.length === 0 ? t('review.plannedNone') : undefined}>
         {plans.map((p) => {
           const next = nextOccurrence(p, now)

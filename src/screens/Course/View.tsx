@@ -47,6 +47,7 @@ import { deckErrorMessage } from '../DeckImport/deckSource.ts'
 import NotFound from '../NotFound/index.tsx'
 import { startQueue } from '../Review/session.ts'
 import { NewSectionSheet, SectionSettings } from '../Section/SectionSheets.tsx'
+import { PracticeSheet } from '../Sessions/PracticeSheet.tsx'
 import { addFile, addImage, addNote, FILES_ACCEPT } from '../Source/importers.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 import { ExamCountdown } from '../Today/CourseRows.tsx'
@@ -110,6 +111,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   const [moreCards, setMoreCards] = useState(false)
   const [settings, setSettings] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [practicing, setPracticing] = useState(false)
   const [moving, setMoving] = useState<{ kind: 'section' | 'fiches'; id: Id; name: string } | null>(null)
   const [moved, setMoved] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -432,14 +434,15 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
               {t('ai.quiz')}
             </Link>
           )}
-          {/* A custom session over this course or subset (descendants included). */}
+          {/* Practice over this course or subset (descendants included): due, all, new, forgotten… in one tap. */}
           {data.total > 0 && (
             <Button
-              variant="secondary"
+              variant={due > 0 ? 'secondary' : 'primary'}
               icon={<Play size={18} aria-hidden="true" />}
-              onClick={() => navigate(withScope(paths.sessionNew, scope))}
+              aria-haspopup="dialog"
+              onClick={() => setPracticing(true)}
             >
-              {t('review.newSession')}
+              {t('review.practiceButton')}
             </Button>
           )}
         </div>
@@ -627,6 +630,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
             ))}
           </ListGroup>
         ))}
+      <PracticeSheet open={practicing} scope={scope} onClose={() => setPracticing(false)} />
       <AddSheet
         open={addingSource}
         onClose={() => setAddingSource(false)}
