@@ -1,4 +1,11 @@
-import { defaultKeymap, indentWithTab } from '@codemirror/commands'
+import {
+  cursorDocEnd,
+  cursorDocStart,
+  defaultKeymap,
+  indentWithTab,
+  selectDocEnd,
+  selectDocStart,
+} from '@codemirror/commands'
 import { Compartment, EditorState, type Extension, type TransactionSpec } from '@codemirror/state'
 import { EditorView, keymap, placeholder as placeholderExt } from '@codemirror/view'
 import { Redo2, Undo2 } from 'lucide-react'
@@ -110,6 +117,9 @@ export default function MarkdownEditorImpl({ text, label, placeholder, cloze = f
             { key: 'Mod-i', run: FORMAT.italic },
             { key: 'Alt-Enter', run: (ed) => apply(ed, toggleTask(ed.state)) },
             ...yUndoManagerKeymap,
+            // An iPad counts as a Mac (Mod is Cmd), but a PC-layout keyboard still sends Ctrl-Home/End.
+            { key: 'Ctrl-Home', run: cursorDocStart, shift: selectDocStart, preventDefault: true },
+            { key: 'Ctrl-End', run: cursorDocEnd, shift: selectDocEnd, preventDefault: true },
             ...defaultKeymap,
             indentWithTab,
           ]),
