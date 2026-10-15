@@ -17,7 +17,7 @@ jobs:
       matrix:
         project: [chromium-desktop, webkit-desktop, webkit-iphone, webkit-ipad]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.3
@@ -27,7 +27,7 @@ jobs:
       - run: bun run build
       - run: bun run test:e2e --project=${{ matrix.project }}
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: report-${{ matrix.project }}
           path: playwright-report/

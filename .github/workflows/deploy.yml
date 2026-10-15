@@ -22,7 +22,7 @@ jobs:
       VITE_BASE: /cursus/
       APP_VERSION: ${{ inputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           # Tags let the build fall back to the latest release when no version is passed.
           fetch-depth: 0

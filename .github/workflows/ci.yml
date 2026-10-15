@@ -11,11 +11,11 @@ jobs:
     env:
       FC_RUNS: '1000'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.3
-      - uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v10
       - run: bun install --frozen-lockfile
       - run: docker version
       - run: bun run check
@@ -23,7 +23,7 @@ jobs:
       - run: bun run test:s3
       - run: bun run test:anki
       - if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage
           path: coverage/
