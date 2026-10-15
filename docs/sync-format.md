@@ -100,7 +100,9 @@ A checkpoint is built in a fresh `Y.Doc` from persisted segments only (never fro
 arrival order, stopping before the first segment that is not applied (`needs-upgrade`, or `held`: see
 [Held deletions](#held-deletions-local-state)). Its update is the full state
 (`Y.encodeStateAsUpdateV2`) and `covers` lists exactly the segments applied. A new device downloads
-checkpoints first, then only the segments not covered by them.
+checkpoints first, then only the segments not covered by them. A device builds one once 256 applied segments
+are covered by none of its checkpoints; it counts them from the stored headers and reconsiders only when its
+log has changed.
 
 ## Files (blobs)
 
@@ -177,10 +179,15 @@ Per destination, a sync round lists, downloads what is missing, uploads what is 
   to a sealed destination.
 - A key is **confirmed** on a destination only once it has been seen in a listing or read back. After a
   PUT it is `awaiting`; if still unconfirmed after 10 minutes it is sent again (PUT is idempotent per key).
-- A full listing (at start-up, every 30 minutes, and on "Verify") is the truth: a key confirmed earlier but
-  absent from a full listing becomes unconfirmed again. Incremental listings use the provider's mechanism
-  (S3 `start-after`, Drive `createdTime` after the last listing minus 15 minutes, Dropbox cursors, CloudKit
-  `BEGINS_WITH`; OneDrive lists the folders under the prefix in full, a superset); `keys/` and `ws/` are always listed.
+- A full listing (the first one on a destination, then every 30 minutes as recorded on the device, across
+  launches and tabs, and on "Verify") is the truth: a key confirmed earlier but absent from a full listing is
+  listed once more in its own folder, and becomes unconfirmed again only if it is still absent. Incremental
+  listings use the provider's mechanism (S3 and CloudKit: `start-after` per device; Drive: `createdTime` after
+  the last listing minus 15 minutes; Dropbox: the same window, through its cursors); OneDrive, whose listings
+  always read every folder, lists everything in one call each round. `keys/` and `ws/` are always listed.
+- Rounds start at launch, when the app comes back online, on a manual "Sync now", and — merged when they come
+  within 2 seconds — after local edits are sealed, when the app becomes visible, and every 60 seconds while it
+  is visible (that last one is skipped when a round succeeded less than 60 seconds before).
 - A library is shown as protected only when every local key is confirmed on at least one destination. A
   red banner appears when some local key has been confirmed nowhere for 24 hours.
 

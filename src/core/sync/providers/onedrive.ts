@@ -161,6 +161,8 @@ export function onedriveRemote(o: OneDriveRemoteOptions): RemoteStore {
 
   return {
     id,
+    // Every call walks the folder anyway: one full listing per round costs the least.
+    incremental: 'none',
     list(prefix, lo) {
       return {
         async *[Symbol.asyncIterator]() {

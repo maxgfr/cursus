@@ -61,19 +61,18 @@ export async function buildCheckpoint(o: CheckpointOptions): Promise<SegmentRec 
   const codec = o.codec ?? defaultCodec
   const { rows: rs } = await rows(o.store)
   const covered = coveredBy(rs)
-  const doc = new Y.Doc()
-  const covers: Key[] = []
+  const taken: SegmentRow[] = []
   for (const r of rs) {
     if (r.header.kind === 'ckpt') continue
     if (r.state !== 'applied') break
-    Y.applyUpdateV2(doc, codec.decode(r.key, r.bytes).update)
-    covers.push(r.key)
+    taken.push(r)
   }
-  const fresh = covers.filter((k) => !covered.has(k)).length
-  if (fresh === 0 || fresh < (o.every ?? CHECKPOINT_EVERY)) {
-    doc.destroy()
-    return null
-  }
+  // Counted from the headers: nothing is decoded until a checkpoint is actually due.
+  const fresh = taken.filter((r) => !covered.has(r.key)).length
+  if (fresh === 0 || fresh < (o.every ?? CHECKPOINT_EVERY)) return null
+  const doc = new Y.Doc()
+  for (const r of taken) Y.applyUpdateV2(doc, codec.decode(r.key, r.bytes).update)
+  const covers: Key[] = taken.map((r) => r.key)
   const update = Y.encodeStateAsUpdateV2(doc)
   doc.destroy()
   const header: Header = {

@@ -2,7 +2,7 @@ import type { Entry, Key, RemoteStore } from '../contracts/remote'
 import { parseKey } from '../log/codec'
 
 /** How a provider lists only what is new; the engine falls back to a full listing regularly anyway. */
-export type IncrementalMode = 'start-after' | 'created-after' | 'none'
+export type IncrementalMode = NonNullable<RemoteStore['incremental']>
 
 export const FULL_LISTING_EVERY_MS = 30 * 60 * 1000
 /** created-after listings look back this far, to absorb clock skew and delayed visibility. */

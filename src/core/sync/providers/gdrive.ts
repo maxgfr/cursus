@@ -272,6 +272,8 @@ export function gdriveRemote(o: GDriveOptions): GDriveRemote {
 
   return {
     id,
+    // `createdTime > …` is filtered by Drive itself: a round reads only what is new, not the whole folder.
+    incremental: 'created-after',
     roots: () => lookupRoots(false),
     list(prefix, lo) {
       const pageSize = Math.min(1000, Math.max(1, lo?.pageSize ?? o.pageSize ?? 1000))

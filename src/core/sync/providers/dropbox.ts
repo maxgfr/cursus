@@ -142,6 +142,8 @@ export function dropboxRemote(o: DropboxRemoteOptions): DropboxRemote {
 
   return {
     id,
+    // A saved cursor lists only the changes since it was taken: one call instead of one per device.
+    incremental: 'created-after',
     cursors,
     list(prefix, lo) {
       return {

@@ -55,6 +55,8 @@ export function virtualTimers(clock: VirtualClock): VirtualTimers {
 export const BACKOFF_BASE_MS = 1000
 export const BACKOFF_MAX_MS = 5 * 60 * 1000
 export const VISIBLE_INTERVAL_MS = 60 * 1000
+/** Seal, back-visible and timer triggers this close together make one round. */
+export const DEBOUNCE_MS = 2000
 
 /** n-th consecutive failure ⇒ delay in [base/2, base] with base = min(max, 1 s · 2^(n−1)), never below Retry-After. */
 export function backoffDelay(failures: number, rng: Rng, retryAfterMs?: number): number {
@@ -90,18 +92,27 @@ interface PerDest {
   failures: number
   nextTryAt?: number
   cancel?: () => void
+  /** When the last successful round started. */
+  okStartedAt?: number
 }
+
+/** Triggers that wait a moment so that a burst of them makes one round. */
+const DEBOUNCED: ReadonlySet<Trigger> = new Set<Trigger>(['sealed', 'visible', 'timer'])
 
 /**
  * Triggers: startup, seal, back online, back visible, every 60 s while visible, manual.
- * One round at a time per destination (a trigger during a round queues exactly one more).
- * Failures back off per destination, 1 s → 5 min with jitter, honouring Retry-After; a manual
- * trigger bypasses the backoff.
+ * Seal, visible and timer are debounced together (2 s); a timer round is skipped when a round succeeded
+ * less than 60 s before. One round at a time per destination (a trigger during a round queues exactly
+ * one more). Failures back off per destination, 1 s → 5 min with jitter, honouring Retry-After; a
+ * manual trigger bypasses the backoff.
  */
 export function createScheduler(o: SchedulerOptions): SyncScheduler {
   const per = new Map<string, PerDest>()
   let started = false
   let cancelTick: (() => void) | null = null
+  let cancelDebounce: (() => void) | null = null
+  /** The debounced burst holds only timer triggers so far. */
+  let timerOnly = true
   const visible = (): boolean => o.isVisible?.() ?? true
   const online = (): boolean => o.isOnline?.() ?? true
 
@@ -133,10 +144,12 @@ export function createScheduler(o: SchedulerOptions): SyncScheduler {
       return
     }
     s.running = (async () => {
+      const startedAt = o.clock.now()
       try {
         const r = await o.engine.round(dest)
         if (r.deferred > 0) retryLater(dest, s)
         else {
+          s.okStartedAt = startedAt
           s.failures = 0
           s.nextTryAt = undefined
           s.cancel?.()
@@ -154,6 +167,22 @@ export function createScheduler(o: SchedulerOptions): SyncScheduler {
         }
       }
     })()
+  }
+
+  const fire = (r: Trigger): void => {
+    const now = o.clock.now()
+    for (const dest of o.engine.destIds()) {
+      const s = state(dest)
+      if (r === 'manual') {
+        s.failures = 0
+        s.nextTryAt = undefined
+        s.cancel?.()
+        s.cancel = undefined
+      } else if (s.nextTryAt !== undefined && now < s.nextTryAt) continue
+      // The timer only keeps a quiet screen up to date: a round that just succeeded already did.
+      if (r === 'timer' && s.okStartedAt !== undefined && now - s.okStartedAt < VISIBLE_INTERVAL_MS) continue
+      run(dest)
+    }
   }
 
   const tick = (): void => {
@@ -175,6 +204,9 @@ export function createScheduler(o: SchedulerOptions): SyncScheduler {
       started = false
       cancelTick?.()
       cancelTick = null
+      cancelDebounce?.()
+      cancelDebounce = null
+      timerOnly = true
       for (const s of per.values()) {
         s.cancel?.()
         s.cancel = undefined
@@ -184,17 +216,17 @@ export function createScheduler(o: SchedulerOptions): SyncScheduler {
     trigger(r) {
       if (!started) return
       if (r !== 'manual' && !online()) return
-      const now = o.clock.now()
-      for (const dest of o.engine.destIds()) {
-        const s = state(dest)
-        if (r === 'manual') {
-          s.failures = 0
-          s.nextTryAt = undefined
-          s.cancel?.()
-          s.cancel = undefined
-        } else if (s.nextTryAt !== undefined && now < s.nextTryAt) continue
-        run(dest)
+      if (DEBOUNCED.has(r)) {
+        if (r !== 'timer') timerOnly = false
+        cancelDebounce ??= o.timers.set(() => {
+          cancelDebounce = null
+          const reason: Trigger = timerOnly ? 'timer' : 'sealed'
+          timerOnly = true
+          if (started && online()) fire(reason)
+        }, DEBOUNCE_MS)
+        return
       }
+      fire(r)
     },
     async whenIdle() {
       for (;;) {

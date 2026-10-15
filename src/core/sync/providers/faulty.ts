@@ -101,6 +101,7 @@ export function faultyRemote(inner: RemoteStore, o: { retryAfterMs?: number; pag
 
   const self: FaultyRemote = {
     inner,
+    ...(inner.incremental ? { incremental: inner.incremental } : {}),
     get id() {
       return inner.id
     },

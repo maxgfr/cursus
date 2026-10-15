@@ -109,6 +109,19 @@ export function remoteContract(label: string, make: () => Promise<RemoteFixture>
       expect(got).toContain('seg/a/new')
     })
 
+    test('a store declaring created-after lists what is new without the older objects', async () => {
+      const f = await make()
+      if (f.store.incremental !== 'created-after' || !f.now || !f.advance) return
+      await f.store.put('seg/a/old', bytes('old'))
+      // A first listing, as the engine's full one (Dropbox keeps its cursor from it).
+      expect((await all(f.store.list(''))).map((e) => e.key)).toEqual(['seg/a/old'])
+      f.advance(60_000)
+      const t = f.now()
+      f.advance(1000)
+      await f.store.put('seg/a/new', bytes('new'))
+      expect((await all(f.store.list('', { createdAfter: t }))).map((e) => e.key)).toEqual(['seg/a/new'])
+    })
+
     test('failures are errors, never a null that would read as "absent"', async () => {
       const f = await make()
       if (!f.goOffline) return

@@ -115,7 +115,6 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       })
       await engine.refresh()
       scheduler.start()
-      scheduler.trigger('startup')
       rt.onSealed(() => scheduler.trigger('sealed'))
       // Sync runs from launch: every remembered destination rejoins, and a pending OAuth return is
       // finished here, whatever screen the app opened on.

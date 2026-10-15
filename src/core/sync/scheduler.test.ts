@@ -3,7 +3,14 @@ import { RemoteError } from '../contracts/errors'
 import { virtualClock } from '../ports/clock'
 import { seededRng } from '../ports/rng'
 import type { RoundResult } from './engine'
-import { BACKOFF_MAX_MS, backoffDelay, createScheduler, VISIBLE_INTERVAL_MS, virtualTimers } from './scheduler'
+import {
+  BACKOFF_MAX_MS,
+  backoffDelay,
+  createScheduler,
+  DEBOUNCE_MS,
+  VISIBLE_INTERVAL_MS,
+  virtualTimers,
+} from './scheduler'
 
 type Outcome = RoundResult | Error
 
@@ -82,7 +89,8 @@ describe('scheduler', () => {
     s.start()
     await s.whenIdle()
     expect(fe.calls).toEqual(['a', 'b'])
-    timers.advance(VISIBLE_INTERVAL_MS)
+    // The timer's round starts once its debounce is over.
+    timers.advance(VISIBLE_INTERVAL_MS + DEBOUNCE_MS)
     await s.whenIdle()
     expect(fe.calls.length).toBe(4)
     env.visible = false
@@ -90,6 +98,7 @@ describe('scheduler', () => {
     await s.whenIdle()
     expect(fe.calls.length).toBe(4)
     s.trigger('visible')
+    timers.advance(DEBOUNCE_MS)
     await s.whenIdle()
     expect(fe.calls.length).toBe(6)
     s.stop()
@@ -125,8 +134,8 @@ describe('scheduler', () => {
     const first = fe.notes.find(([d, at]) => d === 'a' && at !== undefined)?.[1] ?? 0
     expect(first - clock.now()).toBeGreaterThanOrEqual(500)
     expect(first - clock.now()).toBeLessThanOrEqual(1000)
-    // a trigger during backoff skips the backed-off destination only
-    s.trigger('sealed')
+    // a trigger during backoff skips the backed-off destination only ('online' is not debounced: it runs now)
+    s.trigger('online')
     await s.whenIdle()
     expect(fe.calls.filter((c) => c === 'a').length).toBe(1)
     expect(fe.calls.filter((c) => c === 'b').length).toBe(2)
@@ -164,16 +173,66 @@ describe('scheduler', () => {
   })
 
   test('a trigger during a round queues exactly one more round', async () => {
-    const { s, fe } = setup(['a'])
+    const { s, fe, timers } = setup(['a'])
     fe.gate(true)
     s.start()
     s.trigger('sealed')
     s.trigger('sealed')
     s.trigger('visible')
+    timers.advance(DEBOUNCE_MS)
+    s.trigger('online')
     fe.gate(false)
     fe.open()
     await s.whenIdle()
     expect(fe.calls).toEqual(['a', 'a'])
+  })
+
+  test('seal, visible and timer triggers within 2 s make one round', async () => {
+    const { s, fe, timers } = setup(['a'])
+    s.start()
+    await s.whenIdle()
+    s.trigger('sealed')
+    timers.advance(DEBOUNCE_MS / 2)
+    s.trigger('visible')
+    s.trigger('sealed')
+    timers.advance(DEBOUNCE_MS / 2 - 1)
+    await s.whenIdle()
+    expect(fe.calls).toEqual(['a'])
+    timers.advance(1)
+    await s.whenIdle()
+    expect(fe.calls).toEqual(['a', 'a'])
+    // Stopping drops a burst still waiting.
+    s.trigger('sealed')
+    s.stop()
+    timers.advance(DEBOUNCE_MS)
+    await s.whenIdle()
+    expect(fe.calls).toEqual(['a', 'a'])
+  })
+
+  test('the timer skips a round when one succeeded less than 60 s before; a seal never does', async () => {
+    const { s, fe, timers } = setup(['a'])
+    s.start() // t = 0
+    await s.whenIdle()
+    timers.advance(30_000)
+    s.trigger('sealed') // its round starts at 32 s
+    timers.advance(DEBOUNCE_MS)
+    await s.whenIdle()
+    expect(fe.calls.length).toBe(2)
+    timers.advance(60_000 - 32_000 + DEBOUNCE_MS) // the 60 s timer, 30 s after that round: skipped
+    await s.whenIdle()
+    expect(fe.calls.length).toBe(2)
+    s.trigger('timer')
+    s.trigger('sealed') // a seal in the same burst still syncs
+    timers.advance(DEBOUNCE_MS)
+    await s.whenIdle()
+    expect(fe.calls.length).toBe(3)
+    // The 120 s timer comes 58 s after that round (skipped), the 180 s one well after it.
+    timers.advance(VISIBLE_INTERVAL_MS)
+    await s.whenIdle()
+    expect(fe.calls.length).toBe(3)
+    timers.advance(VISIBLE_INTERVAL_MS)
+    await s.whenIdle()
+    expect(fe.calls.length).toBe(4)
   })
 
   test('stop drops pending retries', async () => {

@@ -57,6 +57,7 @@ export interface DestConfig {
   keyring?: DestKeyring
   /** Created as sealed (known before any listing): never send it plaintext, even if `keys/` is not seen. */
   sealed?: boolean
+  /** Overrides the store's own `incremental` (tests, or a store known to list differently). */
   incremental?: IncrementalMode
   paused?: boolean
 }
@@ -244,7 +245,8 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
   const awaitingMs = o.awaitingMs ?? AWAITING_MS
   const maxFailures = o.maxHashFailures ?? MAX_HASH_FAILURES
   const dests = new Map<string, Dest>()
-  const fullDone = new Set<string>()
+  /** The log's arrival counter when the checkpoint was last considered: unchanged log, nothing to reconsider. */
+  let checkpointSeen: number | undefined
   const subs = new Set<(s: EngineStatus) => void>()
   /** Headers of applied rows (immutable once applied). */
   const headers = new Map<Key, Header>()
@@ -830,6 +832,18 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
     return { up, deferred }
   }
 
+  /**
+   * Builds a checkpoint when enough segments are uncovered, at most once per change of the log: with several
+   * destinations, the first round considers it and the others find the log unchanged.
+   */
+  const considerCheckpoint = async (): Promise<void> => {
+    const arrival = (await store.read(['kv'], (tx) => tx.get<number>('kv', 'arrival'))) ?? 0
+    if (arrival === checkpointSeen) return
+    await buildCheckpoint({ store, log, clock, codec, deviceId: await log.deviceId(), every: o.checkpointEvery })
+    // A checkpoint just built moved the counter itself: read it again so the next round skips.
+    checkpointSeen = (await store.read(['kv'], (tx) => tx.get<number>('kv', 'arrival'))) ?? 0
+  }
+
   interface RoundOptions {
     full: boolean
     readOnly: boolean
@@ -843,33 +857,34 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
     m: DestMeta,
     ro: RoundOptions,
   ): Promise<RoundResult & { listing: Listing | null; sealedness?: Sealedness }> => {
-    const id = d.rt.id
     if (d.cfg.paused) {
       d.rt.state = 'paused'
       return { ...ZERO, listing: null }
     }
-    if (!ro.readOnly && (o.checkpointEvery ?? CHECKPOINT_EVERY) > 0) {
-      await buildCheckpoint({ store, log, clock, codec, deviceId: await log.deviceId(), every: o.checkpointEvery })
-    }
+    if (!ro.readOnly && (o.checkpointEvery ?? CHECKPOINT_EVERY) > 0) await considerCheckpoint()
     const now = clock.now()
+    // The saved `lastFullAt` decides, across launches and tabs: a launch alone does not relist everything.
     const full = ro.full || m.lastFullAt === undefined || now - m.lastFullAt >= FULL_LISTING_EVERY_MS
     const plan = planListing({
       full,
-      mode: d.cfg.incremental ?? 'start-after',
+      mode: d.cfg.incremental ?? d.cfg.remote.incremental ?? 'start-after',
       known: Object.keys(m.confirmed),
       lastListedAt: m.lastListedAt,
     })
     const listing = await runListing(d.cfg.remote, plan, { pageSize: o.pageSize, signal: ro.signal })
-    if (listing.full) {
-      m.lastFullAt = now
-      fullDone.add(id)
-    }
+    if (listing.full) m.lastFullAt = now
     m.lastListedAt = now
-    // A full listing is the truth: a key confirmed earlier but absent now (lost by the provider, or a
-    // page omitted) is no longer counted as protected there, and will be sent again.
+    // A full listing is the truth: a key confirmed earlier but absent now (lost by the provider) is no longer
+    // counted as protected there, and will be sent again. Absent keys are checked once more, directory by
+    // directory, first: a listing that lags behind a recent upload must not undo its confirmation.
     if (listing.full) {
-      for (const k of Object.keys(m.confirmed)) {
-        if (listing.entries.has(k)) continue
+      const absent = Object.keys(m.confirmed).filter((k) => !listing.entries.has(k))
+      const seen =
+        absent.length > 0
+          ? await confirmByListing(d.cfg.remote, absent, { pageSize: o.pageSize, signal: ro.signal })
+          : new Set<Key>()
+      for (const k of absent) {
+        if (seen.has(k)) continue
         delete m.confirmed[k]
         delete m.keysRead?.[k]
       }
@@ -1028,11 +1043,9 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
   const engine: SyncEngineImpl = {
     async round(id, signal) {
       const d = dest(id)
-      const out = await locks.run(
-        syncLockName(id),
-        () => runRound(d, { full: !fullDone.has(id), readOnly: false, signal }),
-        { ifAvailable: true },
-      )
+      const out = await locks.run(syncLockName(id), () => runRound(d, { full: false, readOnly: false, signal }), {
+        ifAvailable: true,
+      })
       return out ?? { ...ZERO }
     },
 
@@ -1160,7 +1173,6 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
     },
     removeDest(id) {
       dests.delete(id)
-      fullDone.delete(id)
     },
     setPaused(id, paused) {
       const d = dest(id)
@@ -1213,6 +1225,8 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
         if (!releasing.has(h.rec.key)) next[h.rec.header.deviceId] = { events: [], holding: true }
       }
       await log.release(keys, [{ put: 'kv', key: HOLD_KV, value: next }])
+      // Released rows are applied now: the checkpoint may cover them, though no segment arrived.
+      checkpointSeen = undefined
       dropShadow()
       await refresh()
     },

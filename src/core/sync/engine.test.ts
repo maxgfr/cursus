@@ -4,7 +4,7 @@ import { RemoteError } from '../contracts/errors'
 import type { Key, RemoteStore } from '../contracts/remote'
 import { createKeyring } from '../crypto/keyring'
 import { createSealer, isSealed } from '../crypto/sealer'
-import { blobKey, bmanKey, encode, parseKey, sha256Hex } from '../log/codec'
+import { blobKey, bmanKey, codec, encode, parseKey, sha256Hex } from '../log/codec'
 import { REPLAY } from '../log/origins'
 import { memoryLocks } from '../ports/locks'
 import { seededRng } from '../ports/rng'
@@ -316,6 +316,89 @@ describe('listing', () => {
     await a.engine.round(ida)
     w.clock.advance(1000)
     expect((await b.engine.round(ida)).down).toBe(1)
+  })
+
+  test('a round lists the way its store declares: created-after in three calls, none in one, whatever the devices', async () => {
+    const w = world()
+    // Three devices write to the destination, so a start-after round would list each of them.
+    for (const seed of [1, 2, 3]) {
+      const d = await device(seed, w.clock)
+      const id = d.engine.addDest({ remote: w.remote() })
+      await d.engine.round(id) // joins the workspace first
+      d.ws.courses.create({ title: `c${seed}` })
+      await d.commit()
+      await d.engine.round(id)
+    }
+    const listsPerRound = async (incremental: RemoteStore['incremental']): Promise<number[]> => {
+      const b = await device(9, w.clock)
+      const r = w.remote()
+      const id = b.engine.addDest({ remote: { ...r, incremental } })
+      const out: number[] = []
+      for (let i = 0; i < 3; i++) {
+        const before = r.calls.list
+        await b.engine.round(id)
+        out.push(r.calls.list - before)
+        w.clock.advance(1000)
+      }
+      expect(b.ws.courses.list().length).toBe(3)
+      return out
+    }
+    // The first round lists everything once, then checks by listing what it has just uploaded.
+    expect(await listsPerRound('created-after')).toEqual([2, 3, 3])
+    expect(await listsPerRound('none')).toEqual([2, 1, 1])
+    // keys/, ws/, ckpt/, one per device from its watermark, and the gaps around the three devices.
+    expect(await listsPerRound(undefined)).toEqual([2, 10, 10])
+  })
+
+  test('a relaunch lists from where it left off: only the saved time of the last full listing decides', async () => {
+    const w = world()
+    const a = await device(1, w.clock)
+    const r = w.remote()
+    const id = a.engine.addDest({ remote: { ...r, incremental: 'created-after' } })
+    a.ws.courses.create({ title: 'x' })
+    await a.commit()
+    await a.engine.round(id)
+    w.clock.advance(MIN)
+    // The same device, launched again (or another tab): a new engine on the same store.
+    const again = await device(1, w.clock, { store: a.store })
+    again.engine.addDest({ id, remote: { ...r, incremental: 'created-after' } })
+    const before = r.calls.list
+    await again.engine.round(id)
+    expect(r.calls.list - before).toBe(3)
+    w.clock.advance(30 * MIN)
+    const late = r.calls.list
+    await again.engine.round(id)
+    expect(r.calls.list - late).toBe(1)
+  })
+
+  test('a key a full listing leaves out, but that is there when checked again, stays confirmed', async () => {
+    const w = world()
+    const a = await device(1, w.clock)
+    const r = w.remote()
+    let hidden: Key | null = null
+    // A listing of the whole destination that lags behind (eventual consistency): one segment is missing from it.
+    const lagging: RemoteStore = {
+      ...r,
+      list: (prefix, lo) => {
+        const inner = r.list(prefix, lo)
+        return {
+          async *[Symbol.asyncIterator]() {
+            for await (const e of inner) if (prefix !== '' || e.key !== hidden) yield e
+          },
+        }
+      },
+    }
+    const id = a.engine.addDest({ remote: lagging })
+    a.ws.courses.create({ title: 'x' })
+    await a.commit()
+    await a.engine.round(id)
+    hidden = (await keysOf(r, 'seg/'))[0] as Key
+    w.clock.advance(31 * MIN)
+    const puts = r.calls.put
+    await a.engine.round(id)
+    expect(r.calls.put).toBe(puts)
+    expect(a.engine.status()).toMatchObject({ safe: true, protectedOn: 1 })
+    expect(a.engine.status().dests[0]?.unconfirmed).toBe(0)
   })
 
   test('a key confirmed earlier but missing from a full listing is sent again', async () => {
@@ -926,6 +1009,33 @@ describe('checkpoints', () => {
     for (const s of await fresh.log.since(0)) order.push(s.rec.header.kind)
     expect(order[0]).toBe('ckpt')
     sameContent(fresh.doc, a.doc)
+  })
+
+  test('the checkpoint is considered once per change of the log, not once per destination', async () => {
+    const w = world()
+    let decoded = 0
+    const counting = {
+      ...codec,
+      decode: (k: Key, b: Uint8Array) => {
+        decoded++
+        return codec.decode(k, b)
+      },
+    }
+    const a = await device(1, w.clock, { checkpointEvery: 2, codec: counting })
+    const d1 = a.engine.addDest({ remote: w.remote('d1') })
+    const d2 = a.engine.addDest({ remote: w.remote('d2') })
+    a.ws.courses.create({ title: 'a' })
+    await a.commit()
+    a.ws.courses.create({ title: 'b' })
+    await a.commit()
+    await a.engine.round(d1)
+    expect((await keysOf(w.remote('d1'), 'ckpt/')).length).toBe(1)
+    // The second destination finds the log unchanged: nothing is read or decoded again for a checkpoint.
+    decoded = 0
+    await a.engine.round(d2)
+    await a.engine.round(d1)
+    expect(decoded).toBe(0)
+    expect((await keysOf(w.remote('d2'), 'ckpt/')).length).toBe(1)
   })
 
   test('automatic checkpoints when enough segments are uncovered', async () => {

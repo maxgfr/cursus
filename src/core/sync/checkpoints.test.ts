@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import * as Y from 'yjs'
-import { encode, keyFor, MAGIC } from '../log/codec'
+import { codec, encode, keyFor, MAGIC } from '../log/codec'
 import { buildCheckpoint, coveredBy, persistedDoc } from './checkpoints'
 import { device, world } from './harness.test'
 import { canonicalJson } from './verify'
@@ -37,4 +37,27 @@ test('checkpoint: fresh doc from persisted segments, stops before needs-upgrade,
   await a.log.compact()
   expect((await persistedDoc(a.store)).getMap('courses').size).toBe(1)
   expect(coveredBy([])).toEqual(new Set())
+})
+
+test('checkpoint: uncovered segments are counted from their headers; nothing is decoded until one is due', async () => {
+  const w = world()
+  const a = await device(1, w.clock)
+  for (const title of ['one', 'two', 'three']) {
+    a.ws.courses.create({ title })
+    await a.commit()
+  }
+  let decoded = 0
+  const counting = {
+    ...codec,
+    decode: (k: string, b: Uint8Array) => {
+      decoded++
+      return codec.decode(k, b)
+    },
+  }
+  const deviceId = await a.log.deviceId()
+  const o = { store: a.store, log: a.log, clock: w.clock, deviceId, codec: counting }
+  expect(await buildCheckpoint({ ...o, every: 4 })).toBeNull()
+  expect(decoded).toBe(0)
+  expect((await buildCheckpoint({ ...o, every: 3 }))?.header.covers?.length).toBe(3)
+  expect(decoded).toBe(3)
 })
