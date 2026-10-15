@@ -9,6 +9,7 @@ import { Button } from '../../ui/components/Button.tsx'
 import { Field } from '../../ui/components/Field.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
 import { cx } from '../../ui/cx.ts'
+import { streamedKeys, usePartial } from '../../ui/data/usePartial.ts'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { useScopeOnce } from '../Section/scope.ts'
 import styles from '../Understand/shared/ai.module.css'
@@ -40,6 +41,7 @@ export default function Quiz() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const onSelection = useCallback((s: Selection) => setSelection(s), [])
+  const stream = usePartial<{ questions: QuizQuestion[] }>()
   // While answering, the chat knows the question at hand (the first one left), never its answer.
   const pending =
     questions && !checked ? (questions.find((_, i) => answers[i] === undefined) ?? questions.at(-1)) : undefined
@@ -61,19 +63,26 @@ export default function Quiz() {
     e.preventDefault()
     setBusy(true)
     setError('')
+    setQuestions(null)
+    stream.reset()
     try {
       const chunks = await loadChunks(selection)
       const ctx = await ai.context(new AbortController().signal, ws.courses.get(selection.courseId)?.language)
-      const qs = await quiz(ctx, { topic: topic.trim() || t('ai.wholeSelection'), chunks, count: Number(count) })
+      const qs = await quiz(
+        { ...ctx, onPartial: stream.onPartial },
+        { topic: topic.trim() || t('ai.wholeSelection'), chunks, count: Number(count) },
+      )
       setQuestions(qs)
       setAnswers({})
       setChecked(false)
     } catch (err) {
       setError(t('ai.failed', { reason: err instanceof Error ? err.message : String(err) }))
     } finally {
+      stream.reset()
       setBusy(false)
     }
   }
+  const writing = busy ? (stream.partial?.questions ?? []).filter((q) => q?.question) : []
 
   const score = questions?.filter((q, i) => answers[i] === q.answerIndex).length ?? 0
 
@@ -100,6 +109,25 @@ export default function Quiz() {
           </p>
         )}
       </form>
+
+      {writing.length > 0 && (
+        <section className={styles.stack} aria-label={t('ai.quiz')} aria-busy="true">
+          <ol className={styles.list}>
+            {streamedKeys(writing).map(({ item: q, key, last }, i) => (
+              <li key={key} className={styles.card}>
+                <p className={styles.heading}>
+                  {i + 1}. {last && !q?.choices?.length ? `${q?.question ?? ''} ▍` : q?.question}
+                </p>
+                <ul className={styles.bullets}>
+                  {(q?.choices ?? []).filter(Boolean).map((c) => (
+                    <li key={c}>{c}</li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
 
       {questions && (
         <section className={styles.stack} aria-label={t('ai.quiz')}>

@@ -1,10 +1,12 @@
 import { expect, type Page, type Route, test } from '@playwright/test'
-import { configureAi } from './support/ai'
+import { completionReply, configureAi } from './support/ai'
 import { createHarness } from './support/harness.ts'
+import { isPhone } from './support/page.ts'
 
-// « Explain the question » and « Explain a concept » against an intercepted provider: before the reveal
-// nothing shown gives the answer away (redacted fields, citations as bare links, « Show anyway »);
-// after it everything shows; a selected term in a source is explained, explored and turned into a card.
+// « Explain the question » against an intercepted provider, streamed: before the reveal nothing shown gives the
+// answer away (redacted fields, citations as bare links, « Show anyway »); after it everything shows. A term
+// selected in the card or in a source is asked about in the chat, which knows the screen and keeps the answer
+// hidden as long as the card does; its answer becomes a card.
 test.use({ serviceWorkers: 'block' })
 
 const harness = createHarness()
@@ -38,6 +40,7 @@ async function seedCourse(page: Page) {
 }
 
 interface Body {
+  stream?: boolean
   messages: { role: string; content: string | { type: string; text?: string }[] }[]
 }
 
@@ -66,28 +69,10 @@ function questionExplanation(prompt: string) {
   }
 }
 
-/** A concept explained; for "cell" the explanation and a related concept name the card's answer. */
-function conceptExplanation(prompt: string) {
-  const note = noteId(prompt)
-  const term = /<<<TERM>>>\n([^\n]+)/.exec(prompt)?.[1] ?? 'missing-term'
-  if (term === 'cell') {
-    return {
-      definition: 'The smallest unit of life.',
-      explanation: 'Each cell gets its energy from the mitochondrion.',
-      example: 'A red blood cell.',
-      relatedConcepts: ['Organelle', 'Mitochondrion'],
-      citations: [{ sourceId: note }],
-      suggestedCard: { front: 'What is a cell?', back: 'The smallest unit of life' },
-    }
-  }
-  return {
-    definition: `${term}: what the course calls it.`,
-    explanation: `How ${term} fits in the course.`,
-    example: `An example of ${term}.`,
-    relatedConcepts: ['Cellular respiration'],
-    citations: [{ sourceId: note }],
-    suggestedCard: { front: `What is ${term}?`, back: `${term}, in short` },
-  }
+/** The tutor's answer to a selected term: it names the card's answer and cites the note. */
+function tutorAnswer(prompt: string): string {
+  const term = /What does “([^”]+)” mean here\?/.exec(prompt)?.[1] ?? 'it'
+  return `**${term}** is where the mitochondrion comes in [[source:${noteId(prompt)}]]: it releases the cell's energy.`
 }
 
 async function mockProvider(page: Page): Promise<string[]> {
@@ -97,23 +82,11 @@ async function mockProvider(page: Page): Promise<string[]> {
     if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS })
     const text = textOf(req.postDataJSON() as Body)
     prompts.push(text)
-    let out: unknown = 'OK'
-    if (text.includes('asks what the question means')) out = questionExplanation(text)
-    else if (text.includes('selected a term in their course material')) out = conceptExplanation(text)
-    const content = typeof out === 'string' ? out : JSON.stringify(out)
-    return route.fulfill({
-      status: 200,
-      headers: CORS,
-      contentType: 'application/json',
-      json: {
-        id: 'cmpl-1',
-        object: 'chat.completion',
-        created: 1,
-        model: 'claude-haiku-5-5',
-        choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }],
-        usage: { prompt_tokens: 1200, completion_tokens: 400 },
-      },
-    })
+    let content = 'OK'
+    if (text.includes('asks what the question means')) content = JSON.stringify(questionExplanation(text))
+    else if (text.includes('study tutor')) content = tutorAnswer(text)
+    // Streamed, as the screens ask for it: the explanation and the chat are read as they are written.
+    return route.fulfill(completionReply(req, content, CORS))
   })
   return prompts
 }
@@ -215,97 +188,89 @@ test('before the reveal the question is explained without its answer; after it, 
   expect(errors).toEqual([])
 })
 
-test('a term selected in the question is explained without the answer, explored, and made a card', async ({ page }) => {
+/** The chat: docked beside the page from 1000px, a sheet on phones. */
+function chatPanel(page: Page, project: string) {
+  return isPhone(project) ? page.getByRole('dialog', { name: 'Ask' }) : page.getByRole('complementary', { name: 'Ask' })
+}
+
+test('a term selected in the question is asked about in the chat, without the answer until the reveal', async ({
+  page,
+}, info) => {
   const errors = watchErrors(page)
   await seedCourse(page)
   const prompts = await mockProvider(page)
   await configureAi(page, LLM)
   await openReview(page)
 
-  await expect(page.getByRole('button', { name: 'Explain a concept' })).toBeVisible()
+  // No generic « Explain a concept »: a term of the card is asked about once selected.
+  await expect(page.getByRole('button', { name: 'Explain a concept' })).toHaveCount(0)
   await selectText(page, '[data-testid="question"]', 'cell')
-  await page.getByRole('button', { name: 'Explain “cell”' }).click()
-  const sheet = page.getByRole('dialog', { name: 'Explain “cell”' })
-  await expect(sheet.getByText('The smallest unit of life.')).toBeVisible()
-  // Explained in the question alone: the answer is not handed over as context.
-  expect(prompts.at(-1)).toMatch(/<<<CONTEXT>>>\nPowerhouse of the cell\?\n<<<END CONTEXT>>>/)
+  await page.getByRole('button', { name: 'Ask about “cell”' }).click()
+  const panel = chatPanel(page, info.project.name)
+  await expect(panel.getByText('What does “cell” mean here?')).toBeVisible()
+  await expect(panel.getByText(/releases the cell's energy/)).toBeVisible()
+  // The chat knew the card and the line the term was read in, and was told to keep the answer.
+  expect(prompts.at(-1)).toContain('Passage the student selected a term in: Powerhouse of the cell?')
+  expect(prompts.at(-1)).toContain('Flashcard answer (keep hidden): The mitochondrion')
+  // The answer named the card's answer: hidden until the reveal.
+  await expect(panel).not.toContainText(/mitochondri/i)
+  await expect(panel.getByText('Parts that would give the answer away are hidden until you reveal it.')).toBeVisible()
 
-  // The explanation and a related concept named the answer: redacted until shown anyway.
-  await expect(sheet.getByText('Each cell gets its energy from the […].')).toBeVisible()
-  await expect(sheet).not.toContainText(/mitochondri/i)
-  await expect(sheet).not.toContainText(PASSAGE)
-  await expect(sheet.getByRole('button', { name: 'Show anyway' })).toHaveCount(2)
-  await sheet.getByRole('button', { name: 'Show anyway' }).first().click()
-  await expect(sheet.getByText('Each cell gets its energy from the mitochondrion.')).toBeVisible()
-  await sheet.getByRole('button', { name: 'Show anyway' }).click()
-  await expect(sheet.getByRole('button', { name: 'Explain “Mitochondrion”' })).toBeVisible()
-
-  // A related concept is explained in turn.
-  await sheet.getByRole('button', { name: 'Explain “Organelle”' }).click()
-  const next = page.getByRole('dialog', { name: 'Explain “Organelle”' })
-  await expect(next.getByText('Organelle: what the course calls it.')).toBeVisible()
-  expect(prompts.at(-1)).toContain('<<<TERM>>>\nOrganelle\n<<<END TERM>>>')
-
-  // A typed concept, at another level.
-  await next.getByLabel('Concept', { exact: true }).fill('Ribosome')
-  await next.getByRole('radio', { name: 'In depth' }).check({ force: true })
-  await next.getByRole('button', { name: 'Explain', exact: true }).click()
-  const typed = page.getByRole('dialog', { name: 'Explain “Ribosome”' })
-  await expect(typed.getByText('Ribosome: what the course calls it.')).toBeVisible()
-  expect(prompts.at(-1)).toContain('Explain it rigorously')
-
-  await typed.getByRole('button', { name: 'Create a card on this concept' }).click()
-  await expect(typed.getByText('Card added to Biology.')).toBeVisible()
-  await expect(typed.getByRole('button', { name: 'Create a card on this concept' })).toBeDisabled()
+  if (isPhone(info.project.name)) await panel.getByRole('button', { name: 'Close' }).click()
+  await page.getByRole('button', { name: /Show answer/ }).click()
+  if (isPhone(info.project.name)) await page.getByRole('main').getByRole('button', { name: 'Ask about this' }).click()
+  await expect(panel.getByText(/where the mitochondrion comes in/)).toBeVisible()
+  await panel.getByRole('button', { name: 'Make a card' }).click()
+  await expect(panel.getByText('Card added to Biology.')).toBeVisible()
   expect(errors).toEqual([])
 })
 
-test('a term selected in a source opens its explanation, cited in full, and becomes a card', async ({ page }) => {
+test('a term selected in a source is asked about in the chat, cited, and becomes a card', async ({ page }, info) => {
   const errors = watchErrors(page)
   await seedCourse(page)
   const prompts = await mockProvider(page)
   await configureAi(page, LLM)
   await openNote(page)
 
-  await expect(page.getByRole('button', { name: /^Explain “/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^Ask about “/ })).toHaveCount(0)
   await selectText(page, '.cm-content', 'ATP')
-  await page.getByRole('button', { name: 'Explain “ATP”' }).click()
-  const sheet = page.getByRole('dialog', { name: 'Explain “ATP”' })
-  await expect(sheet.getByText('ATP: what the course calls it.')).toBeVisible()
-  // The line it was selected in goes along as context, grounded in the course's sources.
-  expect(prompts.at(-1)).toContain('<<<TERM>>>\nATP\n<<<END TERM>>>')
-  expect(prompts.at(-1)).toMatch(/<<<CONTEXT>>>\nThe mitochondrion produces ATP through cellular respiration\./)
-  // Outside a review there is no answer to hide: the cited passage shows with its link.
-  await expect(sheet.getByRole('link', { name: 'Open source: Cell notes' })).toBeVisible()
-  await expect(sheet.getByRole('blockquote')).toContainText(PASSAGE)
-  await expect(sheet.getByRole('button', { name: 'Show anyway' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Ask about “ATP”' }).click()
+  const panel = chatPanel(page, info.project.name)
+  await expect(panel.getByText('About: Cell notes')).toBeVisible()
+  await expect(panel.getByText(/releases the cell's energy/)).toBeVisible()
+  // The source open and the line the term was read in went along; outside a review nothing is hidden.
+  expect(prompts.at(-1)).toContain('Source open: Cell notes')
+  expect(prompts.at(-1)).toMatch(/Passage the student selected a term in: The mitochondrion produces ATP/)
+  await expect(panel.locator('strong', { hasText: 'ATP' })).toBeVisible()
+  await expect(panel.getByRole('link', { name: 'Open source: Cell notes' })).toBeVisible()
 
-  await sheet.getByRole('button', { name: 'Explain “Cellular respiration”' }).click()
-  const next = page.getByRole('dialog', { name: 'Explain “Cellular respiration”' })
-  await expect(next.getByText('Cellular respiration: what the course calls it.')).toBeVisible()
-  await next.getByRole('button', { name: 'Create a card on this concept' }).click()
-  await expect(next.getByText('Card added to Biology.')).toBeVisible()
-  await next.getByRole('button', { name: 'Close' }).click()
-
+  await panel.getByRole('button', { name: 'Make a card' }).click()
+  await expect(panel.getByText('Card added to Biology.')).toBeVisible()
+  if (isPhone(info.project.name)) await panel.getByRole('button', { name: 'Close' }).click()
   await page.goto('./#/courses')
   await page
     .getByRole('main')
     .getByRole('link', { name: /Biology/ })
     .click()
-  await expect(page.getByRole('main').getByRole('link', { name: 'What is Cellular respiration?' })).toBeVisible()
+  await expect(page.getByRole('main').getByRole('link', { name: 'What does “ATP” mean here?' })).toBeVisible()
   expect(errors).toEqual([])
 })
 
-test('without a model review offers no explanation and a source links to the AI settings', async ({ page }) => {
+test('without a model review offers no explanation and a term in a source leads to the AI settings', async ({
+  page,
+}, info) => {
   await seedCourse(page)
   await openReview(page)
   await expect(page.getByRole('button', { name: 'Show answer' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Explain the question' })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Explain a concept' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /^Ask about “/ })).toHaveCount(0)
 
   await openNote(page)
   await selectText(page, '.cm-content', 'ATP')
-  await page.getByRole('link', { name: 'Set up AI to explain “ATP”' }).click()
+  await page.getByRole('button', { name: 'Ask about “ATP”' }).click()
+  const panel = chatPanel(page, info.project.name)
+  await expect(panel.getByText('Set up AI to ask questions')).toBeVisible()
+  await panel.getByRole('link', { name: 'Set up AI' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'AI' })).toBeVisible()
 })
 
@@ -317,7 +282,8 @@ test('offline the explanations are disabled, saying why', async ({ page, context
   await expect(page.getByRole('button', { name: 'Explain the question' })).toBeEnabled()
   await context.setOffline(true)
   await expect(page.getByRole('button', { name: 'Explain the question' })).toBeDisabled()
-  await expect(page.getByRole('button', { name: 'Explain a concept' })).toBeDisabled()
+  await selectText(page, '[data-testid="question"]', 'cell')
+  await expect(page.getByRole('button', { name: 'Ask about “cell”' })).toBeDisabled()
   await expect(page.getByText('You’re offline. Explanations need a connection.')).toBeVisible()
   await context.setOffline(false)
   await expect(page.getByRole('button', { name: 'Explain the question' })).toBeEnabled()

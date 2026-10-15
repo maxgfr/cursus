@@ -77,14 +77,23 @@ export interface FeatureCtx {
   signal?: AbortSignal
   onUsage?: UsageSink
   now?: () => number
+  /**
+   * Set by a screen that shows the answer as it is written: structured calls then stream, and this receives the
+   * object parsed so far (the raw model shape, before the feature checks it) after each delta. The result, its
+   * validation and the usage reported are the same either way.
+   */
+  onPartial?: (partial: unknown) => void
 }
 
-export interface StructuredRequest<T> {
+/** A structured call: a text prompt, or messages (to attach images). */
+export type StructuredRequest<T> = {
   feature: AiFeature
   system: string
-  prompt: string
   schema: z.ZodType<T>
-}
+} & ({ prompt: string; messages?: undefined } | { messages: ModelMessage[]; prompt?: undefined })
+
+const input = (req: { prompt?: string; messages?: ModelMessage[] }) =>
+  req.messages ? { messages: req.messages } : { prompt: req.prompt ?? '' }
 
 function tokens(u: { inputTokens: number | undefined; outputTokens: number | undefined }): TokenUsage {
   return { inputTokens: u.inputTokens ?? 0, outputTokens: u.outputTokens ?? 0 }
@@ -124,11 +133,25 @@ export async function billed<T>(
 }
 
 export function generateStructured<T>(ctx: FeatureCtx, req: StructuredRequest<T>): Promise<T> {
+  const onPartial = ctx.onPartial
+  if (onPartial) {
+    const s = streamStructured(ctx, req)
+    return (async () => {
+      try {
+        for await (const partial of s.partial) onPartial(partial)
+      } catch (e) {
+        // The outcome (and what it cost) is the output's to report.
+        s.output.catch(() => {})
+        throw e
+      }
+      return s.output
+    })()
+  }
   return billed(ctx, req.feature, () =>
     generateText({
       model: ctx.model,
       system: req.system,
-      prompt: req.prompt,
+      ...input(req),
       output: Output.object({ schema: req.schema }),
       abortSignal: ctx.signal,
     }),
@@ -144,7 +167,7 @@ export function streamStructured<T>(ctx: FeatureCtx, req: StructuredRequest<T>):
   const res = streamText({
     model: ctx.model,
     system: req.system,
-    prompt: req.prompt,
+    ...input(req),
     output: Output.object({ schema: req.schema }),
     abortSignal: ctx.signal,
   })

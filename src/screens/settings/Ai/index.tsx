@@ -373,7 +373,7 @@ function Editor({ initial }: { initial: Loaded }) {
           />
         ) : (
           <ListRow
-            title={selected ? selected.info.name : t('ai.chooseModel')}
+            title={selected ? <span translate="no">{selected.info.name}</span> : t('ai.chooseModel')}
             subtitle={
               selected && provider
                 ? t('ai.through', { provider: provider.name }) +

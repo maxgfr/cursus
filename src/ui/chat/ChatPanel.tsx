@@ -213,7 +213,7 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
   )
 
   const ask = useCallback(
-    async (history: ChatMessage[]) => {
+    async (history: ChatMessage[], excerpt?: string) => {
       if (ai.status !== 'ready') return
       abort.current?.abort()
       const ctl = new AbortController()
@@ -230,7 +230,8 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
         const ids = ws.sources.list(scoped ? { courseId } : undefined).map((s) => s.id)
         const chunks = await loadChunks(ids)
         const ctx = await ai.context(ctl.signal, course?.language)
-        const turn = buildTutorTurn(describeContext(ws, context), history, chunks, ctx.info, ctx.language)
+        const about = { ...describeContext(ws, context), ...(excerpt ? { excerpt } : {}) }
+        const turn = buildTutorTurn(about, history, chunks, ctx.info, ctx.language)
         grounded = turn.chunks
         for await (const delta of tutorChat(ctx, turn)) {
           text += delta
@@ -256,6 +257,17 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
     },
     [ai, current, screenOn, courseId, ws, loadChunks, course, context, t, persist],
   )
+
+  // Asked from the screen (a term selected there): sent as soon as the chat can answer, in the chat on screen.
+  const asked = chat?.asked
+  const handled = useRef<number | null>(null)
+  useEffect(() => {
+    if (!asked || handled.current === asked.seq) return
+    if (ai.status !== 'ready' || !callable || live !== null) return
+    handled.current = asked.seq
+    setShowHistory(false)
+    void ask([...current.messages, { role: 'user', text: asked.text }], asked.excerpt)
+  }, [asked, ai.status, callable, live, current.messages, ask])
 
   const send = (text: string) => {
     const q = text.trim()

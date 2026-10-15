@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, join, resolve } from 'node:path'
 import { expect, type Page, type Route, test } from '@playwright/test'
+import { completionReply } from './support/ai.ts'
 import { seriousViolations } from './support/page.ts'
 
 // Review needs cards with a history. Instead of a test path in the app, a throwaway harness
@@ -165,20 +166,8 @@ async function fakeProvider(page: Page): Promise<string[]> {
     } else {
       return route.fulfill({ status: 400, headers: cors, body: 'unexpected request' })
     }
-    return route.fulfill({
-      status: 200,
-      headers: { ...cors, 'content-type': 'application/json' },
-      body: JSON.stringify({
-        id: 'cmpl-1',
-        object: 'chat.completion',
-        created: Math.floor(Date.now() / 1000),
-        model: 'jamba-mini',
-        choices: [
-          { index: 0, message: { role: 'assistant', content: JSON.stringify(content) }, finish_reason: 'stop' },
-        ],
-        usage: { prompt_tokens: 120, completion_tokens: 40, total_tokens: 160 },
-      }),
-    })
+    // Streamed when the screen shows the answer as it is written.
+    return route.fulfill(completionReply(route.request(), JSON.stringify(content), cors, 'jamba-mini'))
   })
   return features
 }

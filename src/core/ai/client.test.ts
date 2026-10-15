@@ -100,6 +100,30 @@ describe('client', () => {
     expect(events[0]?.inputTokens).toBe(10)
   })
 
+  test('with onPartial, generateStructured streams: partials as they come, the same result and usage', async () => {
+    const events: AiUsageEvent[] = []
+    const partials: unknown[] = []
+    const model = streamModel(['{"answer":"he', 'llo","n":', '7}'], 12, 6)
+    const out = await generateStructured(
+      { ...ctxFor(model, events), onPartial: (p) => partials.push(p) },
+      { feature: 'quiz', system: 'S', prompt: 'P', schema },
+    )
+    expect(out).toEqual({ answer: 'hello', n: 7 })
+    expect(partials[0]).toEqual({ answer: 'he' })
+    expect(partials.length).toBeGreaterThan(1)
+    expect(model.doStreamCalls).toHaveLength(1)
+    expect(events).toEqual([expect.objectContaining({ feature: 'quiz', inputTokens: 12, outputTokens: 6 })])
+  })
+
+  test('with onPartial, an answer that does not parse is refused and still billed', async () => {
+    const events: AiUsageEvent[] = []
+    const ctx = { ...ctxFor(streamModel(['{"answer":"he', 'llo"'], 30, 20), events), onPartial: () => {} }
+    await expect(generateStructured(ctx, { feature: 'quiz', system: 'S', prompt: 'P', schema })).rejects.toBeInstanceOf(
+      NoObjectGeneratedError,
+    )
+    expect(events).toEqual([expect.objectContaining({ feature: 'quiz', inputTokens: 30, outputTokens: 20 })])
+  })
+
   test('createModel loads each provider package lazily', async () => {
     const anthropic = await createModel({ provider: provider('anthropic'), modelId: 'claude-x', apiKey: 'k' })
     const google = await createModel({ provider: provider('google'), modelId: 'gemini-x', apiKey: 'k' })

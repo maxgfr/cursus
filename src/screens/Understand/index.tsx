@@ -13,7 +13,8 @@ import { Button } from '../../ui/components/Button.tsx'
 import { Field } from '../../ui/components/Field.tsx'
 import { ListGroup, ListRow } from '../../ui/components/List.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
-import { ExplainSelection } from '../../ui/ExplainLauncher.tsx'
+import { usePartial } from '../../ui/data/usePartial.ts'
+import { AskSelection } from '../../ui/ExplainLauncher.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { useScopeOnce } from '../Section/scope.ts'
 import styles from './shared/ai.module.css'
@@ -199,11 +200,7 @@ export default function Understand() {
 
       {done && <SaveSheet result={done} grounded={grounded} selection={selection} />}
 
-      <ExplainSelection
-        within="article"
-        courseId={selection.courseId || undefined}
-        sectionId={selection.sectionId || undefined}
-      />
+      <AskSelection within="article" />
 
       {done && <ExplainBack topic={topic.trim()} chunks={grounded} courseLanguage={courseLanguage} />}
     </Screen>
@@ -329,6 +326,7 @@ function ExplainBack({ topic, chunks, courseLanguage }: { topic: string; chunks:
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [review, setReview] = useState<ExplainBackReview | null>(null)
+  const stream = usePartial<ExplainBackReview>()
   if (ai.status !== 'ready') return null
 
   const submit = async (e: FormEvent) => {
@@ -336,15 +334,19 @@ function ExplainBack({ topic, chunks, courseLanguage }: { topic: string; chunks:
     if (!text.trim()) return
     setBusy(true)
     setError('')
+    setReview(null)
+    stream.reset()
     try {
       const ctx = await ai.context(new AbortController().signal, courseLanguage)
-      setReview(await explainBack(ctx, { topic, explanation: text.trim(), chunks }))
+      setReview(await explainBack({ ...ctx, onPartial: stream.onPartial }, { topic, explanation: text.trim(), chunks }))
     } catch (err) {
       setError(t('ai.failed', { reason: err instanceof Error ? err.message : String(err) }))
     } finally {
+      stream.reset()
       setBusy(false)
     }
   }
+  const writing = busy ? stream.partial : null
 
   return (
     <section className={styles.card} aria-labelledby={`${id}-h`}>
@@ -368,6 +370,14 @@ function ExplainBack({ topic, chunks, courseLanguage }: { topic: string; chunks:
           </p>
         )}
       </form>
+      {writing?.feedback && (
+        <div className={styles.tight} aria-busy="true">
+          {typeof writing.score === 'number' && (
+            <p className={styles.score}>{t('ai.explainScore', { score: Math.round(writing.score) })}</p>
+          )}
+          <p className={styles.body}>{writing.feedback} ▍</p>
+        </div>
+      )}
       {review && (
         <div className={styles.tight} role="status">
           <p className={styles.score}>{t('ai.explainScore', { score: Math.round(review.score) })}</p>

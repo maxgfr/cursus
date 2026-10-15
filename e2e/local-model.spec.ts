@@ -217,18 +217,9 @@ function answer(options: LanguageModelV4CallOptions, prompts: string[]): string 
       citations: [],
     })
   }
-  // The prompt is JSON here: its line breaks are escaped.
-  const term = /<<<TERM>>>\\n(.+?)\\n<<<END TERM>>>/.exec(text)?.[1]
-  if (term) {
-    return JSON.stringify({
-      definition: `${term}: what the course calls it.`,
-      explanation: `How ${term} fits in the course.`,
-      example: `An example of ${term}.`,
-      relatedConcepts: ['Cellular respiration'],
-      citations: [],
-      suggestedCard: { front: `What is ${term}?`, back: `${term}, in short` },
-    })
-  }
+  // The chat, asked about a term: plain text, as it streams.
+  const term = /What does “([^”]+)” mean here\?/.exec(text)?.[1]
+  if (text.includes('study tutor') && term) return `${term}: what the course calls it.`
   const format = options.responseFormat
   return format?.type === 'json' ? JSON.stringify(sampleJson(format.schema)) : 'OK'
 }
@@ -672,10 +663,10 @@ test.describe('on-device model offline, explanations', () => {
       }, word)
   }
 
-  test('a model on this device explains with no connection: a selected term and the review card', async ({
+  test('a model on this device answers with no connection: a term asked about in the chat and the review card', async ({
     page,
     context,
-  }) => {
+  }, info) => {
     const errors = watchErrors(page)
     await harness.seed(page, {
       courses: [
@@ -703,6 +694,10 @@ test.describe('on-device model offline, explanations', () => {
     const question = page.getByRole('dialog', { name: 'Explain the question' })
     await expect(question.getByText('It asks which part of the cell releases most of its energy.')).toBeVisible()
     await question.getByRole('button', { name: 'Close' }).click()
+    // The chat's code too: opened once, then closed.
+    await page.keyboard.press('ControlOrMeta+j')
+    await expect(page.getByRole('textbox', { name: 'Your question' })).toBeVisible()
+    await page.keyboard.press(info.project.name === 'webkit-iphone' ? 'Escape' : 'ControlOrMeta+j')
     await go(page, '#/courses')
     await page
       .getByRole('main')
@@ -717,21 +712,24 @@ test.describe('on-device model offline, explanations', () => {
 
     await context.setOffline(true)
     await selectText(page, '.cm-content', 'ATP')
-    const explain = page.getByRole('button', { name: 'Explain “ATP”' })
-    await expect(explain).toBeEnabled()
-    await expect(page.getByText('You’re offline. Explanations need a connection.')).toHaveCount(0)
-    await explain.click()
-    const concept = page.getByRole('dialog', { name: 'Explain “ATP”' })
-    await expect(concept.getByText('ATP: what the course calls it.')).toBeVisible()
-    await expect(concept.getByText('You’re offline. Explanations need a connection.')).toHaveCount(0)
-    await concept.getByRole('button', { name: 'Close' }).click()
+    await page.getByRole('button', { name: 'Ask about “ATP”' }).click()
+    const chat =
+      info.project.name === 'webkit-iphone'
+        ? page.getByRole('dialog', { name: 'Ask' })
+        : page.getByRole('complementary', { name: 'Ask' })
+    await expect(chat.getByText('ATP: what the course calls it.')).toBeVisible()
+    await expect(chat.getByText('You are offline. Asking needs a connection, or a model on this device.')).toHaveCount(
+      0,
+    )
+    if (info.project.name === 'webkit-iphone') await chat.getByRole('button', { name: 'Close' }).click()
 
     await go(page, '#/review')
     await expect(page.getByRole('button', { name: 'Explain the question' })).toBeEnabled()
-    await expect(page.getByRole('button', { name: 'Explain a concept' })).toBeEnabled()
+    await selectText(page, '[data-testid="question"]', 'cell')
+    await expect(page.getByRole('button', { name: 'Ask about “cell”' })).toBeEnabled()
     await expect(page.getByText('You’re offline. Explanations need a connection.')).toHaveCount(0)
     await context.setOffline(false)
-    expect(run.prompts.some((p) => p.includes('<<<TERM>>>'))).toBe(true)
+    expect(run.prompts.some((p) => p.includes('Passage the student selected a term in'))).toBe(true)
     expect(run.failures).toEqual([])
     expect(errors).toEqual([])
   })

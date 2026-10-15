@@ -1,10 +1,8 @@
-import { MessageCircle, Plus } from 'lucide-react'
-import { type FormEvent, type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react'
+import { MessageCircle } from 'lucide-react'
+import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'wouter'
 import { to } from '../app/routes.ts'
 import { useRuntime, useWorkspace, useWorkspaceData } from '../app/workspaceContext.tsx'
-import type { FeatureCtx } from '../core/ai/client'
-import { type ExplainLevel, explainConcept } from '../core/ai/features/explainConcept'
 import {
   type AnswerTerms,
   answerTerms,
@@ -16,7 +14,7 @@ import {
   type QuestionExplanation,
 } from '../core/ai/features/explainQuestion'
 import type { Chunk } from '../core/ai/retrieval'
-import type { SourceRef } from '../core/ai/schemas'
+import type { QuestionExplanationDraft, SourceRef } from '../core/ai/schemas'
 import { blobStore } from '../core/log/blobs'
 import { formatUsd } from '../i18n/format.ts'
 import { useLocale, useT } from '../i18n/react.tsx'
@@ -26,31 +24,28 @@ import { citationText, useCitedUnit } from '../screens/Understand/shared/citatio
 import { chunksFor, deckReader, estimateCost, PASTED } from '../screens/Understand/shared/sources.ts'
 import { useChat } from './chat/context.tsx'
 import { Button } from './components/Button.tsx'
-import { Field } from './components/Field.tsx'
-import { Segmented } from './components/Segmented.tsx'
 import { Sheet } from './components/Sheet.tsx'
-import { cx } from './cx.ts'
+import { usePartial } from './data/usePartial.ts'
 import { useCanCallAi } from './ExplainLauncher.tsx'
 import styles from './ExplainSheet.module.css'
 
-/** What the sheet is asked to explain: the card's question, or a concept (a selected or typed term). */
-export type ExplainRequest = { kind: 'question' } | { kind: 'concept'; term: string; context?: string }
-/** A request as launched; a new `seq` is a new launch, even of the same request. */
-export type ExplainTarget = ExplainRequest & { seq: number }
+/** A launch of « Explain the question »; a new `seq` is a new launch. */
+export interface ExplainTarget {
+  seq: number
+}
 
 export interface ExplainSheetProps {
   open: boolean
   onClose: () => void
   ai: Extract<AiModelState, { status: 'ready' }>
   target: ExplainTarget
-  /** Course whose sources ground the explanation, and where a card on the concept goes. */
+  /** Course whose sources ground the explanation. */
   courseId?: string
-  sectionId?: string
   /**
-   * In review, the card on screen. Until `revealed`, nothing the sheet shows may give its answer away:
-   * guarded fields show redacted with « Show anyway », and citations are links without their passage.
+   * The card on screen. Until `revealed`, nothing the sheet shows may give its answer away: guarded fields
+   * show redacted with « Show anyway », and citations are links without their passage.
    */
-  card?: { front: string; back: string }
+  card: { front: string; back: string }
   revealed?: boolean
 }
 
@@ -60,30 +55,20 @@ type Call<T> =
   | { status: 'done'; value: T }
   | { status: 'failed'; message: string }
 
-interface ConceptResult {
-  term: string
-  level: ExplainLevel
-  definition: GuardedText
-  explanation: GuardedText
-  example: GuardedText
-  related: GuardedText[]
-  citations: SourceRef[]
-  card: { front: string; back: string }
-}
-
 const IDLE = { status: 'idle' } as const
-const clean = (text: string): GuardedText => ({ text, leaked: false })
-const settle = <T,>(c: Call<T>): Call<T> => (c.status === 'busy' ? IDLE : c)
 const shownText = (g: GuardedText, open: boolean) => (open ? (g.original ?? g.text) : g.text)
 
-/** The explanation sheet: « Explain the question » in review, « Explain “term” » anywhere. Loaded on demand. */
+/**
+ * « Explain the question » in review: what is asked, its terms and its context in the course, written as it
+ * comes and never giving the answer away before the reveal. Anything broader goes to the chat (« Ask a
+ * follow-up »). Loaded on demand.
+ */
 export default function ExplainSheet({
   open,
   onClose,
   ai,
   target,
   courseId,
-  sectionId,
   card,
   revealed = true,
 }: ExplainSheetProps) {
@@ -100,15 +85,7 @@ export default function ExplainSheet({
   const [grounding, setGrounding] = useState<Chunk[]>([])
   const [estimate, setEstimate] = useState<number | null>(null)
   const [question, setQuestion] = useState<Call<QuestionExplanation>>(IDLE)
-  const [concept, setConcept] = useState<Call<ConceptResult>>(IDLE)
-  const [asked, setAsked] = useState('')
-  const [term, setTerm] = useState(target.kind === 'concept' ? target.term : '')
-  const [level, setLevel] = useState<ExplainLevel>('standard')
-  const [seen, setSeen] = useState(target.seq)
-  if (seen !== target.seq) {
-    setSeen(target.seq)
-    if (target.kind === 'concept') setTerm(target.term)
-  }
+  const stream = usePartial<QuestionExplanationDraft>()
 
   useEffect(() => () => abort.current?.abort(), [])
 
@@ -144,197 +121,102 @@ export default function ExplainSheet({
     }
   }, [open, loadChunks, ai])
 
-  const start = useCallback(
-    async <T,>(
-      set: (c: Call<T>) => void,
-      fn: (ctx: FeatureCtx, chunks: Chunk[], courseTitle: string | undefined) => Promise<T>,
-    ) => {
-      // One request at a time: a new one replaces whatever was running.
-      abort.current?.abort()
-      setQuestion(settle)
-      setConcept(settle)
-      const controller = new AbortController()
-      abort.current = controller
-      set({ status: 'busy' })
-      try {
-        const loaded = await loadChunks()
-        const course = courseId ? ws.courses.get(courseId) : undefined
-        const ctx = await ai.context(controller.signal, course?.language)
-        const value = await fn(ctx, loaded, course?.title)
-        if (controller.signal.aborted) return
-        set({ status: 'done', value })
-      } catch (error) {
-        // Cancelled: `cancel` already settled the state.
-        if (controller.signal.aborted) return
-        console.warn('Explanation request failed', error)
-        set({ status: 'failed', message: describeFailure(error, t) })
-      }
-    },
-    [loadChunks, courseId, ws, ai, t],
-  )
-
-  const runQuestion = useCallback(() => {
-    if (!card) return
-    void start<QuestionExplanation>(setQuestion, (ctx, loaded, courseTitle) =>
-      explainQuestion(ctx, { card, revealed, chunks: loaded, courseTitle }),
-    )
-  }, [card, revealed, start])
-
-  const runConcept = useCallback(
-    (raw: string, context: string | undefined, lvl: ExplainLevel) => {
-      const term = raw.trim()
-      if (term === '') return
-      setAsked(term)
-      void start<ConceptResult>(setConcept, async (ctx, loaded, courseTitle) => {
-        const out = await explainConcept(ctx, { term, context, level: lvl, chunks: loaded, courseTitle })
-        const fields = [out.definition, out.explanation, out.example, ...out.relatedConcepts]
-        // In review the concept is checked against the card like the question is: what would give the
-        // answer away stays hidden until the reveal.
-        const guarded = card ? guardAnswer(fields, answerTerms(card.front, card.back)) : fields.map(clean)
-        const at = (i: number) => guarded[i] ?? clean('')
-        return {
-          term,
-          level: lvl,
-          definition: at(0),
-          explanation: at(1),
-          example: at(2),
-          related: guarded.slice(3),
-          citations: out.citations,
-          card: out.suggestedCard,
-        }
-      })
-    },
-    [card, start],
-  )
+  const runQuestion = useCallback(async () => {
+    // One request at a time: a new one replaces whatever was running.
+    abort.current?.abort()
+    const controller = new AbortController()
+    abort.current = controller
+    stream.reset()
+    setQuestion({ status: 'busy' })
+    try {
+      const loaded = await loadChunks()
+      const course = courseId ? ws.courses.get(courseId) : undefined
+      const ctx = await ai.context(controller.signal, course?.language)
+      const value = await explainQuestion(
+        { ...ctx, onPartial: stream.onPartial },
+        { card, revealed, chunks: loaded, courseTitle: course?.title },
+      )
+      if (controller.signal.aborted) return
+      stream.reset()
+      setQuestion({ status: 'done', value })
+    } catch (error) {
+      // Cancelled: `cancel` already settled the state.
+      if (controller.signal.aborted) return
+      stream.reset()
+      console.warn('Explanation request failed', error)
+      setQuestion({ status: 'failed', message: describeFailure(error, t) })
+    }
+  }, [loadChunks, courseId, ws, ai, card, revealed, t, stream])
 
   // Each launch runs once, when the sheet is open and online; a question already explained is shown again.
   useEffect(() => {
     if (!open || ran.current === target.seq) return
     ran.current = target.seq
     if (!online) return
-    if (target.kind === 'question') {
-      if (question.status === 'idle' || question.status === 'failed') runQuestion()
-      return
-    }
-    const same = concept.status === 'done' && concept.value.term === target.term.trim() && concept.value.level === level
-    if (!same) runConcept(target.term, target.context, level)
-  }, [open, target, online, question.status, concept, level, runQuestion, runConcept])
+    if (question.status === 'idle' || question.status === 'failed') void runQuestion()
+  }, [open, target, online, question.status, runQuestion])
 
   const cancel = () => {
     abort.current?.abort()
-    setQuestion(settle)
-    setConcept(settle)
+    stream.reset()
+    setQuestion(IDLE)
   }
 
   const guard = useAnswerGuard(card, revealed)
   const chat = useChat()
   // What was shown, as the chat opens on it: guarded fields as they appear.
-  const shown =
-    target.kind === 'question'
-      ? question.status === 'done'
-        ? [question.value.restatement.text, question.value.context.text]
-        : []
-      : concept.status === 'done'
-        ? [concept.value.term, concept.value.definition.text, concept.value.explanation.text]
-        : []
+  const shown = question.status === 'done' ? [question.value.restatement.text, question.value.context.text] : []
   const followUp = () => {
     chat?.followUp(shown.filter((s) => s.trim() !== '').join('\n\n'))
     onClose()
   }
   const cost = estimate === null ? null : `${t('ai.cost', { amount: formatUsd(locale, estimate) })} · ${ai.info.name}`
-
-  const title =
-    target.kind === 'question'
-      ? t('ai.explainQuestion')
-      : asked
-        ? t('ai.explainTerm', { term: asked })
-        : t('ai.explainConcept')
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault()
-    if (target.kind === 'concept') runConcept(term, target.context, level)
-  }
+  const busy = question.status === 'busy'
 
   return (
-    <Sheet
-      open={open}
-      title={title}
-      onClose={onClose}
-      initialFocus={target.kind === 'concept' && target.term.trim() === '' ? undefined : region}
-    >
-      {target.kind === 'concept' && (
-        <form className={styles.form} onSubmit={submit}>
-          <Field
-            label={t('ai.conceptLabel')}
-            value={term}
-            placeholder={t('ai.conceptPlaceholder')}
-            enterKeyHint="go"
-            onChange={(e) => setTerm(e.target.value)}
-          />
-          <Segmented<ExplainLevel>
-            label={t('ai.level')}
-            value={level}
-            onChange={setLevel}
-            options={[
-              { value: 'simple', label: t('ai.levelBasics') },
-              { value: 'standard', label: t('ai.levelStandard') },
-              { value: 'advanced', label: t('ai.levelDeep') },
-            ]}
-          />
-          <div className={styles.row}>
-            <Button
-              type="submit"
-              variant={concept.status === 'done' ? 'secondary' : 'primary'}
-              disabled={term.trim() === '' || !online || concept.status === 'busy'}
-            >
-              {t('ai.explain')}
-            </Button>
-            {cost && <span className={styles.hint}>{cost}</span>}
-          </div>
-        </form>
-      )}
-      <div ref={region} tabIndex={-1} className={styles.region} aria-busy={question.status === 'busy' || undefined}>
+    <Sheet open={open} title={t('ai.explainQuestion')} onClose={onClose} initialFocus={region}>
+      <div ref={region} tabIndex={-1} className={styles.region} aria-busy={busy || undefined}>
         {!online && <p className={styles.note}>{t('ai.explainOffline')}</p>}
-        {target.kind === 'question' ? (
-          <Outcome call={question} onCancel={cancel}>
-            {(value) => (
-              <QuestionView
-                value={value}
-                revealed={revealed}
-                chunks={grounding}
-                query={card?.front ?? ''}
-                guard={guard}
-              />
-            )}
-          </Outcome>
-        ) : (
-          <Outcome call={concept} onCancel={cancel}>
-            {(value) => (
-              <ConceptView
-                key={`${value.term}/${value.level}`}
-                value={value}
-                revealed={revealed}
-                chunks={grounding}
-                guard={guard}
-                courseId={courseId}
-                sectionId={sectionId}
-                online={online}
-                onExplain={(next) => {
-                  setTerm(next)
-                  runConcept(next, undefined, level)
-                }}
-              />
-            )}
-          </Outcome>
-        )}
-        {target.kind === 'question' && question.status !== 'busy' && question.status !== 'done' && (
+        {busy ? (
+          stream.partial ? (
+            <>
+              <PartialQuestion partial={stream.partial} card={card} revealed={revealed} />
+              <div className={styles.row}>
+                <Button variant="plain" onClick={cancel}>
+                  {t('common.cancel')}
+                </Button>
+              </div>
+            </>
+          ) : (
+            <div className={styles.busy}>
+              <span className={styles.spinner} aria-hidden="true" />
+              <p role="status">{t('ai.explaining')}</p>
+              <Button variant="plain" onClick={cancel}>
+                {t('common.cancel')}
+              </Button>
+            </div>
+          )
+        ) : question.status === 'failed' ? (
+          <p className={styles.error} role="alert">
+            {question.message}
+          </p>
+        ) : question.status === 'done' ? (
+          <QuestionView
+            value={question.value}
+            revealed={revealed}
+            chunks={grounding}
+            query={card.front}
+            guard={guard}
+          />
+        ) : null}
+        {question.status !== 'busy' && question.status !== 'done' && (
           <div className={styles.row}>
-            <Button variant="primary" disabled={!online} onClick={runQuestion}>
+            <Button variant="primary" disabled={!online} onClick={() => void runQuestion()}>
               {question.status === 'failed' ? t('common.retry') : t('ai.explainQuestion')}
             </Button>
           </div>
         )}
-        {target.kind === 'question' && cost && <p className={styles.hint}>{cost}</p>}
+        {cost && <p className={styles.hint}>{cost}</p>}
         {chat && shown.length > 0 && (
           <div className={styles.row}>
             <Button
@@ -352,45 +234,68 @@ export default function ExplainSheet({
 }
 
 /** Redacts answer terms in other text shown before the reveal (a source title, say). */
-function useAnswerGuard(card: { front: string; back: string } | undefined, revealed: boolean) {
-  const [terms] = useState<AnswerTerms | null>(() => (card ? answerTerms(card.front, card.back) : null))
+function useAnswerGuard(card: { front: string; back: string }, revealed: boolean) {
+  const [terms] = useState<AnswerTerms>(() => answerTerms(card.front, card.back))
   return useCallback(
-    (text: string): string => (terms && !revealed ? (guardAnswer([text], terms)[0]?.text ?? text) : text),
+    (text: string): string => (revealed ? text : (guardAnswer([text], terms)[0]?.text ?? text)),
     [terms, revealed],
   )
 }
 
-function Outcome<T>({
-  call,
-  onCancel,
-  children,
+/**
+ * The explanation as it is written, in the places it will take once complete. Before the reveal every field is
+ * checked against the card on each update, so nothing that gives the answer away shows, even for a moment.
+ */
+function PartialQuestion({
+  partial,
+  card,
+  revealed,
 }: {
-  call: Call<T>
-  onCancel: () => void
-  children: (value: T) => ReactNode
+  partial: NonNullable<ReturnType<typeof usePartial<QuestionExplanationDraft>>['partial']>
+  card: { front: string; back: string }
+  revealed: boolean
 }) {
   const t = useT()
-  if (call.status === 'busy') {
-    return (
-      <div className={styles.busy}>
-        <span className={styles.spinner} aria-hidden="true" />
-        <p role="status">{t('ai.explaining')}</p>
-        <Button variant="plain" onClick={onCancel}>
-          {t('common.cancel')}
-        </Button>
-      </div>
-    )
-  }
-  if (call.status === 'failed') {
-    return (
-      <p className={styles.error} role="alert">
-        {call.message}
-      </p>
-    )
-  }
-  if (call.status === 'done') return <>{children(call.value)}</>
-  return null
+  const terms = (partial.terms ?? []).filter((x) => x?.term)
+  const fields = [
+    partial.restatement ?? '',
+    partial.context ?? '',
+    ...terms.flatMap((x) => [x?.term ?? '', x?.definition ?? '']),
+  ]
+  const safe = revealed ? fields : guardAnswer(fields, answerTerms(card.front, card.back)).map((g) => g.text)
+  const at = (i: number) => safe[i] ?? ''
+  const writingAt = terms.length > 0 ? 3 + 2 * (terms.length - 1) : at(1) !== '' ? 1 : 0
+  const text = (i: number) => (i === writingAt ? `${at(i)} ▍` : at(i))
+  return (
+    <>
+      <Section title={t('ai.explainAsked')}>
+        <p className={styles.body}>{text(0)}</p>
+      </Section>
+      {terms.length > 0 && (
+        <Section title={t('ai.explainTerms')}>
+          <dl className={styles.terms}>
+            {termSlots(terms.length).map(({ i, key }) => (
+              <div key={key} className={styles.term}>
+                <dt className={styles.termName}>{at(2 + 2 * i)}</dt>
+                <dd className={styles.definition}>
+                  <p className={styles.body}>{text(3 + 2 * i)}</p>
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </Section>
+      )}
+      {at(1) !== '' && (
+        <Section title={t('ai.explainContext')}>
+          <p className={styles.body}>{text(1)}</p>
+        </Section>
+      )}
+    </>
+  )
 }
+
+/** Streamed terms arrive in order and never reorder: their position is their identity. */
+const termSlots = (n: number) => Array.from({ length: n }, (_, i) => ({ i, key: `term-${i + 1}` }))
 
 /** A field that may give the answer away: redacted before the reveal, with « Show anyway ». */
 function Guarded({
@@ -495,131 +400,6 @@ function keyed<T>(items: readonly T[], keyOf: (item: T) => string): { item: T; k
     seen.set(base, n)
     return { item, key: n === 1 ? base : `${base}#${n}` }
   })
-}
-
-function ConceptView({
-  value,
-  revealed,
-  chunks,
-  guard,
-  courseId,
-  sectionId,
-  online,
-  onExplain,
-}: {
-  value: ConceptResult
-  revealed: boolean
-  chunks: readonly Chunk[]
-  guard: (text: string) => string
-  courseId?: string
-  sectionId?: string
-  online: boolean
-  onExplain: (term: string) => void
-}) {
-  const t = useT()
-  const ws = useWorkspace()
-  const [created, setCreated] = useState(false)
-  const courseTitle = useWorkspaceData(['courses', { id: courseId ?? '' }], (w) =>
-    courseId ? (w.courses.get(courseId)?.title ?? '') : '',
-  )
-
-  const createCard = () => {
-    if (!courseId) return
-    ws.batch(() => {
-      const id = ws.cards.create({ courseId, ...(sectionId ? { sectionId } : {}), kind: 'basic', origin: 'ai' })
-      ws.text({ id, field: 'front' }).insert(0, value.card.front)
-      ws.text({ id, field: 'back' }).insert(0, value.card.back)
-    })
-    setCreated(true)
-  }
-
-  return (
-    <>
-      <Guarded value={value.definition} revealed={revealed} className={styles.lead} />
-      <Guarded value={value.explanation} revealed={revealed} />
-      {(value.example.original ?? value.example.text).trim() !== '' && (
-        <Section title={t('ai.explainExample')}>
-          <Guarded value={value.example} revealed={revealed} />
-        </Section>
-      )}
-      {value.related.length > 0 && (
-        <Section title={t('ai.explainRelated')}>
-          <Related items={value.related} revealed={revealed} online={online} onExplain={onExplain} />
-        </Section>
-      )}
-      <Citations refs={value.citations} revealed={revealed} chunks={chunks} query={value.term} guard={guard} />
-      {courseId && (
-        <div className={styles.create}>
-          <Button
-            variant="secondary"
-            icon={<Plus size={18} strokeWidth={1.75} aria-hidden />}
-            disabled={created}
-            onClick={createCard}
-          >
-            {t('ai.createConceptCard')}
-          </Button>
-          {created && (
-            <p className={styles.success} role="status">
-              {t('ai.conceptCardCreated', { course: courseTitle })}
-            </p>
-          )}
-        </div>
-      )}
-    </>
-  )
-}
-
-/** Neighbouring concepts, each explained in turn on a tap; one that names the answer waits for the reveal. */
-function Related({
-  items,
-  revealed,
-  online,
-  onExplain,
-}: {
-  items: GuardedText[]
-  revealed: boolean
-  online: boolean
-  onExplain: (term: string) => void
-}) {
-  const t = useT()
-  const [shown, setShown] = useState(false)
-  const open = revealed || shown
-  const hiding = !open && items.some((r) => r.leaked)
-  return (
-    <>
-      <ul className={styles.related}>
-        {keyed(items, (r) => r.original ?? r.text).map(({ item: r, key }) => {
-          const visible = open || !r.leaked
-          const term = shownText(r, visible)
-          return (
-            <li key={key}>
-              {visible ? (
-                <button
-                  type="button"
-                  className={styles.chip}
-                  disabled={!online}
-                  aria-label={t('ai.explainTerm', { term })}
-                  onClick={() => onExplain(term)}
-                >
-                  {term}
-                </button>
-              ) : (
-                <span className={cx(styles.chip, styles.chipHidden)}>{term}</span>
-              )}
-            </li>
-          )
-        })}
-      </ul>
-      {hiding && (
-        <p className={styles.hidden}>
-          <span>{t('ai.explainHidden')}</span>{' '}
-          <button type="button" className={styles.showAnyway} onClick={() => setShown(true)}>
-            {t('ai.showAnyway')}
-          </button>
-        </p>
-      )}
-    </>
-  )
 }
 
 const EXCERPT_CHARS = 280

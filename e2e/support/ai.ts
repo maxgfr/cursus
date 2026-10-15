@@ -5,6 +5,41 @@ export const providerPicker = (page: Page) => page.getByLabel('Provider', { exac
 export const providerGroup = (page: Page, provider: string) => page.getByRole('list', { name: provider, exact: true })
 export const aiSearch = (page: Page) => page.getByRole('searchbox', { name: 'Search providers and models' })
 
+/**
+ * What an OpenAI-compatible server answers `content` with: streamed in small deltas (server-sent events) when the
+ * request asks for a stream, as the screens that show an answer while it is written do, else one JSON completion.
+ */
+export function completionReply(
+  request: { postDataJSON(): unknown },
+  content: string,
+  headers: Record<string, string>,
+  model = 'claude-haiku-5-5',
+): { status: number; headers: Record<string, string>; contentType: string; body: string } {
+  const usage = { prompt_tokens: 120, completion_tokens: 40, total_tokens: 160 }
+  const streamed = (request.postDataJSON() as { stream?: boolean } | null)?.stream === true
+  if (!streamed) {
+    const json = {
+      id: 'cmpl-1',
+      object: 'chat.completion',
+      created: 1,
+      model,
+      choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }],
+      usage,
+    }
+    return { status: 200, headers, contentType: 'application/json', body: JSON.stringify(json) }
+  }
+  const base = { id: 'cmpl-1', object: 'chat.completion.chunk', created: 1, model }
+  const events: Record<string, unknown>[] = []
+  for (let i = 0; i < content.length; i += 24) {
+    const piece = content.slice(i, i + 24)
+    const delta = i === 0 ? { role: 'assistant', content: piece } : { content: piece }
+    events.push({ ...base, choices: [{ index: 0, delta, finish_reason: null }] })
+  }
+  events.push({ ...base, choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] }, { ...base, choices: [], usage })
+  const body = `${events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join('')}data: [DONE]\n\n`
+  return { status: 200, headers, contentType: 'text/event-stream', body }
+}
+
 /** Opens one of the AI settings' « Advanced » disclosures, unless it is open already. */
 async function openDisclosure(page: Page, summary: string): Promise<void> {
   const s = page.locator('summary', { hasText: summary })

@@ -11,6 +11,7 @@ import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { Field } from '../../ui/components/Field.tsx'
 import { IconButton } from '../../ui/components/IconButton.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
+import { streamedKeys, usePartial } from '../../ui/data/usePartial.ts'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { useScopeOnce } from '../Section/scope.ts'
 import styles from '../Understand/shared/ai.module.css'
@@ -49,6 +50,7 @@ export default function Generate() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const onSelection = useCallback((s: Selection) => setSelection(s), [])
+  const stream = usePartial<{ cards: CardDraft[] }>()
 
   useEffect(() => {
     if (ai.status !== 'ready') return
@@ -79,14 +81,19 @@ export default function Generate() {
     setBusy(true)
     setError('')
     setSaved(null)
+    setDrafts(null)
+    stream.reset()
     try {
       const chunks = await loadChunks(selection)
       const ctx = await ai.context(new AbortController().signal, ws.courses.get(selection.courseId)?.language)
-      const out = await generateCards(ctx, {
-        topic: topic.trim() || t('ai.wholeSelection'),
-        chunks,
-        count: Number(count),
-      })
+      const out = await generateCards(
+        { ...ctx, onPartial: stream.onPartial },
+        {
+          topic: topic.trim() || t('ai.wholeSelection'),
+          chunks,
+          count: Number(count),
+        },
+      )
       const existing = ws.cards
         .list({ courseId: selection.courseId })
         .map((c) => ws.text({ id: c.id, field: 'front' }).toString())
@@ -96,9 +103,11 @@ export default function Generate() {
     } catch (err) {
       setError(t('ai.failed', { reason: err instanceof Error ? err.message : String(err) }))
     } finally {
+      stream.reset()
       setBusy(false)
     }
   }
+  const writing = busy ? (stream.partial?.cards ?? []).filter((c) => c?.front) : []
 
   const edit = (key: string, patch: Partial<CardDraft>) =>
     setDrafts((ds) => ds?.map((d) => (d.key === key ? { ...d, ...patch } : d)) ?? null)
@@ -170,6 +179,20 @@ export default function Generate() {
           {t('ai.saved', { count: saved.count })}{' '}
           <Link href={to.place(saved.courseId, saved.sectionId)}>{t('ai.openCourse')}</Link>
         </p>
+      )}
+
+      {writing.length > 0 && (
+        <section className={styles.stack} aria-label={t('ai.drafts')} aria-busy="true">
+          <p className={styles.heading}>{t('ai.writingCards', { count: writing.length })}</p>
+          <ol className={styles.list}>
+            {streamedKeys(writing).map(({ item: c, key, last }) => (
+              <li key={key} className={styles.card}>
+                <p className={styles.body}>{last && !c?.back ? `${c?.front ?? ''} ▍` : c?.front}</p>
+                {c?.back && <p className={styles.muted}>{last ? `${c.back} ▍` : c.back}</p>}
+              </li>
+            ))}
+          </ol>
+        </section>
       )}
 
       {drafts && (

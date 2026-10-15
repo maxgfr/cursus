@@ -46,4 +46,6 @@ export const chat = {
   offline: 'You are offline. Asking needs a connection, or a model on this device.',
   followUp: 'Ask a follow-up',
   sources: 'Sources',
+  askTerm: 'Ask about “{term}”',
+  termQuestion: 'What does “{term}” mean here?',
 } as const

@@ -8,11 +8,11 @@
  * offers the action only online with a model that reads images (`canSeeImages`); a model that cannot is
  * refused here anyway with `VisionRequiredError`. Usage is reported through `ctx.onUsage` as `describePhoto`.
  */
-import { generateText, type ModelMessage, Output, type UserContent } from 'ai'
+import type { ModelMessage, UserContent } from 'ai'
 import type { z } from 'zod'
 import type { LocalStore } from '../../contracts/ports'
 import type { CatalogModel } from '../catalogTrim'
-import { AiConfigError, billed, type FeatureCtx } from '../client'
+import { AiConfigError, type FeatureCtx, generateStructured } from '../client'
 import { costOf } from '../cost'
 import { type Chunk, estimateTokens } from '../retrieval'
 import { type PhotoDescription, photoDescriptionSchema } from '../schemas'
@@ -91,16 +91,8 @@ export async function askAboutPhotos<T>(ctx: FeatureCtx, req: PhotoRequest<T>): 
     content.push({ type: 'file', data: { type: 'data', data: p.image.bytes }, mediaType: p.image.mediaType })
   }
   const messages: ModelMessage[] = [{ role: 'user', content }]
-  // Billed whether the answer parses or not (a truncated or invalid JSON answer costs its tokens too).
-  return billed(ctx, req.feature, () =>
-    generateText({
-      model: ctx.model,
-      system: req.system,
-      messages,
-      output: Output.object({ schema: req.schema }),
-      abortSignal: ctx.signal,
-    }),
-  )
+  // Billed whether the answer parses or not; streamed when the screen shows the answer as it comes.
+  return generateStructured(ctx, { feature: req.feature, system: req.system, messages, schema: req.schema })
 }
 
 export interface DescribePhotoInput {

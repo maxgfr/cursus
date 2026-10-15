@@ -1,3 +1,4 @@
+import type { DeepPartial } from 'ai'
 import { Lightbulb, Plus, Sparkles, Wand2 } from 'lucide-react'
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'wouter'
@@ -8,6 +9,7 @@ import type { CardExplanation, CardImprovement } from '../../core/ai/schemas'
 import type { Rating } from '../../core/contracts/workspace'
 import { useT } from '../../i18n/react.tsx'
 import { Button } from '../../ui/components/Button.tsx'
+import { usePartial } from '../../ui/data/usePartial.ts'
 import { Sanitized } from '../../ui/render/Sanitized.tsx'
 import type { AiModelState } from '../Understand/shared/aiConfig.ts'
 import { describeFailure } from './failure.ts'
@@ -20,10 +22,14 @@ type Call<T> =
   | { status: 'done'; value: T }
   | { status: 'failed'; message: string }
 
-/** Runs one AI request at a time; aborts it when the card changes or the view closes. */
-function useAiCall<T>(ai: AiModelState, language: string | undefined) {
+/**
+ * Runs one AI request at a time, its answer shown as it is written (`partial`); aborts it when the card changes
+ * or the view closes. `S` is the shape the model writes, `T` what the request returns.
+ */
+function useAiCall<T, S = T>(ai: AiModelState, language: string | undefined) {
   const t = useT()
   const [call, setCall] = useState<Call<T>>({ status: 'idle' })
+  const stream = usePartial<S>()
   const abort = useRef<AbortController | null>(null)
   useEffect(() => () => abort.current?.abort(), [])
   const run = async (fn: (ctx: FeatureCtx) => Promise<T>): Promise<T | undefined> => {
@@ -31,22 +37,30 @@ function useAiCall<T>(ai: AiModelState, language: string | undefined) {
     abort.current?.abort()
     const controller = new AbortController()
     abort.current = controller
+    stream.reset()
     setCall({ status: 'busy' })
     try {
-      const value = await fn(await ai.context(controller.signal, language))
+      const ctx = await ai.context(controller.signal, language)
+      const value = await fn({ ...ctx, onPartial: stream.onPartial })
       if (controller.signal.aborted) return undefined
+      stream.reset()
       setCall({ status: 'done', value })
       return value
     } catch (error) {
       if (controller.signal.aborted) return undefined
+      stream.reset()
       // Shown to the student as a retryable message; the details stay in the console.
       console.warn('Review AI request failed', error)
       setCall({ status: 'failed', message: describeFailure(error, t) })
       return undefined
     }
   }
-  return { call, run, reset: () => setCall({ status: 'idle' }) }
+  const partial: DeepPartial<S> | null = call.status === 'busy' ? stream.partial : null
+  return { call, partial, run, reset: () => setCall({ status: 'idle' }) }
 }
+
+/** Text still being written ends with a cursor. */
+const writing = (text: string | undefined) => (text ? `${text} ▍` : '')
 
 const sparkle = <Sparkles size={18} strokeWidth={1.75} aria-hidden />
 
@@ -82,7 +96,10 @@ export function OwnWords({
   const [open, setOpen] = useState(false)
   const [answer, setAnswer] = useState('')
   const field = useRef<HTMLTextAreaElement>(null)
-  const { call, run } = useAiCall<{ rating: Rating; feedback: string }>(ai, card.language)
+  const { call, partial, run } = useAiCall<{ rating: Rating; feedback: string }, { feedback: string }>(
+    ai,
+    card.language,
+  )
 
   useEffect(() => {
     if (open) field.current?.focus()
@@ -125,6 +142,11 @@ export function OwnWords({
         onChange={(e) => setAnswer(e.target.value)}
       />
       {call.status === 'failed' && <Failed message={call.message} />}
+      {partial?.feedback && (
+        <p className={styles.aside} aria-live="off">
+          {writing(partial.feedback)}
+        </p>
+      )}
       <Button type="submit" variant="primary" loading={call.status === 'busy'} disabled={answer.trim() === ''}>
         {call.status === 'busy' ? t('review.checking') : t('review.check')}
       </Button>
@@ -146,7 +168,7 @@ export function Explain({
   const ws = useWorkspace()
   const headingId = useId()
   const [created, setCreated] = useState(false)
-  const { call, run } = useAiCall<CardExplanation>(ai, card.language)
+  const { call, partial, run } = useAiCall<CardExplanation>(ai, card.language)
 
   if (ai.status === 'loading') return null
   if (ai.status === 'missing') {
@@ -162,6 +184,21 @@ export function Explain({
       return explainCard(ctx, { front: card.front, back: card.back })
     })
 
+  if (call.status === 'busy' && partial?.explanation) {
+    return (
+      <section className={styles.panel} aria-labelledby={headingId} aria-busy="true">
+        <h2 id={headingId} className={styles.label}>
+          {t('review.whyTitle')}
+        </h2>
+        <Sanitized markdown={writing(partial.explanation)} />
+        {partial.example && (
+          <p className={styles.aside}>
+            <strong>{t('review.example')}</strong> {partial.example}
+          </p>
+        )}
+      </section>
+    )
+  }
   if (call.status !== 'done') {
     return (
       <div className={styles.assist}>
@@ -230,7 +267,7 @@ export function Improve({
 }) {
   const t = useT()
   const ws = useWorkspace()
-  const { call, run, reset } = useAiCall<CardImprovement>(ai, card.language)
+  const { call, partial, run, reset } = useAiCall<CardImprovement>(ai, card.language)
 
   const apply = (next: CardImprovement) => {
     ws.batch(() => {
@@ -253,7 +290,21 @@ export function Improve({
         <span className={styles.leechBadge}>{t('review.leechBadge')}</span>
         <p className={styles.leechText}>{t('review.leech')}</p>
       </div>
-      {call.status === 'done' ? (
+      {call.status === 'busy' && partial?.front ? (
+        <div className={styles.proposal} aria-busy="true">
+          <h2 className={styles.label}>{t('review.improveTitle')}</h2>
+          <div className={styles.proposalFace}>
+            <span className={styles.label}>{t('review.question')}</span>
+            <Sanitized markdown={partial.back ? partial.front : writing(partial.front)} />
+          </div>
+          {partial.back && (
+            <div className={styles.proposalFace}>
+              <span className={styles.label}>{t('review.answer')}</span>
+              <Sanitized markdown={writing(partial.back)} />
+            </div>
+          )}
+        </div>
+      ) : call.status === 'done' ? (
         <div className={styles.proposal}>
           <h2 className={styles.label}>{t('review.improveTitle')}</h2>
           <div className={styles.proposalFace}>

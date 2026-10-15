@@ -9,7 +9,7 @@ import { useT } from '../../i18n/react.tsx'
 import { useChatContext } from '../../ui/chat/context.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { leftNote } from '../../ui/data/autoQuestions.ts'
-import { ExplainSelection } from '../../ui/ExplainLauncher.tsx'
+import { AskSelection } from '../../ui/ExplainLauncher.tsx'
 import { MarkdownEditor } from '../../ui/editor/MarkdownEditor.tsx'
 import { MoveSheet, moveItemTo } from '../../ui/MoveSheet.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
@@ -160,7 +160,7 @@ export default function Source() {
         }
         placeholder={t('common.sourceEmpty')}
       />
-      <ExplainSelection courseId={source.courseId} sectionId={sectionId ?? undefined} />
+      <AskSelection />
       {source.kind !== 'image' && <AttachedPhotos sourceId={source.id} />}
       <Proposals sourceId={source.id} />
       <div className={styles.actions}>

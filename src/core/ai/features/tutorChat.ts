@@ -37,6 +37,8 @@ export interface ChatContext {
   card?: { front: string; back: string; revealed: boolean }
   /** A quiz question being answered. */
   question?: string
+  /** The passage a term was selected in, when the question is about that term. */
+  excerpt?: string
 }
 
 export interface TutorTurn {
@@ -75,6 +77,7 @@ function describe(context: ChatContext): string {
     )
   }
   if (context.question) lines.push(`Quiz question being answered: ${fence(context.question)}`)
+  if (context.excerpt) lines.push(`Passage the student selected a term in: ${fence(context.excerpt)}`)
   return lines.length === 0 ? 'The student is browsing their library.' : lines.join('\n')
 }
 

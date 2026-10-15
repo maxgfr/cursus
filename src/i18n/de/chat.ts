@@ -49,4 +49,6 @@ export const chat = {
   offline: 'Du bist offline. Fragen braucht eine Verbindung oder ein Modell auf diesem Gerät.',
   followUp: 'Nachfragen',
   sources: 'Quellen',
+  askTerm: 'Nach „{term}“ fragen',
+  termQuestion: 'Was bedeutet „{term}“ hier?',
 } as const satisfies Shape<typeof en>

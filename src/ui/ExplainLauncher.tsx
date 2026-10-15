@@ -1,13 +1,12 @@
-import { BookOpen } from 'lucide-react'
+import { MessageCircle } from 'lucide-react'
 import { type RefObject, Suspense, useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'wouter'
 import { lazyChunk } from '../app/lazyChunk.tsx'
-import { paths } from '../app/routes.ts'
 import { useT } from '../i18n/react.tsx'
-import { type AiModelState, useAiModel } from '../screens/Understand/shared/aiConfig.ts'
-import { Button, buttonClass } from './components/Button.tsx'
+import type { AiModelState } from '../screens/Understand/shared/aiConfig.ts'
+import { useChat } from './chat/context.tsx'
+import { Button } from './components/Button.tsx'
 import styles from './ExplainLauncher.module.css'
-import type { ExplainRequest, ExplainSheetProps, ExplainTarget } from './ExplainSheet.tsx'
+import type { ExplainSheetProps, ExplainTarget } from './ExplainSheet.tsx'
 
 /** The explanation sheet, loaded the first time something asks for an explanation. */
 export const LazyExplainSheet = lazyChunk<ExplainSheetProps>('explainSheet', () => import('./ExplainSheet.tsx'))
@@ -107,78 +106,58 @@ export const keepSelection = (e: { button: number; preventDefault: () => void })
   if (e.button === 0) e.preventDefault()
 }
 
-/** Launch requests for the sheet: each one gets a new `seq`, so the sheet knows it was asked again. */
+/** Launches of « Explain the question »: each gets a new `seq`, so the sheet knows it was asked again. */
 export function useExplainTarget(): {
   target: ExplainTarget | null
   open: boolean
-  launch: (request: ExplainRequest) => void
+  launch: () => void
   close: () => void
 } {
   const [target, setTarget] = useState<ExplainTarget | null>(null)
   const [open, setOpen] = useState(false)
   const seq = useRef(0)
-  const launch = useCallback((request: ExplainRequest) => {
+  const launch = useCallback(() => {
     seq.current += 1
-    setTarget({ ...request, seq: seq.current })
+    setTarget({ seq: seq.current })
     setOpen(true)
   }, [])
   const close = useCallback(() => setOpen(false), [])
   return { target, open, launch, close }
 }
 
-export interface ExplainSelectionProps {
-  /** Course the explanation is grounded in, and where a card on the concept goes. */
-  courseId?: string
-  sectionId?: string
-  /** Selector of the element whose text can be explained; the screen's main content by default. */
+export interface AskSelectionProps {
+  /** Selector of the element whose text can be asked about; the screen's main content by default. */
   within?: string
 }
 
 /**
- * "Explain “term”" for text selected in a reader (a source, a fiche): a button pinned above the tab bar
- * and the keyboard while a short selection lasts, opening the explanation sheet. Without a model it is a
- * link to the AI settings; offline it is disabled, saying why, unless the model runs on this device.
+ * « Ask about “term” » for text selected in a reader (a source, an explanation): a button pinned above the tab
+ * bar and the keyboard while a short selection lasts. It opens the chat on the term, with the passage it was
+ * selected in and what the screen shows; the chat says how to set up AI when no model is ready.
  */
-export function ExplainSelection({ courseId, sectionId, within = 'main' }: ExplainSelectionProps) {
+export function AskSelection({ within = 'main' }: AskSelectionProps) {
   const t = useT()
-  const ai = useAiModel()
-  const callable = useCanCallAi(ai)
+  const chat = useChat()
   const scopeOf = useCallback((el: Element) => el.closest(within), [within])
   const { selected, launcher, clear } = useSelectedTerm(scopeOf)
-  const { target, open, launch, close } = useExplainTarget()
-
-  const explain = () => {
-    if (!selected) return
-    launch({ kind: 'concept', term: selected.term, context: selected.context })
+  if (!chat || !selected) return null
+  const ask = () => {
+    chat.ask(t('chat.termQuestion', { term: selected.term }), selected.context)
     clear()
   }
-
   return (
-    <>
-      {selected && ai.status !== 'loading' && (
-        <div ref={launcher} className={styles.region}>
-          <div className={styles.bar}>
-            {ai.status === 'missing' ? (
-              <Link href={paths.settingsAi} className={buttonClass({ variant: 'secondary' })}>
-                {t('ai.explainSetup', { term: selected.term })}
-              </Link>
-            ) : (
-              <Button
-                variant="primary"
-                icon={<BookOpen size={18} strokeWidth={1.75} aria-hidden />}
-                disabled={!callable}
-                onMouseDown={keepSelection}
-                onClick={explain}
-              >
-                {t('ai.explainTerm', { term: selected.term })}
-              </Button>
-            )}
-            {!callable && ai.status === 'ready' && <p className={styles.note}>{t('ai.explainOffline')}</p>}
-          </div>
-        </div>
-      )}
-      <Sheet ai={ai} target={target} open={open} onClose={close} courseId={courseId} sectionId={sectionId} />
-    </>
+    <div ref={launcher} className={styles.region}>
+      <div className={styles.bar}>
+        <Button
+          variant="primary"
+          icon={<MessageCircle size={18} strokeWidth={1.75} aria-hidden />}
+          onMouseDown={keepSelection}
+          onClick={ask}
+        >
+          {t('chat.askTerm', { term: selected.term })}
+        </Button>
+      </div>
+    </div>
   )
 }
 

@@ -25,6 +25,7 @@ import { Button } from '../../ui/components/Button.tsx'
 import { IconButton } from '../../ui/components/IconButton.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
 import { cx } from '../../ui/cx.ts'
+import { streamedKeys, usePartial } from '../../ui/data/usePartial.ts'
 import { useCanCallAi } from '../../ui/ExplainLauncher.tsx'
 import { Sanitized } from '../../ui/render/Sanitized.tsx'
 import { dedupeDrafts } from '../Generate/dedupe.ts'
@@ -239,6 +240,7 @@ function Explain({
   const ws = useWorkspace()
   const { image } = usePhotoAccess(courseId)
   const { call, setCall, run, cancel, result, actions } = useCall<PhotoReading>()
+  const stream = usePartial<PhotoDescription>()
 
   // What was read before, on this device, shows straight away.
   useEffect(() => {
@@ -254,29 +256,50 @@ function Explain({
     }
   }, [rt, photoId, setCall])
 
-  const explain = () =>
-    run(async (signal) => {
+  const explain = () => {
+    stream.reset()
+    return run(async (signal) => {
       const photo = getPhoto(ws, photoId)
       const course = ws.courses.get(courseId)
       const ctx = await ai.context(signal, course?.language)
-      const description = await describePhoto(ctx, {
-        photoId,
-        image: await image(photoId),
-        caption: photo?.caption,
-        courseTitle: course?.title,
-      })
+      const description = await describePhoto(
+        { ...ctx, onPartial: stream.onPartial },
+        {
+          photoId,
+          image: await image(photoId),
+          caption: photo?.caption,
+          courseTitle: course?.title,
+        },
+      )
       const reading: PhotoReading = { photoId, description, model: `${ai.provider.id}/${ai.info.id}`, at: Date.now() }
       // Kept on this device so « Understand » can ground in it and cite the photo.
       await saveReading(rt.store, reading)
       return reading
     })
+  }
+  const writing = call.status === 'busy' ? stream.partial : null
 
   const cost = `${t('ai.cost', { amount: formatUsd(locale, estimatePhotoCost(ai.info, 1, DESCRIBE_OUTPUT_TOKENS)) })} · ${ai.info.name}`
 
   return (
     <div className={styles.block}>
       {call.status === 'busy' ? (
-        <Busy label={t('photos.aiReading')} onCancel={cancel} />
+        <>
+          <Busy label={t('photos.aiReading')} onCancel={cancel} />
+          {writing?.title && (
+            <div className={styles.result} aria-busy="true">
+              <Reading
+                description={{
+                  kind: writing.kind ?? 'other',
+                  title: writing.title,
+                  transcription: writing.transcription ?? '',
+                  explanation: writing.explanation ?? '',
+                  keyPoints: (writing.keyPoints ?? []).filter((k): k is string => typeof k === 'string' && k !== ''),
+                }}
+              />
+            </div>
+          )}
+        </>
       ) : (
         <div className={shared.tight}>
           <div ref={actions} className={shared.row}>
@@ -377,6 +400,7 @@ function Cards({
   const ws = useWorkspace()
   const { photos, image } = usePhotoAccess(courseId)
   const { call, setCall, run, cancel, result, actions } = useCall<{ drafts: Draft[]; dropped: number }>()
+  const stream = usePartial<{ cards: CardDraft[] }>()
   const [chosen, setChosen] = useState<string[]>([photoId])
   const [count, setCount] = useState<(typeof COUNTS)[number]>('10')
   const [saved, setSaved] = useState<number | null>(null)
@@ -391,6 +415,7 @@ function Cards({
 
   const draft = () => {
     setSaved(null)
+    stream.reset()
     return run(async (signal) => {
       const course = ws.courses.get(courseId)
       const ctx = await ai.context(signal, course?.language)
@@ -398,7 +423,10 @@ function Cards({
       for (const id of picked) {
         inputs.push({ photoId: id, image: await image(id), caption: getPhoto(ws, id)?.caption })
       }
-      const out = await photoToCards(ctx, { photos: inputs, count: Number(count), courseTitle: course?.title })
+      const out = await photoToCards(
+        { ...ctx, onPartial: stream.onPartial },
+        { photos: inputs, count: Number(count), courseTitle: course?.title },
+      )
       const existing = ws.cards.list({ courseId }).map((c) => ws.text({ id: c.id, field: 'front' }).toString())
       const { kept, dropped } = dedupeDrafts(out, existing)
       const stamp = Date.now()
@@ -407,6 +435,7 @@ function Cards({
   }
 
   const drafts = call.status === 'done' ? call.value.drafts : null
+  const writing = call.status === 'busy' ? (stream.partial?.cards ?? []).filter((c) => c?.front) : []
   const setDrafts = (next: Draft[]) => {
     if (call.status === 'done') setCall({ status: 'done', value: { ...call.value, drafts: next } })
   }
@@ -443,7 +472,19 @@ function Cards({
         options={COUNTS.map((c) => ({ value: c, label: c }))}
       />
       {call.status === 'busy' ? (
-        <Busy label={t('photos.aiDrafting')} onCancel={cancel} />
+        <>
+          <Busy label={t('photos.aiDrafting')} onCancel={cancel} />
+          {writing.length > 0 && (
+            <ol className={shared.list} aria-label={t('ai.drafts')} aria-busy="true">
+              {streamedKeys(writing).map(({ item: c, key, last }) => (
+                <li key={key} className={shared.card}>
+                  <p className={shared.body}>{last && !c?.back ? `${c?.front ?? ''} ▍` : c?.front}</p>
+                  {c?.back && <p className={shared.muted}>{last ? `${c.back} ▍` : c.back}</p>}
+                </li>
+              ))}
+            </ol>
+          )}
+        </>
       ) : (
         <div className={shared.tight}>
           <div ref={actions} className={shared.row}>

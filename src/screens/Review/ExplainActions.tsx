@@ -1,6 +1,7 @@
-import { BookOpen, CircleHelp } from 'lucide-react'
+import { CircleHelp, MessageCircle } from 'lucide-react'
 import { useCallback, useId } from 'react'
 import { useT } from '../../i18n/react.tsx'
+import { useChat } from '../../ui/chat/context.tsx'
 import { Button } from '../../ui/components/Button.tsx'
 import {
   ExplainSheetSlot,
@@ -13,17 +14,18 @@ import type { AiModelState } from '../Understand/shared/aiConfig.ts'
 import styles from './ExplainActions.module.css'
 import type { CardView } from './session.ts'
 
-/** The faces of the card on screen: a term selected there can be explained. */
+/** The faces of the card on screen: a term selected there can be asked about. */
 const FACES = '[data-testid="question"], [data-testid="answer"]'
 
 /**
- * « Explain the question » and « Explain a concept » (typed, or the term selected in the card), before
- * and after the reveal. Before it, the sheet never shows the answer. Only offered once a model is set up:
- * the focus view carries no setup path. Offline, both are disabled, saying why, unless the model runs on
- * this device.
+ * « Explain the question », before and after the reveal (before it, the sheet never shows the answer), and,
+ * while a term of the card is selected, « Ask about “term” » in the chat, which knows the card and keeps its
+ * answer hidden as long as the card does. Only offered once a model is set up: the focus view carries no setup
+ * path. Offline, both are disabled, saying why, unless the model runs on this device.
  */
 export function ExplainActions({ card, revealed, ai }: { card: CardView; revealed: boolean; ai: AiModelState }) {
   const t = useT()
+  const chat = useChat()
   const online = useCanCallAi(ai)
   const offlineId = useId()
   const scopeOf = useCallback((el: Element) => el.closest(FACES), [])
@@ -31,11 +33,11 @@ export function ExplainActions({ card, revealed, ai }: { card: CardView; reveale
   const { target, open, launch, close } = useExplainTarget()
 
   if (ai.status !== 'ready') return null
-  // What the concept is explained in: the question alone until the answer shows.
-  const context = revealed ? `${card.front}\n\n${card.back}` : card.front
 
-  const explainConcept = () => {
-    launch({ kind: 'concept', term: selected?.term ?? '', context })
+  const askTerm = () => {
+    if (!selected || !chat) return
+    // The term is read in the question alone until the answer shows.
+    chat.ask(t('chat.termQuestion', { term: selected.term }), revealed ? `${card.front}\n\n${card.back}` : card.front)
     clear()
   }
 
@@ -47,20 +49,22 @@ export function ExplainActions({ card, revealed, ai }: { card: CardView; reveale
           icon={<CircleHelp size={18} strokeWidth={1.75} aria-hidden />}
           disabled={!online}
           aria-describedby={online ? undefined : offlineId}
-          onClick={() => launch({ kind: 'question' })}
+          onClick={launch}
         >
           {t('ai.explainQuestion')}
         </Button>
-        <Button
-          variant="plain"
-          icon={<BookOpen size={18} strokeWidth={1.75} aria-hidden />}
-          disabled={!online}
-          aria-describedby={online ? undefined : offlineId}
-          onMouseDown={keepSelection}
-          onClick={explainConcept}
-        >
-          {selected ? t('ai.explainTerm', { term: selected.term }) : t('ai.explainConcept')}
-        </Button>
+        {selected && chat && (
+          <Button
+            variant="plain"
+            icon={<MessageCircle size={18} strokeWidth={1.75} aria-hidden />}
+            disabled={!online}
+            aria-describedby={online ? undefined : offlineId}
+            onMouseDown={keepSelection}
+            onClick={askTerm}
+          >
+            {t('chat.askTerm', { term: selected.term })}
+          </Button>
+        )}
       </div>
       {!online && (
         <p id={offlineId} className={styles.note}>
