@@ -223,7 +223,7 @@ test('« Do nothing » proposes nothing; « Add them directly » puts the questi
   await page.getByRole('link', { name: 'Back' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Botany' })).toBeVisible()
   await expect(page.getByText('What is Untitled note about?')).toBeVisible()
-  await expect(page.getByText('This part is about {{c1::Untitled note}}.')).toBeVisible()
+  await expect(page.getByText('This part is about Untitled note.')).toBeVisible()
   await expect(page.getByTestId('course-drafts')).toHaveCount(0)
   expect(calls).toHaveLength(1)
 })

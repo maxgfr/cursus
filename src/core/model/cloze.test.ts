@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { clozeFaces, clozeSpans, makeClozeCards } from './cloze'
+import { clozeFaces, clozePlain, clozeSpans, makeClozeCards } from './cloze'
 
 describe('cloze', () => {
   test('one card per index, hints, shared index', () => {
@@ -38,5 +38,10 @@ describe('cloze', () => {
     })
     expect(clozeFaces(text, 1).front).toBe('<mark class="cloze">[...]</mark> is in <mark class="cloze">France</mark>.')
     expect(clozeFaces('plain', 1)).toEqual({ front: 'plain', back: 'plain' })
+  })
+
+  test('as plain text, every deletion reads as its answer, hints dropped', () => {
+    expect(clozePlain('{{c1::Paris}} is in {{c2::France::country}}.')).toBe('Paris is in France.')
+    expect(clozePlain('no blanks')).toBe('no blanks')
   })
 })

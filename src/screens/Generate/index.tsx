@@ -10,6 +10,7 @@ import { formatUsd } from '../../i18n/format.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { Field } from '../../ui/components/Field.tsx'
+import { GrowingTextarea } from '../../ui/components/GrowingTextarea.tsx'
 import { IconButton } from '../../ui/components/IconButton.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
 import { streamedKeys, usePartial } from '../../ui/data/usePartial.ts'
@@ -270,7 +271,7 @@ function DraftEditor({
         <label className={styles.label} htmlFor={`${id}-f`}>
           {t('ai.front', { n: String(index) })}
         </label>
-        <textarea
+        <GrowingTextarea
           id={`${id}-f`}
           className={styles.textarea}
           rows={2}
@@ -283,7 +284,7 @@ function DraftEditor({
           <label className={styles.label} htmlFor={`${id}-b`}>
             {t('ai.back', { n: String(index) })}
           </label>
-          <textarea
+          <GrowingTextarea
             id={`${id}-b`}
             className={styles.textarea}
             rows={2}

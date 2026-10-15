@@ -8,9 +8,27 @@ import styles from './Sanitized.module.css'
  * DOMPurify, never raw HTML.
  */
 
-/** Rendered Markdown, read-only. */
-export function Sanitized({ markdown, resolveBlob }: { markdown: string; resolveBlob?: BlobResolver }) {
-  const html = useMemo(() => renderMarkdown(markdown, resolveBlob ? { resolveBlob } : {}), [markdown, resolveBlob])
+/**
+ * Rendered Markdown, read-only. `lineBreaks` keeps every line break (text read from a file line by line), not
+ * only blank lines between paragraphs.
+ */
+export function Sanitized({
+  markdown,
+  resolveBlob,
+  lineBreaks,
+}: {
+  markdown: string
+  resolveBlob?: BlobResolver
+  lineBreaks?: boolean
+}) {
+  const html = useMemo(
+    () =>
+      renderMarkdown(markdown, {
+        ...(resolveBlob ? { resolveBlob } : {}),
+        ...(lineBreaks ? { lineBreaks } : {}),
+      }),
+    [markdown, resolveBlob, lineBreaks],
+  )
   return <div className={styles.prose} dangerouslySetInnerHTML={{ __html: html }} />
 }
 

@@ -203,7 +203,7 @@ test('slides: preview, questions for a range of slides, review by slide, saved c
   await page.getByRole('link', { name: 'Open course' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Biology' })).toBeVisible()
   await expect(page.getByText('What is osmosis, exactly?')).toBeVisible()
-  await expect(page.getByText('This unit is about {{c1::Transport compared}}.')).toBeVisible()
+  await expect(page.getByText('This unit is about Transport compared.')).toBeVisible()
   await expect(page.getByText('What is Osmosis about?')).toHaveCount(0)
 })
 

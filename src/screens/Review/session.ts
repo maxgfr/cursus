@@ -119,21 +119,24 @@ export function readCard(ws: ModelWorkspace, id: Id, now: number): CardView | nu
   const course = ws.courses.get(card.courseId)
   const rawFront = ws.text({ id, field: 'front' }).toString()
   const rawBack = ws.text({ id, field: 'back' }).toString()
+  const events = ws.reviews.forCard(id)
   let front = rawFront
   let back = rawBack
   let shown = { front, back }
   if (card.kind === 'cloze') {
-    const [first] = makeClozeCards(rawFront)
-    if (first) {
+    // One schedule per card: its blanks are asked in turn, one per review, so each is tested (c1, then c2…).
+    const blanks = makeClozeCards(rawFront)
+    const asked = blanks[events.length % Math.max(1, blanks.length)]
+    if (asked) {
       const extra = (answer: string) => (rawBack.trim() ? `${answer}\n\n${rawBack}` : answer)
-      front = first.front
-      back = extra(first.back)
-      const faces = clozeFaces(rawFront, first.index)
+      front = asked.front
+      back = extra(asked.back)
+      const faces = clozeFaces(rawFront, asked.index)
       shown = { front: faces.front, back: extra(faces.back) }
     }
   }
   const scheduler = schedulerFor(ws)
-  const state = scheduler.replay(id, ws.reviews.forCard(id))
+  const state = scheduler.replay(id, events)
   return {
     id,
     courseId: card.courseId,

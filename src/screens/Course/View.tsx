@@ -27,6 +27,7 @@ import { paths, to, withScope } from '../../app/routes.ts'
 import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { Id, StudyScope } from '../../core/contracts/workspace'
 import { importCards } from '../../core/export/csvImport'
+import { clozePlain } from '../../core/model/cloze'
 import type { SourceRecord } from '../../core/model/schema'
 import { useT } from '../../i18n/react.tsx'
 import { Breadcrumb } from '../../ui/Breadcrumb.tsx'
@@ -167,13 +168,16 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
         cards: ws.cards
           .list({ courseId })
           .filter(atHere)
-          .map((c) => ({
-            id: c.id,
-            kind: c.kind,
-            front: ws.text({ id: c.id, field: 'front' }).toString().split('\n')[0] ?? '',
-          })),
+          .map((c) => {
+            const front = ws.text({ id: c.id, field: 'front' }).toString()
+            // A fill-in-the-blank reads as its sentence, not its markup.
+            const shown = c.kind === 'cloze' ? clozePlain(front) : front
+            return { id: c.id, kind: c.kind, front: shown.split('\n')[0] ?? '' }
+          }),
         sources: ws.sources.list({ courseId }).filter(atHere),
         fiches: ws.fiches.list({ courseId }).filter(atHere),
+        // Study sheets kept in the sections below: the tab says where they are rather than that there are none.
+        fichesBelow: ws.scoped('fiches', scope).filter((f) => !atHere(f)).length,
       }
     },
   )
@@ -545,7 +549,16 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
               }
             />
           ) : (
-            <ListGroup title={t('course.tabCards')} hideTitle footer={t('course.cardCount', { count: cards.length })}>
+            <ListGroup
+              title={t('course.tabCards')}
+              hideTitle
+              footer={
+                // The cards of this level; the header counts those of its sections too: say both.
+                data.total > cards.length
+                  ? t('course.cardsHere', { count: cards.length, total: data.total })
+                  : t('course.cardCount', { count: cards.length })
+              }
+            >
               {cards.map((c) => (
                 <ListRow
                   key={c.id}
@@ -613,8 +626,10 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
         (fiches.length === 0 ? (
           <EmptyState
             icon={NotebookText}
-            title={t('course.noSheetsTitle')}
-            body={t('course.noSheetsBody')}
+            title={data.fichesBelow > 0 ? t('course.sheetsBelowTitle') : t('course.noSheetsTitle')}
+            body={
+              data.fichesBelow > 0 ? t('course.sheetsBelow', { count: data.fichesBelow }) : t('course.noSheetsBody')
+            }
             action={aiReady ? newSheet : undefined}
           />
         ) : (

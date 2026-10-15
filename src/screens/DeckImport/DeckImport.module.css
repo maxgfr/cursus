@@ -223,6 +223,15 @@
   overflow-wrap: anywhere;
 }
 
+/* A unit read in full: its bullets and tables rendered, at the size of the plain text. Words break only where the
+   language hyphenates them (a table's narrow column), or, when one is longer than the line, anywhere in it. */
+.unitProse {
+  min-width: 0;
+  font-size: var(--text-footnote);
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+
 .unitText[data-clip="true"],
 .notesLine[data-clip="true"] {
   display: -webkit-box;

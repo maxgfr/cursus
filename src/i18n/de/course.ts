@@ -60,7 +60,7 @@ export const course = {
   extra: 'Zusatz (mit der Antwort gezeigt)',
   clozeTitle: 'Lückentext-Assistent',
   clozeHelp:
-    'Gib ein Wort oder eine Wendung aus dem Text ein, um sie auszublenden. Jede Lücke wird zu einer eigenen Karte.',
+    'Gib ein Wort oder eine Wendung aus dem Text ein, um sie auszublenden. Die Lücken werden abwechselnd abgefragt, eine pro Wiederholung.',
   clozePhrase: 'Auszublendendes Wort oder Wendung',
   clozeNotFound: 'Diese Wendung steht nicht im Text.',
   clozeHint: 'Hinweis (optional)',
@@ -103,6 +103,15 @@ export const course = {
   noSourcesBody: 'Quellen sind dein Kursmaterial: Notizen, PDFs und Fotos. Karten und Spickzettel entstehen daraus.',
   noSheetsTitle: 'Noch keine Spickzettel',
   noSheetsBody: 'Ein Spickzettel fasst ein Thema auf einer Seite zusammen. Die KI schreibt einen aus deinen Quellen.',
+  sheetsBelowTitle: 'Auf dieser Ebene keine Spickzettel',
+  sheetsBelow: {
+    one: '{count} Spickzettel liegt in einem Abschnitt: Öffne den Abschnitt, um ihn zu lesen.',
+    other: '{count} Spickzettel liegen in Abschnitten: Öffne einen Abschnitt, um sie zu lesen.',
+  },
+  cardsHere: {
+    one: '{count} Karte hier, {total} mit den Abschnitten',
+    other: '{count} Karten hier, {total} mit den Abschnitten',
+  },
   newSheet: 'Neuer Spickzettel',
   add: 'Hinzufügen',
   addTitle: 'Quelle hinzufügen',
@@ -122,6 +131,8 @@ export const course = {
   keepEditing: 'Weiter bearbeiten',
   addAnother: 'Noch eine',
   cardSaved: 'Karte gesichert.',
+  cardFrom: 'Aus {source}',
+  cardFromUnit: 'Aus {source}, {unit}',
   trashEmptyTitle: 'Der Papierkorb ist leer',
   trashEmptyBody: 'Gelöschte Kurse, Abschnitte, Quellen und Karten warten hier, bis du sie wiederherstellst.',
   historyEmptyTitle: 'Noch keine früheren Versionen',

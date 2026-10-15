@@ -1,5 +1,6 @@
 /**
- * The demo course's files, made from code on this device: two photos and a slide deck. Byte for byte
+ * The demo course's files, made from code on this device: two photos, a slide deck, a Word document and two
+ * PDFs. Byte for byte
  * reproducible (fixed zip timestamps and compression level, no randomness), pure TypeScript (fflate only), so
  * the same course is made offline, in every language, and under `bun test`.
  */
@@ -385,4 +386,252 @@ export function deckPptx(title: string, slides: readonly DemoSlide[]): Uint8Arra
     files[`ppt/slides/_rels/slide${n}.xml.rels`] = rels(links)
   }
   return zip(files)
+}
+
+// --- Word document (.docx) ------------------------------------------------------------------------------
+
+const NS_W =
+  'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" ' +
+  'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+
+function wPara(text: string, style?: string, extra = ''): string {
+  const ppr = style === undefined ? extra : `<w:pStyle w:val="${style}"/>${extra}`
+  return `<w:p>${ppr === '' ? '' : `<w:pPr>${ppr}</w:pPr>`}<w:r><w:t xml:space="preserve">${esc(text)}</w:t></w:r></w:p>`
+}
+
+function wTable(rows: readonly (readonly string[])[]): string {
+  const tr = rows.map((r) => `<w:tr>${r.map((c) => `<w:tc>${wPara(c)}</w:tc>`).join('')}</w:tr>`).join('')
+  return `<w:tbl>${tr}</w:tbl>`
+}
+
+function wStyle(id: string, name: string, extra = ''): string {
+  return `<w:style w:type="paragraph" w:styleId="${id}"><w:name w:val="${name}"/>${extra}</w:style>`
+}
+
+export interface DemoDocSection {
+  title: string
+  /** 1 = a top heading, 2 = one level below. */
+  level: 1 | 2
+  text?: string
+  bullets?: readonly string[]
+  table?: readonly (readonly string[])[]
+}
+
+/** A .docx with a title, an introduction before any heading, then headed sections (text, a list or a table). */
+export function documentDocx(title: string, intro: string, sections: readonly DemoDocSection[]): Uint8Array {
+  const list = '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>'
+  const body = [wPara(title, 'Title'), wPara(intro)]
+  for (const s of sections) {
+    body.push(wPara(s.title, `Heading${s.level}`))
+    if (s.text !== undefined) body.push(wPara(s.text))
+    for (const b of s.bullets ?? []) body.push(wPara(b, 'ListParagraph', list))
+    if (s.table !== undefined) body.push(wTable(s.table))
+  }
+  return zip({
+    '[Content_Types].xml': `${XML}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/></Types>`,
+    '_rels/.rels': rels([
+      ['rId1', 'officeDocument', 'word/document.xml'],
+      ['rId2', 'metadata/core-properties', 'docProps/core.xml'],
+    ]),
+    'docProps/core.xml':
+      `${XML}<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" ` +
+      `xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:title>${esc(title)}</dc:title></cp:coreProperties>`,
+    'word/document.xml': `${XML}<w:document ${NS_W}><w:body>${body.join('')}<w:sectPr/></w:body></w:document>`,
+    'word/_rels/document.xml.rels': rels([['rId1', 'styles', 'styles.xml']]),
+    'word/styles.xml': `${XML}<w:styles ${NS_W}>${[
+      wStyle('Title', 'Title'),
+      wStyle('Heading1', 'heading 1', '<w:pPr><w:outlineLvl w:val="0"/></w:pPr>'),
+      wStyle('Heading2', 'heading 2', '<w:basedOn w:val="Heading1"/><w:pPr><w:outlineLvl w:val="1"/></w:pPr>'),
+      wStyle('ListParagraph', 'List Paragraph'),
+    ].join('')}</w:styles>`,
+  })
+}
+
+// --- PDF ------------------------------------------------------------------------------------------------
+
+/** Characters of Windows-1252 outside Latin-1, by their byte (Helvetica reads them through WinAnsiEncoding). */
+const WIN_ANSI: Readonly<Record<string, number>> = {
+  '€': 0x80,
+  '‚': 0x82,
+  '„': 0x84,
+  '…': 0x85,
+  '‹': 0x8b,
+  Œ: 0x8c,
+  '‘': 0x91,
+  '’': 0x92,
+  '“': 0x93,
+  '”': 0x94,
+  '•': 0x95,
+  '–': 0x96,
+  '—': 0x97,
+  '›': 0x9b,
+  œ: 0x9c,
+}
+
+/** A text as Windows-1252 bytes; a character Helvetica cannot show is refused rather than shown wrong. */
+function winAnsi(text: string): number[] {
+  const out: number[] = []
+  for (const ch of text) {
+    const code = ch.codePointAt(0) ?? 0
+    const latin1 = code >= 0x20 && code <= 0xff && (code < 0x7f || code >= 0xa0) ? code : undefined
+    const byte = WIN_ANSI[ch] ?? latin1
+    if (byte === undefined) throw new RangeError(`the demo PDF cannot show “${ch}”`)
+    out.push(byte)
+  }
+  return out
+}
+
+/** A line broken between words into lines of at most `width` characters. */
+function wrap(line: string, width: number): string[] {
+  const out: string[] = []
+  let cur = ''
+  for (const word of line.split(' ')) {
+    if (cur !== '' && cur.length + 1 + word.length > width) {
+      out.push(cur)
+      cur = word
+    } else cur = cur === '' ? word : `${cur} ${word}`
+  }
+  out.push(cur)
+  return out
+}
+
+/** A PDF string: `(`, `)` and `\` escaped. */
+function pdfLiteral(bytes: readonly number[]): number[] {
+  const out = [0x28]
+  for (const b of bytes) {
+    if (b === 0x28 || b === 0x29 || b === 0x5c) out.push(0x5c)
+    out.push(b)
+  }
+  out.push(0x29)
+  return out
+}
+
+const ascii = (s: string): number[] => Array.from(s, (c) => c.charCodeAt(0))
+const hexOf = (n: number, digits: number): string => n.toString(16).toUpperCase().padStart(digits, '0')
+
+/**
+ * A text string outside the page (`/Info`): UTF-16 with its byte order mark, as hex. Read as PDFDocEncoding, the
+ * page's Windows-1252 bytes would turn a no-break space into « € ».
+ */
+function pdfTextString(text: string): string {
+  return `<FEFF${Array.from({ length: text.length }, (_, i) => hexOf(text.charCodeAt(i), 4)).join('')}>`
+}
+
+/**
+ * Subscripts and superscripts Helvetica has no glyph for (O₂, Na⁺, 10⁴), drawn as the plain character, smaller and
+ * lowered or raised. Each kind has its own font resource whose `/ToUnicode` maps the plain character back, so the
+ * text read from the PDF says « O₂ », as the rest of the course writes it.
+ */
+const SCRIPTS = {
+  F2: { chars: '₀₁₂₃₄₅₆₇₈₉₊₋', rise: -0.2 },
+  F3: { chars: '⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻', rise: 0.3 },
+} as const
+type FontName = 'F1' | keyof typeof SCRIPTS
+const PLAIN = '0123456789+-'
+
+/** The font a character is drawn with, and the character drawn (¹ ² ³ are in Latin-1: Helvetica has them). */
+function glyphOf(ch: string): { font: FontName; ch: string } {
+  const sub = SCRIPTS.F2.chars.indexOf(ch)
+  if (sub >= 0) return { font: 'F2', ch: PLAIN[sub] ?? ch }
+  const sup = SCRIPTS.F3.chars.indexOf(ch)
+  if (sup >= 0 && ch.charCodeAt(0) > 0xff) return { font: 'F3', ch: PLAIN[sup] ?? ch }
+  return { font: 'F1', ch }
+}
+
+/** A line as runs of one font each. */
+function runsOf(line: string): { font: FontName; text: string }[] {
+  const runs: { font: FontName; text: string }[] = []
+  for (const c of line) {
+    const g = glyphOf(c)
+    const last = runs.at(-1)
+    if (last?.font === g.font) last.text += g.ch
+    else runs.push({ font: g.font, text: g.ch })
+  }
+  return runs
+}
+
+/** A `/ToUnicode` CMap: each plain character's byte maps to the script character it stands for. */
+function toUnicodeCMap(chars: string): number[] {
+  const pairs = Array.from(chars, (c, k) => `<${hexOf(PLAIN.charCodeAt(k), 2)}> <${hexOf(c.charCodeAt(0), 4)}>`)
+  const body = [
+    '/CIDInit /ProcSet findresource begin',
+    '12 dict begin',
+    'begincmap',
+    '/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def',
+    '/CMapName /Adobe-Identity-UCS def',
+    '/CMapType 2 def',
+    '1 begincodespacerange',
+    '<00> <FF>',
+    'endcodespacerange',
+    `${pairs.length} beginbfchar`,
+    ...pairs,
+    'endbfchar',
+    'endcmap',
+    'CMapName currentdict /CMap defineresource pop',
+    'end',
+    'end',
+  ].join('\n')
+  return ascii(`<< /Length ${body.length} >>\nstream\n${body}\nendstream`)
+}
+
+/**
+ * A text-only A4 PDF (Helvetica, WinAnsiEncoding) titled in its `/Info`: on each page, the first line is set as
+ * a heading, the others wrapped to the page, an empty line leaving a gap.
+ */
+export function textPdf(title: string, pages: readonly (readonly string[])[]): Uint8Array {
+  const W = 595
+  const H = 842
+  const objs: number[][] = [
+    ascii('<< /Type /Catalog /Pages 2 0 R >>'),
+    [],
+    ascii('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>'),
+    ascii(`<< /Title ${pdfTextString(title)} >>`),
+    // 5 and 6: subscripts and their CMap; 7 and 8: superscripts and theirs.
+    ascii('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding /ToUnicode 6 0 R >>'),
+    toUnicodeCMap(SCRIPTS.F2.chars),
+    ascii('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding /ToUnicode 8 0 R >>'),
+    toUnicodeCMap(SCRIPTS.F3.chars),
+  ]
+  const first = objs.length + 1
+  for (const [i, lines] of pages.entries()) {
+    let y = H - 72
+    const ops: number[] = []
+    for (const [k, line] of lines.entries()) {
+      if (line.trim() === '') {
+        y -= 8
+        continue
+      }
+      const size = k === 0 ? 18 : 11
+      for (const part of wrap(line, k === 0 ? 48 : 92)) {
+        ops.push(...ascii(`BT 56 ${y} Td `))
+        for (const run of runsOf(part)) {
+          const script = run.font === 'F1' ? undefined : SCRIPTS[run.font]
+          const tf = script === undefined ? size : Math.round(size * 0.7)
+          const rise = script === undefined ? 0 : Math.round(size * script.rise * 10) / 10
+          ops.push(...ascii(`/${run.font} ${tf} Tf ${rise} Ts `), ...pdfLiteral(winAnsi(run.text)), ...ascii(' Tj '))
+        }
+        ops.push(...ascii('ET\n'))
+        y -= size + (k === 0 ? 12 : 5)
+      }
+    }
+    objs.push(
+      ascii(
+        `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 5 0 R /F3 7 0 R >> >> /Contents ${first + 1 + i * 2} 0 R >>`,
+      ),
+    )
+    objs.push([...ascii(`<< /Length ${ops.length} >>\nstream\n`), ...ops, ...ascii('\nendstream')])
+  }
+  const kids = pages.map((_, i) => `${first + i * 2} 0 R`).join(' ')
+  objs[1] = ascii(`<< /Type /Pages /Kids [${kids}] /Count ${pages.length} >>`)
+  const out: number[] = ascii('%PDF-1.4\n')
+  const offsets: number[] = []
+  for (const [i, obj] of objs.entries()) {
+    offsets.push(out.length)
+    out.push(...ascii(`${i + 1} 0 obj\n`), ...obj, ...ascii('\nendobj\n'))
+  }
+  const xref = out.length
+  out.push(...ascii(`xref\n0 ${objs.length + 1}\n0000000000 65535 f \n`))
+  for (const n of offsets) out.push(...ascii(`${String(n).padStart(10, '0')} 00000 n \n`))
+  out.push(...ascii(`trailer\n<< /Size ${objs.length + 1} /Root 1 0 R /Info 4 0 R >>\nstartxref\n${xref}\n%%EOF\n`))
+  return new Uint8Array(out)
 }

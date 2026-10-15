@@ -63,7 +63,7 @@ export default function CardEditor() {
   const { id = '' } = useParams<{ id: string }>()
   const newCourse = newCardCourse(id)
   const newSection = newCardSection(id)
-  const card = useWorkspaceData(['cards', 'courses', 'sections', { id }], (w) => {
+  const card = useWorkspaceData(['cards', 'courses', 'sections', 'sources', { id }], (w) => {
     if (newCourse !== null) {
       const course = w.courses.get(newCourse)
       if (!course || course.deletedAt !== undefined) return null
@@ -76,7 +76,7 @@ export default function CardEditor() {
         newSection !== null && sectionId !== newSection
           ? [course.title, ...(sectionId === null ? [] : tree.chain(sectionId).map((s) => s.name))].join(PATH_SEPARATOR)
           : null
-      return { courseId: newCourse, sectionId, saved: null, relocated }
+      return { courseId: newCourse, sectionId, saved: null, relocated, from: null }
     }
     const c = w.cards.get(id)
     if (!c || c.deletedAt !== undefined) return null
@@ -85,7 +85,24 @@ export default function CardEditor() {
       front: w.text({ id: c.id, field: 'front' }).toString(),
       back: w.text({ id: c.id, field: 'back' }).toString(),
     }
-    return { courseId: c.courseId, sectionId: w.sections.tree().sectionOf(c), saved, relocated: null }
+    // Where it was written from: the source, and the slide or page it cites (a section label needs its draft).
+    const source = c.sourceId === undefined ? undefined : w.sources.get(c.sourceId)
+    const from =
+      source === undefined || source.deletedAt !== undefined
+        ? null
+        : {
+            id: source.id,
+            title: source.title,
+            unit:
+              c.unit === undefined || c.unit < 1
+                ? null
+                : source.support === 'deck'
+                  ? { n: c.unit, kind: 'slide' as const }
+                  : source.kind === 'pdf' && source.support !== undefined
+                    ? { n: c.unit, kind: 'page' as const }
+                    : null,
+          }
+    return { courseId: c.courseId, sectionId: w.sections.tree().sectionOf(c), saved, relocated: null, from }
   })
   const saved = card?.saved ?? EMPTY
   const savedRef = useRef(saved)
@@ -378,6 +395,27 @@ export default function CardEditor() {
           {restored && dirty && !conflict ? `${t('course.draftRestored')} ` : ''}
           {status}
         </p>
+        {card.from !== null && (
+          <p className={styles.help} data-testid="card-from">
+            <Link
+              href={
+                card.from.unit === null
+                  ? to.source(card.from.id)
+                  : `${to.source(card.from.id)}?page=${card.from.unit.n}`
+              }
+            >
+              {card.from.unit === null
+                ? t('course.cardFrom', { source: card.from.title })
+                : t('course.cardFromUnit', {
+                    source: card.from.title,
+                    unit:
+                      card.from.unit.kind === 'slide'
+                        ? t('ai.deckSlide', { n: card.from.unit.n })
+                        : t('ai.deckPage', { n: card.from.unit.n }),
+                  })}
+            </Link>
+          </p>
+        )}
         {draft === null ? (
           <p className={styles.status}>{t('common.loading')}</p>
         ) : (

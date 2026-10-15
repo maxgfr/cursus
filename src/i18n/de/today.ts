@@ -40,7 +40,7 @@ export const today = {
   storageAsk: 'Daten dauerhaft behalten',
   demoTitle: 'Mit einem Demokurs ausprobieren',
   demoBody:
-    'Fügt einen Kurs zur Zellbiologie hinzu, mit Kapiteln, Notizen, Folien, Fotos, zwei Wochen Lernverlauf und einer geplanten Lerneinheit. So siehst du alles, was Cursus kann, bevor du eigene Kurse anlegst. Du kannst ihn jederzeit löschen.',
+    'Fügt einen Kurs zur Zellbiologie hinzu, mit Kapiteln, Notizen, Folien, einer Praktikumsanleitung, PDFs, Fotos, Spickzetteln, zwei Wochen Lernverlauf und geplanten Lerneinheiten. So siehst du alles, was Cursus kann, bevor du eigene Kurse anlegst. Du kannst ihn jederzeit löschen.',
   demoAction: 'Demokurs ausprobieren',
   demoCourse: 'Demo: Zellbiologie',
   heroDue: { one: '{count} Karte heute fällig', other: '{count} Karten heute fällig' },
@@ -103,10 +103,10 @@ export const today = {
   demoSecMito: 'Mitochondrien',
   demoNoteTitle: 'Zellbiologie: das Wichtigste',
   demoNoteBody:
-    '# Zellbiologie: das Wichtigste\n\nAlle Lebewesen bestehen aus **Zellen**, und jede Zelle entsteht aus einer anderen Zelle.\n\n## Was jede Zelle hat\n\n- eine **Plasmamembran**, die steuert, was hinein- und hinausgeht\n- **Zytoplasma**, in dem die meisten Reaktionen ablaufen\n- **Ribosomen**, die Proteine bauen\n- **DNA**, die den Bauplan trägt\n\n## Prokaryoten und Eukaryoten\n\n| | Prokaryot | Eukaryot |\n| --- | --- | --- |\n| Zellkern | Nein | Ja |\n| Typische Größe | 1–5 µm | 10–100 µm |\n| Organellen | Keine mit Membran | Mitochondrien, ER, Golgi … |\n\n## Warum Zellen klein bleiben\n\nBei einer kugelförmigen Zelle mit Radius $r$ wächst die Oberfläche mit $r^2$, das Volumen aber mit $r^3$:\n\n$$\\frac{A}{V} = \\frac{4\\pi r^2}{\\frac{4}{3}\\pi r^3} = \\frac{3}{r}$$\n\nVerdoppelt sich der Radius, muss jeder Quadratmikrometer Membran doppelt so viel Zytoplasma versorgen.\n\n## Membranpotenzial\n\nDie Nernst-Gleichung liefert das Gleichgewichtspotenzial eines Ions $X$ mit der Ladung $z$:\n\n$$E_X = \\frac{RT}{zF}\\ln\\frac{[X]_{out}}{[X]_{in}}$$\n\nFür K⁺ bei 37 °C sind das etwa $-90$ mV.\n',
-  demoNote2Title: 'Mitochondrien',
+    '# Zellbiologie: das Wichtigste\n\nAlle Lebewesen bestehen aus **Zellen**, und jede Zelle entsteht aus einer anderen Zelle.\n\n## Was jede Zelle hat\n\n- eine **Plasmamembran**, die steuert, was hinein- und hinausgeht\n- **Zytoplasma**, in dem die meisten Reaktionen ablaufen\n- **Ribosomen**, die Proteine bauen\n- **DNA**, die den Bauplan trägt\n\n## Prokaryoten und Eukaryoten\n\n| | Prokaryot | Eukaryot |\n| --- | --- | --- |\n| Zellkern | Nein | Ja |\n| Typische Größe | 1–5 µm | 10–100 µm |\n| Organellen | Keine mit Membran | Mitochondrien, ER, Golgi … |\n\n## Warum Zellen klein bleiben\n\nBei einer kugelförmigen Zelle mit Radius $r$ wächst die Oberfläche mit $r^2$, das Volumen aber mit $r^3$:\n\n$$\\frac{A}{V} = \\frac{4\\pi r^2}{\\frac{4}{3}\\pi r^3} = \\frac{3}{r}$$\n\nVerdoppelt sich der Radius, muss jeder Quadratmikrometer Membran doppelt so viel Zytoplasma versorgen.\n\n### Im Code nachgerechnet\n\nDasselbe Verhältnis in ein paar Zeilen Python, mit `r` in µm:\n\n```python\n# A/V einer Kugel ist 3/r: Es halbiert sich, wenn sich der Radius verdoppelt\nfor r in [1, 2, 5, 10]:\n    print(f"r = {r} µm: A/V = {3 / r:.2f} pro µm")\n```\n\nDas ist ein Grund für die *Zelltheorie* ([Wikipedia](https://de.wikipedia.org/wiki/Zelltheorie)): Zellen teilen sich, statt immer weiter zu wachsen. Die alte Vorstellung, ~~Zellen entstünden aus unbelebter Materie~~, widerlegte Pasteur 1859.\n\n## Membranpotenzial\n\nDie Nernst-Gleichung liefert das Gleichgewichtspotenzial eines Ions $X$ mit der Ladung $z$:\n\n$$E_X = \\frac{RT}{zF}\\ln\\frac{[X]_a}{[X]_i}$$\n\n(a: außen, i: innen). Für K⁺ bei 37 °C sind das etwa $-90$ mV.\n',
+  demoNote2Title: 'Wie Mitochondrien ATP bilden',
   demoNote2Body:
-    '# Mitochondrien\n\nDie Kraftwerke der Zelle: Sie wandeln die Energie der Nahrung in **ATP** um.\n\n1. **Glykolyse** (Zytoplasma): Aus einer Glucose werden zwei Pyruvat, 2 ATP\n2. **Citratzyklus** (Matrix): CO₂ wird frei, NADH und FADH₂ werden beladen\n3. **Oxidative Phosphorylierung** (innere Membran): etwa 26 bis 28 ATP\n\nInsgesamt:\n\n$$C_6H_{12}O_6 + 6\\,O_2 \\rightarrow 6\\,CO_2 + 6\\,H_2O$$\n\n> Mitochondrien haben eine eigene ringförmige DNA, eine Spur ihrer bakteriellen Herkunft (Endosymbiose).\n',
+    '# Wie Mitochondrien ATP bilden\n\nDie Kraftwerke der Zelle: Sie wandeln die Energie der Nahrung in **ATP** um.\n\n1. **Glykolyse** (Zytoplasma): Aus einer Glucose werden zwei Pyruvat, 2 ATP\n2. **Citratzyklus** (Matrix): CO₂ wird frei, NADH und FADH₂ werden beladen\n3. **Oxidative Phosphorylierung** (innere Membran): etwa 26 bis 28 ATP\n\nInsgesamt:\n\n$$C_6H_{12}O_6 + 6\\,O_2 \\rightarrow 6\\,CO_2 + 6\\,H_2O$$\n\n> Mitochondrien haben eine eigene ringförmige DNA, eine Spur ihrer bakteriellen Herkunft (Endosymbiose).\n',
   demoDeckTitle: 'Vorlesung 3: Membranen und Transport',
   demoSlide1Title: 'Membranen und Transport',
   demoSlide1Sub: 'Zellbiologie · Vorlesung 3',
@@ -140,15 +140,16 @@ export const today = {
   demoA05:
     'Das Innere der Doppelschicht ist hydrophob. Kleine unpolare Moleküle lösen sich darin; geladene Ionen werden abgestoßen und brauchen Kanäle oder Pumpen.',
   demoQ06: 'Welche Transportarten brauchen keine Energie?',
-  demoA06: 'Einfache Diffusion, erleichterte Diffusion und Osmose: Alle folgen einem Gefälle.',
+  demoA06:
+    'Alle drei folgen einem Gefälle:\n\n| Transport | Beispiel |\n| --- | --- |\n| Einfache Diffusion | O₂, CO₂ |\n| Erleichterte Diffusion | Glucose über GLUT |\n| Osmose | Wasser über Aquaporine |',
   demoQ07: 'Was besagt das Ficksche Gesetz?',
   demoA07: 'Diffusion folgt dem Konzentrationsgefälle: $J = -D\\,\\frac{\\Delta C}{\\Delta x}$.',
   demoQ08: 'Die Natrium-Kalium-Pumpe befördert pro ATP {{c1::3 Na⁺ hinaus}} und {{c2::2 K⁺ hinein}}.',
   demoQ09: 'In welche Richtung bewegt sich Wasser bei der Osmose?',
-  demoA09: 'Zur Seite mit mehr gelösten Teilchen, also zur höheren Konzentration.',
+  demoA09: 'Zur Seite mit mehr gelösten Teilchen, also dorthin, wo die Konzentration gelöster Stoffe höher ist.',
   demoQ10: 'Was liefert die Nernst-Gleichung?',
   demoA10:
-    'Das Gleichgewichtspotenzial eines Ions, $E_X = \\frac{RT}{zF}\\ln\\frac{[X]_{out}}{[X]_{in}}$: etwa $-90$ mV für K⁺.',
+    'Das Gleichgewichtspotenzial eines Ions, $E_X = \\frac{RT}{zF}\\ln\\frac{[X]_a}{[X]_i}$ (außen, innen): etwa $-90$ mV für K⁺.',
   demoQ11: 'Welches Organell ist auf dieser Skizze mit A beschriftet?',
   demoA11: 'Der Zellkern. Er enthält die DNA; der dunkle Fleck darin ist der Nukleolus.',
   demoQ12: 'Welches Organell baut Proteine?',
@@ -158,7 +159,8 @@ export const today = {
   demoA14: '$C_6H_{12}O_6 + 6\\,O_2 \\rightarrow 6\\,CO_2 + 6\\,H_2O$, das liefert etwa 30 ATP.',
   demoQ15: 'Wie heißen die Falten der inneren Mitochondrienmembran?',
   demoA15: 'Cristae. Sie vergrößern die Fläche, die die Atmungskette trägt.',
-  demoQ16: 'Mitochondrien haben eine eigene {{c1::ringförmige DNA}}, eine Spur ihrer {{c2::bakteriellen}} Herkunft.',
+  demoQ16:
+    'Mitochondrien haben eine eigene {{c1::ringförmige::Form}} DNA, eine Spur ihrer {{c2::bakteriellen}} Herkunft.',
   demoD1Q: 'Wie dick ist die Plasmamembran?',
   demoD1A: 'Etwa 7–8 nm.',
   demoD2Q: '{{c1::Aktiver Transport}} befördert Stoffe gegen ihr Gefälle und verbraucht {{c2::ATP}}.',
@@ -166,12 +168,48 @@ export const today = {
   demoD3A: 'Glucose, die über einen GLUT-Transporter in die Zelle gelangt.',
   demoD4Q: 'In deinen eigenen Worten: Warum platzt ein rotes Blutkörperchen in reinem Wasser?',
   demoD4A:
-    'Wasser strömt durch Osmose zu seinem konzentrierteren Inneren, und die Zelle hat keine Wand, die dem Druck standhält.',
+    'Wasser strömt durch Osmose ins konzentriertere Zytoplasma, und die Zelle hat keine Wand, die dem Druck standhält.',
   demoD5Q: 'Über welche Proteine durchquert Wasser die Membran am schnellsten?',
   demoD5A: 'Über Aquaporine.',
   demoR1Q: 'Wie heißt Vorlesung 3?',
   demoR1A: 'Membranen und Transport.',
   demoPlanName: 'Wochenwiederholung',
+  demoPlan2Name: 'Vor der Zwischenprüfung',
+  demoSecOld: 'Notizen vom Vorjahr',
+  demoPastedBody:
+    'Nachricht der Tutorin im Kursforum:\n\nDie Zwischenprüfung zu Membranen umfasst Vorlesung 3 und Praktikum 2: den Aufbau der Membran, passiven und aktiven Transport sowie Osmose. Taschenrechner sind erlaubt, Handys nicht. Bringt einen Bleistift für die Zeichenaufgabe mit.\n',
+  demoPhoto2Notes:
+    'In Vorlesung 2 gezeichnet. Vor der Prüfung: B braucht innen seine Cristae, und der dunkle Fleck in A ist der Nukleolus.',
+  demoDocTitle: 'Praktikum 2: rote Blutkörperchen in drei Lösungen',
+  demoDocIntro: 'Arbeitet zu zweit. Gebt eure Beobachtungen am Ende der Sitzung ab.',
+  demoDocAimTitle: 'Ziel',
+  demoDocAim: 'Osmose beobachten: wie sich rote Blutkörperchen in unterschiedlich konzentrierten Lösungen verändern.',
+  demoDocMethodTitle: 'Durchführung',
+  demoDocMethod:
+    'Drei Röhrchen beschriften: destilliertes Wasser, 0,9 % NaCl und 3 % NaCl\nIn jedes Röhrchen einen Tropfen Blut geben und 10 Minuten warten\nVon jedem einen Tropfen auf einen Objektträger geben und bei ×400 betrachten',
+  demoDocSafetyTitle: 'Sicherheit',
+  demoDocSafety: 'Handschuhe und Schutzbrille tragen. Blutproben gehören in den gelben Behälter, nie in den Ausguss.',
+  demoDocResultsTitle: 'Erwartete Ergebnisse',
+  demoDocResults:
+    'Lösung | Wasser | Rote Blutkörperchen\nDestilliertes Wasser (hypoton) | Strömt ein | Schwellen an und platzen\n0,9 % NaCl (isoton) | Im Gleichgewicht | Behalten ihre Form\n3 % NaCl (hyperton) | Strömt aus | Schrumpfen zur Stechapfelform',
+  demoD6Q: 'Was passiert mit einem roten Blutkörperchen in 3 % NaCl?',
+  demoD6A: 'Die Lösung ist hyperton: Die Zelle verliert durch Osmose Wasser und schrumpft (Stechapfelform).',
+  demoD7Q: 'Welches Organell ist auf der Skizze mit B beschriftet?',
+  demoD7A: 'Ein Mitochondrium: Die Zickzacklinien darin sind seine Cristae.',
+  demoPdfTitle: 'Zwischenprüfung 2025: Membranen (Altklausur)',
+  demoPdfPage1:
+    'Zellbiologie · Zwischenprüfung 2025\nMembranen · 45 Minuten · Keine Hilfsmittel\n\n1. Zeichne eine Phospholipid-Doppelschicht. Beschrifte die hydrophilen Köpfe und die hydrophoben Schwänze. (4 Punkte)\n2. Warum durchqueren O₂ und CO₂ die Membran, Na⁺ aber nicht? (3 Punkte)\n3. Nenne die drei Arten des passiven Transports mit je einem Beispiel. (6 Punkte)\n4. Ein rotes Blutkörperchen kommt in destilliertes Wasser. Was passiert, und warum? (7 Punkte)',
+  demoPdfPage2:
+    'Lösungen\n\n1. Die Köpfe zeigen auf beiden Seiten zum Wasser, die Schwänze innen zueinander.\n2. Das Innere der Doppelschicht ist hydrophob: Kleine unpolare Moleküle lösen sich darin, Ionen nicht.\n3. Einfache Diffusion (O₂), erleichterte Diffusion (Glucose über GLUT), Osmose (Wasser über Aquaporine).\n4. Wasser strömt durch Osmose ein; ohne Zellwand, die dem Druck standhält, schwillt die Zelle an und platzt.',
+  demoSyllabusTitle: 'Modulbeschreibung',
+  demoSyllabus:
+    'Zellbiologie · Modulbeschreibung\n\nVorlesung 1: Zellen und ihre Bestandteile\nVorlesung 2: Organellen\nVorlesung 3: Membranen und Transport\nVorlesung 4: Mitochondrien und Energie\nPraktikum 2: rote Blutkörperchen in drei Lösungen\n\nPrüfung: Zwischenprüfung zu Membranen (30 %), Abschlussklausur (70 %).',
+  demoSheet1Title: 'Membrantransport auf einen Blick',
+  demoSheet1Body:
+    'Stoffe durchqueren die Membran mit ihrem Gefälle umsonst oder dagegen unter Energieaufwand.\n\n## Passiver Transport\n\nEinfache Diffusion lässt kleine unpolare Moleküle durch die Doppelschicht; erleichterte Diffusion nutzt Kanäle und Carrier wie GLUT. Beide brauchen kein ATP.\n\n*{deck}*\n\n## Aktiver Transport\n\nPumpen befördern Ionen gegen ihr Gefälle und zahlen mit ATP: Die Na⁺/K⁺-Pumpe bringt pro ATP 3 Na⁺ hinaus und 2 K⁺ hinein.\n\n*{deck}*\n\n## Osmose\n\nWasser strömt zur Seite mit mehr gelösten Teilchen. In destilliertem Wasser schwillt ein rotes Blutkörperchen an und platzt; in 3 % NaCl schrumpft es.\n\n*{lab}*',
+  demoSheet2Title: 'Zellatmung',
+  demoSheet2Body:
+    'Mitochondrien gewinnen aus einer Glucose etwa 30 ATP, in drei Schritten.\n\n## Glykolyse\n\nIm Zytoplasma entstehen aus einer Glucose zwei Pyruvat und 2 ATP.\n\n*{note}*\n\n## Citratzyklus\n\nIn der Matrix wird CO₂ frei, und NADH und FADH₂ werden mit Elektronen beladen.\n\n*{note}*\n\n## Oxidative Phosphorylierung\n\nAn der inneren Membran und ihren Cristae liefert die Atmungskette etwa 26 bis 28 ATP.\n\n*{note}*',
   // --- end demo course ---
   firstCardTitle: 'Leg deine erste Karte an',
   firstCardBody:

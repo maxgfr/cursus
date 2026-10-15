@@ -204,7 +204,7 @@ export const ai = {
   deckFromFile: 'Fragen aus Folien oder einem Dokument erstellen',
   deckChooseFile: 'Datei auswählen',
   deckDropHint:
-    'PowerPoint (.pptx), Word (.docx) oder PDF. Keynote und Google Präsentationen: zuerst als PDF oder PowerPoint exportieren. Sie können die Datei auch hier ablegen oder einfügen.',
+    'PowerPoint (.pptx), Word (.docx) oder PDF. Keynote und Google Präsentationen: zuerst als PDF oder PowerPoint exportieren. Du kannst die Datei auch hier ablegen oder einfügen.',
   deckSaveIn: 'Speichern in',
   deckReading: '{name} wird gelesen …',
   deckUntitled: 'Unbenanntes Dokument',
@@ -212,7 +212,7 @@ export const ai = {
   deckOpenCourses: 'Kurse öffnen',
   deckAlreadyImported: 'Bereits importiert',
   deckSavedSource:
-    'Als Quelle dieses Kurses gespeichert. Sie können jetzt Fragen erstellen oder später darauf zurückkommen.',
+    'Als Quelle dieses Kurses gespeichert. Du kannst jetzt Fragen erstellen oder später darauf zurückkommen.',
   deckImagesSkipped: {
     one: '{count} Bild war zu groß oder unlesbar und wurde weggelassen.',
     other: '{count} Bilder waren zu groß oder unlesbar und wurden weggelassen.',
@@ -239,8 +239,7 @@ export const ai = {
   deckImages: { one: '{count} Bild', other: '{count} Bilder' },
   deckErrorTooLarge: 'Diese Datei ist zu groß für den Import (höchstens 100 MB).',
   deckErrorCorrupt: 'Diese Datei ist beschädigt und kann nicht gelesen werden. Es wurde nichts gespeichert.',
-  deckErrorEncrypted:
-    'Diese Datei ist durch ein Passwort geschützt. Entfernen Sie das Passwort und importieren Sie sie erneut.',
+  deckErrorEncrypted: 'Diese Datei ist durch ein Passwort geschützt. Entferne das Passwort und importiere sie erneut.',
   deckErrorUnsupported:
     'Das ist keine PowerPoint- (.pptx), Word- (.docx) oder PDF-Datei. Ältere .ppt- und .doc-Dateien zuerst im neueren Format speichern.',
   deckErrorUnsafe:
@@ -253,8 +252,8 @@ export const ai = {
   deckQuestionsTitle: 'Fragen erstellen',
   deckNoModelTitle: 'Für Fragen braucht es ein KI-Modell',
   deckNoModel:
-    'Ihr Dokument ist gespeichert. Richten Sie ein Modell ein und kommen Sie dann hierher zurück, um Fragen daraus zu erstellen.',
-  deckOffline: 'Sie sind offline. Ihr Dokument ist gespeichert; zum Erstellen von Fragen braucht es eine Verbindung.',
+    'Dein Dokument ist gespeichert. Richte ein Modell ein und komm dann hierher zurück, um Fragen daraus zu erstellen.',
+  deckOffline: 'Du bist offline. Dein Dokument ist gespeichert; zum Erstellen von Fragen braucht es eine Verbindung.',
   deckRange: 'Welcher Teil',
   deckFrom: 'Von',
   deckTo: 'Bis',
@@ -285,8 +284,8 @@ export const ai = {
   deckResume: 'Fortsetzen',
   deckDiscard: 'Entwürfe verwerfen',
   deckDiscarded: 'Entwürfe verworfen.',
-  deckStopped: 'Angehalten. Was fertig ist, bleibt auf diesem Gerät: Setzen Sie fort, wann immer Sie möchten.',
-  deckKeepFailed: 'Ihre Entwürfe konnten nicht auf diesem Gerät behalten werden. Speichern Sie jetzt die gewünschten.',
+  deckStopped: 'Angehalten. Was fertig ist, bleibt auf diesem Gerät: Mach weiter, wann immer du möchtest.',
+  deckKeepFailed: 'Deine Entwürfe konnten nicht auf diesem Gerät behalten werden. Speichere jetzt die, die du willst.',
   deckLeftOut: {
     one: '{count} Bild konnte nicht für das Modell vorbereitet werden und wurde weggelassen.',
     other: '{count} Bilder konnten nicht für das Modell vorbereitet werden und wurden weggelassen.',

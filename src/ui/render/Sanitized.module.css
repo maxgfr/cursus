@@ -250,12 +250,32 @@
   border-collapse: collapse;
 }
 
+/* A table scrolls sideways in its own box when it is wider than the column (see renderMarkdown). */
+.prose :global(.table-scroll) {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.prose :global(.table-scroll):focus-visible {
+  outline-offset: 0;
+}
+
 .prose th,
 .prose td,
 .live th,
 .live td {
   padding: var(--space-1) var(--space-2);
   border: var(--hairline-width) solid var(--hairline);
+  /* A narrow column breaks its words where the language allows, with a hyphen; never mid-letter. */
+  overflow-wrap: normal;
+  hyphens: auto;
+}
+
+/* A formula wider than the column scrolls sideways instead of spilling past it. */
+.prose :global(.math-block) {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 /* Formulas, tables and photos drawn in the editor keep their own margins inside them. */

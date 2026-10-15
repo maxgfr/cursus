@@ -5,6 +5,7 @@ import { ChunkFailed } from '../../app/lazyChunk.tsx'
 import { replaceQuery } from '../../app/nav.ts'
 import { paths, to } from '../../app/routes.ts'
 import { useWorkspaceData } from '../../app/workspaceContext.tsx'
+import { clozePlain } from '../../core/model/cloze'
 import type { SearchHit } from '../../core/model/search'
 import { useT } from '../../i18n/react.tsx'
 import { EmptyState } from '../../ui/components/EmptyState.tsx'
@@ -61,7 +62,8 @@ export default function Search() {
           }
           const c = ws.cards.get(h.id)
           if (!c) return []
-          const front = ws.text({ id: c.id, field: 'front' }).toString().split('\n')[0] ?? ''
+          const text = ws.text({ id: c.id, field: 'front' }).toString()
+          const front = (c.kind === 'cloze' ? clozePlain(text) : text).split('\n')[0] ?? ''
           return [{ id: h.id, title: front || t('common.cardTitle'), href: to.card(c.id) }]
         })
   return (

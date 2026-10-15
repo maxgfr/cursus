@@ -105,6 +105,21 @@ button.row:focus-visible {
   color: var(--ink-3);
 }
 
+/* Title and controls side by side when they fit, the controls on a line of their own, at the end, when not. */
+.wrap {
+  flex-wrap: wrap;
+}
+
+.wrap .text {
+  flex: 1 1 12rem;
+}
+
+.wrap .trailing {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-inline-start: auto;
+}
+
 .chevron {
   color: var(--ink-3);
 }

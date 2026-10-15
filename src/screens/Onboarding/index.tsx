@@ -78,7 +78,9 @@ export default function Onboarding() {
     if (demoState === 'creating') return
     setDemoState('creating')
     import('./demo.ts')
-      .then(({ createDemoCourse }) => createDemoCourse(rt, t, locale === 'pseudo' ? undefined : locale))
+      .then(async ({ createDemoCourse, demoTranslator }) =>
+        createDemoCourse(rt, await demoTranslator(locale), locale === 'pseudo' ? undefined : locale),
+      )
       .then(
         // The welcome is done: the course takes its place, so the course's Back never reopens it.
         (id) => navigate(to.course(id), { replace: true }),

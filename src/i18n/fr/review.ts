@@ -13,7 +13,7 @@ export const review = {
   easy: 'Facile',
   gradeLabel: '{grade}, prochaine révision dans {interval}',
   gradesLabel: 'Vous en souveniez-vous ?',
-  keysHint: 'Espace révèle, puis Bien · 1–4 note · Échap quitte · ⌘Z annule',
+  keysHint: 'Espace révèle, puis Correct · 1–4 note · Échap quitte · ⌘Z annule',
   undo: 'Annuler la dernière réponse',
   undone: 'Réponse annulée',
   ownWords: 'Répondez avec vos propres mots',
@@ -50,7 +50,7 @@ export const review = {
   tomorrow: { one: '{count} carte à réviser demain.', other: '{count} cartes à réviser demain.' },
   tomorrowNone: 'Rien à réviser demain pour l’instant.',
   nextIn: 'Prochaine révision dans {interval}',
-  gradesHint: 'Espace ou Entrée : Bien. 1 à 4 choisit une note.',
+  gradesHint: 'Espace ou Entrée : Correct. 1 à 4 choisit une note.',
   waitingTitle: {
     one: '{count} carte revient dans {interval}',
     other: '{count} cartes reviennent, la première dans {interval}',

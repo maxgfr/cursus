@@ -312,7 +312,7 @@ test('Card editor: the cloze assistant hides phrases and previews one card each'
   // The editor works on a draft: Save creates the card and goes back to the course.
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(page.getByText('Card saved.')).toBeVisible()
-  await expect(page.getByRole('main').getByRole('link', { name: /The \{\{c1::nucleus/ })).toBeVisible()
+  await expect(page.getByRole('main').getByRole('link', { name: /The nucleus holds the DNA\./ })).toBeVisible()
   expect(errors).toEqual([])
 })
 
@@ -449,7 +449,7 @@ test('Onboarding: install first, Safari tab warning, storage health and an expli
   await expect(main.getByRole('link', { name: /^Membranes\b/ })).toBeVisible()
   await expect(main.getByRole('link', { name: /^Organelles\b/ })).toBeVisible()
   const drafts = page.getByTestId('course-drafts')
-  await expect(drafts).toContainText('5 suggested cards')
+  await expect(drafts).toContainText('7 suggested cards')
   await expect(drafts.getByRole('link', { name: 'Accept or edit' })).toBeVisible()
   await expect(main.getByRole('link', { name: /What is the smallest unit of life\?/ })).toBeVisible()
   await expect(main.getByRole('link', { name: /Why can’t a spherical cell keep growing\?/ })).toBeVisible()

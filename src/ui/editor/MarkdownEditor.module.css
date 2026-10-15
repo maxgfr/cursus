@@ -1,5 +1,7 @@
 .frame {
   display: grid;
+  /* One column no wider than the frame: a long code line or table scrolls inside it, never past its edge. */
+  grid-template-columns: minmax(0, 1fr);
   min-height: 12rem;
   border-radius: var(--radius-surface);
   background: var(--surface);

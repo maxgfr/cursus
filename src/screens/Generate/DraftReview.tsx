@@ -3,6 +3,7 @@ import { useId } from 'react'
 import { Link } from 'wouter'
 import { useT } from '../../i18n/react.tsx'
 import { Button } from '../../ui/components/Button.tsx'
+import { GrowingTextarea } from '../../ui/components/GrowingTextarea.tsx'
 import styles from './DraftReview.module.css'
 
 export type ReviewStatus = 'pending' | 'accepted' | 'rejected'
@@ -192,7 +193,7 @@ function DraftItem({
           {draft.kind === 'cloze' ? t('ai.deckClozeText') : t('ai.deckQuestion')}
           <span className="sr-only"> {where}</span>
         </label>
-        <textarea
+        <GrowingTextarea
           id={`${id}-f`}
           className={styles.textarea}
           rows={2}
@@ -206,7 +207,7 @@ function DraftItem({
             {t('ai.deckAnswer')}
             <span className="sr-only"> {where}</span>
           </label>
-          <textarea
+          <GrowingTextarea
             id={`${id}-b`}
             className={styles.textarea}
             rows={2}

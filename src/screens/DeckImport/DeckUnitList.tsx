@@ -2,6 +2,7 @@ import { EyeOff, Image as ImageIcon } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import type { Deck, DeckUnit } from '../../core/content/deck'
 import { useT } from '../../i18n/react.tsx'
+import { Sanitized } from '../../ui/render/Sanitized.tsx'
 import styles from './DeckImport.module.css'
 import { unitName } from './deckSource.ts'
 import type { Thumb } from './thumbs.ts'
@@ -65,11 +66,18 @@ export function DeckUnitList({ deck, thumbs, detail, level = 3, cited, only }: D
                 )}
               </Heading>
               <UnitMeta unit={u} />
-              {u.text && (
-                <p className={styles.unitText} data-clip={detail === 'preview' ? 'true' : undefined}>
-                  {u.text}
-                </p>
-              )}
+              {u.text &&
+                (detail === 'full' ? (
+                  // Read in full, bullets and tables show as such, not as their Markdown; each line of the file
+                  // keeps its own line (a page of a PDF, a syllabus), as the plain text did.
+                  <div className={styles.unitProse}>
+                    <Sanitized markdown={u.text} lineBreaks />
+                  </div>
+                ) : (
+                  <p className={styles.unitText} data-clip="true">
+                    {u.text}
+                  </p>
+                ))}
               {u.notes &&
                 (detail === 'full' ? (
                   <div className={styles.notes}>

@@ -36,6 +36,11 @@ export function clozeIndexes(text: string): number[] {
   return [...set].sort((a, b) => a - b)
 }
 
+/** The text with every deletion shown as its answer, hints dropped: how a list or a search result names the card. */
+export function clozePlain(text: string): string {
+  return text.replace(CLOZE, (_m, _n: string, answer: string) => answer)
+}
+
 /**
  * One card per distinct cloze index: on the front the active deletions are
  * replaced by `[...]` (or `[hint]`), other deletions show their answer.

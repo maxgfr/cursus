@@ -110,6 +110,7 @@ export default function Trash() {
                   leading={<Icon size={20} />}
                   title={i.title}
                   subtitle={subtitle(i)}
+                  wrap
                   trailing={
                     <span className={styles.rowActions}>
                       <Button

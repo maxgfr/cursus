@@ -36,7 +36,7 @@ export const today = {
   storageAsk: 'Ask to keep my data',
   demoTitle: 'Try it with a demo course',
   demoBody:
-    'Adds a cell biology course with chapters, notes, slides, photos, two weeks of reviews and a planned session, so you can see everything Cursus does before adding your own. Delete it any time.',
+    'Adds a cell biology course with chapters, notes, slides, a lab handout, PDFs, photos, study sheets, two weeks of reviews and planned sessions, so you can see everything Cursus does before adding your own. Delete it any time.',
   demoAction: 'Try a demo course',
   demoCourse: 'Demo: Cell biology',
   heroDue: { one: '{count} card due today', other: '{count} cards due today' },
@@ -95,10 +95,10 @@ export const today = {
   demoSecMito: 'Mitochondria',
   demoNoteTitle: 'Cell biology: the essentials',
   demoNoteBody:
-    '# Cell biology: the essentials\n\nEvery living thing is made of **cells**, and every cell comes from another cell.\n\n## What every cell has\n\n- a **plasma membrane** that controls what goes in and out\n- **cytoplasm**, where most reactions take place\n- **ribosomes**, which build proteins\n- **DNA**, which carries the instructions\n\n## Prokaryotes and eukaryotes\n\n| | Prokaryote | Eukaryote |\n| --- | --- | --- |\n| Nucleus | No | Yes |\n| Typical size | 1–5 µm | 10–100 µm |\n| Organelles | None with a membrane | Mitochondria, ER, Golgi… |\n\n## Why cells stay small\n\nFor a spherical cell of radius $r$, the surface grows as $r^2$ but the volume as $r^3$:\n\n$$\\frac{A}{V} = \\frac{4\\pi r^2}{\\frac{4}{3}\\pi r^3} = \\frac{3}{r}$$\n\nDouble the radius, and each square micrometre of membrane must serve twice as much cytoplasm.\n\n## Membrane potential\n\nThe Nernst equation gives the equilibrium potential of an ion $X$ of charge $z$:\n\n$$E_X = \\frac{RT}{zF}\\ln\\frac{[X]_{out}}{[X]_{in}}$$\n\nFor K⁺ at 37 °C, that is about $-90$ mV.\n',
-  demoNote2Title: 'Mitochondria',
+    '# Cell biology: the essentials\n\nEvery living thing is made of **cells**, and every cell comes from another cell.\n\n## What every cell has\n\n- a **plasma membrane** that controls what goes in and out\n- **cytoplasm**, where most reactions take place\n- **ribosomes**, which build proteins\n- **DNA**, which carries the instructions\n\n## Prokaryotes and eukaryotes\n\n| | Prokaryote | Eukaryote |\n| --- | --- | --- |\n| Nucleus | No | Yes |\n| Typical size | 1–5 µm | 10–100 µm |\n| Organelles | None with a membrane | Mitochondria, ER, Golgi… |\n\n## Why cells stay small\n\nFor a spherical cell of radius $r$, the surface grows as $r^2$ but the volume as $r^3$:\n\n$$\\frac{A}{V} = \\frac{4\\pi r^2}{\\frac{4}{3}\\pi r^3} = \\frac{3}{r}$$\n\nDouble the radius, and each square micrometre of membrane must serve twice as much cytoplasm.\n\n### Check it in code\n\nThe same ratio in a few lines of Python, with `r` in µm:\n\n```python\n# A/V of a sphere is 3/r: it halves when the radius doubles\nfor r in [1, 2, 5, 10]:\n    print(f"r = {r} µm: A/V = {3 / r:.2f} per µm")\n```\n\nThis is one reason behind *cell theory* ([Wikipedia](https://en.wikipedia.org/wiki/Cell_theory)): cells divide instead of growing for ever. The old idea that ~~cells arise from non-living matter~~ was disproved by Pasteur in 1859.\n\n## Membrane potential\n\nThe Nernst equation gives the equilibrium potential of an ion $X$ of charge $z$:\n\n$$E_X = \\frac{RT}{zF}\\ln\\frac{[X]_o}{[X]_i}$$\n\n(o: outside, i: inside). For K⁺ at 37 °C, that is about $-90$ mV.\n',
+  demoNote2Title: 'How mitochondria make ATP',
   demoNote2Body:
-    '# Mitochondria\n\nThe cell’s power plants: they turn the energy of food into **ATP**.\n\n1. **Glycolysis** (cytoplasm): one glucose becomes two pyruvate, 2 ATP\n2. **Krebs cycle** (matrix): CO₂ is released, NADH and FADH₂ are loaded\n3. **Oxidative phosphorylation** (inner membrane): about 26 to 28 ATP\n\nIn all:\n\n$$C_6H_{12}O_6 + 6\\,O_2 \\rightarrow 6\\,CO_2 + 6\\,H_2O$$\n\n> Mitochondria keep their own circular DNA, a trace of their bacterial origin (endosymbiosis).\n',
+    '# How mitochondria make ATP\n\nThe cell’s power plants: they turn the energy of food into **ATP**.\n\n1. **Glycolysis** (cytoplasm): one glucose becomes two pyruvate, 2 ATP\n2. **Krebs cycle** (matrix): CO₂ is released, NADH and FADH₂ are loaded\n3. **Oxidative phosphorylation** (inner membrane): about 26 to 28 ATP\n\nIn all:\n\n$$C_6H_{12}O_6 + 6\\,O_2 \\rightarrow 6\\,CO_2 + 6\\,H_2O$$\n\n> Mitochondria keep their own circular DNA, a trace of their bacterial origin (endosymbiosis).\n',
   demoDeckTitle: 'Lecture 3: Membranes and transport',
   demoSlide1Title: 'Membranes and transport',
   demoSlide1Sub: 'Cell biology · Lecture 3',
@@ -132,7 +132,8 @@ export const today = {
   demoA05:
     'The core of the bilayer is hydrophobic. Small nonpolar molecules dissolve in it; charged ions are repelled and need channels or pumps.',
   demoQ06: 'Which kinds of transport need no energy?',
-  demoA06: 'Simple diffusion, facilitated diffusion and osmosis: all go down a gradient.',
+  demoA06:
+    'All three go down a gradient:\n\n| Transport | Example |\n| --- | --- |\n| Simple diffusion | O₂, CO₂ |\n| Facilitated diffusion | Glucose through GLUT |\n| Osmosis | Water through aquaporins |',
   demoQ07: 'What does Fick’s law say?',
   demoA07: 'Diffusion follows the concentration gradient: $J = -D\\,\\frac{\\Delta C}{\\Delta x}$.',
   demoQ08: 'The sodium–potassium pump moves {{c1::3 Na⁺ out}} and {{c2::2 K⁺ in}} for each ATP.',
@@ -140,7 +141,7 @@ export const today = {
   demoA09: 'Toward the side with more dissolved particles, where the solute concentration is higher.',
   demoQ10: 'What does the Nernst equation give?',
   demoA10:
-    'The equilibrium potential of an ion, $E_X = \\frac{RT}{zF}\\ln\\frac{[X]_{out}}{[X]_{in}}$: about $-90$ mV for K⁺.',
+    'The equilibrium potential of an ion, $E_X = \\frac{RT}{zF}\\ln\\frac{[X]_o}{[X]_i}$ (outside, inside): about $-90$ mV for K⁺.',
   demoQ11: 'Which organelle is labelled A on this sketch?',
   demoA11: 'The nucleus. It holds the DNA; the dark spot inside is the nucleolus.',
   demoQ12: 'Which organelle builds proteins?',
@@ -150,7 +151,7 @@ export const today = {
   demoA14: '$C_6H_{12}O_6 + 6\\,O_2 \\rightarrow 6\\,CO_2 + 6\\,H_2O$, which yields about 30 ATP.',
   demoQ15: 'What are the folds of the inner mitochondrial membrane called?',
   demoA15: 'Cristae. They enlarge the surface that carries the respiratory chain.',
-  demoQ16: 'Mitochondria have their own {{c1::circular DNA}}, a trace of their {{c2::bacterial}} origin.',
+  demoQ16: 'Mitochondria have their own {{c1::circular::shape}} DNA, a trace of their {{c2::bacterial}} origin.',
   demoD1Q: 'How thick is the plasma membrane?',
   demoD1A: 'About 7–8 nm.',
   demoD2Q: '{{c1::Active transport}} moves substances against their gradient and uses {{c2::ATP}}.',
@@ -158,12 +159,48 @@ export const today = {
   demoD3A: 'Glucose entering a cell through a GLUT transporter.',
   demoD4Q: 'In your own words: why does a red blood cell burst in pure water?',
   demoD4A:
-    'Water flows in by osmosis toward its more concentrated inside, and the cell has no wall to resist the pressure.',
+    'Water flows in by osmosis, toward the more concentrated cytoplasm, and the cell has no wall to resist the pressure.',
   demoD5Q: 'Through which proteins does water cross the membrane fastest?',
   demoD5A: 'Aquaporins.',
   demoR1Q: 'What is the title of lecture 3?',
   demoR1A: 'Membranes and transport.',
   demoPlanName: 'Weekly review',
+  demoPlan2Name: 'Before the midterm',
+  demoSecOld: 'Last year’s notes',
+  demoPastedBody:
+    'Message from the teaching assistant, on the course forum:\n\nThe midterm on membranes covers lecture 3 and lab 2: the structure of the membrane, passive and active transport, and osmosis. Calculators are allowed, phones are not. Bring a pencil for the diagram question.\n',
+  demoPhoto2Notes:
+    'Drawn in lecture 2. Before the exam: B needs its cristae inside, and the dark spot in A is the nucleolus.',
+  demoDocTitle: 'Lab 2: red blood cells in three solutions',
+  demoDocIntro: 'Work in pairs. Hand in your observations at the end of the session.',
+  demoDocAimTitle: 'Aim',
+  demoDocAim: 'See osmosis at work: how red blood cells change in solutions of different concentrations.',
+  demoDocMethodTitle: 'Method',
+  demoDocMethod:
+    'Label three tubes: distilled water, 0.9 % NaCl and 3 % NaCl\nAdd one drop of blood to each tube and wait 10 minutes\nPut a drop of each on a slide and look at it at ×400',
+  demoDocSafetyTitle: 'Safety',
+  demoDocSafety: 'Wear gloves and goggles. Blood samples go in the yellow bin, never down the sink.',
+  demoDocResultsTitle: 'Expected results',
+  demoDocResults:
+    'Solution | Water | Red blood cells\nDistilled water (hypotonic) | Flows in | Swell and burst\n0.9 % NaCl (isotonic) | In balance | Keep their shape\n3 % NaCl (hypertonic) | Flows out | Shrink and crenate',
+  demoD6Q: 'What happens to a red blood cell in 3 % NaCl?',
+  demoD6A: 'The solution is hypertonic: the cell loses water by osmosis and shrinks (crenation).',
+  demoD7Q: 'Which organelle is labelled B on the sketch?',
+  demoD7A: 'A mitochondrion: the zigzag lines inside it are its cristae.',
+  demoPdfTitle: 'Midterm 2025: membranes (past paper)',
+  demoPdfPage1:
+    'Cell biology · Midterm 2025\nMembranes · 45 minutes · No documents allowed\n\n1. Draw a phospholipid bilayer. Label the hydrophilic heads and the hydrophobic tails. (4 points)\n2. Why do O₂ and CO₂ cross the membrane while Na⁺ does not? (3 points)\n3. Name the three kinds of passive transport and give an example of each. (6 points)\n4. A red blood cell is put in distilled water. What happens, and why? (7 points)',
+  demoPdfPage2:
+    'Answers\n\n1. The heads face the water on both sides; the tails face each other inside.\n2. The core of the bilayer is hydrophobic: small nonpolar molecules dissolve in it, ions do not.\n3. Simple diffusion (O₂), facilitated diffusion (glucose through GLUT), osmosis (water through aquaporins).\n4. Water flows in by osmosis; with no wall to resist the pressure, the cell swells and bursts.',
+  demoSyllabusTitle: 'Syllabus',
+  demoSyllabus:
+    'Cell biology · Syllabus\n\nLecture 1: cells and their parts\nLecture 2: organelles\nLecture 3: membranes and transport\nLecture 4: mitochondria and energy\nLab 2: red blood cells in three solutions\n\nAssessment: midterm on membranes (30 %), final exam (70 %).',
+  demoSheet1Title: 'Membrane transport at a glance',
+  demoSheet1Body:
+    'Substances cross the membrane down their gradient for free, or against it at the cost of energy.\n\n## Passive transport\n\nSimple diffusion lets small nonpolar molecules through the bilayer; facilitated diffusion uses channels and carriers such as GLUT. Neither uses ATP.\n\n*{deck}*\n\n## Active transport\n\nPumps move ions against their gradient and pay in ATP: the Na⁺/K⁺ pump moves 3 Na⁺ out and 2 K⁺ in for each ATP.\n\n*{deck}*\n\n## Osmosis\n\nWater moves toward the side with more dissolved particles. In distilled water a red blood cell swells and bursts; in 3 % NaCl it shrinks.\n\n*{lab}*',
+  demoSheet2Title: 'Cellular respiration',
+  demoSheet2Body:
+    'Mitochondria turn the energy of one glucose into about 30 ATP, in three stages.\n\n## Glycolysis\n\nIn the cytoplasm, one glucose becomes two pyruvate and yields 2 ATP.\n\n*{note}*\n\n## Krebs cycle\n\nIn the matrix, CO₂ is released and NADH and FADH₂ are loaded with electrons.\n\n*{note}*\n\n## Oxidative phosphorylation\n\nOn the inner membrane and its cristae, the respiratory chain makes about 26 to 28 ATP.\n\n*{note}*',
   // --- end demo course ---
   firstCardTitle: 'Add your first card',
   firstCardBody: 'Write a card in a course, or add a source and accept the cards suggested from it.',

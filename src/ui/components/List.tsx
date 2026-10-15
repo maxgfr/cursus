@@ -37,9 +37,11 @@ export interface ListRowProps {
   href?: string
   onClick?: () => void
   chevron?: boolean
+  /** The trailing controls go below the title when both do not fit side by side (long titles, wide buttons). */
+  wrap?: boolean
 }
 
-export function ListRow({ title, subtitle, leading, trailing, href, onClick, chevron }: ListRowProps) {
+export function ListRow({ title, subtitle, leading, trailing, href, onClick, chevron, wrap }: ListRowProps) {
   const showChevron = chevron ?? href !== undefined
   const body = (
     <>
@@ -60,7 +62,7 @@ export function ListRow({ title, subtitle, leading, trailing, href, onClick, che
       )}
     </>
   )
-  const cls = cx(styles.row, leading !== undefined && styles.withLeading)
+  const cls = cx(styles.row, leading !== undefined && styles.withLeading, wrap === true && styles.wrap)
   return (
     <li className={styles.item}>
       {href !== undefined ? (
