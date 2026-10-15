@@ -78,7 +78,7 @@ test('after the first load the app works fully offline, and edits are saved on t
   for (const [hash, heading] of [
     ['#/search', 'Search'],
     ['#/stats', 'Statistics'],
-    ['#/understand', 'Explain a topic'],
+    ['#/understand', 'New study sheet'],
     ['#/settings', 'Settings'],
     ['#/settings/data', 'Data'],
     ['#/review', 'Review'],

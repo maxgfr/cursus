@@ -275,7 +275,7 @@ async function writeNote(page: Page, text: string) {
   await page.getByRole('link', { name: 'Back' }).click()
 }
 
-test('Understand from a section is grounded in that section’s sources only', async ({ page }) => {
+test('a study sheet from a section is grounded in that section’s sources only', async ({ page }) => {
   const errors = watchErrors(page)
   const prompts = await mockProvider(page)
   await configureAi(page, LLM)
@@ -288,21 +288,95 @@ test('Understand from a section is grounded in that section’s sources only', a
   await writeNote(page, 'Chlorophyll captures light in leaf cells.')
   await crumb(page, 'Leaves')
 
-  await page.getByRole('link', { name: 'Explain a topic' }).click()
-  await expect(page.getByRole('heading', { level: 1, name: 'Explain a topic' })).toBeVisible()
+  await page.getByRole('radio', { name: 'Study sheets' }).check()
+  await page.getByRole('main').getByRole('link', { name: 'New study sheet' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'New study sheet' })).toBeVisible()
+  await page.getByText('Sources: all of Leaves').click()
   await expect(page.getByLabel('Section', { exact: true })).toHaveValue(/.+/)
   await expect(page.getByLabel('Section', { exact: true }).locator('option:checked')).toHaveText('Leaves')
   // Leaves itself has no note; its child Cells has one: descendants count, the course root's note doesn't.
   await expect(page.getByRole('checkbox')).toHaveCount(1)
   await expect(page.getByRole('checkbox', { name: 'Untitled note' })).toBeChecked()
-  await page.getByLabel('What do you want to understand?').fill('photosynthesis')
-  await page.getByRole('button', { name: 'Explain', exact: true }).click()
+  await page.getByLabel('What should the sheet cover?').fill('photosynthesis')
+  await page.getByRole('button', { name: 'Write the sheet', exact: true }).click()
   await expect(
-    page.getByRole('article', { name: 'Explanation' }).getByRole('heading', { name: 'Leaves' }),
+    page.getByRole('article', { name: 'Study sheet' }).getByRole('heading', { name: 'Leaves' }),
   ).toBeVisible()
   const prompt = prompts.find((p) => p.includes('patient tutor')) ?? ''
   expect(prompt).toContain('Chlorophyll captures light in leaf cells.')
   expect(prompt).not.toContain('ZEBRA')
+  expect(errors.filter((e) => !/models\.dev|catalog/i.test(e))).toEqual([])
+})
+
+test('a new study sheet starts from the Study sheets tab, not the header, and is saved to the course', async ({
+  page,
+}) => {
+  const errors = watchErrors(page)
+  const prompts = await mockProvider(page)
+  await configureAi(page, LLM)
+  await openToday(page)
+  await createCourse(page, 'Biology')
+  await writeNote(page, 'Chlorophyll captures light in leaf cells.')
+  await newCard(page, 'Root question')
+  const main = page.getByRole('main')
+  const toSheet = main.locator('a[href*="#/understand"]')
+
+  // The course and section headers offer the study actions, never a study sheet.
+  await expect(main.getByRole('link', { name: 'Quiz me' })).toBeVisible()
+  await expect(toSheet).toHaveCount(0)
+  await newSection(page, 'Stems')
+  await newCard(page, 'Stem question')
+  await expect(main.getByRole('link', { name: 'Quiz me' })).toBeVisible()
+  await expect(toSheet).toHaveCount(0)
+  await crumb(page, 'Biology')
+  await expect(toSheet).toHaveCount(0)
+
+  // The Study sheets tab does, scoped to the course.
+  await page.getByRole('radio', { name: 'Study sheets' }).check()
+  const start = main.getByRole('link', { name: 'New study sheet' })
+  await expect(start).toHaveAttribute('href', /#\/understand\?course=[^&]+$/)
+  await start.click()
+  await expect(page.getByRole('heading', { level: 1, name: 'New study sheet' })).toBeVisible()
+
+  // The sources start folded, their summary saying what the sheet will use.
+  const summary = page.getByText('Sources: all of Biology')
+  await expect(summary).toBeVisible()
+  await expect(page.locator('details').filter({ has: summary })).not.toHaveAttribute('open')
+  await expect(page.getByRole('combobox', { name: 'Course', exact: true })).toBeHidden()
+  await expect(page.getByRole('checkbox')).toHaveCount(0)
+  await summary.click()
+  await expect(page.getByLabel('Course', { exact: true }).locator('option:checked')).toHaveText('Biology')
+  await expect(page.getByRole('checkbox', { name: 'Untitled note' })).toBeChecked()
+
+  await page.getByLabel('What should the sheet cover?').fill('leaves')
+  await page.getByRole('button', { name: 'Write the sheet', exact: true }).click()
+  const sheet = page.getByRole('article', { name: 'Study sheet' })
+  await expect(sheet.getByRole('heading', { name: 'Leaves' })).toBeVisible()
+  await expect(sheet.getByRole('heading', { name: 'Chlorophyll' })).toBeVisible()
+  await expect(sheet.getByRole('link', { name: 'Open source: Untitled note' })).toBeVisible()
+
+  // « Rewrite » asks again.
+  const asked = () => prompts.filter((p) => p.includes('patient tutor')).length
+  expect(asked()).toBe(1)
+  await page.getByRole('button', { name: 'Rewrite' }).click()
+  await expect.poll(asked).toBe(2)
+  await expect(sheet.getByRole('heading', { name: 'Chlorophyll' })).toBeVisible()
+
+  const save = page.getByRole('button', { name: 'Save to Biology' })
+  await save.click()
+  await expect(page.getByRole('status').filter({ hasText: 'Saved in the study sheets of Biology.' })).toBeVisible()
+  await expect(save).toBeDisabled()
+  await page.getByRole('link', { name: 'Open study sheets' }).click()
+
+  // Back in the course, on its study sheets: the sheet is there, and reads as written.
+  await expect(page.getByRole('heading', { level: 1, name: 'Biology' })).toBeVisible()
+  await expect(page.getByRole('radio', { name: 'Study sheets' })).toBeChecked()
+  await expect(main.getByRole('link', { name: 'New study sheet' })).toBeVisible()
+  await main.getByRole('button', { name: /^Leaves/ }).click()
+  const read = page.getByRole('dialog', { name: 'Leaves' })
+  await expect(read.getByRole('heading', { name: 'Chlorophyll' })).toBeVisible()
+  await expect(read.getByText('It captures light.')).toBeVisible()
+  await expect(read.getByText('Untitled note')).toBeVisible()
   expect(errors.filter((e) => !/models\.dev|catalog/i.test(e))).toEqual([])
 })
 

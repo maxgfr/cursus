@@ -207,7 +207,9 @@ test('slides: preview, questions for a range of slides, review by slide, saved c
   await expect(page.getByText('What is Osmosis about?')).toHaveCount(0)
 })
 
-test('Understand reads the slides of a deck source and cites the slide, opening it in the source', async ({ page }) => {
+test('a study sheet reads the slides of a deck source and cites the slide, opening it in the source', async ({
+  page,
+}) => {
   await mockProvider(page)
   const prompts: string[] = []
   // Registered last, so it answers first: the explanation call, cited at slide 2; the rest falls through.
@@ -235,10 +237,11 @@ test('Understand reads the slides of a deck source and cites the slide, opening 
   await expect(page.getByRole('heading', { level: 1, name: 'Cell Biology 101' })).toBeVisible()
 
   await page.goto('./#/understand')
+  await page.getByText('Sources: all of Biology').click()
   await expect(page.getByRole('checkbox', { name: 'Cell Biology 101' })).toBeChecked()
-  await page.getByLabel('What do you want to understand?').fill('osmosis')
-  await page.getByRole('button', { name: 'Explain', exact: true }).click()
-  const fiche = page.getByRole('article', { name: 'Explanation' })
+  await page.getByLabel('What should the sheet cover?').fill('osmosis')
+  await page.getByRole('button', { name: 'Write the sheet', exact: true }).click()
+  const fiche = page.getByRole('article', { name: 'Study sheet' })
   await expect(fiche.getByRole('heading', { name: 'Water moves' })).toBeVisible()
   // The model read the deck slide by slide, each slide numbered for citations.
   expect(prompts.at(-1)).toMatch(/<<<SOURCE id="[^"]+" page="2">>>\nOsmosis\n/)

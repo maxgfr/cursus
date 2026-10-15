@@ -29,7 +29,7 @@ export const chat = {
   actionMnemonic: 'A mnemonic',
   actionSummarise: 'Summarise this source',
   actionGenerate: 'Generate cards',
-  actionUnderstand: 'Explain a topic',
+  actionWriteSheet: 'Write a study sheet',
   actionQuiz: 'Quiz me',
   actionApproach: 'Help me approach this question',
   you: 'You',

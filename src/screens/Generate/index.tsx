@@ -236,7 +236,7 @@ export default function Generate() {
               {t('ai.discard')}
             </Button>
             <Link href={withScope(paths.understand, scopeOf(selection))} className={buttonClass({ variant: 'plain' })}>
-              {t('ai.understand')}
+              {t('ai.writeSheet')}
             </Link>
           </div>
         </section>

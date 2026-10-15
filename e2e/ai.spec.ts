@@ -327,7 +327,7 @@ test('a first visit needs only a key: the provider shown and its recommended mod
   await page.reload()
   await expect(page.getByRole('region', { name: 'Model', exact: true })).not.toContainText('Choose a model')
   await page.goto('./#/understand')
-  await expect(page.getByLabel('What do you want to understand?')).toBeVisible()
+  await expect(page.getByLabel('What should the sheet cover?')).toBeVisible()
 })
 
 test('picking a route without touching the key shows that route’s saved key', async ({ page }) => {
@@ -460,7 +460,7 @@ test('AI screens ask for a model until one is set up', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1, name: 'AI' })).toBeVisible()
 })
 
-test('Understand streams a cited explanation, then checks an explanation back', async ({ page }) => {
+test('a new study sheet streams in cited, then checks an explanation back', async ({ page }) => {
   const prompts = await mockProvider(page)
   await configure(page)
   // Since S-044 adding a document proposes questions on its own (auto-questions.spec.ts): off for this manual flow.
@@ -484,14 +484,16 @@ test('Understand streams a cited explanation, then checks an explanation back', 
   await expect(page.getByRole('heading', { level: 1, name: 'sample' })).toBeVisible()
 
   await page.goto('./#/understand')
+  // The sources sit folded under a summary of what is used.
+  await page.getByText('Sources: all of Botany').click()
   await expect(page.getByRole('checkbox', { name: 'Untitled note' })).toBeChecked()
   await expect(page.getByRole('checkbox', { name: 'sample' })).toBeChecked()
-  await page.getByLabel('What do you want to understand?').fill('photosynthesis')
+  await page.getByLabel('What should the sheet cover?').fill('photosynthesis')
   await page.getByRole('radio', { name: 'In depth' }).check({ force: true })
   await expect(page.getByText(/Estimated cost: \$/)).toBeVisible()
-  await page.getByRole('button', { name: 'Explain', exact: true }).click()
+  await page.getByRole('button', { name: 'Write the sheet', exact: true }).click()
 
-  const fiche = page.getByRole('article', { name: 'Explanation' })
+  const fiche = page.getByRole('article', { name: 'Study sheet' })
   await expect(fiche.getByRole('heading', { name: 'Photosynthesis' })).toBeVisible()
   await expect(fiche.getByRole('heading', { name: 'Calvin cycle' })).toBeVisible()
   await expect(fiche.getByRole('link', { name: 'Open source: Untitled note' })).toBeVisible()
@@ -500,6 +502,8 @@ test('Understand streams a cited explanation, then checks an explanation back', 
   expect(prompts.at(-1)).toContain('Second page mitochondria')
   expect(prompts.at(-1)).toContain('cover edge cases')
 
+  // The explain-it-back check sits folded under the sheet.
+  await page.getByText('Check you understood it').click()
   await page.getByLabel('Your explanation').fill('Plants use chlorophyll to catch light.')
   await page.getByRole('button', { name: 'Check my explanation' }).click()
   await expect(page.getByText('72 / 100')).toBeVisible()

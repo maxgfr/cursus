@@ -84,7 +84,7 @@ export const photos = {
   aiNoText: 'Auf diesem Foto steht kein Text.',
   aiExplanation: 'Erklärung',
   aiKeyPoints: 'Zum Merken',
-  aiCiteable: 'Auf diesem Gerät gespeichert: „Verstehen“ kann dieses Foto jetzt nutzen und zitieren.',
+  aiCiteable: 'Auf diesem Gerät gespeichert: Spickzettel können dieses Foto jetzt nutzen und zitieren.',
   aiCards: 'Karten aus diesem Foto erstellen',
   aiPhotos: 'Verwendete Fotos',
   aiThisPhoto: 'Dieses Foto',

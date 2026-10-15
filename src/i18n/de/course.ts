@@ -103,7 +103,7 @@ export const course = {
   noSourcesBody: 'Quellen sind dein Kursmaterial: Notizen, PDFs und Fotos. Karten und Spickzettel entstehen daraus.',
   noSheetsTitle: 'Noch keine Spickzettel',
   noSheetsBody: 'Ein Spickzettel fasst ein Thema auf einer Seite zusammen. Die KI schreibt einen aus deinen Quellen.',
-  understand: 'Thema erklären',
+  newSheet: 'Neuer Spickzettel',
   add: 'Hinzufügen',
   addTitle: 'Quelle hinzufügen',
   pasteText: 'Text einfügen',

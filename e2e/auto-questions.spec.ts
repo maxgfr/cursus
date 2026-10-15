@@ -267,10 +267,13 @@ test('over the cost cap a document waits for approval with its estimate; offline
   await go(page, '#/inbox', 'Suggested cards')
   const sample = doc(page, 'sample')
   await expect(sample.getByText('Waiting for a connection: the cards come once you’re back online.')).toBeVisible()
-  await context.setOffline(false)
   // Service workers are blocked here, so the PDF reader that failed to load offline loads on a fresh page; with
-  // the app's service worker it is cached and loads offline too.
-  await page.reload()
+  // the app's service worker it is cached and loads offline too. The page is left before the connection returns,
+  // so the stale one never retries with the reader it could not load.
+  await page.goto('about:blank')
+  await context.setOffline(false)
+  await page.goto('./#/inbox')
+  await expect(page.getByRole('heading', { level: 1, name: 'Suggested cards' })).toBeVisible()
   await expect(sample.getByText(/^About \$0\.\d+ for this document, above your limit/)).toBeVisible()
   await sample.getByRole('button', { name: /^Allow \$0\.\d+$/ }).click()
   await expect(sample.getByText(/^\d+ to check · 0 accepted$/)).toBeVisible()

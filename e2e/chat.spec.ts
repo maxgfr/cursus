@@ -288,8 +288,11 @@ test('the panel offers actions suited to the screen: a card before and after the
   await openCourse(page)
   if (phone) await openChat(page)
   await expect(panel.getByText('About: Biology')).toBeVisible()
-  expect(await actionNames(panel)).toEqual(['Generate cards', 'Explain a topic', 'Quiz me'])
-  await expect(panel.getByRole('link', { name: 'Explain a topic' })).toHaveAttribute('href', /#\/understand\?course=/)
+  expect(await actionNames(panel)).toEqual(['Generate cards', 'Write a study sheet', 'Quiz me'])
+  await expect(panel.getByRole('link', { name: 'Write a study sheet' })).toHaveAttribute(
+    'href',
+    /#\/understand\?course=/,
+  )
   await expect(panel.getByRole('link', { name: 'Quiz me' })).toHaveAttribute('href', /#\/quiz\?course=/)
   expect(errors).toEqual([])
 })

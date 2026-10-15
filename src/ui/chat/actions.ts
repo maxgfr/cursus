@@ -53,7 +53,8 @@ export function actionsFor(t: T, c: ScreenContext): ChatAction[] {
   }
   return [
     generate,
-    { id: 'understand', kind: 'link', label: t('chat.actionUnderstand'), href: withScope(paths.understand, scope) },
+    // A study sheet on a topic, written from the sources: generic questions stay in this chat.
+    { id: 'understand', kind: 'link', label: t('chat.actionWriteSheet'), href: withScope(paths.understand, scope) },
     quiz,
   ]
 }

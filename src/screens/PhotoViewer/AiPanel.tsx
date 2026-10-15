@@ -317,7 +317,7 @@ function Explain({
           <Reading description={call.value.description} />
           <p className={shared.hint}>
             {t('photos.aiCiteable')}{' '}
-            <Link href={withScope(paths.understand, placeOf(ws, photoId, courseId))}>{t('ai.understand')}</Link>
+            <Link href={withScope(paths.understand, placeOf(ws, photoId, courseId))}>{t('ai.writeSheet')}</Link>
           </p>
         </div>
       )}

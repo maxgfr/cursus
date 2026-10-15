@@ -151,6 +151,8 @@ async function courseWithPhotos(page: Page, title: string, files: string[]): Pro
   const courseId = decodeURIComponent(/#\/course\/([^/?]+)/.exec(page.url())?.[1] ?? '')
   expect(courseId).not.toBe('')
   await page.goto(`./#/course/${encodeURIComponent(courseId)}/photos`)
+  // The course's own « Add files » input is multiple too: pick only once the gallery has replaced it.
+  await expect(page.getByRole('heading', { level: 1, name: 'Photos' })).toBeVisible()
   await page.locator('input[type="file"][multiple]').setInputFiles(files)
   await expect(page.getByTestId('photo-tile').locator('img')).toHaveCount(files.length)
   return courseId
@@ -171,7 +173,7 @@ async function openPanel(page: Page) {
   await expect(panel(page)).toBeVisible()
 }
 
-test('a photo is explained from a reduced copy, after its cost is shown, then cited in Understand', async ({
+test('a photo is explained from a reduced copy, after its cost is shown, then cited in a study sheet', async ({
   page,
 }) => {
   const sent = await mockProvider(page)
@@ -213,15 +215,18 @@ test('a photo is explained from a reduced copy, after its cost is shown, then ci
   await expect(panel(page).getByRole('button', { name: 'Explain again' })).toBeVisible()
   expect(sent).toHaveLength(1)
 
-  // Understand grounds in the photo and cites it: thumbnail and link back to the photo.
-  await expect(panel(page).getByText('Kept on this device: Understand can now use and cite this photo.')).toBeVisible()
-  await panel(page).getByRole('link', { name: 'Understand' }).click()
-  await expect(page.getByRole('heading', { level: 1, name: 'Explain a topic' })).toBeVisible()
+  // A study sheet grounds in the photo and cites it: thumbnail and link back to the photo.
+  await expect(
+    panel(page).getByText('Kept on this device: study sheets can now use and cite this photo.'),
+  ).toBeVisible()
+  await panel(page).getByRole('link', { name: 'Write a study sheet' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'New study sheet' })).toBeVisible()
+  await page.getByText('Sources: all of Biochemistry').click()
   await expect(page.getByRole('checkbox', { name: title })).toBeChecked()
   await expect(page.getByText('Includes what AI read on 1 photo.')).toBeVisible()
-  await page.getByLabel('What do you want to understand?').fill('Krebs cycle')
-  await page.getByRole('button', { name: 'Explain', exact: true }).click()
-  const fiche = page.getByRole('article', { name: 'Explanation' })
+  await page.getByLabel('What should the sheet cover?').fill('Krebs cycle')
+  await page.getByRole('button', { name: 'Write the sheet', exact: true }).click()
+  const fiche = page.getByRole('article', { name: 'Study sheet' })
   const cite = fiche.getByRole('link', { name: `Open photo: ${title}` })
   await expect(cite).toBeVisible()
   await expect(cite.locator('img')).toBeVisible()

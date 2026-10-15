@@ -10,10 +10,11 @@ import {
 } from '../../core/ai/retrieval'
 import { type Understanding, understandSchema } from '../../core/ai/schemas'
 
-export type Level = 'basics' | 'standard' | 'deep'
+/** How much the study sheet goes into: a short one keeps to the essentials. */
+export type Detail = 'short' | 'standard' | 'deep'
 
-const LEVELS: Record<Level, string> = {
-  basics: 'The student is new to the subject: use plain words, define every term, prefer concrete examples.',
+const DETAILS: Record<Detail, string> = {
+  short: 'Keep it short: only the essential points, in plain words, every term defined.',
   standard: 'The student knows the basics: be precise and connect ideas.',
   deep: 'The student wants depth: cover edge cases, formal definitions and common misconceptions.',
 }
@@ -25,15 +26,15 @@ export interface UnderstandingStream {
   grounded: Chunk[]
 }
 
-/** Streaming twin of core `understand`: same prompt and citation check, plus the chosen level. */
+/** Streaming twin of core `understand`: same prompt and citation check, plus the chosen detail. */
 export function streamUnderstanding(
   ctx: FeatureCtx,
-  input: { topic: string; level: Level; chunks: readonly Chunk[] },
+  input: { topic: string; detail: Detail; chunks: readonly Chunk[] },
 ): UnderstandingStream {
   const system = [
     'You are a patient tutor helping a student understand a topic from their own course material.',
     'Break the topic into clear points, from fundamentals to subtleties. Attach a sourceRef to each point grounded in a source.',
-    LEVELS[input.level],
+    DETAILS[input.detail],
     SOURCES_RULE,
     `Write in ${ctx.language}.`,
   ].join('\n')

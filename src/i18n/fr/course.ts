@@ -101,7 +101,7 @@ export const course = {
   noSourcesBody: 'Les sources sont vos supports de cours : notes, PDF et photos. Cartes et fiches en sont tirées.',
   noSheetsTitle: 'Aucune fiche',
   noSheetsBody: 'Une fiche résume un sujet sur une page. L’IA en rédige une à partir de vos sources.',
-  understand: 'Expliquer un sujet',
+  newSheet: 'Nouvelle fiche',
   add: 'Ajouter',
   addTitle: 'Ajouter une source',
   pasteText: 'Coller du texte',

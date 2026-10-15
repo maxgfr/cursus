@@ -78,7 +78,7 @@ export const photos = {
   aiNoText: 'No text on this photo.',
   aiExplanation: 'Explanation',
   aiKeyPoints: 'To remember',
-  aiCiteable: 'Kept on this device: Understand can now use and cite this photo.',
+  aiCiteable: 'Kept on this device: study sheets can now use and cite this photo.',
   aiCards: 'Create cards from this photo',
   aiPhotos: 'Photos to use',
   aiThisPhoto: 'This photo',

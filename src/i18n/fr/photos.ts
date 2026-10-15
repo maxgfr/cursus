@@ -82,7 +82,7 @@ export const photos = {
   aiNoText: 'Aucun texte sur cette photo.',
   aiExplanation: 'Explication',
   aiKeyPoints: 'À retenir',
-  aiCiteable: 'Gardé sur cet appareil : « Comprendre » peut désormais utiliser et citer cette photo.',
+  aiCiteable: 'Gardé sur cet appareil : les fiches peuvent désormais utiliser et citer cette photo.',
   aiCards: 'Créer des cartes depuis cette photo',
   aiPhotos: 'Photos à utiliser',
   aiThisPhoto: 'Cette photo',

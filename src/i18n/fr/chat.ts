@@ -33,7 +33,7 @@ export const chat = {
   actionMnemonic: 'Un moyen mnémotechnique',
   actionSummarise: 'Résumez cette source',
   actionGenerate: 'Générer des cartes',
-  actionUnderstand: 'Expliquer un sujet',
+  actionWriteSheet: 'Écrire une fiche',
   actionQuiz: 'Interrogez-moi',
   actionApproach: 'Aidez-moi à aborder cette question',
   you: 'Vous',

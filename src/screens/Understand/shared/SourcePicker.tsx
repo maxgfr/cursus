@@ -53,17 +53,9 @@ const ICONS = { note: NotebookText, pdf: FileText, image: FileImage } as const
 const iconOf = (s: SourceRecord) =>
   s.support === 'deck' ? Presentation : s.support === 'document' ? FileText : ICONS[s.kind]
 
-/** Course, sources and optional pasted text an AI request is grounded in. */
-export function SourcePicker({ value, onChange }: { value: Selection; onChange: (s: Selection) => void }) {
-  const t = useT()
-  const courseId = useId()
-  const sectionId = useId()
-  const pasteId = useId()
-  const courses = useWorkspaceData(['courses'], (ws) => ws.courses.list())
-  const tree = useWorkspaceData(['sections'], (ws) => ws.sections.tree())
-  const sections = useMemo(() => sectionOptions(tree, value.courseId), [tree, value.courseId])
-  // Grounding stays inside the chosen course or section (descendants included).
-  const sources = useWorkspaceData(['sources', 'sections', { id: `${value.courseId}/${value.sectionId}` }], (ws) =>
+/** The sources a selection can pick from: those of its course or section, descendants included. */
+export function useScopedSources(value: Pick<Selection, 'courseId' | 'sectionId'>): readonly SourceRecord[] {
+  return useWorkspaceData(['sources', 'sections', { id: `${value.courseId}/${value.sectionId}` }], (ws) =>
     value.courseId === ''
       ? []
       : ws.scoped(
@@ -73,6 +65,18 @@ export function SourcePicker({ value, onChange }: { value: Selection; onChange: 
             : { courseId: value.courseId, sectionId: value.sectionId },
         ),
   )
+}
+
+/** Course, sources and optional pasted text an AI request is grounded in. */
+export function SourcePicker({ value, onChange }: { value: Selection; onChange: (s: Selection) => void }) {
+  const t = useT()
+  const courseId = useId()
+  const sectionId = useId()
+  const pasteId = useId()
+  const courses = useWorkspaceData(['courses'], (ws) => ws.courses.list())
+  const tree = useWorkspaceData(['sections'], (ws) => ws.sections.tree())
+  const sections = useMemo(() => sectionOptions(tree, value.courseId), [tree, value.courseId])
+  const sources = useScopedSources(value)
 
   // Default to the first course, and to all of its sources.
   useEffect(() => {

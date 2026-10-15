@@ -9,8 +9,8 @@ import {
   Image,
   Images,
   Layers,
-  Lightbulb,
   MessageCircleQuestion,
+  NotebookPen,
   NotebookText,
   Play,
   Plus,
@@ -64,11 +64,15 @@ const LazyFicheSheet = lazyChunk<import('../../ui/FicheSheet.tsx').FicheSheetPro
 
 type Tab = 'cards' | 'sources' | 'fiches'
 
-/** History state the course leaves itself: a trashed card or section to undo, or a calm "saved". */
+/**
+ * History state the course is opened with: a trashed card or section to undo, a calm "saved", or the tab to
+ * open on (a study sheet just saved opens the course on its study sheets).
+ */
 export interface CardNotice {
   trashedCard?: string
   trashedSection?: string
   cardSaved?: boolean
+  tab?: 'fiches'
 }
 
 const stateString = (state: unknown, key: 'trashedCard' | 'trashedSection'): string | null => {
@@ -79,6 +83,9 @@ const stateString = (state: unknown, key: 'trashedCard' | 'trashedSection'): str
 
 const savedFrom = (state: unknown): boolean =>
   typeof state === 'object' && state !== null && 'cardSaved' in state && state.cardSaved === true
+
+const tabFrom = (state: unknown): 'fiches' | null =>
+  typeof state === 'object' && state !== null && 'tab' in state && state.tab === 'fiches' ? 'fiches' : null
 
 const KIND_ICON = { note: FileText, pdf: FileText, image: Image } as const
 
@@ -98,7 +105,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   const t = useT()
   const rt = useRuntime()
   const [, navigate] = useLocation()
-  const [chosenTab, setTab] = useState<Tab | null>(null)
+  const [chosenTab, setTab] = useState<Tab | null>(() => tabFrom(history.state))
   const [addingSource, setAddingSource] = useState(false)
   const [moreCards, setMoreCards] = useState(false)
   const [settings, setSettings] = useState(false)
@@ -352,6 +359,13 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
     </>
   )
 
+  const newSheet = (
+    <Link href={withScope(paths.understand, scope)} className={buttonClass({ variant: 'primary' })}>
+      <NotebookPen size={18} aria-hidden="true" />
+      {t('course.newSheet')}
+    </Link>
+  )
+
   const title = section?.name ?? course.title
   const examDate = section === null ? course.examDate : section.examDate
 
@@ -411,12 +425,6 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
             <Button variant="primary" onClick={() => navigate(withScope(paths.review, scope))}>
               {t('common.start')}
             </Button>
-          )}
-          {aiReady && section !== null && (
-            <Link href={withScope(paths.understand, scope)} className={buttonClass({ variant: 'secondary' })}>
-              <Lightbulb size={18} aria-hidden="true" />
-              {t('course.understand')}
-            </Link>
           )}
           {aiReady && data.total > 0 && (
             <Link href={withScope(paths.quiz, scope)} className={buttonClass({ variant: 'secondary' })}>
@@ -590,28 +598,15 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
           )}
         </>
       )}
-      {aiReady && tab === 'fiches' && fiches.length > 0 && (
-        <div className={styles.actions}>
-          <Link href={withScope(paths.understand, scope)} className={buttonClass({ variant: 'secondary' })}>
-            <Lightbulb size={18} aria-hidden="true" />
-            {t('course.understand')}
-          </Link>
-        </div>
-      )}
+      {/* A study sheet is written from the sources on a topic: offered here, where sheets are read, once AI is ready. */}
+      {aiReady && tab === 'fiches' && fiches.length > 0 && <div className={styles.actions}>{newSheet}</div>}
       {tab === 'fiches' &&
         (fiches.length === 0 ? (
           <EmptyState
             icon={NotebookText}
             title={t('course.noSheetsTitle')}
             body={t('course.noSheetsBody')}
-            action={
-              aiReady ? (
-                <Link href={withScope(paths.understand, scope)} className={buttonClass({})}>
-                  <Sparkles size={18} aria-hidden="true" />
-                  {t('course.understand')}
-                </Link>
-              ) : undefined
-            }
+            action={aiReady ? newSheet : undefined}
           />
         ) : (
           <ListGroup title={t('course.tabSheets')} hideTitle>

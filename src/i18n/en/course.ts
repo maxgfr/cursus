@@ -96,7 +96,7 @@ export const course = {
   noSourcesBody: 'Sources are your course material: notes, PDFs and photos. Cards and study sheets are made from them.',
   noSheetsTitle: 'No study sheets yet',
   noSheetsBody: 'A study sheet sums up a topic on one page. The AI writes one from your sources.',
-  understand: 'Explain a topic',
+  newSheet: 'New study sheet',
   add: 'Add',
   addTitle: 'Add a source',
   pasteText: 'Paste text',

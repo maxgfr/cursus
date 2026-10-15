@@ -32,7 +32,7 @@ export const chat = {
   actionMnemonic: 'Eine Eselsbrücke',
   actionSummarise: 'Fass diese Quelle zusammen',
   actionGenerate: 'Karten erstellen',
-  actionUnderstand: 'Ein Thema erklären',
+  actionWriteSheet: 'Spickzettel schreiben',
   actionQuiz: 'Frag mich ab',
   actionApproach: 'Hilf mir, diese Frage anzugehen',
   you: 'Du',
