@@ -211,10 +211,19 @@ test('Planned sessions: create, show on Today, edit, add to calendar, delete wit
   await page.getByRole('switch', { name: 'Count toward the schedule' }).uncheck()
 
   // Add to calendar: a weekly event with an alarm.
+  // The name the app asks for; some browsers then rewrite it (WebKit on Linux turns spaces into '_').
+  await page.evaluate(() => {
+    const click = HTMLAnchorElement.prototype.click
+    HTMLAnchorElement.prototype.click = function (this: HTMLAnchorElement) {
+      if (this.download) document.documentElement.dataset.downloadName = this.download
+      click.call(this)
+    }
+  })
   const download = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Add to calendar' }).click()
   const file = await download
-  expect(file.suggestedFilename()).toBe('Evening law.ics')
+  expect(await page.evaluate(() => document.documentElement.dataset.downloadName)).toBe('Evening law.ics')
+  expect(file.suggestedFilename()).toMatch(/^Evening[ _]law\.ics$/)
   const ics = await readFile((await file.path()) ?? '', 'utf8')
   expect(ics).toContain('RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA,SU')
   expect(ics).toMatch(/DTSTART:\d{8}T235900/)

@@ -10,6 +10,8 @@ async function createDemo(page: Page, query = '', action = 'Try a demo course', 
   await page.goto(`./${query}#/onboarding`)
   await page.getByRole('button', { name: action }).click()
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
+  // The course screen slides in: let it come to rest before tapping its controls.
+  await settle(page)
 }
 
 /** Hash navigation inside the running page (no reload): the query (`?locale=…`) stays. */
@@ -24,7 +26,9 @@ async function go(page: Page, hash: string, heading: string | RegExp) {
 const route = (page: Page): string => new URL(page.url()).hash
 
 async function showSources(page: Page, label = 'Sources') {
-  await page.getByRole('radio', { name: label }).check({ force: true })
+  const tab = page.getByRole('radio', { name: label })
+  await tab.check()
+  await expect(tab).toBeChecked()
 }
 
 async function horizontalOverflow(page: Page): Promise<number> {
