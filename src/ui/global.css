@@ -12,15 +12,27 @@ html {
   background: var(--bg);
 }
 
-/* Phones and iPad portrait: what scrolls into view (a focused field, a control) stays clear of the tab bar. */
+/* What scrolls into view (a focused field, a control) stays clear of the on-screen keyboard while it is up. */
+html {
+  scroll-padding-bottom: calc(var(--kb-inset, 0px) + var(--space-4));
+}
+
+/* Phones and iPad portrait: and of the tab bar while the keyboard is down (it steps aside when it rises). */
 @media (max-width: 999px) {
-  html {
+  html:not([data-keyboard]) {
     scroll-padding-bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom) + var(--space-4));
   }
 }
 
+/* iOS keeps the page its full height under the keyboard: room below the content lets the end of a note scroll
+   above it. */
+html[data-keyboard] {
+  --kb-room: var(--kb-inset, 0px);
+}
+
 body {
   margin: 0;
+  padding-bottom: var(--kb-room, 0px);
   min-height: 100dvh;
   background: var(--bg);
   color: var(--ink);
