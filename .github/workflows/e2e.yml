@@ -22,7 +22,8 @@ jobs:
         with:
           bun-version: 1.4.3
       - run: bun install --frozen-lockfile
-      - run: bunx playwright install --with-deps ${{ startsWith(matrix.project, 'chromium') && 'chromium' || 'webkit' }}
+      # Both engines in every job: some specs pair a Chromium device with a WebKit one.
+      - run: bunx playwright install --with-deps chromium webkit
       - run: docker version
       - run: bun run build
       - run: bun run test:e2e --project=${{ matrix.project }}
