@@ -21,6 +21,8 @@ function whereIs(r: DestRecord): string {
       return `Google Drive · ${r.rootName}`
     case 'dropbox':
       return `Dropbox · Apps/Cursus${r.root ? `/${r.root}` : ''}`
+    case 'onedrive':
+      return `OneDrive · Apps/Cursus${r.root ? `/${r.root}` : ''}`
     case 'cloudkit':
       return `CloudKit · ${r.container} (${r.environment})`
     default:

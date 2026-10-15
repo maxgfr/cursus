@@ -1,7 +1,7 @@
 # Sync format, version 1
 
 This is the on-storage format Cursus writes to every destination (S3-compatible bucket, Google Drive,
-Dropbox, CloudKit, a local or iCloud Drive folder, a backup archive). It is described from the code in
+Dropbox, OneDrive, CloudKit, a local or iCloud Drive folder, a backup archive). It is described from the code in
 `src/core/log/codec.ts`, `src/core/log/blobs.ts`, `src/core/sync/**` and `src/core/crypto/**`.
 
 **Stability rule.** Version 1 never changes. Any change to a byte layout, key name, header field or
@@ -25,7 +25,7 @@ merge of every object present. There are two exceptions:
 
 ## Keys
 
-Keys are relative to the destination root (bucket prefix, Drive root folder, Dropbox app subfolder,
+Keys are relative to the destination root (bucket prefix, Drive root folder, Dropbox or OneDrive app subfolder,
 CloudKit record field `key`). Parsing is strict: a name that does not match one of these patterns exactly
 (for example `x 2.seg` left by a sync client, uppercase hex, extra directories) is ignored.
 
@@ -179,7 +179,7 @@ Per destination, a sync round lists, downloads what is missing, uploads what is 
 - A full listing (at start-up, every 30 minutes, and on "Verify") is the truth: a key confirmed earlier but
   absent from a full listing becomes unconfirmed again. Incremental listings use the provider's mechanism
   (S3 `start-after`, Drive `createdTime` after the last listing minus 15 minutes, Dropbox cursors, CloudKit
-  `BEGINS_WITH`); `keys/` and `ws/` are always listed.
+  `BEGINS_WITH`; OneDrive lists the folders under the prefix in full, a superset); `keys/` and `ws/` are always listed.
 - A library is shown as protected only when every local key is confirmed on at least one destination. A
   red banner appears when some local key has been confirmed nowhere for 24 hours.
 

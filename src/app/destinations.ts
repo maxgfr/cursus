@@ -72,6 +72,16 @@ export type DestRecord =
       sealed?: boolean
     }
   | {
+      kind: 'onedrive'
+      id: string
+      label: string
+      clientId: string
+      secretName: string
+      root: string
+      paused?: boolean
+      sealed?: boolean
+    }
+  | {
       kind: 'cloudkit'
       id: string
       label: string
@@ -187,6 +197,20 @@ export async function buildRemote(h: Host, r: DestRecord): Promise<RemoteStore |
       })
       return dropboxRemote({ fetch: webFetch, tokens, clock: h.clock, root: r.root })
     }
+    case 'onedrive': {
+      const [{ onedriveRemote }, { onedriveSession }] = await Promise.all([
+        import('../core/sync/providers/onedrive'),
+        import('../core/sync/providers/onedriveAuth'),
+      ])
+      const tokens = onedriveSession({
+        fetch: webFetch,
+        clientId: r.clientId,
+        secrets: vault(h),
+        clock: h.clock,
+        name: r.secretName,
+      })
+      return onedriveRemote({ fetch: webFetch, tokens, root: r.root })
+    }
     case 'cloudkit': {
       const [{ cloudkitRemote }, { cloudkitAuth }] = await Promise.all([
         import('../core/sync/providers/cloudkit'),
@@ -275,7 +299,7 @@ export async function commit(h: Host, engine: SyncEngineImpl, r: DestDraft): Pro
 }
 
 /**
- * Back from a provider with `?oauth=<key>`: finishes the pending Drive or Dropbox connection (CloudKit
+ * Back from a provider with `?oauth=<key>`: finishes the pending Drive, Dropbox or OneDrive connection (CloudKit
  * takes its own token when it next syncs). Returns the connected record, or null when nothing was pending.
  */
 export async function finishOAuth(h: Host, engine: SyncEngineImpl, key: string): Promise<DestRecord | null> {
@@ -297,6 +321,9 @@ export async function finishOAuth(h: Host, engine: SyncEngineImpl, key: string):
   } else if (draft.kind === 'dropbox') {
     const { finishDropbox } = await import('../core/sync/providers/dropboxAuth')
     await finishDropbox({ fetch: webFetch, clientId: draft.clientId, secrets: vault(h), clock: h.clock, params })
+  } else if (draft.kind === 'onedrive') {
+    const { finishOneDrive } = await import('../core/sync/providers/onedriveAuth')
+    await finishOneDrive({ fetch: webFetch, clientId: draft.clientId, secrets: vault(h), clock: h.clock, params })
   } else {
     return null
   }

@@ -15,8 +15,14 @@ export { clearOAuthParam, commit, finishOAuth, pendingOAuthKey } from '../../../
 /** Where every provider sends the user back (public/oauth-callback.html, next to the app). */
 export const redirectUri = (): string => new URL('oauth-callback.html', document.baseURI).href
 
-/** Starts a Google Drive or Dropbox consent: returns the URL to leave for (the log is sealed first). */
-export async function beginOAuth(rt: Runtime, r: Extract<DestDraft, { kind: 'gdrive' | 'dropbox' }>): Promise<string> {
+export type OAuthDraft = Extract<DestDraft, { kind: 'gdrive' | 'dropbox' | 'onedrive' }>
+
+/** The providers whose connection leaves for a consent page and comes back to oauth-callback.html. */
+export const isOAuth = (d: DestDraft): d is OAuthDraft =>
+  d.kind === 'gdrive' || d.kind === 'dropbox' || d.kind === 'onedrive'
+
+/** Starts a Google Drive, Dropbox or OneDrive consent: returns the URL to leave for (the log is sealed first). */
+export async function beginOAuth(rt: Runtime, r: OAuthDraft): Promise<string> {
   let url: string
   if (r.kind === 'gdrive') {
     const { beginAuth } = await import('../../../core/sync/providers/gdriveAuth')
@@ -26,6 +32,15 @@ export async function beginOAuth(rt: Runtime, r: Extract<DestDraft, { kind: 'gdr
       rng: rt.rng,
       secrets: vault(rt),
       secretName: r.secretName,
+      seal: () => rt.seal(),
+    })
+  } else if (r.kind === 'onedrive') {
+    const { beginOneDrive } = await import('../../../core/sync/providers/onedriveAuth')
+    url = await beginOneDrive({
+      clientId: r.clientId,
+      redirectUri: redirectUri(),
+      secrets: vault(rt),
+      name: r.secretName,
       seal: () => rt.seal(),
     })
   } else {

@@ -96,7 +96,7 @@ export function DestSheet({ rt, engine, scheduler, status: d, record, onClose, o
     run('reconnect', async () => {
       if (!record) return
       if (record.kind === 's3') return setEditing(true)
-      if (record.kind === 'gdrive' || record.kind === 'dropbox') {
+      if (record.kind === 'gdrive' || record.kind === 'dropbox' || record.kind === 'onedrive') {
         const { id: _id, ...draft } = record
         location.assign(await beginOAuth(rt, draft))
         return

@@ -208,6 +208,158 @@ test('Dropbox: coming back from consent finishes the connection', async ({ page 
   expect(new URL(page.url()).searchParams.has('oauth')).toBe(false)
 })
 
+test('Dropbox: the form asks only for the app key, keeps Webhooks out, and shows the exact redirect URI', async ({
+  page,
+}) => {
+  await open(page, '#/settings/sync', 'Sync & backup')
+  await page.getByRole('button', { name: /^Dropbox/ }).click()
+  const dialog = page.getByRole('dialog', { name: 'Dropbox' })
+  await expect(dialog.getByText(/Only the app key is needed: no app secret/)).toBeVisible()
+  await expect(dialog.getByText(/leave Webhooks empty/)).toBeVisible()
+  await expect(dialog.getByText(/OAuth 2 › Redirect URIs/)).toBeVisible()
+  // This page's own callback, under the app's base path.
+  const expected = new URL('oauth-callback.html', page.url()).href
+  expect(expected).toMatch(/\/cursus\/oauth-callback\.html$/)
+  await expect(dialog.getByTestId('redirect-uri')).toHaveText(expected)
+  await expect(dialog.getByRole('button', { name: 'Copy address' })).toBeVisible()
+  await expect(dialog.getByLabel('App key')).toBeVisible()
+  await expect(dialog.getByLabel(/secret/i)).toHaveCount(0)
+})
+
+test('OneDrive: coming back from consent connects; a sign-in that expired asks to reconnect', async ({ page }) => {
+  const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*' }
+  let exchanged = ''
+  let refreshed = 0
+  await page.route('https://login.microsoftonline.com/**', (route) => {
+    const req = route.request()
+    const url = new URL(req.url())
+    if (url.pathname.endsWith('/authorize')) {
+      const state = url.searchParams.get('state') ?? ''
+      const back = new URL(`oauth-callback.html?code=granted&state=${encodeURIComponent(state)}`, page.url())
+      const html = `<!doctype html><meta http-equiv="refresh" content="0;url=${back.href}">`
+      return route.fulfill({ status: 200, contentType: 'text/html', body: html })
+    }
+    if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors })
+    const body = req.postData() ?? ''
+    const headers = { ...cors, 'content-type': 'application/json' }
+    if (body.includes('grant_type=authorization_code')) {
+      exchanged = body
+      return route.fulfill({
+        status: 200,
+        headers,
+        body: JSON.stringify({ access_token: 'a', refresh_token: 'r', expires_in: 3600 }),
+      })
+    }
+    // The 24-hour refresh token of a single-page app has run out.
+    refreshed++
+    return route.fulfill({ status: 400, headers, body: JSON.stringify({ error: 'invalid_grant' }) })
+  })
+  await page.route('https://graph.microsoft.com/**', (route) =>
+    route.request().method() === 'OPTIONS'
+      ? route.fulfill({ status: 204, headers: cors })
+      : route.fulfill({ status: 401, headers: { ...cors, 'content-type': 'application/json' }, body: '{}' }),
+  )
+
+  await open(page, '#/settings/sync', 'Sync & backup')
+  await page.getByRole('button', { name: /^Microsoft OneDrive/ }).click()
+  const dialog = page.getByRole('dialog', { name: 'Microsoft OneDrive' })
+  await expect(dialog.getByText(/no client secret/)).toBeVisible()
+  await expect(dialog.getByTestId('redirect-uri')).toHaveText(new URL('oauth-callback.html', page.url()).href)
+  await dialog.getByLabel('Application (client) ID').fill('client-123')
+  await dialog.getByRole('button', { name: 'Connect' }).click()
+  await page.waitForURL(/\?oauth=oauth%3A/)
+  await expect(page.getByRole('status').filter({ hasText: 'OneDrive is connected.' })).toBeVisible()
+  expect(exchanged).toContain('code=granted')
+  expect(exchanged).toContain('client_id=client-123')
+  expect(exchanged).toContain('code_verifier=')
+  expect(exchanged).not.toContain('client_secret')
+  await page.evaluate(() => {
+    location.hash = '#/settings/sync'
+  })
+  const row = page.getByRole('region', { name: 'Backups' }).getByRole('button', { name: /OneDrive/ })
+  await expect(row).toContainText('Sign in again to keep syncing', { timeout: 20_000 })
+  expect(refreshed).toBeGreaterThan(0)
+  await row.click()
+  await expect(page.getByRole('dialog', { name: 'OneDrive' }).getByRole('button', { name: 'Reconnect' })).toBeVisible()
+})
+
+/** Moves inside the running app (no reload: the stubbed share sheet keeps what it received). */
+async function within(page: Page, hash: string, heading: string | RegExp) {
+  await page.evaluate((h) => {
+    location.hash = h
+  }, hash)
+  await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible()
+}
+
+test('Backup file: Save backup… hands the file to the share sheet, and Today recalls a week-old backup', async ({
+  page,
+}) => {
+  // The share sheet of iPhone, stubbed: it records the files handed to it.
+  await page.addInitScript(() => {
+    const shared: { name: string; type: string; size: number }[] = []
+    Object.assign(window, { __shared: shared })
+    Object.defineProperty(navigator, 'canShare', {
+      configurable: true,
+      value: (d: ShareData) => (d.files?.length ?? 0) > 0,
+    })
+    Object.defineProperty(navigator, 'share', {
+      configurable: true,
+      value: async (d: ShareData) => {
+        for (const f of d.files ?? []) shared.push({ name: f.name, type: f.type, size: f.size })
+      },
+    })
+  })
+  await createCourse(page, 'Cardiology')
+  await page.goto('./#/')
+  await page.getByRole('link', { name: 'Write a card' }).click()
+  await page.getByRole('textbox', { name: 'Front' }).click()
+  await page.keyboard.type('What does the sinoatrial node do?')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 2, name: '1 card due today' })).toBeVisible()
+  await expect(page.getByTestId('backup-line')).toContainText('No backup yet')
+
+  await within(page, '#/settings/data', 'Data')
+  await page.getByRole('button', { name: 'Save backup…' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Backup file saved.' })).toBeVisible({ timeout: 20_000 })
+  const shared = await page.evaluate(
+    () => (window as unknown as { __shared: { name: string; type: string; size: number }[] }).__shared,
+  )
+  expect(shared).toHaveLength(1)
+  expect(shared[0]?.name).toMatch(/^cursus-\d{4}-\d{2}-\d{2}\.cursus$/)
+  expect(shared[0]?.type).toBe('application/vnd.cursus+zip')
+  expect(shared[0]?.size).toBeGreaterThan(0)
+  await within(page, '#/', /Today/)
+  await expect(page.getByTestId('backup-line')).toHaveCount(0)
+
+  // Eight days later (the device kept the time of the last file), with no automatic backup.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const req = indexedDB.open('cursus-v1')
+        req.onerror = () => reject(req.error)
+        req.onsuccess = () => {
+          const tx = req.result.transaction('kv', 'readwrite')
+          tx.objectStore('kv').put(Date.now() - 8 * 86_400_000, 'backup:lastExport')
+          tx.oncomplete = () => {
+            req.result.close()
+            resolve()
+          }
+          tx.onerror = () => reject(tx.error)
+        }
+      }),
+  )
+  await within(page, '#/settings', 'Settings')
+  await within(page, '#/', /Today/)
+  await expect(page.getByTestId('backup-line')).toContainText('Last backup 8 days ago')
+  await page.getByRole('link', { name: 'Save a backup' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Data' })).toBeVisible()
+  await page.getByRole('button', { name: 'Save backup…' }).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Backup file saved.' })).toBeVisible({ timeout: 20_000 })
+  await within(page, '#/', /Today/)
+  await expect(page.getByRole('heading', { level: 2, name: '1 card due today' })).toBeVisible()
+  await expect(page.getByTestId('backup-line')).toHaveCount(0)
+})
+
 test('a remembered backup syncs from launch, without opening Settings', async ({ page }) => {
   test.setTimeout(90_000)
   const bucket = await newBucket()

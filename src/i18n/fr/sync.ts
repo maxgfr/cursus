@@ -123,7 +123,7 @@ export const sync = {
   clientSecret: 'Secret client',
   clientSecretHint: 'Seulement si votre client l’exige. Il reste sur cet appareil.',
   folderName: 'Nom du dossier',
-  dropboxHelp: 'Utilisez votre propre app Dropbox (accès au dossier d’app). Les fichiers vont dans Apps/Cursus.',
+  dropboxHelp: 'Utilisez votre propre app Dropbox (Scoped access, dossier d’app). Les fichiers vont dans Apps/Cursus.',
   appKey: 'Clé d’app',
   subfolder: 'Sous-dossier',
   subfolderHint: 'Facultatif, dans le dossier d’app.',
@@ -210,4 +210,23 @@ export const sync = {
   fileSub: 'Un fichier .cursus que vous enregistrez et gardez vous-même. Pas automatique.',
   nearbySub: 'Transmet vos sauvegardes à un autre appareil à côté de vous.',
   ownAppKey: 'Demande votre propre clé d’application.',
+  onedrive: 'Microsoft OneDrive',
+  onedriveSub: 'Votre compte Microsoft. Automatique sur tous vos appareils, iPad et iPhone compris.',
+  dropboxKeyOnly:
+    'Seule la clé d’app est nécessaire : pas de secret (Cursus se connecte avec PKCE), et ne mettez rien dans Webhooks.',
+  dropboxRedirect: 'Dans la console d’apps Dropbox, sous Settings › OAuth 2 › Redirect URIs, ajoutez exactement :',
+  onedriveHelp:
+    'Utilisez votre propre inscription d’application dans le portail Azure (application monopage, autorisation Files.ReadWrite.AppFolder). Les fichiers vont dans Apps/Cursus de votre OneDrive.',
+  onedriveKeyOnly:
+    'Seul l’ID d’application (client) est nécessaire : pas de secret client (Cursus se connecte avec PKCE).',
+  onedriveRedirect: 'Sous Authentification › Application monopage › URI de redirection, ajoutez exactement :',
+  onedriveClientId: 'ID d’application (client)',
+  copyUri: 'Copier l’adresse',
+  copied: 'Copié',
+  saveBackup: 'Enregistrer la sauvegarde…',
+  lastBackupDays: {
+    one: 'Dernière sauvegarde il y a {count} jour',
+    other: 'Dernière sauvegarde il y a {count} jours',
+  },
+  lastBackupAction: 'Enregistrer une sauvegarde',
 } as const satisfies Shape<typeof en>

@@ -1,5 +1,6 @@
 import { type ChangeEvent, useCallback, useEffect, useState } from 'react'
 import { noteLoadFailure } from '../../../app/chunkGuard.ts'
+import { noteBackup } from '../../../app/lastBackup.ts'
 import { paths } from '../../../app/routes.ts'
 import { useWorkspaceData } from '../../../app/workspaceContext.tsx'
 import { formatNumber } from '../../../i18n/format.ts'
@@ -16,6 +17,7 @@ import styles from '../Sync/settings.module.css'
 import { AnkiImport } from './AnkiImport.tsx'
 import { EraseSection } from './EraseSection.tsx'
 import { GuardSection } from './GuardSection.tsx'
+import { canShareFiles, saveFile } from './saveFile.ts'
 
 const MB = 1024 * 1024
 
@@ -36,6 +38,13 @@ export default function DataSettings() {
   const [message, setMessage] = useState<string | null>(null)
   const [partial, setPartial] = useState<string | null>(null)
   const courses = useWorkspaceData(['courses'], (w) => w.courses.list())
+  // Where the share sheet takes files (iPhone, iPad), the backup goes there: « Save to Files ».
+  const [shareable, setShareable] = useState(false)
+  useEffect(() => {
+    import('../../../core/sync/providers/zip')
+      .then(({ CURSUS_MIME }) => setShareable(canShareFiles(CURSUS_MIME)))
+      .catch((e: unknown) => void noteLoadFailure('data.share', e, noteError))
+  }, [])
 
   const measure = useCallback(async () => {
     const { persisted, estimate } = await import('../../../core/storage/persist')
@@ -61,12 +70,17 @@ export default function DataSettings() {
       done(ok ? t('settings.persistGranted') : t('settings.persistRefused'))
     })
 
-  const backup = () =>
-    run('backup', async () => {
+  /** Exports the library as a file: downloaded, or handed to the share sheet (« Save to Files » on iPhone). */
+  const backup = (share = false) =>
+    run(share ? 'share' : 'backup', async () => {
       if (!engine) return
       const { CURSUS_EXT, CURSUS_MIME } = await import('../../../core/sync/providers/zip')
       const { bytes, missingFiles } = await exportBackup(rt, engine)
-      download(bytes, `cursus-${stamp()}${CURSUS_EXT}`, CURSUS_MIME)
+      const name = `cursus-${stamp()}${CURSUS_EXT}`
+      if (share) {
+        if ((await saveFile(bytes, name, CURSUS_MIME)) === 'cancelled') return
+      } else download(bytes, name, CURSUS_MIME)
+      await noteBackup(rt.store, rt.clock.now())
       // Complete only when nothing the library refers to was left out.
       if (missingFiles === 0) done(t('settings.backupDone'))
       else {
@@ -207,7 +221,17 @@ export default function DataSettings() {
           </h2>
           <p className={styles.prose}>{t('settings.backupBody')}</p>
           <div className={styles.actions}>
-            <Button variant="primary" onClick={backup} loading={busy === 'backup'} disabled={!engine}>
+            {shareable && (
+              <Button variant="primary" onClick={() => backup(true)} loading={busy === 'share'} disabled={!engine}>
+                {t('sync.saveBackup')}
+              </Button>
+            )}
+            <Button
+              variant={shareable ? 'secondary' : 'primary'}
+              onClick={() => backup()}
+              loading={busy === 'backup'}
+              disabled={!engine}
+            >
               {t('settings.backupExport')}
             </Button>
             <Button onClick={markdown} loading={busy === 'markdown'}>
@@ -286,7 +310,7 @@ export default function DataSettings() {
 
         <GuardSection />
 
-        <EraseSection onBackup={backup} backingUp={busy === 'backup'} />
+        <EraseSection onBackup={() => backup()} backingUp={busy === 'backup'} />
       </div>
       {confirmSheet}
     </Screen>

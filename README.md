@@ -38,10 +38,11 @@ reports a library as protected only when everything is confirmed on at least one
 | S3-compatible storage (Cloudflare R2, AWS S3, Backblaze B2, MinIO) | [docs/setup-s3.md](docs/setup-s3.md) |
 | Google Drive | [docs/setup-google-drive.md](docs/setup-google-drive.md) |
 | Dropbox | [docs/setup-dropbox.md](docs/setup-dropbox.md) |
+| Microsoft OneDrive | [docs/setup-onedrive.md](docs/setup-onedrive.md) |
 | iCloud (CloudKit) | [docs/setup-icloud.md](docs/setup-icloud.md) |
 | Folder on this device, including an iCloud Drive folder | Chrome or Edge on a Mac or PC; synced while the tab is open |
 | Nearby device | pairing copies destinations and keys between two devices directly |
-| Backup file | export and import under *Data*, works everywhere |
+| Backup file | export and import under *Data*, works everywhere; on iPhone and iPad *Save backup…* opens the share sheet (*Save to Files*) |
 
 Each provider uses your own app or bucket credentials, kept only on the device. A destination can be
 sealed with a passphrase: objects are then encrypted on the device with AES-256-GCM before upload. Without

@@ -25,6 +25,7 @@ import { newCardId } from '../CardEditor/draft.ts'
 import { formatInterval } from '../Review/interval.ts'
 import { formatWhen } from '../Sessions/describe.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
+import { BackupLine } from './BackupLine.tsx'
 import { CourseRows } from './CourseRows.tsx'
 import { InstallHint } from './InstallHint.tsx'
 import { LeadLine } from './LeadLine.tsx'
@@ -309,14 +310,7 @@ export default function Today() {
           <Suspense fallback={null}>
             <DraftsLine hidden={study.due === 0} />
           </Suspense>
-          {hasData && status !== null && !backedUp && (
-            <p className={styles.backup} data-testid="backup-line">
-              {t('today.backupLine')} ·{' '}
-              <Link href={paths.settingsSync} className={styles.backupLink}>
-                {t('today.backupAction')}
-              </Link>
-            </p>
-          )}
+          {hasData && status !== null && <BackupLine hasDestination={hasDestination} backedUp={backedUp} />}
           {hasData && install}
           <ListGroup title={t('today.courses')}>
             <CourseRows courses={study.courses} />

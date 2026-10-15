@@ -3,6 +3,8 @@ import { useT } from '../../../i18n/react.tsx'
 import { Button } from '../../../ui/components/Button.tsx'
 import { Field } from '../../../ui/components/Field.tsx'
 import { Segmented } from '../../../ui/components/Segmented.tsx'
+import { appFolderDraft } from './builtIn.ts'
+import { redirectUri } from './connect.ts'
 import { errorText } from './hooks.tsx'
 import type { DestDraft } from './registry.ts'
 import styles from './settings.module.css'
@@ -85,25 +87,53 @@ export function DriveForm({ onSubmit }: FormProps) {
   )
 }
 
-export function DropboxForm({ onSubmit }: FormProps) {
+/** The callback page to register with a provider, exactly, with a button that copies it. */
+function RedirectUri({ help }: { help: string }) {
+  const t = useT()
+  const [copied, setCopied] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const uri = redirectUri()
+  return (
+    <div className={styles.section}>
+      <p className={styles.prose}>{help}</p>
+      <code className={styles.uri} data-testid="redirect-uri">
+        {uri}
+      </code>
+      <div className={styles.actions}>
+        <Button
+          variant="plain"
+          onClick={async () => {
+            setError(null)
+            try {
+              await navigator.clipboard.writeText(uri)
+              setCopied(true)
+            } catch (err) {
+              setError(errorText(t, err))
+            }
+          }}
+        >
+          {copied ? t('sync.copied') : t('sync.copyUri')}
+        </Button>
+      </div>
+      <ErrorLine error={error} />
+    </div>
+  )
+}
+
+/** Dropbox or OneDrive with the student's own app: only its public id, no secret (PKCE). */
+function AppFolderForm({ kind, onSubmit }: FormProps & { kind: 'dropbox' | 'onedrive' }) {
   const t = useT()
   const [clientId, setClientId] = useState('')
   const [root, setRoot] = useState('')
   const { busy, error, submit } = useSubmit(onSubmit)
+  const dropbox = kind === 'dropbox'
   return (
-    <form
-      className={styles.form}
-      onSubmit={submit(() => ({
-        kind: 'dropbox',
-        label: root.trim() ? `Dropbox · ${root.trim()}` : 'Dropbox',
-        clientId: clientId.trim(),
-        root: root.trim(),
-        secretName: `dropbox:${root.trim() || 'root'}`,
-      }))}
-    >
-      <p className={styles.prose}>{t('sync.dropboxHelp')}</p>
+    <form className={styles.form} onSubmit={submit(() => appFolderDraft(kind, clientId, root))}>
+      <p className={styles.prose}>{dropbox ? t('sync.dropboxHelp') : t('sync.onedriveHelp')}</p>
+      <p className={styles.prose}>{dropbox ? t('sync.dropboxKeyOnly') : t('sync.onedriveKeyOnly')}</p>
+      <RedirectUri help={dropbox ? t('sync.dropboxRedirect') : t('sync.onedriveRedirect')} />
       <Field
-        label={t('sync.appKey')}
+        label={dropbox ? t('sync.appKey') : t('sync.onedriveClientId')}
         autoComplete="off"
         spellCheck={false}
         value={clientId}
@@ -126,6 +156,9 @@ export function DropboxForm({ onSubmit }: FormProps) {
     </form>
   )
 }
+
+export const DropboxForm = ({ onSubmit }: FormProps) => <AppFolderForm kind="dropbox" onSubmit={onSubmit} />
+export const OneDriveForm = ({ onSubmit }: FormProps) => <AppFolderForm kind="onedrive" onSubmit={onSubmit} />
 
 export function CloudKitForm({ onSubmit }: FormProps) {
   const t = useT()

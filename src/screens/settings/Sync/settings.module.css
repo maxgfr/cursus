@@ -281,3 +281,15 @@
 .advanced > summary:hover {
   background: var(--surface-pressed);
 }
+
+.uri {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: var(--text-footnote);
+  background: var(--surface-pressed);
+  color: var(--ink);
+  border-radius: var(--radius-control);
+  overflow-wrap: anywhere;
+  user-select: all;
+}

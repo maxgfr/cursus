@@ -1,4 +1,4 @@
-import { Box, Cloud, CloudCog, FileArchive, FolderOpen, Server, Smartphone, Triangle } from 'lucide-react'
+import { Box, Cloud, CloudCog, FileArchive, FolderOpen, HardDrive, Server, Smartphone, Triangle } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { paths } from '../../../app/routes.ts'
 import { useT } from '../../../i18n/react.tsx'
@@ -10,10 +10,11 @@ import { Sheet } from '../../../ui/components/Sheet.tsx'
 import { Screen } from '../../../ui/shell/Screen.tsx'
 import { noteError } from '../Diagnostic/recent.ts'
 import { UpdateControl } from '../General/update.tsx'
-import { beginOAuth, cloudkitSignIn, commit, folderSupported, pickFolder } from './connect.ts'
+import { oneClickDraft } from './builtIn.ts'
+import { beginOAuth, cloudkitSignIn, commit, folderSupported, isOAuth, pickFolder } from './connect.ts'
 import { DestSheet, stateText } from './DestSheet.tsx'
 import { errorText, useAction, useDestinations, useWorkspaceConfirm } from './hooks.tsx'
-import { CloudKitForm, DriveForm, DropboxForm, FolderForm } from './ProviderForms.tsx'
+import { CloudKitForm, DriveForm, DropboxForm, FolderForm, OneDriveForm } from './ProviderForms.tsx'
 import { recommended, thisDevice } from './pick.ts'
 import { type DestDraft, DestinationError, type DestKind, syncNow } from './registry.ts'
 import { S3Form } from './S3Form.tsx'
@@ -54,7 +55,7 @@ export default function SyncSettings() {
 
   const submitOAuth = async (d: DestDraft) => {
     if (!engine) return
-    if (d.kind === 'gdrive' || d.kind === 'dropbox') {
+    if (isOAuth(d)) {
       location.assign(await beginOAuth(rt, d))
       return
     }
@@ -88,8 +89,14 @@ export default function SyncSettings() {
     {
       kind: 'dropbox',
       title: t('sync.dropbox'),
-      subtitle: `${t('sync.dropboxSub')} ${t('sync.ownAppKey')}`,
+      subtitle: oneClickDraft('dropbox') ? t('sync.dropboxSub') : `${t('sync.dropboxSub')} ${t('sync.ownAppKey')}`,
       icon: <Box size={ICON} />,
+    },
+    {
+      kind: 'onedrive',
+      title: t('sync.onedrive'),
+      subtitle: oneClickDraft('onedrive') ? t('sync.onedriveSub') : `${t('sync.onedriveSub')} ${t('sync.ownAppKey')}`,
+      icon: <HardDrive size={ICON} />,
     },
   ]
   const advanced: Kind[] = [
@@ -106,7 +113,12 @@ export default function SyncSettings() {
       title={k.title}
       subtitle={k.subtitle}
       trailing={k.kind === best ? <span className={styles.recommended}>{t('sync.recommended')}</span> : undefined}
-      onClick={() => setAdding(k.kind)}
+      onClick={() => {
+        // With Cursus's own app key, the provider's consent page is one tap away; otherwise the form asks for one.
+        const quick = oneClickDraft(k.kind)
+        if (quick && engine) void run('oauth', () => submitOAuth(quick))
+        else setAdding(k.kind)
+      }}
       chevron
     />
   )
@@ -234,6 +246,8 @@ export default function SyncSettings() {
           <DriveForm onSubmit={submitOAuth} />
         ) : adding === 'dropbox' ? (
           <DropboxForm onSubmit={submitOAuth} />
+        ) : adding === 'onedrive' ? (
+          <OneDriveForm onSubmit={submitOAuth} />
         ) : adding === 'cloudkit' ? (
           <CloudKitForm onSubmit={submitOAuth} />
         ) : adding === 'folder' || adding === 'icloud' ? (

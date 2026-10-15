@@ -15,7 +15,8 @@ type Role = 'host' | 'guest'
 const env = () => ({ RTCPeerConnection })
 
 /** Secrets a destination record points to (OAuth grants), handed over with it. */
-const secretNames = (r: DestRecord): string[] => (r.kind === 'gdrive' || r.kind === 'dropbox' ? [r.secretName] : [])
+const secretNames = (r: DestRecord): string[] =>
+  r.kind === 'gdrive' || r.kind === 'dropbox' || r.kind === 'onedrive' ? [r.secretName] : []
 
 function isRecord(x: unknown): x is DestRecord {
   return typeof x === 'object' && x !== null && 'kind' in x && 'id' in x && 'label' in x
