@@ -442,12 +442,13 @@ test.describe('on-device model, engine injected', () => {
   })
 
   test('a download that would crowd out the library is refused and explained', async ({ page }) => {
-    await stubDevice(page, { gpu: 'ok', storage: { usage: 100_000_000, quota: 2_000_000_000 } })
+    // 1.4 GB free: the default model (about 0.5 GB) would leave less than the library's 1.1 GB.
+    await stubDevice(page, { gpu: 'ok', storage: { usage: 100_000_000, quota: 1_500_000_000 } })
     await injectEngine(page)
     await openAi(page)
     await expect(
       card(page).getByText(
-        /^Not enough free space: the model needs .+, 1\.9 GB is free, and Cursus keeps 1\.1 GB for your library\.$/,
+        /^Not enough free space: the model needs .+, 1\.4 GB is free, and Cursus keeps 1\.1 GB for your library\.$/,
       ),
     ).toBeVisible()
     await expect(card(page).getByRole('button', { name: /^Download/ })).toBeDisabled()

@@ -57,7 +57,7 @@ while the app is closed.
 Understanding a source, generating and improving cards, explanations, quizzes, answer grading and the chat
 can use a language model, in one of two ways:
 
-- **On this device**: a model (Gemma 4 E2B where the device has room for it) downloads once and runs in the browser through
+- **On this device**: a model (Qwen 3.5 0.8B where the device has room for it, about 0.4 GB) downloads once and runs in the browser through
   WebGPU. It is free, works offline, and nothing leaves the device.
 - **Your own key** for a provider that can be called from a browser (for example OpenAI, Anthropic, Google
   or OpenRouter); requests go directly from the device to that provider. The key stays on the device and is

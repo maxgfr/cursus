@@ -64,13 +64,14 @@ export function downloadBytesOf(model: BrowserModel): number | null {
 }
 
 /** The default model, in whichever build (fp16 or fp32) the device runs. */
-export const DEFAULT_LOCAL_SERIES = 'gemma-4'
-export const DEFAULT_LOCAL_PARAMS_B = 2
+export const DEFAULT_LOCAL_SERIES = 'Qwen3.5'
+export const DEFAULT_LOCAL_PARAMS_B = 0.8
 
 const isDefaultLocal = (m: BrowserModel) => m.series === DEFAULT_LOCAL_SERIES && m.params_b === DEFAULT_LOCAL_PARAMS_B
 
 /**
- * The model this device should run: Gemma 4 E2B when the device fits it, otherwise the best one
+ * The model this device should run: Qwen 3.5 0.8B (0.4 GB of weights, about 1.6 GB of GPU memory, structured
+ * output and multilingual) when the device fits it, otherwise the best one
  * llm-models ranks among the models the engine knows (its catalog may list builds newer than the
  * installed WebLLM), against the GPU memory budget, the adapter's fp16 support and its storage-buffer
  * limit. Nothing fitting means too little memory.

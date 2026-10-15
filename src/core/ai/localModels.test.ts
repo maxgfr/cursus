@@ -59,11 +59,11 @@ function report(budget: number, shaderF16: boolean, lowResource = false): LocalD
 }
 
 describe('recommendation', () => {
-  test('8 GiB of RAM with fp16: 4096 MB, Gemma 4 E2B by default, then llm-models ranking', async () => {
+  test('8 GiB of RAM with fp16: 4096 MB, Qwen 3.5 0.8B by default, then llm-models ranking', async () => {
     const r = recommendLocal(await detected(8), ENGINE_IDS)
-    expect(r.supported && r.choice.model.id).toBe('gemma-4-E2B-it-q4f16_1-MLC')
+    expect(r.supported && r.choice.model.id).toBe('Qwen3.5-0.8B-q4f16_1-MLC')
     expect(r.supported && r.choice.reason).toContain('4096 MB budget')
-    expect(r.supported && r.choice.memoryMB).toBe(model('gemma-4-E2B-it-q4f16_1-MLC').vram_required_mb)
+    expect(r.supported && r.choice.memoryMB).toBe(model('Qwen3.5-0.8B-q4f16_1-MLC').vram_required_mb)
     const runnable = listBrowserModels().filter((m) => ENGINE_IDS.has(m.id))
     const ranked = recommendBrowserModel(
       { vram_budget_mb: 4096, needs: [...LOCAL_NEEDS], shader_f16: true, low_resource: false },
@@ -72,19 +72,19 @@ describe('recommendation', () => {
     if (!ranked) throw new Error('llm-models ranks nothing at 4096 MB')
     expect(r.supported && r.choice.alternatives[0]?.id).toBe('Qwen3.5-4B-q4f16_1-MLC')
     expect(r.supported && r.choice.alternatives.map((m) => m.id)).toEqual(
-      [ranked.model, ...ranked.alternatives].map((m) => m.id).filter((id) => !id.startsWith('gemma-4-E2B')),
+      [ranked.model, ...ranked.alternatives].map((m) => m.id).filter((id) => !id.startsWith('Qwen3.5-0.8B')),
     )
   })
 
-  test('without fp16 the default is the q4f32 Gemma 4 E2B build', async () => {
+  test('without fp16 the default is the q4f32 Qwen 3.5 0.8B build', async () => {
     const r = recommendLocal(await detected(8, fakeGpu({ shaderF16: false })), ENGINE_IDS)
-    expect(r.supported && r.choice.model.id).toBe('gemma-4-E2B-it-q4f32_1-MLC')
+    expect(r.supported && r.choice.model.id).toBe('Qwen3.5-0.8B-q4f32_1-MLC')
   })
 
-  test('too little memory for Gemma 4 E2B: llm-models picks a smaller model', () => {
+  test('too little memory for Qwen 3.5 0.8B: llm-models picks a smaller model', () => {
     for (const [budget, f16] of [
-      [3000, true],
-      [3500, false],
+      [1500, true],
+      [1800, false],
     ] as const) {
       const r = recommendLocal(report(budget, f16), ENGINE_IDS)
       const runnable = listBrowserModels().filter((m) => ENGINE_IDS.has(m.id))
@@ -92,8 +92,9 @@ describe('recommendation', () => {
         { vram_budget_mb: budget, needs: [...LOCAL_NEEDS], shader_f16: f16, low_resource: false },
         runnable,
       )
+      expect(expected).not.toBeNull()
       expect(r.supported && r.choice.model.id).toBe(expected?.model.id ?? false)
-      expect(r.supported && r.choice.model.series).not.toBe('gemma-4')
+      expect(r.supported && r.choice.model.id).not.toStartWith('Qwen3.5-0.8B')
     }
   })
 
@@ -110,11 +111,20 @@ describe('recommendation', () => {
       ],
     ] as const) {
       const runnable = listBrowserModels().filter((m) => ENGINE_IDS.has(m.id))
-      const expected = recommendBrowserModel({ ...opts, needs: [...LOCAL_NEEDS] }, runnable)
+      const options = { ...opts, needs: [...LOCAL_NEEDS] }
+      const ranked = recommendBrowserModel(options, runnable)
+      // The default model wherever it fits these options; llm-models' ranking for the rest.
+      const isDefault = (id: string) => id.startsWith('Qwen3.5-0.8B')
+      const preferred = recommendBrowserModel(
+        options,
+        runnable.filter((m) => isDefault(m.id)),
+      )
       const r = recommendLocal(d, ENGINE_IDS)
-      expect(r.supported && r.choice.model.id).toBe(expected?.model.id ?? false)
+      expect(r.supported && r.choice.model.id).toBe(preferred?.model.id ?? ranked?.model.id ?? false)
       expect(r.supported && r.choice.alternatives.map((m) => m.id)).toEqual(
-        expected?.alternatives.map((m) => m.id) ?? [],
+        preferred
+          ? [ranked?.model, ...(ranked?.alternatives ?? [])].flatMap((m) => (m && !isDefault(m.id) ? [m.id] : []))
+          : (ranked?.alternatives.map((m) => m.id) ?? []),
       )
     }
   })
