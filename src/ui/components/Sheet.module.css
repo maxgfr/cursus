@@ -41,9 +41,12 @@
   padding: var(--space-2) var(--space-5) var(--space-5);
 }
 
+/*
+ * Movement only, no fade: the sheet's text keeps its full contrast from the first frame (a lagging opacity
+ * under load would otherwise leave it faded for a while).
+ */
 @keyframes rise {
   from {
-    opacity: 0;
     transform: translateY(1rem);
   }
 }
@@ -112,7 +115,6 @@
 
 @keyframes slide {
   from {
-    opacity: 0;
     transform: translateX(1.5rem);
   }
 }
