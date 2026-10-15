@@ -557,3 +557,14 @@ test('Quiz scores answers without touching the review schedule', async ({ page }
   await expect(page.getByText('Score: 1 / 2')).toBeVisible()
   await expect(page.getByText('Not quite')).toBeVisible()
 })
+
+test('Quiz can cover everything: the model decides how many questions it takes', async ({ page }) => {
+  const prompts = await mockProvider(page)
+  await configure(page)
+  await page.goto('./#/quiz')
+  await page.getByLabel('Paste text (optional)').fill('Chlorophyll captures light; CO2 is fixed in the stroma.')
+  await page.getByRole('radio', { name: 'All', exact: true }).check({ force: true })
+  await page.getByRole('button', { name: 'Start quiz' }).click()
+  await expect(page.getByRole('radio', { name: 'Chlorophyll' })).toBeVisible()
+  expect(prompts.at(-1)).toContain('cover every key point of the sources')
+})

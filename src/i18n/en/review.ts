@@ -76,6 +76,8 @@ export const review = {
   kindHintFailed: 'Cards you forgot in the last 7 days.',
   kindHintNew: 'Cards you haven’t studied yet.',
   kindHintAll: 'Every card here, the shakiest first.',
+  sessionEvery: 'Every matching card',
+  sessionEveryHint: 'No limit: the session holds every card that matches.',
   sessionLimit: 'Number of cards',
   sessionLimitHint: 'At most this many cards.',
   sessionLimitInvalid: 'Enter a whole number from 1 to 999.',

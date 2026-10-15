@@ -59,6 +59,7 @@ export const ai = {
   front: 'Recto de la carte {n}',
   back: 'Verso de la carte {n}',
   questionCount: 'Nombre de questions',
+  quizAll: 'Tout',
   startQuiz: 'Lancer le quiz',
   quizNoFsrs: 'Entraînement seulement : votre planning de révision ne change pas.',
   checkAnswers: 'Vérifier les réponses',

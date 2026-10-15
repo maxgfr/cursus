@@ -23,7 +23,7 @@ import {
   useChunkLoader,
 } from '../Understand/shared/SourcePicker.tsx'
 
-const COUNTS = ['3', '5', '10'] as const
+const COUNTS = ['3', '5', '10', 'all'] as const
 
 /** Multiple-choice self-test. Informational only: answers never reach the review log or FSRS. */
 export default function Quiz() {
@@ -72,7 +72,7 @@ export default function Quiz() {
       const ctx = await ai.context(new AbortController().signal, ws.courses.get(selection.courseId)?.language)
       const qs = await quiz(
         { ...ctx, onPartial: stream.onPartial },
-        { topic: topic.trim() || t('ai.wholeSelection'), chunks, count: Number(count) },
+        { topic: topic.trim() || t('ai.wholeSelection'), chunks, count: count === 'all' ? 'all' : Number(count) },
       )
       setQuestions(qs)
       setAnswers({})
@@ -96,7 +96,7 @@ export default function Quiz() {
           label={t('ai.questionCount')}
           value={count}
           onChange={setCount}
-          options={COUNTS.map((c) => ({ value: c, label: c }))}
+          options={COUNTS.map((c) => ({ value: c, label: c === 'all' ? t('ai.quizAll') : c }))}
         />
         <SourcePicker value={selection} onChange={onSelection} />
         <div className={styles.row}>

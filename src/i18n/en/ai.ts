@@ -56,6 +56,7 @@ export const ai = {
   front: 'Front of card {n}',
   back: 'Back of card {n}',
   questionCount: 'Number of questions',
+  quizAll: 'All',
   startQuiz: 'Start quiz',
   quizNoFsrs: 'Practice only: your review schedule is not affected.',
   checkAnswers: 'Check answers',

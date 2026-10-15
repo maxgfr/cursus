@@ -14,6 +14,8 @@ export function SessionFields({ draft, onChange }: { draft: SessionDraft; onChan
   const t = useT()
   const scopeId = useId()
   const countsHintId = useId()
+  const everyHintId = useId()
+  const everyLabelId = useId()
   const countsLabelId = useId()
   const options = useWorkspaceData(['courses', 'sections'], scopeOptions)
   const limitValid = parseLimit(draft.limit) !== null
@@ -52,16 +54,38 @@ export function SessionFields({ draft, onChange }: { draft: SessionDraft; onChan
           {t(KIND_HINT[draft.kind])}
         </p>
       </div>
-      <Field
-        label={t('review.sessionLimit')}
-        hint={limitValid ? t('review.sessionLimitHint') : undefined}
-        error={limitValid ? undefined : t('review.sessionLimitInvalid')}
-        inputMode="numeric"
-        enterKeyHint="done"
-        autoComplete="off"
-        value={draft.limit}
-        onChange={(e) => onChange({ ...draft, limit: e.target.value })}
-      />
+      <label className={styles.switchRow}>
+        <span className={styles.switchText}>
+          <span id={everyLabelId} className={styles.switchLabel}>
+            {t('review.sessionEvery')}
+          </span>
+          <span id={everyHintId} className={styles.hint}>
+            {t('review.sessionEveryHint')}
+          </span>
+        </span>
+        <input
+          type="checkbox"
+          role="switch"
+          className={styles.switch}
+          checked={draft.every}
+          aria-checked={draft.every}
+          aria-labelledby={everyLabelId}
+          aria-describedby={everyHintId}
+          onChange={(e) => onChange({ ...draft, every: e.target.checked })}
+        />
+      </label>
+      {!draft.every && (
+        <Field
+          label={t('review.sessionLimit')}
+          hint={limitValid ? t('review.sessionLimitHint') : undefined}
+          error={limitValid ? undefined : t('review.sessionLimitInvalid')}
+          inputMode="numeric"
+          enterKeyHint="done"
+          autoComplete="off"
+          value={draft.limit}
+          onChange={(e) => onChange({ ...draft, limit: e.target.value })}
+        />
+      )}
       <label className={styles.switchRow}>
         <span className={styles.switchText}>
           <span id={countsLabelId} className={styles.switchLabel}>

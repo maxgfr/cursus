@@ -301,6 +301,27 @@ test('a term selected in a source is asked about in the chat, cited, and becomes
   expect(errors).toEqual([])
 })
 
+test('a whole passage selected in a source is still asked about, as a passage', async ({ page }, info) => {
+  const errors = watchErrors(page)
+  await seedCourse(page)
+  const prompts = await mockProvider(page)
+  await configureAi(page, LLM)
+  await openNote(page)
+
+  // Too long for a term: the button stays, short, and the whole passage goes to the chat.
+  const sentence = 'The mitochondrion produces ATP through cellular respiration.'
+  await selectText(page, '.cm-content', sentence)
+  await expect(page.getByRole('button', { name: /^Ask about “/ })).toHaveCount(0)
+  const ask = page.getByRole('button', { name: 'Ask about this passage' })
+  await expect(ask).toBeInViewport()
+  await ask.click()
+  const panel = chatPanel(page, info.project.name)
+  await expect(panel.getByText('Explain this passage.')).toBeVisible()
+  await expect(panel.getByText(/releases the cell's energy/)).toBeVisible()
+  expect(prompts.at(-1)).toContain(sentence)
+  expect(errors).toEqual([])
+})
+
 test('without a model review offers no explanation and a term in a source leads to the AI settings', async ({
   page,
 }, info) => {

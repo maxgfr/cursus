@@ -31,15 +31,33 @@ export function useCanCallAi(ai: AiModelState): boolean {
   return online || (ai.status === 'ready' && ai.runsOffline)
 }
 
-/** A short selection: a term or an expression, not a passage. */
-const MAX_TERM_CHARS = 80
-const MAX_TERM_WORDS = 8
+/** A selection longer than this is a passage, asked about as a whole; any length is accepted up to the cap. */
+const TERM_CHARS = 60
+const TERM_WORDS = 6
+const MAX_SELECTION_CHARS = 4000
 const BLOCK = 'p, li, dt, dd, td, th, blockquote, h1, h2, h3, h4, h5, h6, .cm-line'
 
 export interface SelectedTerm {
   term: string
   /** The paragraph or line it was selected in. */
   context: string
+  /** More than a term: a passage, asked about as a whole. */
+  passage: boolean
+}
+
+/** What « Ask about » shows and sends for a selection: a term in its line, or a whole passage. */
+export function askAbout(
+  t: ReturnType<typeof useT>,
+  selected: SelectedTerm,
+): { label: string; question: string; excerpt: string } {
+  if (!selected.passage) {
+    return {
+      label: t('chat.askTerm', { term: selected.term }),
+      question: t('chat.termQuestion', { term: selected.term }),
+      excerpt: selected.context,
+    }
+  }
+  return { label: t('chat.askPassage'), question: t('chat.passageQuestion'), excerpt: selected.term }
 }
 
 const elementOf = (node: Node): Element | null => (node instanceof Element ? node : node.parentElement)
@@ -72,14 +90,15 @@ export function useSelectedTerm(scopeOf: (el: Element) => Element | null): {
       const el = node ? elementOf(node) : null
       // Text in a sheet (or any dialog) is not the screen's.
       const within = el && el.closest('dialog') === null ? scope.current(el) : null
-      const words = term === '' ? 0 : term.split(' ').length
-      if (within === null || term === '' || term.length > MAX_TERM_CHARS || words > MAX_TERM_WORDS) {
+      if (within === null || term === '') {
         if (!held()) setSelected(null)
         return
       }
+      const kept = term.length > MAX_SELECTION_CHARS ? `${term.slice(0, MAX_SELECTION_CHARS - 1)}…` : term
+      const passage = kept.length > TERM_CHARS || kept.split(' ').length > TERM_WORDS
       const block = el?.closest(BLOCK) ?? within
       const context = (within.contains(block) ? block : within).textContent?.trim() ?? ''
-      setSelected((prev) => (prev?.term === term && prev.context === context ? prev : { term, context }))
+      setSelected((prev) => (prev?.term === kept && prev.context === context ? prev : { term: kept, context, passage }))
     }
     document.addEventListener('pointerdown', onPress, true)
     document.addEventListener('selectionchange', onChange)
@@ -118,7 +137,8 @@ export function AskSelection({ within = 'main' }: AskSelectionProps) {
   const { selected, launcher, clear } = useSelectedTerm(scopeOf)
   if (!chat || !selected) return null
   const ask = () => {
-    chat.ask(t('chat.termQuestion', { term: selected.term }), selected.context)
+    const { question, excerpt } = askAbout(t, selected)
+    chat.ask(question, excerpt)
     clear()
   }
   return (
@@ -130,7 +150,7 @@ export function AskSelection({ within = 'main' }: AskSelectionProps) {
           onMouseDown={keepSelection}
           onClick={ask}
         >
-          {t('chat.askTerm', { term: selected.term })}
+          {askAbout(t, selected).label}
         </Button>
       </div>
     </div>

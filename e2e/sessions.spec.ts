@@ -65,6 +65,14 @@ test('Cramming from Today: all cards outside the schedule, a summary, the missed
   await expect(page.getByRole('button', { name: 'Start session' })).toBeDisabled()
   await page.getByLabel('Number of cards').fill('2')
   await expect(page.getByTestId('session-preview')).toHaveText('2 cards in this session')
+  // « Every matching card » lifts the limit; turned off, the number typed comes back.
+  const every = page.getByRole('switch', { name: 'Every matching card' })
+  await every.check()
+  await expect(page.getByLabel('Number of cards')).toBeHidden()
+  await expect(page.getByTestId('session-preview')).toHaveText('3 cards in this session')
+  await every.uncheck()
+  await expect(page.getByLabel('Number of cards')).toHaveValue('2')
+  await expect(page.getByTestId('session-preview')).toHaveText('2 cards in this session')
   await page.getByRole('button', { name: 'Start session' }).click()
 
   // The run is named and marked as cramming.

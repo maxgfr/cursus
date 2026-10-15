@@ -50,4 +50,6 @@ export const chat = {
   sources: 'Sources',
   askTerm: 'Ask about “{term}”',
   termQuestion: 'What does “{term}” mean here?',
+  askPassage: 'Ask about this passage',
+  passageQuestion: 'Explain this passage.',
 } as const

@@ -1,12 +1,32 @@
-import { CircleHelp, Lightbulb, MessageCircle } from 'lucide-react'
+import { BrainCircuit, CircleHelp, KeyRound, Lightbulb, type LucideIcon, MessageCircle } from 'lucide-react'
 import { useCallback, useId } from 'react'
 import { useT } from '../../i18n/react.tsx'
+import { actionsFor, type ChatActionId } from '../../ui/chat/actions.ts'
 import { useChat } from '../../ui/chat/context.tsx'
 import { Button } from '../../ui/components/Button.tsx'
-import { keepSelection, useCanCallAi, useSelectedTerm } from '../../ui/ExplainLauncher.tsx'
+import { askAbout, keepSelection, useCanCallAi, useSelectedTerm } from '../../ui/ExplainLauncher.tsx'
 import type { AiModelState } from '../Understand/shared/aiConfig.ts'
 import styles from './ExplainActions.module.css'
 import type { CardView } from './session.ts'
+
+const ICONS: Partial<Record<ChatActionId, LucideIcon>> = {
+  explainQuestion: CircleHelp,
+  hint: KeyRound,
+  why: Lightbulb,
+  mnemonic: BrainCircuit,
+}
+
+/**
+ * The card's options below it: « Explain the question » in both states (short labels, as on the card), then the
+ * chat's own card actions for the state (a hint before the reveal; why and a mnemonic after it).
+ */
+function cardActions(t: ReturnType<typeof useT>, revealed: boolean): { id: ChatActionId; label: string }[] {
+  const chat = actionsFor(t, { card: { front: '', back: '', revealed } }).filter((a) => a.id !== 'explainQuestion')
+  return [
+    { id: 'explainQuestion', label: t('ai.explainQuestion') },
+    ...chat.map((a) => ({ id: a.id, label: a.id === 'why' ? t('review.why') : a.label })),
+  ]
+}
 
 /** The faces of the card on screen: a term selected there can be asked about. */
 const FACES = '[data-testid="question"], [data-testid="answer"]'
@@ -29,34 +49,31 @@ export function ExplainActions({ card, revealed, ai }: { card: CardView; reveale
 
   const askTerm = () => {
     if (!selected) return
-    // The term is read in the question alone until the answer shows.
-    chat.ask(t('chat.termQuestion', { term: selected.term }), revealed ? `${card.front}\n\n${card.back}` : card.front)
+    // A term is read in the question alone until the answer shows; a passage is sent as it is.
+    const { question, excerpt } = askAbout(t, selected)
+    chat.ask(question, selected.passage ? excerpt : revealed ? `${card.front}\n\n${card.back}` : card.front)
     clear()
   }
 
   return (
     <div className={styles.explain}>
       <div ref={launcher} className={styles.actions}>
-        <Button
-          variant="plain"
-          icon={<CircleHelp size={18} strokeWidth={1.75} aria-hidden />}
-          disabled={!online}
-          aria-describedby={online ? undefined : offlineId}
-          onClick={() => chat.run('explainQuestion')}
-        >
-          {t('ai.explainQuestion')}
-        </Button>
-        {revealed && (
-          <Button
-            variant="plain"
-            icon={<Lightbulb size={18} strokeWidth={1.75} aria-hidden />}
-            disabled={!online}
-            aria-describedby={online ? undefined : offlineId}
-            onClick={() => chat.run('why')}
-          >
-            {t('review.why')}
-          </Button>
-        )}
+        {/* The card's actions, the same as at the top of the chat: each one opens the chat on it. */}
+        {cardActions(t, revealed).map((a) => {
+          const Icon = ICONS[a.id] ?? MessageCircle
+          return (
+            <Button
+              key={a.id}
+              variant="plain"
+              icon={<Icon size={18} strokeWidth={1.75} aria-hidden />}
+              disabled={!online}
+              aria-describedby={online ? undefined : offlineId}
+              onClick={() => chat.run(a.id)}
+            >
+              {a.label}
+            </Button>
+          )
+        })}
         {selected && (
           <Button
             variant="plain"
@@ -66,7 +83,7 @@ export function ExplainActions({ card, revealed, ai }: { card: CardView; reveale
             onMouseDown={keepSelection}
             onClick={askTerm}
           >
-            {t('chat.askTerm', { term: selected.term })}
+            {askAbout(t, selected).label}
           </Button>
         )}
       </div>

@@ -82,6 +82,8 @@ export const review = {
   kindHintFailed: 'Les cartes que vous avez ratées ces 7 derniers jours.',
   kindHintNew: 'Les cartes que vous n’avez jamais étudiées.',
   kindHintAll: 'Toutes les cartes ici, les plus fragiles d’abord.',
+  sessionEvery: 'Toutes les cartes concernées',
+  sessionEveryHint: 'Sans limite : la séance reprend toutes les cartes qui correspondent.',
   sessionLimit: 'Nombre de cartes',
   sessionLimitHint: 'Au plus ce nombre de cartes.',
   sessionLimitInvalid: 'Saisissez un nombre entier de 1 à 999.',

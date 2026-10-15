@@ -53,4 +53,6 @@ export const chat = {
   sources: 'Quellen',
   askTerm: 'Nach „{term}“ fragen',
   termQuestion: 'Was bedeutet „{term}“ hier?',
+  askPassage: 'Zu diesem Abschnitt fragen',
+  passageQuestion: 'Erklär mir diesen Abschnitt.',
 } as const satisfies Shape<typeof en>

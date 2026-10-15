@@ -4,7 +4,7 @@ import { explainCard } from './features/explainCard'
 import { generateCards } from './features/generateCards'
 import { gradeAnswer } from './features/gradeAnswer'
 import { improveCard } from './features/improveCard'
-import { quiz } from './features/quiz'
+import { QUIZ_ALL_MAX, quiz } from './features/quiz'
 import { understand } from './features/understand'
 import type { Chunk } from './retrieval'
 import { ctxFor, jsonModel, sentPrompt } from './testkit.test'
@@ -122,6 +122,19 @@ describe('features', () => {
     const qs = await quiz(ctxFor(model, events), { topic: 'osmosis', chunks: CHUNKS, count: 5 })
     expect(qs.map((q) => q.question)).toEqual(['Q1'])
     expect(events.map((e) => e.feature)).toEqual(['quiz'])
+  })
+
+  test('quiz over everything lets the model cover the sources, up to the cap', async () => {
+    const many = Array.from({ length: QUIZ_ALL_MAX + 5 }, (_, i) => ({
+      question: `Q${i + 1}`,
+      choices: ['a', 'b'],
+      answerIndex: 0,
+      explanation: 'e',
+    }))
+    const model = jsonModel({ questions: many })
+    const qs = await quiz(ctxFor(model), { topic: 'osmosis', chunks: CHUNKS, count: 'all' })
+    expect(qs).toHaveLength(QUIZ_ALL_MAX)
+    expect(sentPrompt(model).user).toContain('cover every key point of the sources')
   })
 
   test('improveCard keeps cloze guidance', async () => {

@@ -17,7 +17,7 @@ import { useScopeOnce } from '../Section/scope.ts'
 import { downloadPlans } from '../Sessions/calendar.ts'
 import { sessionLabel } from '../Sessions/describe.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
-import { liveScope, newDraft, parseLimit, type SessionDraft, scopeOptions } from './draft.ts'
+import { DEFAULT_LIMIT, draftLimit, liveScope, newDraft, type SessionDraft, scopeOptions } from './draft.ts'
 import { SessionFields } from './SessionFields.tsx'
 import styles from './SessionSetup.module.css'
 
@@ -58,7 +58,7 @@ function PlanForm({ planId }: { planId: Id | null }) {
 
   if (planId !== null && (plan === null || plan.deletedAt !== undefined)) return <NotFound />
 
-  const limit = parseLimit(draft.limit)
+  const limit = draftLimit(draft)
   const nameError = name.trim() === '' ? t('review.planNameMissing') : null
   const daysError = days.length === 0 ? t('review.planDaysMissing') : null
   const timeValid = TIME.test(time)
@@ -206,7 +206,8 @@ function fromPlan(plan: PlanRecord | null, scope: SessionDraft['scope']): Sessio
   return {
     scope,
     kind: plan.kind,
-    limit: plan.limit === undefined ? '' : String(plan.limit),
+    limit: String(plan.limit ?? DEFAULT_LIMIT),
+    every: plan.limit === undefined,
     practice: plan.practice,
     practiceSet: true,
   }

@@ -10,6 +10,8 @@ export interface SessionDraft {
   scope: SessionScope
   kind: SessionKind
   limit: string
+  /** Every matching card, with no limit: `limit` is then kept for when it is turned off. */
+  every: boolean
   practice: boolean
   /** The student set "Count toward the schedule" themselves: changing the type no longer resets it. */
   practiceSet: boolean
@@ -19,7 +21,14 @@ export const DEFAULT_LIMIT = 20
 const MAX_LIMIT = 999
 
 export function newDraft(scope: SessionScope, kind: SessionKind = 'due'): SessionDraft {
-  return { scope, kind, limit: String(DEFAULT_LIMIT), practice: practiceByDefault(kind), practiceSet: false }
+  return {
+    scope,
+    kind,
+    limit: String(DEFAULT_LIMIT),
+    every: false,
+    practice: practiceByDefault(kind),
+    practiceSet: false,
+  }
 }
 
 /** The draft with another type: "Count toward the schedule" follows the type until the student sets it. */
@@ -32,6 +41,11 @@ export function parseLimit(text: string): number | null {
   if (!/^\d+$/.test(text.trim())) return null
   const n = Number(text.trim())
   return n >= 1 && n <= MAX_LIMIT ? n : null
+}
+
+/** The draft's card limit: undefined for every matching card, null while the count is invalid. */
+export function draftLimit(d: SessionDraft): number | undefined | null {
+  return d.every ? undefined : parseLimit(d.limit)
 }
 
 export interface ScopeOption {
@@ -71,7 +85,7 @@ export function liveScope(options: readonly ScopeOption[], s: SessionScope): Ses
 export function useSessionPreview(d: SessionDraft): number | null {
   // A fresh snapshot whenever the cards, their reviews or the settings change: the preview follows them live.
   const live = useWorkspaceData(['cards', 'courses', 'sections', 'reviews', 'prefs'], (ws) => ({ ws }))
-  const limit = parseLimit(d.limit)
+  const limit = draftLimit(d)
   const { courseId, sectionId } = d.scope
   return useMemo(() => {
     if (limit === null) return null

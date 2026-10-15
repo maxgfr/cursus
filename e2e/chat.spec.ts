@@ -211,6 +211,36 @@ test('in review, before the reveal the answer never shows; after it, the same an
   expect(errors).toEqual([])
 })
 
+test('« A hint » is also among the review options: it asks the chat, then gives way to « Why? » once revealed', async ({
+  page,
+}, info) => {
+  const errors = watchErrors(page)
+  await seedCourse(page)
+  const prompts = await mockProvider(page)
+  await configureAi(page, LLM)
+  await page.goto('./#/review')
+  await expect(page.getByTestId('question')).toContainText('Powerhouse of the cell?')
+
+  const options = page.getByRole('main').getByRole('button', { name: 'A hint' })
+  await expect(options).toBeVisible()
+  await expect(page.getByRole('main').getByRole('button', { name: 'Why?' })).toHaveCount(0)
+  await options.click()
+  const panel = chatPanel(page, info.project.name)
+  await expect(panel.getByText('Parts that would give the answer away are hidden until you reveal it.')).toBeVisible()
+  await expect(panel).not.toContainText(/mitochondri/i)
+  expect(prompts.at(-1)).toContain('asks for a hint')
+
+  if (isPhone(info.project.name)) await panel.getByRole('button', { name: 'Close' }).click()
+  await page.getByRole('button', { name: /Show answer/ }).click()
+  await expect(page.getByRole('main').getByRole('button', { name: 'A hint' })).toHaveCount(0)
+  await expect(page.getByRole('main').getByRole('button', { name: 'Why?' })).toBeVisible()
+  // After the reveal, the mnemonic sits below the card too, and asks the chat.
+  await page.getByRole('main').getByRole('button', { name: 'A mnemonic' }).click()
+  if (isPhone(info.project.name)) await expect(panel).toBeVisible()
+  await expect.poll(() => prompts.at(-1) ?? '').toContain('asks for a mnemonic')
+  expect(errors).toEqual([])
+})
+
 async function openNote(page: Page) {
   await openCourse(page)
   await page.getByRole('radio', { name: 'Sources' }).check({ force: true })

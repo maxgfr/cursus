@@ -10,7 +10,7 @@ import { IconButton } from '../../ui/components/IconButton.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { useScopeOnce } from '../Section/scope.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
-import { liveScope, newDraft, parseLimit, scopeOptions, useSessionPreview } from './draft.ts'
+import { draftLimit, liveScope, newDraft, scopeOptions, useSessionPreview } from './draft.ts'
 import { SessionFields } from './SessionFields.tsx'
 import styles from './SessionSetup.module.css'
 
@@ -31,7 +31,7 @@ export default function SessionSetup() {
   const [draft, setDraft] = useState(() => newDraft(liveScope(options, asked ?? {})))
   const [error, setError] = useState<string | null>(null)
   const count = useSessionPreview(draft)
-  const limit = parseLimit(draft.limit)
+  const limit = draftLimit(draft)
   const from = asStudyScope(asked ?? {})
   const back = from === null ? paths.today : to.place(from.courseId, from.sectionId)
 
