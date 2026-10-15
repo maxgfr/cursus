@@ -86,6 +86,7 @@ async function mockProvider(page: Page): Promise<string[]> {
           'Your notes say the mitochondrion ',
           `produces ATP [[source:${note}]]`,
           ' through respiration [[source:INVENTED]].',
+          '\n\n- **Key idea**: respiration releases energy',
         ]),
       })
     }
@@ -160,6 +161,10 @@ test('from a course: the chat knows the course, streams a cited answer and its c
   const citation = panel.getByRole('link', { name: 'Open source: Cell notes' })
   await expect(citation).toHaveCount(1)
   await expect(panel).not.toContainText('INVENTED')
+  // The answer's Markdown is rendered, not shown as typed.
+  await expect(panel.locator('strong', { hasText: 'Key idea' })).toBeVisible()
+  await expect(panel.getByRole('listitem').filter({ hasText: 'respiration releases energy' })).toBeVisible()
+  await expect(panel).not.toContainText('**')
   await expect(panel.getByRole('log')).not.toHaveAttribute('aria-busy', 'true')
 
   await citation.click()

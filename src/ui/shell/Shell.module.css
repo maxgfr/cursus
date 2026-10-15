@@ -143,21 +143,23 @@
     padding-inline: var(--space-3);
   }
 
-  /* Quiet footer: Search, with its keyboard shortcut. */
+  /* Quiet footer: Search and Ask, each with its keyboard shortcut, set apart by a hairline. */
   .footer {
     display: grid;
     gap: 2px;
     margin-top: auto;
+    padding-top: var(--space-3);
+    border-top: var(--hairline-width) solid var(--hairline);
   }
 
   .search {
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    min-height: 2.5rem;
-    padding: var(--space-2) var(--space-3);
+    min-height: 2.25rem;
+    padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
     border-radius: var(--radius-control);
-    background: color-mix(in srgb, var(--ink) 5%, transparent);
+    background: transparent;
     color: var(--ink-2);
     font-size: var(--text-footnote);
     text-decoration: none;
@@ -179,7 +181,7 @@
   }
 
   .search:hover {
-    background: color-mix(in srgb, var(--ink) 9%, transparent);
+    background: color-mix(in srgb, var(--ink) 6%, transparent);
   }
 
   .search[aria-current="page"] {
@@ -199,6 +201,17 @@
     color: var(--ink-3);
     font-family: var(--font-sans);
     font-size: var(--text-caption);
+  }
+
+  .kbd kbd {
+    display: inline-block;
+    min-width: 1.75rem;
+    padding: 0 var(--space-1);
+    border: var(--hairline-width) solid var(--hairline-strong);
+    border-radius: var(--radius-small);
+    font: inherit;
+    line-height: 1.5;
+    text-align: center;
   }
 
   .tabs {

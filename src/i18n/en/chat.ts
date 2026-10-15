@@ -45,4 +45,5 @@ export const chat = {
   setup: 'Set up AI',
   offline: 'You are offline. Asking needs a connection, or a model on this device.',
   followUp: 'Ask a follow-up',
+  sources: 'Sources',
 } as const

@@ -31,6 +31,7 @@ import {
   tutorChat,
 } from '../../core/ai/features/tutorChat'
 import type { Chunk } from '../../core/ai/retrieval'
+import type { SourceRef } from '../../core/ai/schemas'
 import { blobStore } from '../../core/log/blobs'
 import type { ModelWorkspace } from '../../core/model/workspace'
 import { useT } from '../../i18n/react.tsx'
@@ -43,6 +44,7 @@ import { IconButton } from '../components/IconButton.tsx'
 import { Sheet } from '../components/Sheet.tsx'
 import { cx } from '../cx.ts'
 import { useCanCallAi } from '../ExplainLauncher.tsx'
+import { Sanitized } from '../render/Sanitized.tsx'
 import styles from './ChatPanel.module.css'
 import { type ScreenContext, useChat } from './context.tsx'
 
@@ -539,6 +541,35 @@ function Message({
   )
 }
 
+/** A cited passage's address: the source, at its page, slide or section when there is one. */
+const citeHref = (ref: SourceRef) =>
+  ref.page === undefined ? to.source(ref.sourceId) : `${to.source(ref.sourceId)}?page=${ref.page}`
+
+/**
+ * The answer as Markdown, its citations numbered in order of first use (`[1]` links to the passage, the sources
+ * are listed by name below). A streamed answer ends with a cursor.
+ */
+function answerMarkdown(segments: readonly ChatSegment[], streaming: boolean): { markdown: string; refs: SourceRef[] } {
+  const order = new Map<string, number>()
+  const refs: SourceRef[] = []
+  let markdown = ''
+  for (const s of segments) {
+    if (s.kind === 'text') {
+      markdown += s.text
+      continue
+    }
+    const key = `${s.ref.sourceId}\u0000${s.ref.page ?? ''}`
+    let n = order.get(key)
+    if (n === undefined) {
+      refs.push(s.ref)
+      n = refs.length
+      order.set(key, n)
+    }
+    markdown += ` [${n}](#${citeHref(s.ref)})`
+  }
+  return { markdown: streaming && markdown !== '' ? `${markdown} ▍` : markdown, refs }
+}
+
 function Answer({
   segments,
   card,
@@ -552,24 +583,27 @@ function Answer({
 }) {
   const t = useT()
   const guarded = guardReply(segments, card)
+  const { markdown, refs } = answerMarkdown(guarded.segments, streaming)
   return (
     <div className={styles.answer}>
       <span className="sr-only">{t('chat.tutor')}: </span>
-      <p className={styles.answerText}>
-        {/* Text runs keyed by their rank: a streamed one keeps its node as it grows. */}
-        {keyed(guarded.segments, (s) =>
-          s.kind === 'text' ? 'text' : `cite:${s.ref.sourceId}:${s.ref.page ?? ''}`,
-        ).map(({ item: s, key }) =>
-          s.kind === 'text' ? (
-            <span key={key}>{s.text}</span>
-          ) : (
-            <span key={key} className={styles.cite}>
-              <Citation sourceRef={s.ref} />
-            </span>
-          ),
-        )}
-        {streaming && segments.length > 0 && <span className={styles.cursor} aria-hidden="true" />}
-      </p>
+      {markdown !== '' && (
+        <div className={styles.answerText}>
+          <Sanitized markdown={markdown} />
+        </div>
+      )}
+      {refs.length > 0 && (
+        <ol className={styles.sources} aria-label={t('chat.sources')}>
+          {refs.map((ref, i) => (
+            <li key={`${ref.sourceId}/${ref.page ?? ''}`} className={styles.source}>
+              <span className={styles.sourceNumber} aria-hidden="true">
+                {i + 1}
+              </span>
+              <Citation sourceRef={ref} />
+            </li>
+          ))}
+        </ol>
+      )}
       {guarded.leaked && <p className={styles.note}>{t('chat.hidden')}</p>}
       {children}
     </div>

@@ -49,4 +49,5 @@ export const chat = {
   setup: 'Configurer l’IA',
   offline: 'Vous êtes hors ligne. Il faut une connexion, ou un modèle sur cet appareil.',
   followUp: 'Poser une question de suivi',
+  sources: 'Sources',
 } as const satisfies Shape<typeof en>

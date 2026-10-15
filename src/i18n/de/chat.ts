@@ -48,4 +48,5 @@ export const chat = {
   setup: 'KI einrichten',
   offline: 'Du bist offline. Fragen braucht eine Verbindung oder ein Modell auf diesem Gerät.',
   followUp: 'Nachfragen',
+  sources: 'Quellen',
 } as const satisfies Shape<typeof en>
