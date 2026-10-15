@@ -4,6 +4,7 @@ import { useRuntime } from '../../../app/workspaceContext.tsx'
 import { useT } from '../../../i18n/react.tsx'
 import { Button } from '../../../ui/components/Button.tsx'
 import { Sheet } from '../../../ui/components/Sheet.tsx'
+import { useGuard } from '../../../ui/PasswordGate.tsx'
 import { noteError } from '../Diagnostic/recent.ts'
 import styles from '../Sync/settings.module.css'
 import { eraseThisDevice } from './erase.ts'
@@ -26,6 +27,7 @@ export function EraseSection({ onBackup, backingUp }: { onBackup: () => void; ba
   const [understood, setUnderstood] = useState(false)
   const [phase, setPhase] = useState<Phase>('idle')
   const checkId = useId()
+  const { guard, sheet: guardSheet } = useGuard()
 
   const close = () => {
     if (phase === 'erasing' || phase === 'blocked') return
@@ -97,13 +99,14 @@ export function EraseSection({ onBackup, backingUp }: { onBackup: () => void; ba
               icon={<Trash2 size={18} aria-hidden="true" />}
               disabled={!understood || phase === 'failed'}
               loading={phase === 'erasing' || phase === 'blocked'}
-              onClick={() => void erase()}
+              onClick={() => guard(erase)}
             >
               {t('settings.eraseConfirm')}
             </Button>
           </div>
         </div>
       </Sheet>
+      {guardSheet}
     </section>
   )
 }

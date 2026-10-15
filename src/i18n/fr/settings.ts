@@ -122,4 +122,32 @@ export const settings = {
     'Des modifications d’un autre appareil nécessitent un Cursus plus récent. Elles sont conservées sur cet appareil et appliquées après la mise à jour.',
   updateNoneYet:
     'Aucune version plus récente n’est encore publiée. D’ici là, ces modifications restent en sécurité sur cet appareil.',
+  guardTitle: 'Protéger les actions destructrices',
+  guardBody:
+    'Demander un mot de passe avant d’effacer cet appareil, de supprimer définitivement depuis la corbeille ou de retirer une destination de synchronisation. Le mot de passe reste sur cet appareil et n’est jamais synchronisé.',
+  guardNotEncryption:
+    'C’est un verrou contre les erreurs et les appareils prêtés, pas un chiffrement : votre bibliothèque reste lisible sur cet appareil. Pour chiffrer, utilisez « {name} » dans Réglages › Sync.',
+  guardOn: 'Un mot de passe protège les actions destructrices sur cet appareil.',
+  guardOff: 'Aucun mot de passe défini.',
+  guardSet: 'Définir un mot de passe',
+  guardChange: 'Changer le mot de passe',
+  guardRemove: 'Retirer le mot de passe',
+  guardNew: 'Nouveau mot de passe',
+  guardAgain: 'Confirmez le mot de passe',
+  guardCurrent: 'Mot de passe actuel',
+  guardTooShort: { one: 'Au moins {count} caractère.', other: 'Au moins {count} caractères.' },
+  guardMismatch: 'Les mots de passe ne correspondent pas.',
+  guardSave: 'Enregistrer le mot de passe',
+  guardSaved: 'Mot de passe enregistré.',
+  guardRemoved: 'Mot de passe retiré. Les actions destructrices ne le demandent plus.',
+  guardWrong: 'Mot de passe incorrect. Réessayez.',
+  guardPromptTitle: 'Mot de passe requis',
+  guardPromptBody: 'Cette action est protégée sur cet appareil. Saisissez le mot de passe pour continuer.',
+  guardPassword: 'Mot de passe',
+  guardContinue: 'Continuer',
+  guardForgot: 'Mot de passe oublié ?',
+  guardForgotBody:
+    'Le mot de passe ne peut pas être récupéré. La seule issue est d’effacer tout ce qui est sur cet appareil, ce qui retire aussi le mot de passe. Vos sauvegardes gardent leur copie : restaurez-en une ensuite.',
+  guardForgotType: 'Tapez {word} pour confirmer',
+  guardWord: 'EFFACER',
 } as const satisfies Shape<typeof en>

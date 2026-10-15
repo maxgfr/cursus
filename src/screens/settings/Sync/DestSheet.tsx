@@ -9,6 +9,7 @@ import { useLocale, useT } from '../../../i18n/react.tsx'
 import { Button } from '../../../ui/components/Button.tsx'
 import { Field } from '../../../ui/components/Field.tsx'
 import { Sheet } from '../../../ui/components/Sheet.tsx'
+import { useGuard } from '../../../ui/PasswordGate.tsx'
 import { beginOAuth, cloudkitSignIn, commit, pickFolder } from './connect.ts'
 import { useAction } from './hooks.tsx'
 import { type DestRecord, deleteRecord, keyringFor, saveRecord, syncNow } from './registry.ts'
@@ -48,6 +49,7 @@ export function DestSheet({ rt, engine, scheduler, status: d, record, onClose, o
   const [editing, setEditing] = useState(false)
   const [passphrase, setPassphrase] = useState('')
   const [confirmRemove, setConfirmRemove] = useState(false)
+  const { guard, sheet: guardSheet } = useGuard()
   const paused = d.state === 'paused'
   const when = (ms: number | undefined) => (ms === undefined ? t('sync.never') : formatDateTime(locale, ms))
 
@@ -129,134 +131,137 @@ export function DestSheet({ rt, engine, scheduler, status: d, record, onClose, o
   const needsReconnect = d.state === 'needs-auth' || d.state === 'needs-permission' || d.state === 'error'
 
   return (
-    <Sheet open title={d.label} onClose={onClose}>
-      <div className={styles.stack}>
-        <dl className={styles.facts}>
-          <dt>{t('sync.factState')}</dt>
-          <dd>{stateText(t, d)}</dd>
-          <dt>{t('sync.factLastOk')}</dt>
-          <dd>{when(d.lastOkAt)}</dd>
-          <dt>{t('sync.factVerified')}</dt>
-          <dd>{when(d.lastVerifiedAt)}</dd>
-          <dt>{t('sync.factWaiting')}</dt>
-          <dd>{d.unconfirmed}</dd>
-          {d.nextTryAt !== undefined && (
-            <>
-              <dt>{t('sync.factRetry')}</dt>
-              <dd>{when(d.nextTryAt)}</dd>
-            </>
-          )}
-          {d.error && (
-            <>
-              <dt>{t('sync.factError')}</dt>
-              <dd>{d.error.message}</dd>
-            </>
-          )}
-        </dl>
+    <>
+      <Sheet open title={d.label} onClose={onClose}>
+        <div className={styles.stack}>
+          <dl className={styles.facts}>
+            <dt>{t('sync.factState')}</dt>
+            <dd>{stateText(t, d)}</dd>
+            <dt>{t('sync.factLastOk')}</dt>
+            <dd>{when(d.lastOkAt)}</dd>
+            <dt>{t('sync.factVerified')}</dt>
+            <dd>{when(d.lastVerifiedAt)}</dd>
+            <dt>{t('sync.factWaiting')}</dt>
+            <dd>{d.unconfirmed}</dd>
+            {d.nextTryAt !== undefined && (
+              <>
+                <dt>{t('sync.factRetry')}</dt>
+                <dd>{when(d.nextTryAt)}</dd>
+              </>
+            )}
+            {d.error && (
+              <>
+                <dt>{t('sync.factError')}</dt>
+                <dd>{d.error.message}</dd>
+              </>
+            )}
+          </dl>
 
-        {d.state === 'needs-passphrase' && (
-          <form
-            className={styles.form}
-            onSubmit={(e) => {
-              e.preventDefault()
-              void unlock()
-            }}
-          >
-            <Field
-              label={t('sync.passphrase')}
-              type="password"
-              autoComplete="current-password"
-              value={passphrase}
-              onChange={(e) => setPassphrase(e.target.value)}
+          {d.state === 'needs-passphrase' && (
+            <form
+              className={styles.form}
+              onSubmit={(e) => {
+                e.preventDefault()
+                void unlock()
+              }}
+            >
+              <Field
+                label={t('sync.passphrase')}
+                type="password"
+                autoComplete="current-password"
+                value={passphrase}
+                onChange={(e) => setPassphrase(e.target.value)}
+              />
+              <div className={styles.actions}>
+                <Button type="submit" variant="primary" loading={busy === 'unlock'} disabled={!passphrase}>
+                  {t('sync.unlock')}
+                </Button>
+              </div>
+            </form>
+          )}
+
+          {editing && record?.kind === 's3' ? (
+            <S3Form
+              initial={record}
+              onSave={async (r) => {
+                await commit(rt, engine, { ...r, id: record.id })
+                setEditing(false)
+                onChanged()
+                scheduler.trigger('manual')
+              }}
             />
+          ) : (
             <div className={styles.actions}>
-              <Button type="submit" variant="primary" loading={busy === 'unlock'} disabled={!passphrase}>
-                {t('sync.unlock')}
+              {needsReconnect && (
+                <Button variant="primary" onClick={reconnect} loading={busy === 'reconnect'}>
+                  {t('sync.reconnect')}
+                </Button>
+              )}
+              <Button onClick={verify} loading={busy === 'verify'} disabled={paused || busy !== null}>
+                {t('sync.verify')}
+              </Button>
+              <Button onClick={drill} loading={busy === 'drill'} disabled={paused || busy !== null}>
+                {t('sync.drill')}
+              </Button>
+              <Button onClick={pause} loading={busy === 'pause'} disabled={busy !== null}>
+                {paused ? t('sync.resume') : t('sync.pause')}
+              </Button>
+              {!needsReconnect && record && (
+                <Button variant="plain" onClick={reconnect} disabled={busy !== null}>
+                  {record.kind === 's3' ? t('sync.editKeys') : t('sync.reconnect')}
+                </Button>
+              )}
+            </div>
+          )}
+
+          {progress && (
+            <div className={styles.section} role="status">
+              <progress
+                className={styles.meter}
+                max={Math.max(progress.total, 1)}
+                value={progress.done}
+                aria-label={t('sync.verify')}
+              />
+              <p className={styles.note}>
+                {progress.total > 0 ? t('common.progress', progress) : t('sync.verifyListing')}
+              </p>
+            </div>
+          )}
+          {report && (
+            <div className={styles.section}>
+              <p className={styles[report.tone]} role="status">
+                {report.text}
+              </p>
+              {report.lines && <pre className={styles.code}>{report.lines.join('\n')}</pre>}
+            </div>
+          )}
+          <p className={styles.note}>{t('sync.drillHint')}</p>
+          {error && (
+            <p className={styles.bad} role="alert">
+              {error}
+            </p>
+          )}
+
+          {confirmRemove ? (
+            <div className={styles.section}>
+              <p className={styles.warn}>{t('sync.removeBody')}</p>
+              <div className={styles.actions}>
+                <Button variant="danger" onClick={() => guard(remove)} loading={busy === 'remove'}>
+                  {t('sync.removeConfirm')}
+                </Button>
+                <Button onClick={() => setConfirmRemove(false)}>{t('common.cancel')}</Button>
+              </div>
+            </div>
+          ) : (
+            <div className={styles.actions}>
+              <Button variant="danger" onClick={() => setConfirmRemove(true)}>
+                {t('sync.remove')}
               </Button>
             </div>
-          </form>
-        )}
-
-        {editing && record?.kind === 's3' ? (
-          <S3Form
-            initial={record}
-            onSave={async (r) => {
-              await commit(rt, engine, { ...r, id: record.id })
-              setEditing(false)
-              onChanged()
-              scheduler.trigger('manual')
-            }}
-          />
-        ) : (
-          <div className={styles.actions}>
-            {needsReconnect && (
-              <Button variant="primary" onClick={reconnect} loading={busy === 'reconnect'}>
-                {t('sync.reconnect')}
-              </Button>
-            )}
-            <Button onClick={verify} loading={busy === 'verify'} disabled={paused || busy !== null}>
-              {t('sync.verify')}
-            </Button>
-            <Button onClick={drill} loading={busy === 'drill'} disabled={paused || busy !== null}>
-              {t('sync.drill')}
-            </Button>
-            <Button onClick={pause} loading={busy === 'pause'} disabled={busy !== null}>
-              {paused ? t('sync.resume') : t('sync.pause')}
-            </Button>
-            {!needsReconnect && record && (
-              <Button variant="plain" onClick={reconnect} disabled={busy !== null}>
-                {record.kind === 's3' ? t('sync.editKeys') : t('sync.reconnect')}
-              </Button>
-            )}
-          </div>
-        )}
-
-        {progress && (
-          <div className={styles.section} role="status">
-            <progress
-              className={styles.meter}
-              max={Math.max(progress.total, 1)}
-              value={progress.done}
-              aria-label={t('sync.verify')}
-            />
-            <p className={styles.note}>
-              {progress.total > 0 ? t('common.progress', progress) : t('sync.verifyListing')}
-            </p>
-          </div>
-        )}
-        {report && (
-          <div className={styles.section}>
-            <p className={styles[report.tone]} role="status">
-              {report.text}
-            </p>
-            {report.lines && <pre className={styles.code}>{report.lines.join('\n')}</pre>}
-          </div>
-        )}
-        <p className={styles.note}>{t('sync.drillHint')}</p>
-        {error && (
-          <p className={styles.bad} role="alert">
-            {error}
-          </p>
-        )}
-
-        {confirmRemove ? (
-          <div className={styles.section}>
-            <p className={styles.warn}>{t('sync.removeBody')}</p>
-            <div className={styles.actions}>
-              <Button variant="danger" onClick={remove} loading={busy === 'remove'}>
-                {t('sync.removeConfirm')}
-              </Button>
-              <Button onClick={() => setConfirmRemove(false)}>{t('common.cancel')}</Button>
-            </div>
-          </div>
-        ) : (
-          <div className={styles.actions}>
-            <Button variant="danger" onClick={() => setConfirmRemove(true)}>
-              {t('sync.remove')}
-            </Button>
-          </div>
-        )}
-      </div>
-    </Sheet>
+          )}
+        </div>
+      </Sheet>
+      {guardSheet}
+    </>
   )
 }

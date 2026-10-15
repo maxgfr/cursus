@@ -117,4 +117,32 @@ export const settings = {
   updateNeeded:
     'Changes from another device need a newer Cursus. They’re kept on this device and applied after the update.',
   updateNoneYet: 'No newer version is published yet. Those changes stay safe on this device until then.',
+  guardTitle: 'Protect destructive actions',
+  guardBody:
+    'Ask for a password before erasing this device, deleting from the trash for good or removing a sync destination. The password is kept on this device only and never synced.',
+  guardNotEncryption:
+    'This is a lock against accidents and borrowed devices, not encryption: your library stays readable on this device. To encrypt, use “{name}” in Settings › Sync.',
+  guardOn: 'A password protects destructive actions on this device.',
+  guardOff: 'No password is set.',
+  guardSet: 'Set a password',
+  guardChange: 'Change password',
+  guardRemove: 'Remove password',
+  guardNew: 'New password',
+  guardAgain: 'Confirm the password',
+  guardCurrent: 'Current password',
+  guardTooShort: { one: 'Use at least {count} character.', other: 'Use at least {count} characters.' },
+  guardMismatch: 'The passwords don’t match.',
+  guardSave: 'Save password',
+  guardSaved: 'Password saved.',
+  guardRemoved: 'Password removed. Destructive actions no longer ask for it.',
+  guardWrong: 'Wrong password. Try again.',
+  guardPromptTitle: 'Password required',
+  guardPromptBody: 'This action is protected on this device. Enter the password to continue.',
+  guardPassword: 'Password',
+  guardContinue: 'Continue',
+  guardForgot: 'Forgot your password?',
+  guardForgotBody:
+    'The password can’t be recovered. The only way out is to erase everything on this device, which removes the password too. Your backups keep their copy: restore from one afterwards.',
+  guardForgotType: 'Type {word} to confirm',
+  guardWord: 'ERASE',
 } as const

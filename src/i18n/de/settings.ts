@@ -123,4 +123,32 @@ export const settings = {
     'Änderungen von einem anderen Gerät brauchen ein neueres Cursus. Sie bleiben auf diesem Gerät und werden nach dem Update übernommen.',
   updateNoneYet:
     'Es ist noch keine neuere Version veröffentlicht. Bis dahin bleiben diese Änderungen sicher auf diesem Gerät.',
+  guardTitle: 'Gefährliche Aktionen schützen',
+  guardBody:
+    'Frag nach einem Passwort, bevor du dieses Gerät leerst, etwas endgültig aus dem Papierkorb löschst oder einen Sync-Speicherort entfernst. Das Passwort bleibt nur auf diesem Gerät und wird nie synchronisiert.',
+  guardNotEncryption:
+    'Das ist eine Sperre gegen Versehen und verliehene Geräte, keine Verschlüsselung: Deine Bibliothek bleibt auf diesem Gerät lesbar. Zum Verschlüsseln nutze „{name}“ unter Einstellungen › Sync.',
+  guardOn: 'Ein Passwort schützt gefährliche Aktionen auf diesem Gerät.',
+  guardOff: 'Kein Passwort festgelegt.',
+  guardSet: 'Passwort festlegen',
+  guardChange: 'Passwort ändern',
+  guardRemove: 'Passwort entfernen',
+  guardNew: 'Neues Passwort',
+  guardAgain: 'Passwort bestätigen',
+  guardCurrent: 'Aktuelles Passwort',
+  guardTooShort: { one: 'Nutze mindestens {count} Zeichen.', other: 'Nutze mindestens {count} Zeichen.' },
+  guardMismatch: 'Die Passwörter stimmen nicht überein.',
+  guardSave: 'Passwort speichern',
+  guardSaved: 'Passwort gespeichert.',
+  guardRemoved: 'Passwort entfernt. Gefährliche Aktionen fragen nicht mehr danach.',
+  guardWrong: 'Falsches Passwort. Versuch es noch einmal.',
+  guardPromptTitle: 'Passwort nötig',
+  guardPromptBody: 'Diese Aktion ist auf diesem Gerät geschützt. Gib das Passwort ein, um fortzufahren.',
+  guardPassword: 'Passwort',
+  guardContinue: 'Weiter',
+  guardForgot: 'Passwort vergessen?',
+  guardForgotBody:
+    'Das Passwort lässt sich nicht wiederherstellen. Der einzige Ausweg ist, alles auf diesem Gerät zu löschen, damit verschwindet auch das Passwort. Deine Sicherungen behalten ihre Kopie: Stell danach aus einer wieder her.',
+  guardForgotType: 'Tippe {word} zur Bestätigung',
+  guardWord: 'LÖSCHEN',
 } as const satisfies Shape<typeof en>

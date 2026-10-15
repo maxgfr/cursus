@@ -9,6 +9,7 @@ import { Button } from '../../ui/components/Button.tsx'
 import { EmptyState } from '../../ui/components/EmptyState.tsx'
 import { ListGroup, ListRow } from '../../ui/components/List.tsx'
 import { Sheet } from '../../ui/components/Sheet.tsx'
+import { useGuard } from '../../ui/PasswordGate.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { purgeSection, type SectionContents, type TrashedSection, trashedSections } from './sections.ts'
 import styles from './Trash.module.css'
@@ -30,6 +31,7 @@ export default function Trash() {
   const t = useT()
   const locale = useLocale()
   const ws = useWorkspace()
+  const { guard, sheet: guardSheet } = useGuard()
   // The items awaiting a "delete forever" confirmation; null when none is open.
   const [purging, setPurging] = useState<Item[] | null>(null)
   const items = useWorkspaceData(['courses', 'sections', 'sources', 'cards', 'fiches'], (w): Item[] => {
@@ -143,7 +145,15 @@ export default function Trash() {
           <p>{t('course.purgeBody', { count: purging?.length ?? 0 })}</p>
           {purgingSections.length > 0 && <p>{t('course.purgeSectionBody', { contents: contents(purgingInside) })}</p>}
           <p className={styles.note}>{t('course.purgeHistory')}</p>
-          <Button variant="danger" size="large" full onClick={() => purge(purging ?? [])}>
+          <Button
+            variant="danger"
+            size="large"
+            full
+            onClick={() => {
+              const list = purging ?? []
+              guard(() => purge(list))
+            }}
+          >
             {t('course.purgeConfirm')}
           </Button>
           <Button variant="plain" full onClick={() => setPurging(null)}>
@@ -151,6 +161,7 @@ export default function Trash() {
           </Button>
         </div>
       </Sheet>
+      {guardSheet}
     </Screen>
   )
 }

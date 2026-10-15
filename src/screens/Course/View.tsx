@@ -436,8 +436,8 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
         value={tab}
         onChange={setTab}
         options={[
-          { value: 'sources', label: t('course.tabSources') },
           { value: 'cards', label: t('course.tabCards') },
+          { value: 'sources', label: t('course.tabSources') },
           { value: 'fiches', label: t('course.tabSheets') },
         ]}
       />
