@@ -349,7 +349,7 @@ function CardStage({
   const now = Date.now()
   const tag = intlTag(locale)
   // Card photos (`cursus-blob:`), fetched from a destination when kept on demand.
-  const resolveBlob = useBlobResolver(`${card.front}\n${card.back}`)
+  const resolveBlob = useBlobResolver(`${card.shown.front}\n${card.shown.back}`)
 
   // After the reveal, focus lands on the grades group (its question is announced), not on a grade:
   // nothing is preselected, and Space or Enter gives Good.
@@ -369,7 +369,7 @@ function CardStage({
         {/* No eyebrow: the question text and the pressed answer surface carry the distinction. */}
         <section className={styles.face} aria-label={t('review.question')} data-testid="question">
           <div className={styles.faceText}>
-            <Sanitized markdown={card.front} resolveBlob={resolveBlob} />
+            <Sanitized markdown={card.shown.front} resolveBlob={resolveBlob} />
           </div>
           <SpeakButton text={speakable(card.front)} lang={card.language} label={t('review.readQuestion')} />
         </section>
@@ -378,7 +378,7 @@ function CardStage({
             {/* Centred in the footprint it shares with the hidden answer. */}
             <div className={styles.backRow}>
               <div className={styles.faceText}>
-                <Sanitized markdown={card.back} resolveBlob={resolveBlob} />
+                <Sanitized markdown={card.shown.back} resolveBlob={resolveBlob} />
               </div>
               <SpeakButton text={speakable(card.back)} lang={card.language} label={t('review.readAnswer')} />
             </div>

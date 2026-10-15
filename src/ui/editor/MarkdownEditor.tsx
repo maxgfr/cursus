@@ -12,8 +12,11 @@ export interface MarkdownEditorProps {
   /** Accessible name of the editing area. */
   label: string
   placeholder?: string
-  /** Opens on the preview instead of the source. */
-  initialMode?: 'write' | 'preview'
+  /**
+   * The text is a cloze card's: its `{{cN::…}}` deletions are drawn as the review shows them. Elsewhere they are
+   * plain text, as the renderer prints them.
+   */
+  cloze?: boolean
 }
 
 const Impl = lazyChunk('editor', () => import('./MarkdownEditorImpl.tsx'))
@@ -26,7 +29,7 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
       fallback={
         // The editor's own frame, toolbar included: what sits below does not move when the editor arrives.
         <div className={styles.frame} aria-busy="true">
-          <Toolbar mode={props.initialMode ?? 'write'} />
+          <Toolbar source={false} />
           <p className={cx(styles.host, styles.loading)}>{t('common.edLoading')}</p>
         </div>
       }

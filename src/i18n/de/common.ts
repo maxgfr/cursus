@@ -96,8 +96,10 @@ export const common = {
   edList: 'Aufzählung',
   edMath: 'Formel',
   edCode: 'Code',
-  edPreview: 'Vorschau',
-  edWrite: 'Schreiben',
+  edSource: 'Markdown',
+  edSourceLabel: 'Markdown-Quelltext anzeigen',
+  edTask: 'Erledigt',
+  edTaskOf: 'Erledigt: {task}',
   edLabel: 'Text',
   edLoading: 'Editor wird geöffnet …',
   // S-026

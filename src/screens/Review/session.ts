@@ -1,5 +1,5 @@
 import type { Id, Rating, StudyScope } from '../../core/contracts/workspace'
-import { makeClozeCards } from '../../core/model/cloze'
+import { clozeFaces, makeClozeCards } from '../../core/model/cloze'
 import type { ModelWorkspace } from '../../core/model/workspace'
 import { type CardState, createScheduler, dayStart, localOffset, type Scheduler, studyDay } from '../../core/srs/fsrs'
 import { isLeech } from '../../core/srs/leech'
@@ -101,9 +101,11 @@ export interface CardView {
   /** Raw stored texts (cloze markup intact), what the AI features see. */
   rawFront: string
   rawBack: string
-  /** Markdown shown before and after the reveal. */
+  /** The question and the answer as text (cloze deletions resolved), what speech and the AI features read. */
   front: string
   back: string
+  /** The Markdown rendered before and after the reveal: a cloze card's deletions marked, as its editor draws them. */
+  shown: { front: string; back: string }
   state: CardState
   leech: boolean
   /** Due time for each grade if answered at the time of reading. */
@@ -119,11 +121,15 @@ export function readCard(ws: ModelWorkspace, id: Id, now: number): CardView | nu
   const rawBack = ws.text({ id, field: 'back' }).toString()
   let front = rawFront
   let back = rawBack
+  let shown = { front, back }
   if (card.kind === 'cloze') {
     const [first] = makeClozeCards(rawFront)
     if (first) {
+      const extra = (answer: string) => (rawBack.trim() ? `${answer}\n\n${rawBack}` : answer)
       front = first.front
-      back = rawBack.trim() ? `${first.back}\n\n${rawBack}` : first.back
+      back = extra(first.back)
+      const faces = clozeFaces(rawFront, first.index)
+      shown = { front: faces.front, back: extra(faces.back) }
     }
   }
   const scheduler = schedulerFor(ws)
@@ -138,6 +144,7 @@ export function readCard(ws: ModelWorkspace, id: Id, now: number): CardView | nu
     rawBack,
     front,
     back,
+    shown,
     state,
     leech: isLeech(state),
     preview: scheduler.previewIntervals(state, now),

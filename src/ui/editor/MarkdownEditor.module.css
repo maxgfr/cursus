@@ -66,11 +66,3 @@
 .host {
   min-height: 10rem;
 }
-
-.host[hidden] {
-  display: none;
-}
-
-.preview {
-  padding: var(--space-4);
-}

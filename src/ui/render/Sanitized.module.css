@@ -1,36 +1,129 @@
-.prose {
-  max-width: 70ch;
+/*
+ * Rendered Markdown, read-only (`.prose`) and live in the editor (`.live`, on CodeMirror's root, whose lines carry
+ * the `cm-md-*` classes of src/ui/editor/livePlan.ts). One rule styles both, so they cannot drift apart.
+ * Vertical spacing: the editor cannot use margins between its lines, so a blank line stands for the gap between
+ * blocks (`cm-md-blank`) and blocks that touch get it as padding (`cm-md-gap`).
+ */
+.prose,
+.live {
+  /* × the element's own font size: between blocks, above a heading. */
+  --prose-gap: 0.75;
+  --prose-heading-gap: 1.25;
+  --prose-indent: 40px;
+
   color: var(--ink);
   line-height: 1.55;
 }
 
+.prose {
+  max-width: 70ch;
+}
+
+.live {
+  /* The editor's text size (16 px at least: iOS zooms into smaller fields). */
+  --prose-body: max(16px, var(--text-body));
+}
+
+.live :global(.cm-content) {
+  max-width: calc(70ch + 2 * var(--space-4));
+}
+
+/* One gap between any two blocks, the one a blank line gives in the editor (lists, quotes, code keep no margin). */
+.prose :where(ul, ol, blockquote, pre, hr) {
+  margin-block: 0;
+}
+
 .prose > * + * {
-  margin-top: 0.75em;
+  margin-top: calc(var(--prose-gap) * 1em);
+}
+
+.live :global(.cm-line.cm-md-blank) {
+  line-height: calc(var(--prose-gap) * 1em);
+}
+
+.live :global(.cm-line.cm-md-gap) {
+  padding-top: calc(var(--prose-gap) * 1em);
 }
 
 .prose h1,
 .prose h2,
-.prose h3 {
-  margin-top: 1.25em;
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6,
+.live :global(.cm-line.cm-md-h) {
+  font-weight: bold;
   line-height: var(--leading-tight);
 }
 
-.prose h1 {
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  margin-top: calc(var(--prose-heading-gap) * 1em);
+}
+
+/* The blank line above already gives part of the gap. */
+.live :global(.cm-line.cm-md-h) {
+  padding-top: calc(var(--prose-heading-gap) * 1em - var(--prose-gap) * var(--prose-body));
+}
+
+.live :global(.cm-line.cm-md-h.cm-md-gap) {
+  padding-top: calc(var(--prose-heading-gap) * 1em);
+}
+
+.prose h1,
+.live :global(.cm-md-h1) {
   font-size: var(--text-headline);
 }
 
-.prose h2 {
+.prose h2,
+.live :global(.cm-md-h2) {
   font-size: var(--text-title);
 }
 
-.prose h3 {
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6,
+.live :global(.cm-md-h3),
+.live :global(.cm-md-h4),
+.live :global(.cm-md-h5),
+.live :global(.cm-md-h6) {
   font-size: var(--text-body);
 }
 
-.prose code {
+.prose strong,
+.live :global(.cm-md-strong) {
+  font-weight: bold;
+}
+
+.prose em,
+.live :global(.cm-md-em) {
+  font-style: italic;
+}
+
+.prose del,
+.live :global(.cm-md-strike) {
+  text-decoration: line-through;
+}
+
+.prose a,
+.live :global(.cm-md-link) {
+  color: var(--accent-ink);
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.prose code,
+.live code,
+.live :global(.cm-md-code) {
   padding: 0.1em 0.3em;
   border-radius: var(--radius-small);
-  background: var(--surface-pressed);
+  /* A surface of the pressed colour (the review's answer) sets its own, so code stands out on it. */
+  background: var(--prose-code-bg, var(--surface-pressed));
   font-family: var(--font-mono);
   font-size: 0.9em;
 }
@@ -38,34 +131,170 @@
 .prose pre {
   padding: var(--space-3);
   border-radius: var(--radius-control);
-  background: var(--surface-pressed);
+  background: var(--prose-code-bg, var(--surface-pressed));
   overflow-x: auto;
 }
 
+/* A block of its own: the code's size sets the lines' height, as in the editor's code lines. */
 .prose pre code {
+  display: block;
   padding: 0;
   background: none;
 }
 
+.live :global(.cm-line.cm-md-pre) {
+  padding-inline: var(--space-3);
+  background: var(--prose-code-bg, var(--surface-pressed));
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+.live :global(.cm-line.cm-md-preTop) {
+  border-start-start-radius: var(--radius-control);
+  border-start-end-radius: var(--radius-control);
+}
+
+.live :global(.cm-line.cm-md-preBottom) {
+  border-end-start-radius: var(--radius-control);
+  border-end-end-radius: var(--radius-control);
+}
+
+.live :global(.cm-line.cm-md-prePadTop) {
+  padding-top: var(--space-3);
+}
+
+.live :global(.cm-line.cm-md-prePadBottom) {
+  padding-bottom: var(--space-3);
+}
+
+/* A hidden fence is the block's padding. */
+.live :global(.cm-line.cm-md-fence) {
+  line-height: var(--space-3);
+}
+
+/* The editor's caret helpers around hidden syntax would make a fence (or a rule) a text line again. */
+.live :global(.cm-line.cm-md-fence .cm-widgetBuffer),
+.live :global(.cm-line.cm-md-ruleLine .cm-widgetBuffer) {
+  height: 0;
+  vertical-align: top;
+}
+
 .prose blockquote {
   margin-inline: 0;
+}
+
+.prose blockquote,
+.live :global(.cm-line.cm-md-quote) {
   padding-inline-start: var(--space-4);
   border-inline-start: 1px solid var(--hairline-strong);
   color: var(--ink-2);
 }
 
-.prose img {
+.prose ul,
+.prose ol {
+  padding-inline-start: var(--prose-indent);
+}
+
+/* The marker sits in the indent, as a list's does; wrapped lines align with the text. */
+.live :global(.cm-line.cm-md-li) {
+  padding-inline-start: calc(var(--md-depth) * var(--prose-indent));
+  text-indent: calc(var(--md-depth) * var(--prose-indent) * -1);
+}
+
+/* An item's later lines start where its text does (their indentation hidden). */
+.live :global(.cm-line.cm-md-liCont) {
+  text-indent: 0;
+}
+
+.live :global(.cm-md-listMark) {
+  display: inline-block;
+  width: calc(var(--md-depth) * var(--prose-indent));
+  text-align: end;
+  text-indent: 0;
+}
+
+/* A real list marker (`list-style-position: inside` keeps its trailing gap), as the renderer's. */
+.live :global(.cm-md-bullet) {
+  display: list-item;
+  list-style-position: inside;
+}
+
+.prose hr,
+.live :global(.cm-md-rule) {
+  height: 0;
+  border: 0;
+  border-top: var(--hairline-width) solid var(--hairline-strong);
+}
+
+/* The rule's line is only as tall as the rule: the blank lines around it are its margins. */
+.live :global(.cm-line.cm-md-ruleLine) {
+  line-height: 0;
+}
+
+.live :global(.cm-md-rule) {
+  display: inline-block;
+  margin: 0;
+  width: 100%;
+  vertical-align: top;
+}
+
+.prose img,
+.live img {
   max-width: 100%;
   height: auto;
   border-radius: var(--radius-control);
 }
 
-.prose table {
+.prose table,
+.live table {
   border-collapse: collapse;
 }
 
 .prose th,
-.prose td {
+.prose td,
+.live th,
+.live td {
   padding: var(--space-1) var(--space-2);
   border: var(--hairline-width) solid var(--hairline);
+}
+
+/* Formulas, tables and photos drawn in the editor keep their own margins inside them. */
+.live :global(.cm-md-block) {
+  display: flow-root;
+}
+
+/* A displayed formula between blocks: the gap is the blocks' own, as for any block (KaTeX adds 1em otherwise). */
+.prose > :global(.math-block) :global(.katex-display),
+.live :global(.cm-md-block) :global(.katex-display) {
+  margin-block: 0;
+}
+
+/* Drawn HTML flows as in the renderer, not as the editor's pre-wrapped source. */
+.live :global(.cm-md-block),
+.live :global(.cm-md-math) {
+  white-space: normal;
+}
+
+.live :global(.cm-md-table) {
+  overflow-x: auto;
+}
+
+/* Cloze deletions, marked alike in a cloze card's editor and in its review (`clozeFaces`). */
+.prose :global(mark.cloze),
+.live :global(.cm-md-cloze) {
+  border-radius: var(--radius-small);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.live :global(.cm-md-mathSource),
+.live :global(.cm-line.cm-md-mathLine),
+.live :global(.cm-line.cm-md-tableSource) {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
+/* Markdown syntax, shown while the caret is in its element. */
+.live :global(.cm-md-mark) {
+  color: var(--ink-3);
 }

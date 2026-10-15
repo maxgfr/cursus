@@ -1,14 +1,6 @@
 import { defaultKeymap, indentWithTab } from '@codemirror/commands'
-import { markdown } from '@codemirror/lang-markdown'
-import { EditorSelection, EditorState, type Extension, StateEffect, StateField } from '@codemirror/state'
-import {
-  Decoration,
-  type DecorationSet,
-  EditorView,
-  keymap,
-  placeholder as placeholderExt,
-  WidgetType,
-} from '@codemirror/view'
+import { Compartment, EditorState, type Extension, type TransactionSpec } from '@codemirror/state'
+import { EditorView, keymap, placeholder as placeholderExt } from '@codemirror/view'
 import { Redo2, Undo2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { yCollab, yUndoManagerKeymap } from 'y-codemirror.next'
@@ -17,123 +9,36 @@ import { blobIdsIn } from '../../core/content/photos'
 import { useT } from '../../i18n/react.tsx'
 import { useBlobResolver } from '../../screens/Photos/files.ts'
 import { IconButton } from '../components/IconButton.tsx'
-import { Sanitized } from '../render/Sanitized.tsx'
+import { prefixLines, toggleMarker, toggleTask } from './format.ts'
+import { liveMarkdown } from './livePlan.ts'
+import { type LiveLabels, type LiveOptions, livePreview, photoUrls, setPhotoUrls, sourcePhotos } from './livePreview.ts'
 import styles from './MarkdownEditor.module.css'
 import type { MarkdownEditorProps } from './MarkdownEditor.tsx'
 import { type Format, Toolbar } from './Toolbar.tsx'
 
-/** Wraps the selection (or inserts a pair at the caret) with `before`/`after`. */
-function wrap(view: EditorView, before: string, after = before): boolean {
-  view.dispatch(
-    view.state.changeByRange((range) => ({
-      changes: [
-        { from: range.from, insert: before },
-        { from: range.to, insert: after },
-      ],
-      range: EditorSelection.range(range.from + before.length, range.to + before.length),
-    })),
-  )
-  view.focus()
-  return true
-}
-
-/** Prefixes every selected line with `prefix` (toggles it off when all lines have it). */
-function prefixLines(view: EditorView, prefix: string): boolean {
-  const { state } = view
-  const lines = new Set<number>()
-  for (const r of state.selection.ranges) {
-    for (let pos = r.from; pos <= r.to; ) {
-      const line = state.doc.lineAt(pos)
-      lines.add(line.number)
-      pos = line.to + 1
-    }
-  }
-  const all = [...lines].map((n) => state.doc.line(n))
-  const remove = all.every((l) => l.text.startsWith(prefix))
-  view.dispatch({
-    changes: all.map((l) =>
-      remove ? { from: l.from, to: l.from + prefix.length, insert: '' } : { from: l.from, insert: prefix },
-    ),
-  })
+/** Applies a formatting command to the editor, then gives it the focus back. */
+function apply(view: EditorView, spec: TransactionSpec | null): boolean {
+  if (spec === null) return false
+  view.dispatch(spec, { scrollIntoView: true, userEvent: 'input.format' })
   view.focus()
   return true
 }
 
 const FORMAT: Record<Format, (view: EditorView) => boolean> = {
-  bold: (v) => wrap(v, '**'),
-  italic: (v) => wrap(v, '*'),
-  heading: (v) => prefixLines(v, '## '),
-  list: (v) => prefixLines(v, '- '),
-  math: (v) => wrap(v, '$'),
-  code: (v) => wrap(v, '`'),
-}
-
-/** A stored photo in the text (`![caption](cursus-blob:<sha256>)`). */
-const PHOTO = /!\[([^\]\n]*)\]\(cursus-blob:([0-9a-f]{64})\)/g
-
-/** The displayable URLs of the photos the text holds, set from outside once they are loaded. */
-const setPhotoUrls = StateEffect.define<ReadonlyMap<string, string>>()
-
-/** The photo itself, shown under the line that references it; the reference stays editable above. */
-class PhotoWidget extends WidgetType {
-  constructor(
-    readonly url: string,
-    readonly alt: string,
-  ) {
-    super()
-  }
-
-  override eq(other: PhotoWidget): boolean {
-    return other.url === this.url && other.alt === this.alt
-  }
-
-  toDOM(): HTMLElement {
-    const box = document.createElement('div')
-    box.className = 'cm-photoPreview'
-    const img = document.createElement('img')
-    img.src = this.url
-    img.alt = this.alt
-    img.loading = 'lazy'
-    img.decoding = 'async'
-    box.append(img)
-    return box
-  }
-}
-
-function photoDecorations(state: EditorState, urls: ReadonlyMap<string, string>): DecorationSet {
-  const widgets = []
-  const text = state.doc.toString()
-  for (const m of text.matchAll(PHOTO)) {
-    const url = urls.get(m[2] ?? '')
-    if (url === undefined) continue
-    const line = state.doc.lineAt(m.index + m[0].length)
-    widgets.push(Decoration.widget({ widget: new PhotoWidget(url, m[1] ?? ''), block: true, side: 1 }).range(line.to))
-  }
-  return Decoration.set(widgets, true)
-}
-
-/** Previews of the photos in the text, under their lines, as soon as their files are available. */
-function photoPreviews(): Extension {
-  const urls = StateField.define<ReadonlyMap<string, string>>({
-    create: () => new Map(),
-    update: (value, tr) => tr.effects.reduce((v, e) => (e.is(setPhotoUrls) ? e.value : v), value),
-  })
-  const decorations = StateField.define<DecorationSet>({
-    create: (state) => photoDecorations(state, state.field(urls)),
-    update: (value, tr) =>
-      tr.docChanged || tr.effects.some((e) => e.is(setPhotoUrls))
-        ? photoDecorations(tr.state, tr.state.field(urls))
-        : value.map(tr.changes),
-    provide: (f) => EditorView.decorations.from(f),
-  })
-  return [urls, decorations]
+  bold: (v) => apply(v, toggleMarker(v.state, '**')),
+  italic: (v) => apply(v, toggleMarker(v.state, '*')),
+  heading: (v) => apply(v, prefixLines(v.state, '## ')),
+  list: (v) => apply(v, prefixLines(v.state, '- ')),
+  math: (v) => apply(v, toggleMarker(v.state, '$')),
+  code: (v) => apply(v, toggleMarker(v.state, '`')),
 }
 
 const theme = EditorView.theme({
   '&': {
     color: 'var(--ink)',
     backgroundColor: 'transparent',
-    fontSize: 'max(1rem, 16px)',
+    // As the rendered text (16 px at least: iOS zooms into smaller fields).
+    fontSize: 'max(16px, var(--text-body))',
   },
   '.cm-content': {
     padding: 'var(--space-4)',
@@ -141,7 +46,9 @@ const theme = EditorView.theme({
     lineHeight: '1.55',
     caretColor: 'var(--accent)',
   },
-  '.cm-scroller': { fontFamily: 'var(--font-sans)' },
+  // Lines start where rendered text starts.
+  '.cm-line': { padding: '0' },
+  '.cm-scroller': { fontFamily: 'var(--font-sans)', lineHeight: '1.55' },
   '&.cm-focused': { outline: '2px solid var(--focus)', outlineOffset: '-2px' },
   '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--accent)' },
   '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
@@ -149,22 +56,36 @@ const theme = EditorView.theme({
   },
   '.cm-placeholder': { color: 'var(--ink-3)' },
   '.cm-ySelectionInfo': { display: 'none' },
-  '.cm-photoPreview': { padding: 'var(--space-2) 0' },
-  '.cm-photoPreview img': {
-    display: 'block',
-    maxWidth: '100%',
-    maxHeight: '14rem',
-    borderRadius: 'var(--radius-control)',
-    objectFit: 'contain',
-  },
+  // Under a line of text, a photo is set off from it; in place of its line, the blank lines around make the gap.
+  '.cm-photoUnder': { padding: 'var(--space-2) 0' },
+  '.cm-photoPreview img': { display: 'block' },
 })
 
-export default function MarkdownEditorImpl({ text, label, placeholder, initialMode = 'write' }: MarkdownEditorProps) {
+/** The text as it reads (live) or its raw Markdown (source). */
+function view(source: boolean, labels: LiveLabels, options: LiveOptions): Extension {
+  return source ? sourcePhotos() : livePreview(labels, options)
+}
+
+export default function MarkdownEditorImpl({ text, label, placeholder, cloze = false }: MarkdownEditorProps) {
+  const t = useT()
   const host = useRef<HTMLDivElement>(null)
-  const view = useRef<EditorView | null>(null)
-  const [mode, setMode] = useState(initialMode)
+  const editor = useRef<EditorView | null>(null)
+  const mode = useRef(new Compartment())
+  const [source, setSource] = useState(false)
+  const sourceNow = useRef(source)
+  sourceNow.current = source
   const [undo, setUndo] = useState<Y.UndoManager | null>(null)
-  // The text as it stands, so its photos can be loaded and shown, in the editor and in the preview.
+  const taskLabel = useCallback(
+    (task: string) => (task === '' ? t('common.edTask') : t('common.edTaskOf', { task })),
+    [t],
+  )
+  const labels = useRef<LiveLabels>({ task: taskLabel })
+  labels.current = { task: taskLabel }
+  const clozeNow = useRef(cloze)
+  clozeNow.current = cloze
+  /** What the live view was last configured with. */
+  const configured = useRef({ taskLabel, cloze })
+  // The text as it stands, so its photos can be loaded and shown in the editor.
   const subscribeText = useCallback(
     (fn: () => void) => {
       text.observe(fn)
@@ -185,13 +106,14 @@ export default function MarkdownEditorImpl({ text, label, placeholder, initialMo
         doc: text.toString(),
         extensions: [
           keymap.of([
-            { key: 'Mod-b', run: (ed) => wrap(ed, '**') },
-            { key: 'Mod-i', run: (ed) => wrap(ed, '*') },
+            { key: 'Mod-b', run: FORMAT.bold },
+            { key: 'Mod-i', run: FORMAT.italic },
+            { key: 'Alt-Enter', run: (ed) => apply(ed, toggleTask(ed.state)) },
             ...yUndoManagerKeymap,
             ...defaultKeymap,
             indentWithTab,
           ]),
-          markdown(),
+          liveMarkdown(),
           EditorView.lineWrapping,
           EditorView.contentAttributes.of({
             'aria-label': label,
@@ -202,24 +124,36 @@ export default function MarkdownEditorImpl({ text, label, placeholder, initialMo
           }),
           placeholder ? placeholderExt(placeholder) : [],
           theme,
-          photoPreviews(),
+          photoUrls,
+          mode.current.of(view(sourceNow.current, labels.current, { cloze: clozeNow.current })),
           yCollab(text, null, { undoManager }),
         ],
       }),
     })
-    view.current = v
+    editor.current = v
+    configured.current = { taskLabel: labels.current.task, cloze: clozeNow.current }
     setUndo(undoManager)
     return () => {
       v.destroy()
       undoManager.destroy()
-      view.current = null
+      editor.current = null
       setUndo(null)
     }
   }, [text, label, placeholder])
 
+  // A change of language (task names) or of card kind (cloze read or not) redraws the text, not the editor.
+  useEffect(() => {
+    const last = configured.current
+    if (last.taskLabel === taskLabel && last.cloze === cloze) return
+    configured.current = { taskLabel, cloze }
+    editor.current?.dispatch({
+      effects: mode.current.reconfigure(view(sourceNow.current, { task: taskLabel }, { cloze })),
+    })
+  }, [taskLabel, cloze])
+
   // The editor is created once per text: the photos' URLs reach it as an effect whenever they load.
   useEffect(() => {
-    const v = view.current
+    const v = editor.current
     if (!v) return
     const urls = new Map<string, string>()
     for (const id of blobIdsIn(current)) {
@@ -229,20 +163,23 @@ export default function MarkdownEditorImpl({ text, label, placeholder, initialMo
     v.dispatch({ effects: setPhotoUrls.of(urls) })
   }, [current, resolveBlob])
 
+  const showSource = (next: boolean) => {
+    setSource(next)
+    editor.current?.dispatch({ effects: mode.current.reconfigure(view(next, labels.current, { cloze })) })
+  }
+
   const format = (f: Format) => {
-    const v = view.current
+    const v = editor.current
     if (v) FORMAT[f](v)
   }
 
   return (
     <div className={styles.frame}>
-      <Toolbar mode={mode} live={{ onMode: setMode, onFormat: format, history: <UndoButtons undo={undo} /> }} />
-      <div ref={host} className={styles.host} hidden={mode !== 'write'} />
-      {mode === 'preview' && (
-        <div className={styles.preview}>
-          <Sanitized markdown={current} {...(resolveBlob ? { resolveBlob } : {})} />
-        </div>
-      )}
+      <Toolbar
+        source={source}
+        live={{ onSource: showSource, onFormat: format, history: <UndoButtons undo={undo} /> }}
+      />
+      <div ref={host} className={styles.host} />
     </div>
   )
 }

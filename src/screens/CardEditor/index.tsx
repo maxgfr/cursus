@@ -398,7 +398,11 @@ export default function CardEditor() {
               <h2 id="card-front" className={styles.label}>
                 {kind === 'cloze' ? t('course.clozeText') : t('course.front')}
               </h2>
-              <MarkdownEditor text={draft.front} label={kind === 'cloze' ? t('course.clozeText') : t('course.front')} />
+              <MarkdownEditor
+                text={draft.front}
+                label={kind === 'cloze' ? t('course.clozeText') : t('course.front')}
+                cloze={kind === 'cloze'}
+              />
               <CardPhotos
                 text={draft.front}
                 value={fields.front}

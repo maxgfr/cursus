@@ -292,9 +292,13 @@ test('Card editor: the cloze assistant hides phrases and previews one card each'
   await phrase.fill('DNA')
   await page.getByLabel('Hint (optional)').fill('molecule')
   await page.getByRole('button', { name: 'Hide it' }).click()
-  await expect(page.getByRole('textbox', { name: 'Text' })).toContainText(
-    'The {{c1::nucleus}} holds the {{c2::DNA::molecule}}.',
-  )
+  // The text reads with its answers marked; its Markdown source holds the deletions.
+  const text = page.getByRole('textbox', { name: 'Text' })
+  await expect(text.locator('.cm-md-cloze')).toHaveText(['nucleus', 'DNA'])
+  const source = page.getByRole('button', { name: 'Show the Markdown source' }).first()
+  await source.click()
+  await expect(text).toContainText('The {{c1::nucleus}} holds the {{c2::DNA::molecule}}.')
+  await source.click()
   const preview = page.getByRole('list', { name: '2 cards from this text' })
   await expect(preview.getByRole('listitem')).toHaveText([
     '1The [...] holds the DNA.',

@@ -91,8 +91,10 @@ export const common = {
   edList: 'Bulleted list',
   edMath: 'Math',
   edCode: 'Code',
-  edPreview: 'Preview',
-  edWrite: 'Write',
+  edSource: 'Markdown',
+  edSourceLabel: 'Show the Markdown source',
+  edTask: 'Done',
+  edTaskOf: 'Done: {task}',
   edLabel: 'Text',
   edLoading: 'Opening the editor…',
   // S-026

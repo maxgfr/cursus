@@ -56,7 +56,15 @@ marked.use({ extensions: [mathBlock, mathInline] })
 
 /** Renders untrusted Markdown (with `$…$` / `$$…$$` maths) to sanitized HTML. */
 export function renderMarkdown(source: string, options: RenderOptions = {}): string {
-  const html = marked.parse(source, { async: false })
+  return sanitize(marked.parse(source, { async: false }), options)
+}
+
+/** Same as `renderMarkdown` for a run of inline text (no paragraph around it), e.g. one `$…$` formula. */
+export function renderMarkdownInline(source: string, options: RenderOptions = {}): string {
+  return sanitize(marked.parseInline(source, { async: false }), options)
+}
+
+function sanitize(html: string, options: RenderOptions): string {
   const purify = DOMPurify(window)
   const resolve = options.resolveBlob
   purify.addHook('afterSanitizeAttributes', (node) => {

@@ -97,8 +97,10 @@ export const common = {
   edList: 'Liste à puces',
   edMath: 'Formule',
   edCode: 'Code',
-  edPreview: 'Aperçu',
-  edWrite: 'Écrire',
+  edSource: 'Markdown',
+  edSourceLabel: 'Afficher la source Markdown',
+  edTask: 'Fait',
+  edTaskOf: 'Fait : {task}',
   edLabel: 'Texte',
   edLoading: 'Ouverture de l’éditeur…',
   // S-026

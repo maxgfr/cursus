@@ -110,7 +110,8 @@ test('Demo: a note with maths, a slide deck read slide by slide, photos in the g
   await showSources(page)
   await main.getByRole('link', { name: /^Cell biology: the essentials/ }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Cell biology: the essentials' })).toBeVisible()
-  await page.getByRole('button', { name: 'Preview' }).click()
+  // Rendered in the editor itself (nothing to switch to), which draws what is near the screen: the note in view.
+  await main.locator('.cm-content').evaluate((el) => el.scrollIntoView({ block: 'center' }))
   // Two displayed formulas and six inline ones.
   await expect(main.locator('.math-block .katex')).toHaveCount(2)
   await expect(main.locator('.math-block .katex').first()).toBeVisible()
@@ -233,7 +234,6 @@ test('German, dark: the demo course fits every screen and passes axe', async ({ 
   await go(page, course, 'Demo: Zellbiologie')
   await showSources(page, 'Quellen')
   await main.getByRole('link', { name: /^Zellbiologie: das Wichtigste/ }).click()
-  await page.getByRole('button', { name: 'Vorschau' }).click()
   await expect(main.locator('.katex').first()).toBeVisible()
   await check('note')
   await go(page, course, 'Demo: Zellbiologie')

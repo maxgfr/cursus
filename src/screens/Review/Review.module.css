@@ -112,6 +112,8 @@
   min-width: 0;
   overflow-wrap: anywhere;
   background: var(--surface-pressed);
+  /* Code in the answer stands out from the answer's own pressed surface. */
+  --prose-code-bg: var(--surface);
 }
 
 /* The answer and its speak button, aligned to the first line. */

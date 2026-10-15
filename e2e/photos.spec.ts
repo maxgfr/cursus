@@ -171,15 +171,17 @@ test('capture through the file chooser, the full-screen viewer, and a photo on a
     await expect(page.getByRole('heading', { level: 1, name: 'Card' })).toBeVisible()
     await expect(page.getByTestId('card-photo')).toHaveCount(1)
     await expect(page.getByTestId('card-photo').getByRole('img', { name: 'Skeleton' })).toBeVisible()
-    // The photo shows in the editor, under its line, and in the side's preview.
+    // The photo shows in the editor, rendered in place: its reference is out of sight once the caret is elsewhere.
     const front = page.locator('section', { has: page.getByRole('heading', { name: 'Front' }) })
     const inEditor = front.locator('.cm-photoPreview').getByRole('img', { name: 'Skeleton' })
     await expect(inEditor).toBeVisible()
     expect(await inEditor.evaluate((img) => (img as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
-    await front.getByRole('button', { name: 'Preview' }).click()
-    await expect(front.getByRole('img', { name: 'Skeleton' }).last()).toBeVisible()
-    await front.getByRole('button', { name: 'Write' }).click()
     await typeInto(page, 'Back', 'The bones')
+    // The caret gone, the photo is drawn in place of its line, from this device's file (the renderer's own way of
+    // drawing it is checked in Review below).
+    const inPlace = front.locator('.cm-photoPreview:not(.cm-photoUnder)').getByRole('img', { name: 'Skeleton' })
+    await expect(inPlace).toHaveAttribute('src', /^blob:/)
+    await expect(front.getByRole('textbox', { name: 'Front' })).not.toContainText('cursus-blob:')
     await save(page).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Card' })).toBeHidden()
     await expectPhotoInReview(page, 'Skeleton')
