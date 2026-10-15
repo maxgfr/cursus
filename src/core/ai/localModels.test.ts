@@ -59,11 +59,42 @@ function report(budget: number, shaderF16: boolean, lowResource = false): LocalD
 }
 
 describe('recommendation', () => {
-  test('8 GiB of RAM with fp16: 4096 MB, which llm-models answers with Qwen3.5-4B', async () => {
+  test('8 GiB of RAM with fp16: 4096 MB, Gemma 4 E2B by default, then llm-models ranking', async () => {
     const r = recommendLocal(await detected(8), ENGINE_IDS)
-    expect(r.supported && r.choice.model.id).toBe('Qwen3.5-4B-q4f16_1-MLC')
+    expect(r.supported && r.choice.model.id).toBe('gemma-4-E2B-it-q4f16_1-MLC')
     expect(r.supported && r.choice.reason).toContain('4096 MB budget')
-    expect(r.supported && r.choice.memoryMB).toBe(model('Qwen3.5-4B-q4f16_1-MLC').vram_required_mb)
+    expect(r.supported && r.choice.memoryMB).toBe(model('gemma-4-E2B-it-q4f16_1-MLC').vram_required_mb)
+    const runnable = listBrowserModels().filter((m) => ENGINE_IDS.has(m.id))
+    const ranked = recommendBrowserModel(
+      { vram_budget_mb: 4096, needs: [...LOCAL_NEEDS], shader_f16: true, low_resource: false },
+      runnable,
+    )
+    if (!ranked) throw new Error('llm-models ranks nothing at 4096 MB')
+    expect(r.supported && r.choice.alternatives[0]?.id).toBe('Qwen3.5-4B-q4f16_1-MLC')
+    expect(r.supported && r.choice.alternatives.map((m) => m.id)).toEqual(
+      [ranked.model, ...ranked.alternatives].map((m) => m.id).filter((id) => !id.startsWith('gemma-4-E2B')),
+    )
+  })
+
+  test('without fp16 the default is the q4f32 Gemma 4 E2B build', async () => {
+    const r = recommendLocal(await detected(8, fakeGpu({ shaderF16: false })), ENGINE_IDS)
+    expect(r.supported && r.choice.model.id).toBe('gemma-4-E2B-it-q4f32_1-MLC')
+  })
+
+  test('too little memory for Gemma 4 E2B: llm-models picks a smaller model', () => {
+    for (const [budget, f16] of [
+      [3000, true],
+      [3500, false],
+    ] as const) {
+      const r = recommendLocal(report(budget, f16), ENGINE_IDS)
+      const runnable = listBrowserModels().filter((m) => ENGINE_IDS.has(m.id))
+      const expected = recommendBrowserModel(
+        { vram_budget_mb: budget, needs: [...LOCAL_NEEDS], shader_f16: f16, low_resource: false },
+        runnable,
+      )
+      expect(r.supported && r.choice.model.id).toBe(expected?.model.id ?? false)
+      expect(r.supported && r.choice.model.series).not.toBe('gemma-4')
+    }
   })
 
   test('the device facts map onto llm-models options one to one', async () => {
@@ -94,15 +125,19 @@ describe('recommendation', () => {
   })
 
   test('only models the installed engine runs are offered', () => {
-    // llm-models' catalog is newer than the installed WebLLM: at 4000 MB without fp16 it lists a
-    // Gemma 4 build this engine does not have.
-    const unfiltered = recommendBrowserModel({ vram_budget_mb: 4000, needs: [...LOCAL_NEEDS], shader_f16: false })
+    // llm-models' catalog may be newer than the installed WebLLM: builds the engine does not have,
+    // the default model's among them, are listed next to the real ones.
+    const unknown = listBrowserModels().flatMap((m) => [{ ...m, id: `${m.id}-next` }, m])
+    const unfiltered = recommendBrowserModel(
+      { vram_budget_mb: 4000, needs: [...LOCAL_NEEDS], shader_f16: false },
+      unknown,
+    )
     const all = [unfiltered?.model, ...(unfiltered?.alternatives ?? [])].map((m) => m?.id ?? '')
     expect(all.some((id) => !ENGINE_IDS.has(id))).toBe(true)
     for (const budget of [1024, 1536, 2048, 3000, 4000, 4096, 6000, 8192, 16384]) {
       for (const f16 of [true, false]) {
         for (const low of [true, false]) {
-          const r = recommendLocal(report(budget, f16, low), ENGINE_IDS)
+          const r = recommendLocal(report(budget, f16, low), ENGINE_IDS, unknown)
           if (!r.supported) continue
           for (const m of [r.choice.model, ...r.choice.alternatives]) expect(ENGINE_IDS.has(m.id)).toBe(true)
         }

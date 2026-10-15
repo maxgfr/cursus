@@ -44,6 +44,8 @@ export const ENGINE_MODELS: readonly string[] = [
   'SmolLM2-360M-Instruct-q4f32_1-MLC',
   'SmolLM2-135M-Instruct-q0f16-MLC',
   'SmolLM2-135M-Instruct-q0f32-MLC',
+  'gemma-4-E2B-it-q4f16_1-MLC',
+  'gemma-4-E2B-it-q4f32_1-MLC',
   'gemma-2-2b-it-q4f16_1-MLC',
   'gemma-2-2b-it-q4f32_1-MLC',
   'gemma-2-2b-it-q4f16_1-MLC-1k',

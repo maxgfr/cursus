@@ -63,10 +63,17 @@ export function downloadBytesOf(model: BrowserModel): number | null {
   return record?.weights_bytes ?? (model.download_mb === null ? null : Math.round(model.download_mb * 1e6))
 }
 
+/** The default model, in whichever build (fp16 or fp32) the device runs. */
+export const DEFAULT_LOCAL_SERIES = 'gemma-4'
+export const DEFAULT_LOCAL_PARAMS_B = 2
+
+const isDefaultLocal = (m: BrowserModel) => m.series === DEFAULT_LOCAL_SERIES && m.params_b === DEFAULT_LOCAL_PARAMS_B
+
 /**
- * The best model this device runs: llm-models ranks the models the engine knows (its catalog may
- * list builds newer than the installed WebLLM) against the GPU memory budget, the adapter's fp16
- * support and its storage-buffer limit. Nothing fitting means too little memory.
+ * The model this device should run: Gemma 4 E2B when the device fits it, otherwise the best one
+ * llm-models ranks among the models the engine knows (its catalog may list builds newer than the
+ * installed WebLLM), against the GPU memory budget, the adapter's fp16 support and its storage-buffer
+ * limit. Nothing fitting means too little memory.
  */
 export function recommendLocal(
   detection: LocalDetection,
@@ -76,16 +83,22 @@ export function recommendLocal(
   if (!detection.supported) return detection
   const { gpu } = detection
   const runnable = models.filter((m) => engineIds.has(m.id))
-  const pick = recommendBrowserModel(
-    {
-      vram_budget_mb: gpu.memoryBudgetMB,
-      needs: [...LOCAL_NEEDS],
-      shader_f16: gpu.shaderF16,
-      low_resource: gpu.lowResource,
-    },
-    runnable,
-  )
-  if (!pick) return { supported: false, reason: 'too-little-memory', gpu }
+  const options = {
+    vram_budget_mb: gpu.memoryBudgetMB,
+    needs: [...LOCAL_NEEDS],
+    shader_f16: gpu.shaderF16,
+    low_resource: gpu.lowResource,
+  }
+  const ranked = recommendBrowserModel(options, runnable)
+  if (!ranked) return { supported: false, reason: 'too-little-memory', gpu }
+  const preferred = recommendBrowserModel(options, runnable.filter(isDefaultLocal))
+  const pick = preferred
+    ? {
+        model: preferred.model,
+        alternatives: [ranked.model, ...ranked.alternatives].filter((m) => !isDefaultLocal(m)),
+        reason: preferred.reason,
+      }
+    : ranked
   return {
     supported: true,
     gpu,
