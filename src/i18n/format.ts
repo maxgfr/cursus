@@ -16,6 +16,19 @@ export function formatPercent(locale: Locale, ratio: number): string {
   return new Intl.NumberFormat(intlTag(locale), { style: 'percent', maximumFractionDigits: 1 }).format(ratio)
 }
 
+/** Decimal bytes, as the OS shows storage: "968 MB", "2.4 GB". Show it inside a catalog string. */
+export function formatBytes(locale: Locale, n: number): string {
+  const mb = n / 1_000_000
+  const unit = mb >= 1000 ? 'gigabyte' : 'megabyte'
+  const value = unit === 'gigabyte' ? mb / 1000 : mb
+  return new Intl.NumberFormat(intlTag(locale), {
+    style: 'unit',
+    unit,
+    unitDisplay: 'short',
+    maximumFractionDigits: value < 10 ? 1 : 0,
+  }).format(value)
+}
+
 /** USD with extra precision for sub-cent AI costs. */
 export function formatUsd(locale: Locale, amount: number): string {
   const small = amount !== 0 && Math.abs(amount) < 0.01

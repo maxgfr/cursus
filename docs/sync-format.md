@@ -9,6 +9,11 @@ envelope below requires a new format version (a new `fmt/vN` marker, a new versi
 fixtures next to `tests/fixtures/v1`. The v1 fixtures (`segment.bin`, `checkpoint.bin`) are never
 rewritten; if the codec stops decoding them, the codec is wrong.
 
+**Envelope version 2.** Segments and checkpoints are now written with version byte `0x02` (see
+[Envelope versions](#envelope-versions)); everything else in this document, keys, markers (`fmt/v1`), headers,
+files, sealing and key envelopes included, is unchanged. Version-1 objects are still read, never rewritten.
+Its frozen fixtures are in `tests/fixtures/v2`.
+
 ## Invariant
 
 No remote object is ever rewritten or deleted. The state of a library is the commutative, idempotent
@@ -44,7 +49,7 @@ readers try each copy until one verifies.
 
 ```
 offset 0   4 bytes  magic "CRSY" (0x43 0x52 0x53 0x59)
-offset 4   1 byte   format version, 0x01
+offset 4   1 byte   envelope version: 0x02 written, 0x01 and 0x02 read
 offset 5   ...      zlib stream (RFC 1950) of:
                       u32 big-endian  headerLen
                       headerLen bytes header JSON (UTF-8)
@@ -73,6 +78,21 @@ offset 5   ...      zlib stream (RFC 1950) of:
 A hash mismatch is treated as transient (another duplicate or another destination may hold a good copy);
 an object that is undecodable or too new is kept with state `needs-upgrade` and re-applied after an update
 of the app.
+
+### Envelope versions
+
+The layout above is the same in both versions, header included (`"v":1`). The version byte says what the
+update may hold:
+
+| Version | Written by | The update may hold |
+|---|---|---|
+| `0x01` | earlier builds | the roots of the first format, reviews as one object per event in the array `reviews` |
+| `0x02` | this build | also roots an earlier build would silently ignore although it relies on the data in them: `reviewLog` (every review and void written since: one compact string per event, an earlier build would schedule without them), `sessions`, `plans`, `drafts` |
+
+A build that reads only version 1 rejects a version-2 object at the version byte (error `version`) and keeps
+it as `needs-upgrade`, which the sync status reports, rather than applying a library that lacks its latest
+reviews. Since sealed objects, backups (`.cursus` archives) and checkpoints carry these envelopes byte for byte,
+the same holds for them. Course packages (`.cursus-course`) carry no Yjs update and are not affected.
 
 ### Checkpoints
 

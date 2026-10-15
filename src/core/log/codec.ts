@@ -2,13 +2,28 @@ import { sha256 } from '@noble/hashes/sha2.js'
 import { bytesToHex } from '@noble/hashes/utils.js'
 import { unzlibSync, zlibSync } from 'fflate'
 import * as Y from 'yjs'
-import { EnvelopeError } from '../contracts/errors'
-import type { EnvelopeCodec, Header, ParsedKey } from '../contracts/log'
-import type { Key } from '../contracts/remote'
+import { EnvelopeError } from '../contracts/errors.ts'
+import type { EnvelopeCodec, Header, ParsedKey } from '../contracts/log.ts'
+import type { Key } from '../contracts/remote.ts'
 
 /** Envelope: MAGIC(4) | version(1) | zlib( u32be headerLen | header JSON | Yjs update V2 ). */
 export const MAGIC = new Uint8Array([0x43, 0x52, 0x53, 0x59]) // "CRSY"
-export const FORMAT_VERSION = 1
+/**
+ * Envelope versions this build reads. Same layout; what differs is what the update may hold:
+ *
+ *   1  everything up to the legacy review log (one object per review, root `reviews`)
+ *   2  may also hold roots a version-1 reader would silently ignore while they carry data it relies on: the
+ *      compact review log (`reviewLog`, every review and void written since), sessions, plans and drafts.
+ *
+ * A build that only reads version 1 keeps a version-2 object as `needs-upgrade` (and says an update is
+ * needed) instead of applying a library without its latest reviews: a wrong schedule, silently.
+ */
+export type EnvelopeVersion = 1 | 2
+/** The version this build writes: every segment and checkpoint it makes. */
+export const FORMAT_VERSION: EnvelopeVersion = 2
+/** The versions this build reads (shown in Settings, with the one it writes). */
+export const READABLE_VERSIONS: readonly EnvelopeVersion[] = [1, 2]
+const READABLE: ReadonlySet<number> = new Set<number>(READABLE_VERSIONS)
 export const BLOB_PREFIX = 'cursus-blob:'
 
 const DEVICE = '[A-Za-z0-9_-]{1,64}'
@@ -97,7 +112,12 @@ export function refsOf(update: Uint8Array): string[] {
   return [...out].sort()
 }
 
-export function encode(h: Header, update: Uint8Array): { key: Key; bytes: Uint8Array } {
+/** `version`: what this build writes; an earlier one only to show what an earlier build wrote (tests). */
+export function encode(
+  h: Header,
+  update: Uint8Array,
+  version: EnvelopeVersion = FORMAT_VERSION,
+): { key: Key; bytes: Uint8Array } {
   const hj = enc.encode(headerJson(h))
   const inner = new Uint8Array(4 + hj.length + update.length)
   new DataView(inner.buffer).setUint32(0, hj.length)
@@ -106,7 +126,7 @@ export function encode(h: Header, update: Uint8Array): { key: Key; bytes: Uint8A
   const z = zlibSync(inner, { level: 6 })
   const bytes = new Uint8Array(MAGIC.length + 1 + z.length)
   bytes.set(MAGIC, 0)
-  bytes[MAGIC.length] = FORMAT_VERSION
+  bytes[MAGIC.length] = version
   bytes.set(z, MAGIC.length + 1)
   return { key: keyFor(h, bytes), bytes }
 }
@@ -126,22 +146,40 @@ function isHeader(x: unknown): x is Header {
   )
 }
 
-/** Verifies hash (vs key) ⇒ magic ⇒ version, then that the header agrees with the key. Never re-encodes. */
-export function decode(key: Key, bytes: Uint8Array): { header: Header; update: Uint8Array } {
+type SegmentKey = ParsedKey & { kind: 'seg' | 'ckpt' }
+
+function segmentKey(key: Key): SegmentKey {
   const parsed = parseKey(key)
   if (!parsed || (parsed.kind !== 'seg' && parsed.kind !== 'ckpt')) throw new RangeError(`Not a segment key: ${key}`)
-  if (sha256Hex(bytes).slice(0, 16) !== parsed.h16) throw new EnvelopeError('hash', `Hash mismatch for ${key}`)
+  return parsed
+}
+
+/** Hash (`h16` of the bytes, vs key) ⇒ magic ⇒ version. */
+function checkEnvelope(key: Key, parsed: SegmentKey, bytes: Uint8Array, h16: string): void {
+  if (h16 !== parsed.h16) throw new EnvelopeError('hash', `Hash mismatch for ${key}`)
   for (let i = 0; i < MAGIC.length; i++) {
     if (bytes[i] !== MAGIC[i]) throw new EnvelopeError('magic', `Bad magic for ${key}`)
   }
-  if (bytes[MAGIC.length] !== FORMAT_VERSION) throw new EnvelopeError('version', `Unknown format for ${key}`)
+  if (!READABLE.has(bytes[MAGIC.length] ?? 0)) throw new EnvelopeError('version', `Unknown format for ${key}`)
+}
+
+/**
+ * Header JSON and update out of the inflated envelope; the header must agree with the key. `own`: the inflated
+ * bytes belong to this call alone, so the update is a view on them rather than a copy.
+ */
+function unpack(
+  key: Key,
+  parsed: SegmentKey,
+  inflate: () => Uint8Array,
+  own = false,
+): { header: Header; update: Uint8Array } {
   let header: unknown
   let update: Uint8Array
   try {
-    const inner = unzlibSync(bytes.subarray(MAGIC.length + 1))
+    const inner = inflate()
     const len = new DataView(inner.buffer, inner.byteOffset, inner.byteLength).getUint32(0)
     header = JSON.parse(dec.decode(inner.subarray(4, 4 + len)))
-    update = inner.slice(4 + len)
+    update = own ? inner.subarray(4 + len) : inner.slice(4 + len)
   } catch (e) {
     throw new EnvelopeError('version', `Undecodable envelope ${key}: ${String(e)}`)
   }
@@ -154,4 +192,45 @@ export function decode(key: Key, bytes: Uint8Array): { header: Header; update: U
   return { header, update }
 }
 
-export const codec: EnvelopeCodec = { encode, decode, parseKey }
+/** Verifies hash (vs key) ⇒ magic ⇒ version, then that the header agrees with the key. Never re-encodes. */
+export function decode(key: Key, bytes: Uint8Array): { header: Header; update: Uint8Array } {
+  const parsed = segmentKey(key)
+  checkEnvelope(key, parsed, bytes, sha256Hex(bytes).slice(0, 16))
+  return unpack(key, parsed, () => unzlibSync(bytes.subarray(MAGIC.length + 1)))
+}
+
+const onArrayBuffer = (b: Uint8Array): b is Uint8Array<ArrayBuffer> => b.buffer instanceof ArrayBuffer
+
+/** The platform's SHA-256, off the JS thread; null where there is none (outside a secure context). */
+async function h16Native(bytes: Uint8Array<ArrayBuffer>): Promise<string | null> {
+  if (typeof crypto === 'undefined' || crypto.subtle === undefined) return null
+  return bytesToHex(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))).slice(0, 16)
+}
+
+/** The platform's zlib, off the JS thread and several times faster than fflate; null where there is none. */
+async function inflateNative(z: Uint8Array<ArrayBuffer>): Promise<Uint8Array | null> {
+  if (typeof DecompressionStream === 'undefined') return null
+  const stream = new Blob([z]).stream().pipeThrough(new DecompressionStream('deflate'))
+  return new Uint8Array(await new Response(stream).arrayBuffer())
+}
+
+/**
+ * `decode`, same checks and errors, hashing and inflating with the platform's own code where there is some:
+ * on a large library this is most of a launch's load time.
+ */
+export async function decodeAsync(key: Key, bytes: Uint8Array): Promise<{ header: Header; update: Uint8Array }> {
+  const parsed = segmentKey(key)
+  // The platform APIs want bytes on a plain ArrayBuffer (what IndexedDB returns); anything else is copied.
+  const plain = onArrayBuffer(bytes) ? bytes : new Uint8Array(bytes)
+  checkEnvelope(key, parsed, plain, (await h16Native(plain)) ?? sha256Hex(plain).slice(0, 16))
+  const z = plain.subarray(MAGIC.length + 1)
+  let inflated: Uint8Array | null
+  try {
+    inflated = await inflateNative(z)
+  } catch (e) {
+    throw new EnvelopeError('version', `Undecodable envelope ${key}: ${String(e)}`)
+  }
+  return unpack(key, parsed, () => inflated ?? unzlibSync(z), true)
+}
+
+export const codec: EnvelopeCodec = { encode, decode, decodeAsync, parseKey }

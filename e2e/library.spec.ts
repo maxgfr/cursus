@@ -83,9 +83,11 @@ test('Today: first-launch state, "+" action, due counts and the exam countdown',
   await dialog.getByRole('button', { name: 'Save' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Physiology' })).toBeVisible()
 
-  // Exam in 12 days, set from the course settings.
+  // Exam in 12 days, set from the course settings. Days are study days, as in the app: one starts at 04:00, so
+  // between midnight and 04:00 it is still the previous one, and the date counts from that day.
   const exam = await page.evaluate(() => {
     const d = new Date()
+    if (d.getHours() < 4) d.setDate(d.getDate() - 1)
     d.setDate(d.getDate() + 12)
     const pad = (n: number) => String(n).padStart(2, '0')
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
@@ -372,7 +374,18 @@ test('Onboarding: install first, Safari tab warning, storage health and an expli
   expect(await seriousViolations(page)).toEqual([])
   await page.getByRole('button', { name: 'Try a demo course' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Demo: Cell biology' })).toBeVisible()
-  await expect(page.getByRole('main').getByRole('link')).toHaveCount(4) // back link + 3 cards
+  // The demo shows every feature at the course's root: the back link, its two subsets, the proposed questions'
+  // Review line and the two cards that live at the root (the rest sit in the subsets).
+  const main = page.getByRole('main')
+  await expect(main.getByRole('link', { name: 'Back' })).toBeVisible()
+  await expect(main.getByRole('link', { name: /^Membranes\b/ })).toBeVisible()
+  await expect(main.getByRole('link', { name: /^Organelles\b/ })).toBeVisible()
+  const drafts = page.getByTestId('course-drafts')
+  await expect(drafts).toContainText('5 questions to review')
+  await expect(drafts.getByRole('link', { name: 'Review' })).toBeVisible()
+  await expect(main.getByRole('link', { name: /What is the smallest unit of life\?/ })).toBeVisible()
+  await expect(main.getByRole('link', { name: /Why can’t a spherical cell keep growing\?/ })).toBeVisible()
+  await expect(main.getByRole('link')).toHaveCount(6)
   await page.goto('./#/')
   await expect(page.getByRole('heading', { name: /due today$/ })).toBeVisible()
   await expect(page.getByRole('main').getByRole('link', { name: /Demo: Cell biology/ })).toContainText('3 due')

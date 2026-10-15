@@ -10,9 +10,9 @@ test('checkpoint: fresh doc from persisted segments, stops before needs-upgrade,
   const a = await device(1, w.clock)
   a.ws.courses.create({ title: 'one' })
   await a.commit()
-  const v2 = new Uint8Array([...MAGIC, 2, 0])
-  const future = keyFor({ v: 1, kind: 'seg', deviceId: 'future', seq: 0, createdAt: 0, blobRefs: [] }, v2)
-  await a.log.ingest(future, v2)
+  const v3 = new Uint8Array([...MAGIC, 3, 0])
+  const future = keyFor({ v: 1, kind: 'seg', deviceId: 'future', seq: 0, createdAt: 0, blobRefs: [] }, v3)
+  await a.log.ingest(future, v3)
   const d = new Y.Doc()
   d.getMap('prefs').set('theme', 'dark')
   const after = encode(

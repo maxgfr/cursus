@@ -1,12 +1,17 @@
 import * as Y from 'yjs'
 import type { Key } from '../../src/core/contracts/remote'
+import type { Review } from '../../src/core/contracts/workspace'
 import { createSealer, isSealed } from '../../src/core/crypto/sealer'
 import { parseManifest } from '../../src/core/log/blobs'
 import { blobKey, bmanKey, codec, parseKey } from '../../src/core/log/codec'
 import type { SegmentRow } from '../../src/core/log/localLog'
+import { reviewEvents } from '../../src/core/model/reviews'
 import { textKey } from '../../src/core/model/schema'
+import { sessionHistory } from '../../src/core/model/sessions'
 import type { ModelWorkspace } from '../../src/core/model/workspace'
 import { seededRng } from '../../src/core/ports/rng'
+import { createScheduler } from '../../src/core/srs/fsrs'
+import { activitySplit } from '../../src/core/srs/stats'
 import { canonicalJson, hashMatches } from '../../src/core/sync/verify'
 import type { SimDevice, World } from './world'
 
@@ -107,6 +112,92 @@ function treeSignature(ws: ModelWorkspace): string {
   return rows.sort().join('|')
 }
 
+/** I13 (converged): every acknowledged session, end, plan and practice review is there, as it was written. */
+function checkSessions(w: World, ws: ModelWorkspace): void {
+  const o = w.oracle
+  for (const [id, s] of o.sessions) {
+    const got = ws.sessions.get(id)
+    check(got?.kind === s.kind && got.practice === s.practice, 'I13', () => `session ${id} lost or changed`)
+    if (o.ended.has(id)) check(got.endedAt !== undefined, 'I13', () => `session ${id} no longer ended`)
+  }
+  const plans = new Set(ws.plans.all().map((p) => p.id))
+  for (const id of o.plans.keys()) check(plans.has(id), 'I13', () => `plan ${id} lost`)
+  const log = new Map(ws.reviews.yArray.toArray().map((r) => [r.id, r]))
+  for (const [id, sid] of o.practice) {
+    const r = log.get(id)
+    check(
+      r !== undefined && 'p' in r && r.p === true && r.sid === sid,
+      'I13',
+      () => `practice review ${id} lost its tags`,
+    )
+  }
+}
+
+/**
+ * I13 (one tab): practice reviews never move the schedule — every card's FSRS state equals its replay with them
+ * removed from the log — yet they count in the statistics, apart.
+ */
+function checkPractice(ws: ModelWorkspace, where: string): void {
+  const log = ws.reviews.yArray.toArray()
+  const practice = new Set(log.filter((r) => 'p' in r && r.p === true).map((r) => r.id))
+  const withoutPractice: Review[] = log.filter((r) => !practice.has(r.id))
+  const sch = createScheduler()
+  const fresh = createScheduler({ maximumInterval: 36_499 })
+  const states = sch.replayAll(log)
+  check(
+    JSON.stringify([...states]) === JSON.stringify([...fresh.replayAll(withoutPractice)]),
+    'I13',
+    () => `${where}: practice reviews moved the schedule`,
+  )
+  for (const card of ws.cards.all()) {
+    const mine = ws.reviews.forCard(card.id)
+    const a = sch.replay(card.id, mine)
+    const b = fresh.replay(
+      card.id,
+      mine.filter((r) => !practice.has(r.id)),
+    )
+    check(JSON.stringify(a) === JSON.stringify(b), 'I13', () => `${where}: card ${card.id} moved by practice`)
+  }
+  const all = ws.reviews.all()
+  const days = activitySplit(all, 0)
+  const total = days.reduce((n, d) => n + d.reviews, 0)
+  const crammed = days.reduce((n, d) => n + d.practice, 0)
+  check(total === all.length, 'I13', () => `${where}: statistics count ${total} reviews of ${all.length}`)
+  check(
+    crammed === all.filter((r) => r.p === true).length,
+    'I13',
+    () => `${where}: statistics count ${crammed} practice reviews`,
+  )
+}
+
+/** Everything a tab derives from the drafts: status, text and card of each, the review groups, the Today line. */
+function draftSignature(ws: ModelWorkspace): string {
+  return JSON.stringify({
+    all: ws.drafts.all().map((d) => [d.id, d.status, d.front, d.cardId ?? null, d.rejectedAt !== undefined]),
+    groups: ws.drafts.groups(),
+    summary: ws.drafts.summary(),
+  })
+}
+
+/**
+ * I14 (converged): every acknowledged draft is there; an acknowledged rejection is never undone (the draft is
+ * never proposed again); every card an acknowledged acceptance created is kept, and its draft is accepted.
+ */
+function checkDrafts(w: World, ws: ModelWorkspace, cards: Y.Map<Y.Map<unknown>>): void {
+  const o = w.oracle
+  for (const id of o.drafts.keys()) check(ws.drafts.get(id) !== undefined, 'I14', () => `draft ${id} lost`)
+  for (const id of o.rejected) {
+    const d = ws.drafts.get(id)
+    check(d?.rejectedAt !== undefined && d.status !== 'proposed', 'I14', () => `rejected draft ${id} came back`)
+  }
+  for (const [id, made] of o.accepted) {
+    check(ws.drafts.get(id)?.status === 'accepted', 'I14', () => `accepted draft ${id} is not accepted`)
+    for (const c of made) {
+      check(cards.get(c)?.get('draftId') === id, 'I14', () => `card ${c} of draft ${id} lost its provenance`)
+    }
+  }
+}
+
 /** I1, I2 (+ sealed roots hold only sealed objects), I3, I11 (safe ⇒ really stored), I12 (tree of each tab). */
 export async function checkContinuous(w: World): Promise<void> {
   const h = history.get(w) ?? { buckets: new Map(), local: new Map() }
@@ -194,7 +285,7 @@ async function intactOn(w: World, dev: SimDevice, dest: string, key: Key): Promi
   }
 }
 
-/** After healing: I1–I12. */
+/** After healing: I1–I14. */
 export async function checkFinal(w: World): Promise<void> {
   await checkContinuous(w)
   const o = w.oracle
@@ -225,12 +316,7 @@ export async function checkFinal(w: World): Promise<void> {
     if (o.deleted.has(tok)) continue
     check(words(ref, where).includes(tok), 'I5', () => `token ${tok} lost from ${where.id}/${where.field}`)
   }
-  const reviewIds = new Set(
-    ref
-      .getArray<{ id: string }>('reviews')
-      .toArray()
-      .map((r) => r.id),
-  )
+  const reviewIds = new Set(reviewEvents(ref).map((r) => r.id))
   for (const id of o.reviews.keys()) check(reviewIds.has(id), 'I5', () => `review ${id} lost`)
   const sources = ref.getMap<Y.Map<unknown>>('sources')
   for (const [sid, blob] of o.files) {
@@ -251,6 +337,29 @@ export async function checkFinal(w: World): Promise<void> {
       checkTree(t.ws, `${dev.name}/tab${i}`, true)
       check(treeSignature(t.ws) === refTree, 'I12', () => `${dev.name}/tab${i} derives another section tree`)
       check(Buffer.from(Y.encodeStateVector(t.doc)).equals(Buffer.from(sv)), 'I12', () => 'reading the tree wrote')
+    }
+  }
+
+  // I13: sessions and practice.
+  checkSessions(w, tabs[0]?.ws as ModelWorkspace)
+  const refHistory = JSON.stringify(sessionHistory(tabs[0]?.ws as ModelWorkspace))
+  for (const dev of w.devices) {
+    for (const [i, t] of dev.tabs.entries()) {
+      const sv = Y.encodeStateVector(t.doc)
+      checkPractice(t.ws, `${dev.name}/tab${i}`)
+      check(JSON.stringify(sessionHistory(t.ws)) === refHistory, 'I13', () => `${dev.name}/tab${i}: another history`)
+      check(Buffer.from(Y.encodeStateVector(t.doc)).equals(Buffer.from(sv)), 'I13', () => 'reading sessions wrote')
+    }
+  }
+
+  // I14: proposed questions.
+  checkDrafts(w, tabs[0]?.ws as ModelWorkspace, ref.getMap<Y.Map<unknown>>('cards'))
+  const refDrafts = draftSignature(tabs[0]?.ws as ModelWorkspace)
+  for (const dev of w.devices) {
+    for (const [i, t] of dev.tabs.entries()) {
+      const sv = Y.encodeStateVector(t.doc)
+      check(draftSignature(t.ws) === refDrafts, 'I14', () => `${dev.name}/tab${i} derives other drafts`)
+      check(Buffer.from(Y.encodeStateVector(t.doc)).equals(Buffer.from(sv)), 'I14', () => 'reading drafts wrote')
     }
   }
 

@@ -1,22 +1,47 @@
 import { Search as SearchIcon } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { ChunkFailed } from '../../app/lazyChunk.tsx'
 import { paths, to } from '../../app/routes.ts'
 import { useWorkspaceData } from '../../app/workspaceContext.tsx'
+import type { SearchHit } from '../../core/model/search'
 import { useT } from '../../i18n/react.tsx'
 import { EmptyState } from '../../ui/components/EmptyState.tsx'
 import { Field } from '../../ui/components/Field.tsx'
 import { ListGroup, ListRow } from '../../ui/components/List.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
+import { noteError } from '../settings/Diagnostic/recent.ts'
 
 export default function Search() {
   const t = useT()
   const [query, setQuery] = useState('')
   const q = query.trim()
   const hits = useWorkspaceData(['courses', 'sources', 'fiches', 'cards'], (ws) => ({ ws }))
+  // The first search loads the engine: until a query's hits arrive, nothing new is claimed about it.
+  const [found, setFound] = useState<{ q: string; hits: readonly SearchHit[] }>({ q: '', hits: [] })
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    if (q === '') return
+    let live = true
+    hits.ws.search.search(q).then(
+      (next) => {
+        if (!live) return
+        setFailed(false)
+        setFound({ q, hits: next })
+      },
+      (e: unknown) => {
+        noteError('search', e)
+        if (live) setFailed(true)
+      },
+    )
+    return () => {
+      live = false
+    }
+  }, [q, hits])
+  const pending = q !== '' && found.q !== q
   const results =
     q === ''
       ? []
-      : hits.ws.search.search(q).flatMap((h) => {
+      : found.hits.flatMap((h) => {
           const ws = hits.ws
           if (h.kind === 'courses') {
             const c = ws.courses.get(h.id)
@@ -47,7 +72,10 @@ export default function Search() {
         enterKeyHint="search"
         autoComplete="off"
       />
-      {q === '' || results.length === 0 ? (
+      {failed ? (
+        // The engine's code did not load (offline before it was kept): WebKit keeps that import failed, so reload.
+        <ChunkFailed retry={() => location.reload()} again />
+      ) : pending && results.length === 0 ? null : q === '' || results.length === 0 ? (
         q === '' ? (
           <EmptyState icon={SearchIcon} title={t('common.searchEmptyTitle')} body={t('common.searchEmpty')} />
         ) : (

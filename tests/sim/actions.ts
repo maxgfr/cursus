@@ -1,9 +1,14 @@
 import fc from 'fast-check'
 import { RemoteError } from '../../src/core/contracts/errors'
-import type { Rating } from '../../src/core/contracts/workspace'
+import type { Rating, Review, Weekday } from '../../src/core/contracts/workspace'
 import { createSealer, sealDestination } from '../../src/core/crypto/sealer'
 import { blobRef } from '../../src/core/log/blobs'
+import { DraftStateError } from '../../src/core/model/drafts'
+import { EntityNotFoundError } from '../../src/core/model/repos'
+import { ROOT } from '../../src/core/model/schema'
 import { SectionMoveError } from '../../src/core/model/sections'
+import { sessionQueue, sessionReview } from '../../src/core/model/sessions'
+import { SESSION_KINDS } from '../../src/core/srs/custom'
 import { memoryStore } from '../../src/core/storage/memoryStore'
 import type { Fault } from '../../src/core/sync/providers/faulty'
 import { memoryRemote } from '../../src/core/sync/providers/memory'
@@ -26,6 +31,7 @@ export type Action =
   | { t: 'move'; dev: number; tab: number; card: number; course: number }
   | { t: 'review'; dev: number; tab: number; card: number; rating: Rating }
   | { t: 'void'; dev: number; tab: number; which: number }
+  | { t: 'legacy'; dev: number; tab: number; card: number; rating: Rating; which: number }
   | { t: 'attach'; dev: number; tab: number; size: number }
   | { t: 'seal' | 'compact' | 'clone' | 'flush'; dev: number }
   | { t: 'round' | 'verify' | 'unlock'; dev: number; dest: number }
@@ -46,6 +52,13 @@ export type Action =
   | { t: 'file'; dev: number; tab: number; item: number; section: number }
   | { t: 'swap'; dev: number; tab: number; other: number; pair: number }
   | { t: 'exchange' }
+  | { t: 'sstart'; dev: number; tab: number; course: number; kind: number; practice: boolean; limit: number }
+  | { t: 'send'; dev: number; tab: number; which: number }
+  | { t: 'sreview'; dev: number; tab: number; which: number; card: number; rating: Rating }
+  | { t: 'plan'; dev: number; tab: number; course: number; days: number; minute: number; practice: boolean }
+  | { t: 'pedit'; dev: number; tab: number; target: number; op: 'rename' | 'days' | 'trash' | 'restore'; days: number }
+  | { t: 'dpropose'; dev: number; tab: number; source: number; unit: number }
+  | { t: 'ddecide'; dev: number; tab: number; which: number; op: 'accept' | 'reject' | 'edit' }
 
 const ix = fc.nat({ max: 50 })
 const FAULTS: Fault[] = [
@@ -172,16 +185,120 @@ const sectionActionArb: fc.Arbitrary<Action> = fc.oneof(
 )
 
 /**
+ * Study sessions: started (practice or counted, any kind and scope), reviewed in, ended — concurrently on
+ * every device, the same session sometimes ended twice — and planned sessions created and edited.
+ */
+const sessionActionArb: fc.Arbitrary<Action> = fc.oneof(
+  {
+    weight: 3,
+    arbitrary: fc.record({
+      t: fc.constant('sstart' as const),
+      dev: six,
+      tab: six,
+      course: six,
+      kind: six,
+      practice: fc.boolean(),
+      limit: fc.nat({ max: 5 }),
+    }),
+  },
+  { weight: 2, arbitrary: fc.record({ t: fc.constant('send' as const), dev: six, tab: six, which: six }) },
+  {
+    weight: 6,
+    arbitrary: fc.record({
+      t: fc.constant('sreview' as const),
+      dev: six,
+      tab: six,
+      which: six,
+      card: six,
+      rating: fc.constantFrom<Rating>(1, 2, 3, 4),
+    }),
+  },
+  {
+    weight: 1,
+    arbitrary: fc.record({
+      t: fc.constant('plan' as const),
+      dev: six,
+      tab: six,
+      course: six,
+      days: fc.integer({ min: 1, max: 127 }),
+      minute: fc.nat({ max: 24 * 60 - 1 }),
+      practice: fc.boolean(),
+    }),
+  },
+  {
+    weight: 1,
+    arbitrary: fc.record({
+      t: fc.constant('pedit' as const),
+      dev: six,
+      tab: six,
+      target: six,
+      op: fc.constantFrom('rename' as const, 'days' as const, 'trash' as const, 'restore' as const),
+      days: fc.integer({ min: 1, max: 127 }),
+    }),
+  },
+)
+
+/**
+ * Proposed questions: proposed on a source (created on the spot when the tab has none), then accepted (a card
+ * is created), rejected or edited — concurrently on every device, the same draft often decided twice.
+ */
+const draftActionArb: fc.Arbitrary<Action> = fc.oneof(
+  {
+    weight: 2,
+    arbitrary: fc.record({
+      t: fc.constant('dpropose' as const),
+      dev: six,
+      tab: six,
+      source: six,
+      unit: fc.nat({ max: 4 }),
+    }),
+  },
+  {
+    weight: 4,
+    arbitrary: fc.record({
+      t: fc.constant('ddecide' as const),
+      dev: six,
+      tab: six,
+      which: six,
+      op: fc.constantFrom('accept' as const, 'reject' as const, 'edit' as const),
+    }),
+  },
+)
+
+/**
+ * An earlier version of the app on a tab: it still writes review objects (and voids) to the legacy array.
+ * What those mean, as ReviewLog reads them: an earlier version had no practice mode, so its review (no `p`, no
+ * `sid`) is a counted review that moves the schedule; a void applies by id wherever its target lives, and
+ * voiding a practice review takes it out of the statistics while the schedule stays as it was (practice was
+ * never in it). An earlier version only sees legacy reviews, yet its voids here may target any review the tab
+ * knows (as a merge or a later version could): a superset that must hold as well.
+ */
+const legacyActionArb: fc.Arbitrary<Action> = fc.record({
+  t: fc.constant('legacy' as const),
+  dev: ix,
+  tab: ix,
+  card: ix,
+  rating: fc.constantFrom<Rating>(1, 2, 3, 4),
+  which: ix,
+})
+
+/**
  * Faults beyond the original model, kept out of `actionArb` so the pinned regressions replay exactly:
  * - localQuota: the next N local appends fail (the device is out of storage), then storage frees up;
  * - sealed destinations added WITHOUT the `sealed` hint (per device bit), by a seal or a fresh device,
  *   whose first listings may lose pages (`blackout`: that many pages silently missing);
  * - listing blackouts: every page of the next listings silently missing (whole `keys/` pages lost);
- * - subsets (sections) and items filed in them, edited concurrently on every device.
+ * - subsets (sections) and items filed in them, edited concurrently on every device;
+ * - study sessions and planned sessions;
+ * - reviews written by an earlier version of the app, mixed with the compact review log;
+ * - proposed questions accepted, rejected and edited concurrently.
  */
 export const extendedActionArb: fc.Arbitrary<Action> = fc.oneof(
   { weight: 90, arbitrary: actionArb },
   { weight: 12, arbitrary: sectionActionArb },
+  { weight: 8, arbitrary: sessionActionArb },
+  { weight: 4, arbitrary: legacyActionArb },
+  { weight: 6, arbitrary: draftActionArb },
   {
     weight: 2,
     arbitrary: fc.record({
@@ -287,6 +404,57 @@ export const sectionSimulationArb: fc.Arbitrary<Simulation> = fc.record({
   scheduler: fc.scheduler(),
 })
 
+/**
+ * Sessions under sync: reviews in practice and counted sessions on several devices, often of the same cards,
+ * sessions ended on two devices, plans edited concurrently — exchanged often so they overlap.
+ */
+export const sessionSimulationArb: fc.Arbitrary<Simulation> = fc.record({
+  params: paramsArb,
+  steps: stepsOf(
+    fc.oneof(
+      { weight: 2, arbitrary: actionArb },
+      { weight: 4, arbitrary: sessionActionArb },
+      { weight: 1, arbitrary: legacyActionArb },
+      // Cards to review: without them a session has nothing to show.
+      { weight: 2, arbitrary: fc.record({ t: fc.constant('card' as const), dev: six, tab: six, course: six }) },
+      {
+        weight: 1,
+        arbitrary: fc.oneof(
+          fc.record({ t: fc.constant('seal' as const), dev: six }),
+          fc.record({ t: fc.constant('round' as const), dev: six, dest: six }),
+          fc.record({ t: fc.constant('tabsync' as const), dev: six, tab: six }),
+        ),
+      },
+      { weight: 1, arbitrary: fc.constant({ t: 'exchange' as const }) },
+    ),
+  ),
+  scheduler: fc.scheduler(),
+})
+
+/**
+ * Proposed questions under sync: drafts proposed, accepted, rejected and edited on several devices, often the
+ * same draft concurrently, sources trashed meanwhile — exchanged often so the decisions overlap.
+ */
+export const draftSimulationArb: fc.Arbitrary<Simulation> = fc.record({
+  params: paramsArb,
+  steps: stepsOf(
+    fc.oneof(
+      { weight: 2, arbitrary: actionArb },
+      { weight: 5, arbitrary: draftActionArb },
+      {
+        weight: 1,
+        arbitrary: fc.oneof(
+          fc.record({ t: fc.constant('seal' as const), dev: six }),
+          fc.record({ t: fc.constant('round' as const), dev: six, dest: six }),
+          fc.record({ t: fc.constant('tabsync' as const), dev: six, tab: six }),
+        ),
+      },
+      { weight: 1, arbitrary: fc.constant({ t: 'exchange' as const }) },
+    ),
+  ),
+  scheduler: fc.scheduler(),
+})
+
 /** The invariant suite's simulation: every original action plus the extended faults. */
 export const extendedSimulationArb: fc.Arbitrary<Simulation> = fc.record({
   params: paramsArb,
@@ -349,6 +517,25 @@ function unlessRefused(fn: () => void): (() => void) | null {
   }
   return () => {}
 }
+
+/** Drafts this tab knows (tombstones included), in a stable order. */
+const draftsOf = (tab: SimTab) => [...tab.ws.drafts.all()].sort((a, b) => (a.id < b.id ? -1 : 1))
+
+/** A decision refused locally (no longer proposed here, or its course is gone) is not an edit. */
+function unlessUndecidable(fn: () => () => void): (() => void) | null {
+  try {
+    return fn()
+  } catch (e) {
+    if (e instanceof DraftStateError || e instanceof EntityNotFoundError) return null
+    throw e
+  }
+}
+
+/** Sessions this tab knows, in a stable order. */
+const sessionsOf = (tab: SimTab) => [...tab.ws.sessions.list()].sort((a, b) => (a.id < b.id ? -1 : 1))
+
+/** Bit i of `mask` set ⇒ ISO weekday i + 1. */
+const weekdaysOf = (mask: number): Weekday[] => ([1, 2, 3, 4, 5, 6, 7] as const).filter((d) => (mask >> (d - 1)) & 1)
 
 function courseOf(tab: SimTab, i: number, w: World): string {
   const c = pick(tab.ws.courses.list(), i)
@@ -594,6 +781,26 @@ async function runAction(w: World, a: Action): Promise<void> {
       })
       return
     }
+    case 'legacy': {
+      const legacy = tab.doc.getArray<Review>(ROOT.reviews)
+      const known = [...o.reviews.keys()].filter((id) => tab.ws.reviews.yArray.toArray().some((r) => r.id === id))
+      const voided = a.which % 3 === 0 ? pick(known.sort(), a.which) : undefined
+      if (voided !== undefined) {
+        await edit(tab, () => {
+          legacy.push([{ id: dev.world.rng.id(), voids: voided }])
+          return () => o.voids.add(voided)
+        })
+        return
+      }
+      const card = pick(tab.ws.cards.list(), a.card)
+      if (!card) return
+      await edit(tab, () => {
+        const id = dev.world.rng.id()
+        legacy.push([{ id, cardId: card.id, rating: a.rating, at: dev.clock.now(), ms: 1500, dev: `old-${a.dev}` }])
+        return () => o.reviews.set(id, card.id)
+      })
+      return
+    }
     case 'void': {
       const known = [...o.reviews.keys()].filter((id) => tab.ws.reviews.yArray.toArray().some((r) => r.id === id))
       const id = pick(known.sort(), a.which)
@@ -687,6 +894,117 @@ async function runAction(w: World, a: Action): Promise<void> {
       ) as (typeof mine)[number]
       await edit(tab, () => unlessRefused(() => tab.ws.sections.move(first.id, second.id)))
       await edit(there.t, () => unlessRefused(() => there.t.ws.sections.move(second.id, first.id)))
+      return
+    }
+    case 'sstart': {
+      const course = pick(tab.ws.courses.list(), a.course)
+      const scope = a.course % 3 === 0 || !course ? {} : { courseId: course.id }
+      const kind = SESSION_KINDS[a.kind % SESSION_KINDS.length] ?? 'due'
+      // What the student would be shown first: building it reads only.
+      sessionQueue(tab.ws, { scope, kind, now: dev.clock.now(), practice: a.practice, tzOffsetMin: 0 })
+      await edit(tab, () => {
+        const id = tab.ws.sessions.start({
+          scope,
+          kind,
+          practice: a.practice,
+          ...(a.limit > 0 ? { limit: a.limit } : {}),
+        })
+        return () => o.sessions.set(id, { kind, practice: a.practice })
+      })
+      return
+    }
+    case 'send': {
+      const s = pick(sessionsOf(tab), a.which)
+      if (!s || s.endedAt !== undefined) return
+      await edit(tab, () => {
+        tab.ws.sessions.end(s.id)
+        return () => o.ended.add(s.id)
+      })
+      return
+    }
+    case 'sreview': {
+      const known = pick(sessionsOf(tab), a.which)
+      const card = pick(tab.ws.cards.list(), a.card)
+      if (!card) return
+      await edit(tab, () => {
+        // No session known here yet: the student starts one (practice every other time) and answers in it.
+        const practice = known?.practice ?? a.which % 2 === 0
+        const sid = known?.id ?? tab.ws.sessions.start({ scope: {}, kind: 'all', practice })
+        const r = sessionReview(
+          { id: sid, practice },
+          { cardId: card.id, rating: a.rating, at: dev.clock.now(), ms: 1200 },
+        )
+        const id = tab.ws.reviews.record(r)
+        return () => {
+          if (!known) o.sessions.set(sid, { kind: 'all', practice })
+          o.reviews.set(id, card.id)
+          if (practice) o.practice.set(id, sid)
+        }
+      })
+      return
+    }
+    case 'plan': {
+      const course = pick(tab.ws.courses.list(), a.course)
+      const name = o.token('p')
+      const time = `${String(Math.floor(a.minute / 60)).padStart(2, '0')}:${String(a.minute % 60).padStart(2, '0')}`
+      const kind = SESSION_KINDS[a.minute % SESSION_KINDS.length] ?? 'due'
+      await edit(tab, () => {
+        const id = tab.ws.plans.create({
+          name,
+          kind,
+          weekdays: weekdaysOf(a.days),
+          time,
+          practice: a.practice,
+          ...(course && a.course % 2 === 0 ? { courseId: course.id } : {}),
+        })
+        return () => o.plans.set(id, name)
+      })
+      return
+    }
+    case 'pedit': {
+      const p = pick(tab.ws.plans.all(), a.target)
+      if (!p) return
+      await edit(tab, () => {
+        if (a.op === 'rename') tab.ws.plans.update(p.id, { name: o.token('p') })
+        else if (a.op === 'days') tab.ws.plans.update(p.id, { weekdays: weekdaysOf(a.days) })
+        else tab.ws.plans[a.op](p.id)
+        return () => {}
+      })
+      return
+    }
+    case 'dpropose': {
+      const src = pick(tab.ws.sources.list(), a.source)
+      const courseId = src ? src.courseId : courseOf(tab, a.source, w)
+      const tok = o.token('q')
+      await edit(tab, () => {
+        let id = ''
+        tab.ws.batch(() => {
+          const sourceId = src?.id ?? tab.ws.sources.create({ courseId, kind: 'note', title: 'n' })
+          id = tab.ws.drafts.propose([
+            { sourceId, courseId, unit: a.unit, kind: 'basic', type: 'qa', front: `${tok}?`, back: 'a' },
+          ])[0] as string
+        })
+        return () => o.drafts.set(id, tok)
+      })
+      return
+    }
+    case 'ddecide': {
+      const d = pick(draftsOf(tab), a.which)
+      if (!d) return
+      await edit(tab, () =>
+        unlessUndecidable(() => {
+          if (a.op === 'accept') {
+            const card = tab.ws.drafts.accept(d.id)
+            return () => o.accepted.set(d.id, [...(o.accepted.get(d.id) ?? []), card])
+          }
+          if (a.op === 'reject') {
+            tab.ws.drafts.reject(d.id)
+            return () => o.rejected.add(d.id)
+          }
+          tab.ws.drafts.edit(d.id, { front: `${o.token('q')}?` })
+          return () => {}
+        }),
+      )
       return
     }
     case 'attach': {

@@ -61,7 +61,7 @@ function checkTree(w: ModelWorkspace): void {
 }
 
 describe('sections', () => {
-  test('nothing is written at startup or by any read', () => {
+  test('nothing is written at startup or by any read', async () => {
     const { doc, w } = make(1)
     const c = w.courses.create({ title: 'Law' })
     const s = w.sections.create({ courseId: c, name: 'Contracts' })
@@ -75,7 +75,7 @@ describe('sections', () => {
     w.sections.children(c, null)
     w.scoped('cards', { courseId: c, sectionId: s })
     w.exams()
-    w.search.search('contracts')
+    await w.search.search('contracts')
     expect(w.cards.get(card)?.sectionId).toBeUndefined()
     expect(updates).toBe(0)
     expect(Y.encodeStateVector(doc)).toEqual(before)
@@ -228,7 +228,7 @@ describe('sections', () => {
     expect(tree.locate({ courseId: 'c', sectionId: 'p' })).toEqual([])
   })
 
-  test('trash hides the subtree by derivation, restore brings it back, without any cascade write', () => {
+  test('trash hides the subtree by derivation, restore brings it back, without any cascade write', async () => {
     const { doc, w } = make(7)
     const c = w.courses.create({ title: 'Law' })
     const ch = w.sections.create({ courseId: c, name: 'Contracts' })
@@ -238,7 +238,7 @@ describe('sections', () => {
     const src = w.sources.create({ courseId: c, kind: 'note', title: 'Offer notes', sectionId: ch })
     const fiche = w.fiches.create({ courseId: c, title: 'F', sectionId: sub })
     w.text({ id: src, field: 'body' }).insert(0, 'acceptance')
-    expect(w.search.search('acceptance').map((h) => h.id)).toEqual([src])
+    expect((await w.search.search('acceptance')).map((h) => h.id)).toEqual([src])
 
     const subMap = doc.getMap<Y.Map<unknown>>('sections').get(sub)
     const cardMap = doc.getMap<Y.Map<unknown>>('cards').get(card)
@@ -253,7 +253,7 @@ describe('sections', () => {
     expect(w.sources.list()).toEqual([])
     expect(w.fiches.list()).toEqual([])
     expect(w.cards.get(card)?.id).toBe(card)
-    expect(w.search.search('acceptance')).toEqual([])
+    expect(await w.search.search('acceptance')).toEqual([])
     expect(ids(w.scoped('cards', { courseId: c }))).toEqual([free])
     expect(w.sections.children(c, null)).toEqual([])
     expect(ids(w.sections.tree().children(c, null, { trashed: true }))).toEqual([ch])
@@ -263,7 +263,7 @@ describe('sections', () => {
     expect(ids(w.cards.list()).sort()).toEqual([card, free].sort())
     expect(ids(w.sources.list())).toEqual([src])
     expect(ids(w.fiches.list())).toEqual([fiche])
-    expect(w.search.search('acceptance').map((h) => h.id)).toEqual([src])
+    expect((await w.search.search('acceptance')).map((h) => h.id)).toEqual([src])
   })
 
   test('a purged section lets its subtree and items fall back to the course root', () => {
@@ -349,7 +349,7 @@ describe('sections', () => {
     expect(w.exams().map((e) => e.scope.sectionId)).toEqual([undefined, b])
   })
 
-  test('search indexes the path, filters by subset and follows renames, moves and trash', () => {
+  test('search indexes the path, filters by subset and follows renames, moves and trash', async () => {
     const { w } = make(13)
     const c = w.courses.create({ title: 'Law' })
     const ch = w.sections.create({ courseId: c, name: 'Contracts' })
@@ -358,27 +358,27 @@ describe('sections', () => {
     const card = w.cards.create({ courseId: c, kind: 'basic', sectionId: sub })
     const src = w.sources.create({ courseId: c, kind: 'note', title: 'Negligence', sectionId: other })
     w.text({ id: card, field: 'front' }).insert(0, 'What is an offer?')
-    const hit = w.search.search('offer')[0]
+    const hit = (await w.search.search('offer'))[0]
     expect(hit).toMatchObject({ id: card, kind: 'cards', path: 'Contracts › Formation' })
-    expect(w.search.search('contracts').map((h) => h.id)).toEqual([card])
-    expect(w.search.search('offer', { sectionId: ch }).map((h) => h.id)).toEqual([card])
-    expect(w.search.search('offer', { sectionId: other })).toEqual([])
-    expect(w.search.search('negligence')[0]).toMatchObject({ id: src, path: 'Torts' })
+    expect((await w.search.search('contracts')).map((h) => h.id)).toEqual([card])
+    expect((await w.search.search('offer', { sectionId: ch })).map((h) => h.id)).toEqual([card])
+    expect(await w.search.search('offer', { sectionId: other })).toEqual([])
+    expect((await w.search.search('negligence'))[0]).toMatchObject({ id: src, path: 'Torts' })
     w.sections.update(ch, { name: 'Obligations' })
-    expect(w.search.search('obligations').map((h) => h.id)).toEqual([card])
-    expect(w.search.search('offer')[0]?.path).toBe('Obligations › Formation')
+    expect((await w.search.search('obligations')).map((h) => h.id)).toEqual([card])
+    expect((await w.search.search('offer'))[0]?.path).toBe('Obligations › Formation')
     w.sections.move(sub, other)
-    expect(w.search.search('offer')[0]?.path).toBe('Torts › Formation')
-    expect(w.search.search('offer', { sectionId: ch })).toEqual([])
+    expect((await w.search.search('offer'))[0]?.path).toBe('Torts › Formation')
+    expect(await w.search.search('offer', { sectionId: ch })).toEqual([])
     w.sections.trash(other)
-    expect(w.search.search('offer')).toEqual([])
-    expect(w.search.search('negligence')).toEqual([])
+    expect(await w.search.search('offer')).toEqual([])
+    expect(await w.search.search('negligence')).toEqual([])
     w.sections.restore(other)
-    expect(w.search.search('offer').map((h) => h.id)).toEqual([card])
+    expect((await w.search.search('offer')).map((h) => h.id)).toEqual([card])
     // At the course root: no path at all.
     w.moveItem('cards', card, null)
-    expect(w.search.search('offer')[0]).not.toHaveProperty('path')
-    expect(w.search.search('law').map((h) => h.id)).toEqual([c])
+    expect((await w.search.search('offer'))[0]).not.toHaveProperty('path')
+    expect((await w.search.search('law')).map((h) => h.id)).toEqual([c])
   })
 
   test('subscribe to sections', () => {

@@ -1,4 +1,4 @@
-import { FolderInput, History, Trash2 } from 'lucide-react'
+import { FolderInput, History, Share, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'wouter'
 import * as Y from 'yjs'
@@ -6,6 +6,7 @@ import { to } from '../../app/routes.ts'
 import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import { PATH_SEPARATOR } from '../../core/model/sections'
 import { useT } from '../../i18n/react.tsx'
+import { beforeUpdate } from '../../pwa/index.ts'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { Keycap } from '../../ui/components/Keycap.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
@@ -17,6 +18,8 @@ import { earlierPaths } from '../Course/backTarget.ts'
 import type { CardNotice } from '../Course/index.tsx'
 import { applyForward } from '../History/replay.ts'
 import NotFound from '../NotFound/index.tsx'
+import CardPhotos from '../Photos/CardPhotos.tsx'
+import { useFileLoader } from '../Photos/files.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 import styles from './CardEditor.module.css'
 import { ClozeAssistant } from './ClozeAssistant.tsx'
@@ -105,6 +108,8 @@ export default function CardEditor() {
   const [round, setRound] = useState(0)
   const [moving, setMoving] = useState(false)
   const [movedTo, setMovedTo] = useState<string | null>(null)
+  const [shareStatus, setShareStatus] = useState<string | null>(null)
+  const loadFile = useFileLoader()
   const formRef = useRef<HTMLDivElement>(null)
   const pageRef = useRef<HTMLDivElement>(null)
   const exists = card !== null
@@ -183,6 +188,14 @@ export default function CardEditor() {
     }, 250)
     return () => clearTimeout(timer)
   }, [rt, id, draft, current, newCourse, base])
+
+  // An update reloads the page: the copy above may still be waiting, so the draft is kept first.
+  useEffect(() => {
+    if (!draft || !dirty) return
+    return beforeUpdate(() =>
+      keepDraft(rt.store, id, current, newCourse !== null ? { ...EMPTY, kind: current.kind } : base),
+    )
+  }, [rt, id, draft, dirty, current, newCourse, base])
 
   const leave = useCallback(
     (notice?: CardNotice) => {
@@ -319,6 +332,24 @@ export default function CardEditor() {
     const state: CardNotice = { trashedCard: id }
     navigate(home, { state })
   }
+  // Shares what the editor shows (the draft), with its photos as files.
+  const share = () => {
+    setShareStatus(null)
+    import('../Photos/share.ts')
+      .then(({ shareCard }) =>
+        shareCard({ front: fields.front, back: fields.back, title: fields.front.split('\n')[0] ?? '' }, loadFile),
+      )
+      .then(
+        (outcome) => {
+          if (outcome !== 'cancelled')
+            setShareStatus(outcome === 'shared' ? t('photos.shared') : t('photos.downloaded'))
+        },
+        (e: unknown) => {
+          noteError('card.share', e)
+          setShareStatus(t('photos.actionFailed'))
+        },
+      )
+  }
   const shortcut = MAC ? '⌘S' : 'Ctrl+S'
   const saveButton = (
     <Button
@@ -340,6 +371,7 @@ export default function CardEditor() {
         <p className={styles.status} role="status">
           {card.relocated ? `${t('course.sectionGoneSaveIn', { place: card.relocated })} ` : ''}
           {movedTo !== null ? `${t('course.moved', { place: movedTo })} ` : ''}
+          {shareStatus !== null ? `${shareStatus} ` : ''}
           {conflict && dirty ? `${t('course.changedElsewhere')} ` : ''}
           {restored && dirty && !conflict ? `${t('course.draftRestored')} ` : ''}
           {status}
@@ -365,6 +397,13 @@ export default function CardEditor() {
                 {kind === 'cloze' ? t('course.clozeText') : t('course.front')}
               </h2>
               <MarkdownEditor text={draft.front} label={kind === 'cloze' ? t('course.clozeText') : t('course.front')} />
+              <CardPhotos
+                text={draft.front}
+                value={fields.front}
+                courseId={card.courseId}
+                sectionId={card.sectionId ?? undefined}
+                side={kind === 'cloze' ? t('course.clozeText') : t('course.front')}
+              />
             </section>
             {kind === 'cloze' && <ClozeAssistant text={draft.front} value={fields.front} />}
             <section className={styles.side} aria-labelledby="card-back">
@@ -372,6 +411,13 @@ export default function CardEditor() {
                 {kind === 'cloze' ? t('course.extra') : t('course.back')}
               </h2>
               <MarkdownEditor text={draft.back} label={kind === 'cloze' ? t('course.extra') : t('course.back')} />
+              <CardPhotos
+                text={draft.back}
+                value={fields.back}
+                courseId={card.courseId}
+                sectionId={card.sectionId ?? undefined}
+                side={kind === 'cloze' ? t('course.extra') : t('course.back')}
+              />
             </section>
           </div>
         )}
@@ -386,6 +432,9 @@ export default function CardEditor() {
           )}
           {newCourse === null && (
             <>
+              <Button variant="plain" icon={<Share size={18} aria-hidden="true" />} onClick={share}>
+                {t('photos.shareCard')}
+              </Button>
               <Link href={to.history(id)} className={buttonClass({ variant: 'plain' })}>
                 <History size={18} aria-hidden="true" />
                 {t('course.history')}

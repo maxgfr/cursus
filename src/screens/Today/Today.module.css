@@ -29,6 +29,13 @@
   margin-top: var(--space-4);
 }
 
+/* A quiet way into a custom session, under whatever the hero says; its label lines up with the text above. */
+.newSession {
+  justify-self: start;
+  margin-top: var(--space-2);
+  margin-inline-start: calc(-1 * var(--space-2));
+}
+
 .caughtUp {
   font-size: var(--text-headline);
   font-weight: 700;

@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test'
 import fc from 'fast-check'
-import { type Simulation, sectionSimulationArb, simulate, simulationArb } from './actions'
+import { type Simulation, sectionSimulationArb, sessionSimulationArb, simulate, simulationArb } from './actions'
 
 /** Seeds that once failed a simulation property, replayed exactly (seed + shrink path) on the same arbitrary. */
 const PINNED: { seed: number; path: string; why: string; arb?: fc.Arbitrary<Simulation> }[] = [
@@ -29,6 +29,12 @@ const PINNED: { seed: number; path: string; why: string; arb?: fc.Arbitrary<Simu
     path: '259:0:2:2:2:2:2:3:3:5:2:7:10:12:13:19:17:23:23:23:23:23:23:23:25:26:26:26:26:26:26:26:30:31:34:40:40:40:43:12:22:21:21:21:21:21:21:21:21:21:21:22:28:28:28:28:35:36:34:34:36:36:35:35:35:37:37:37',
     why: 'a card filed elsewhere while an update is still pending: its course is briefly missing mid-sync (I12)',
     arb: sectionSimulationArb,
+  },
+  {
+    seed: -1778585091,
+    path: '142:31:31:31:31:31:33:33:43:38:38:38:38:38:38:38:38:43:43:43:43:43:43:44:44:45:44:44:44:45:45:52:50:50:52:52:52:52:52:52:52:52:52:57:61:61:61:61:1:59:60:60:60:60:60:61:61:66:66:66:66:66:66:66:81:11:14:18:1:19:19:18:18:20:20:20:21:20:20:20:20:25:25:25:25:25:26:30:30:30:30:30:34:33:33:35:35:35:39:68:68:41:41:41:41:41:54:54:56:56:70:26:36:1:1:15:17:21:25:16:15:0:4:4:4:4:9:9:9:13:19:19:19:19:19:20:19:19:19:19:19:19:19:19:19:13',
+    why: 'a review voided as another, same card, time and rating, merged: the cached replay named the voided one (I13)',
+    arb: sessionSimulationArb,
   },
 ]
 

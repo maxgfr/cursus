@@ -60,3 +60,25 @@
   align-items: center;
   gap: var(--space-2);
 }
+
+/* Questions proposed for the course: one calm line under its meta. */
+.draftsLine {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+}
+
+.draftsLink {
+  color: var(--accent-ink);
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: var(--radius-small);
+}
+
+.draftsLink:hover {
+  text-decoration: underline;
+}
+
+.draftsLink:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}

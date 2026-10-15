@@ -121,6 +121,57 @@ export function createLocalLog(o: LocalLogOptions): LocalLogImpl {
 
   const updateOf = (r: SegmentRow): Uint8Array => codec.decode(r.key, r.bytes).update
 
+  const retryUpgrades = (): Promise<number> =>
+    underLock(async () => {
+      const { rows } = await allRows()
+      const ops: Parameters<LocalStore['commit']>[0] = []
+      let applied = 0
+      for (const r of rows) {
+        if (r.state !== 'needs-upgrade') continue
+        const d = classify(r.key, r.bytes)
+        if (!d) continue
+        if (d.applicable) applied++
+        const { refsKnown: _, ...rest } = r
+        const row: SegmentRow = d.applicable
+          ? { ...rest, header: d.header, state: 'applied' }
+          : { ...rest, header: d.header, state: 'needs-upgrade', refsKnown: true }
+        if (d.applicable || !r.refsKnown) ops.push({ put: 'segments', key: r.key, value: row })
+      }
+      await store.commit(ops)
+      return applied
+    })
+
+  const load = async (): Promise<{ updates: Uint8Array[]; through: number }> => {
+    // One transaction: a seal from another tab cannot move edits from pending to segments between reads.
+    const [rows, snap, pending] = await store.read(['segments', 'snapshot', 'pending'], (tx) =>
+      Promise.all([
+        tx.getAll<SegmentRow>('segments'),
+        tx.get<SnapshotRow>('snapshot', 'main'),
+        tx.getAll<PendingRow>('pending'),
+      ]),
+    )
+    // Kept as needs-upgrade by an earlier build: applied from the first launch of a build that reads them
+    // (after an update). Rare; when none became readable the launch goes on with what it has.
+    if (rows.some((r) => r.state === 'needs-upgrade') && (await retryUpgrades()) > 0) return load()
+    rows.sort((a, b) => a.arrival - b.arrival)
+    let through = snap?.through ?? 0
+    const applied: SegmentRow[] = []
+    for (const r of rows) {
+      through = Math.max(through, r.arrival)
+      if (r.arrival > (snap?.through ?? 0) && r.state === 'applied') applied.push(r)
+    }
+    // Inflating the segments is most of a launch's load: off the JS thread where the codec can, all at once.
+    const decodeAsync = codec.decodeAsync
+    const segments = decodeAsync
+      ? await Promise.all(applied.map(async (r) => (await decodeAsync(r.key, r.bytes)).update))
+      : applied.map(updateOf)
+    const updates: Uint8Array[] = []
+    if (snap) updates.push(snap.update)
+    updates.push(...segments)
+    for (const p of pending) updates.push(p.update)
+    return { updates, through }
+  }
+
   return {
     deviceId: () => underLock(ensureDevice),
 
@@ -190,26 +241,7 @@ export function createLocalLog(o: LocalLogOptions): LocalLogImpl {
       })
     },
 
-    async load() {
-      // One transaction: a seal from another tab cannot move edits from pending to segments between reads.
-      const [rows, snap, pending] = await store.read(['segments', 'snapshot', 'pending'], (tx) =>
-        Promise.all([
-          tx.getAll<SegmentRow>('segments'),
-          tx.get<SnapshotRow>('snapshot', 'main'),
-          tx.getAll<PendingRow>('pending'),
-        ]),
-      )
-      rows.sort((a, b) => a.arrival - b.arrival)
-      const updates: Uint8Array[] = []
-      if (snap) updates.push(snap.update)
-      let through = snap?.through ?? 0
-      for (const r of rows) {
-        through = Math.max(through, r.arrival)
-        if (r.arrival > (snap?.through ?? 0) && r.state === 'applied') updates.push(updateOf(r))
-      }
-      for (const p of pending) updates.push(p.update)
-      return { updates, through }
-    },
+    load,
 
     async since(arrival) {
       const { rows } = await allRows()
@@ -249,25 +281,6 @@ export function createLocalLog(o: LocalLogOptions): LocalLogImpl {
       })
     },
 
-    retryUpgrades() {
-      return underLock(async () => {
-        const { rows } = await allRows()
-        const ops: Parameters<LocalStore['commit']>[0] = []
-        let applied = 0
-        for (const r of rows) {
-          if (r.state !== 'needs-upgrade') continue
-          const d = classify(r.key, r.bytes)
-          if (!d) continue
-          if (d.applicable) applied++
-          const { refsKnown: _, ...rest } = r
-          const row: SegmentRow = d.applicable
-            ? { ...rest, header: d.header, state: 'applied' }
-            : { ...rest, header: d.header, state: 'needs-upgrade', refsKnown: true }
-          if (d.applicable || !r.refsKnown) ops.push({ put: 'segments', key: r.key, value: row })
-        }
-        await store.commit(ops)
-        return applied
-      })
-    },
+    retryUpgrades,
   }
 }

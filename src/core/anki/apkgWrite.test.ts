@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { unzipSync } from 'fflate'
 import * as Y from 'yjs'
 import { blobStore } from '../log/blobs'
 import { createWorkspace } from '../model/workspace'
@@ -8,6 +9,7 @@ import { DAY_MS } from '../srs/fsrs'
 import { memoryStore } from '../storage/memoryStore'
 import { importApkg, readApkg } from './apkgRead'
 import { exportApkg } from './apkgWrite'
+import { loadSql } from './schema11'
 
 const T0 = 1_750_000_000_000
 
@@ -87,6 +89,35 @@ describe('exportApkg', () => {
     expect(other.ws.text({ id: b.id, field: 'back' }).toString()).toBe('$$a < b$$')
     expect(other.ws.text({ id: c.id, field: 'front' }).toString()).toMatch(/^Light is \{\{c2::fast\}\} <audio/)
     expect(other.ws.reviews.forCard(b.id).map((r) => ('rating' in r ? r.rating : 0))).toEqual([3, 3, 4])
+  })
+
+  test('practice reviews stay out of the revlog, and every row replays the reviews before it', async () => {
+    /** One card (same id: same seed) answered Good, (Again in practice,) then Good the next day; its revlog. */
+    async function revlogOf(withPractice: boolean, seed: number) {
+      const { ws, blobs } = setup(seed)
+      const course = ws.courses.create({ title: 'Bio' })
+      const card = ws.cards.create({ courseId: course, kind: 'basic' })
+      ws.text({ id: card, field: 'front' }).insert(0, 'Q')
+      ws.text({ id: card, field: 'back' }).insert(0, 'A')
+      ws.reviews.record({ cardId: card, rating: 3, at: T0, ms: 5_000 })
+      if (withPractice) ws.reviews.record({ cardId: card, rating: 1, at: T0 + 300_000, ms: 7_000, p: true })
+      ws.reviews.record({ cardId: card, rating: 3, at: T0 + DAY_MS, ms: 3_000 })
+      const zip = unzipSync(await exportApkg(ws, blobs, { now: T0 + 2 * DAY_MS }))
+      const SQL = await loadSql()
+      const db = new SQL.Database(zip['collection.anki2'])
+      try {
+        return db.exec('select ease, ivl, lastIvl, time, type from revlog order by id')[0]?.values ?? []
+      } finally {
+        db.close()
+      }
+    }
+    const withPractice = await revlogOf(true, 5)
+    const without = await revlogOf(false, 5)
+    expect(withPractice).toHaveLength(2)
+    expect(withPractice.map((r) => r[0])).toEqual([3, 3])
+    // The second row is the interval after Good, Good: the practice Again never entered the schedule.
+    expect(withPractice).toEqual(without)
+    expect(Number(withPractice[1]?.[1])).toBeGreaterThan(0)
   })
 
   test('respects course selection and withHistory', async () => {

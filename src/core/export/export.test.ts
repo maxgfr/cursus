@@ -471,3 +471,64 @@ describe('subsets', () => {
     expect(exportMarkdown(other)).toEqual(new Map())
   })
 })
+
+describe('.ics planned sessions (RFC 5545 weekly RRULE + VALARM)', () => {
+  // Wednesday 2026-10-14, 10:00 UTC.
+  const now = Date.UTC(2026, 9, 14, 10, 0, 0)
+  const unfold = (ics: string): string[] => ics.replace(/\r\n /g, '').split('\r\n')
+
+  test('one VEVENT per plan: weekly rule on its days, first start on a matching day, alarm, stable UID', () => {
+    const ics = buildIcs({
+      now,
+      plans: [
+        { id: 'p1', summary: 'Law, contracts; week', weekdays: [5, 1, 3, 1], time: '18:30', description: 'Due cards' },
+        { id: 'p2', summary: 'Sunday', weekdays: [7], time: '07:05', durationMinutes: 45, alarmMinutes: 10 },
+      ],
+    })
+    expect(ics.endsWith('\r\n')).toBe(true)
+    expect(ics.replace(/\r\n/g, '')).not.toContain('\n')
+    for (const raw of ics.split('\r\n')) expect(new TextEncoder().encode(raw).length).toBeLessThanOrEqual(75)
+    const lines = unfold(ics)
+    expect(lines.filter((l) => l === 'BEGIN:VEVENT').length).toBe(2)
+    expect(lines.filter((l) => l === 'END:VEVENT').length).toBe(2)
+    expect(lines.filter((l) => l === 'BEGIN:VALARM').length).toBe(2)
+    // Plan 1: Monday, Wednesday, Friday; today is a Wednesday, so it starts today.
+    expect(lines).toContain('UID:plan-p1@cursus')
+    expect(lines).toContain('RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR')
+    expect(lines).toContain('DTSTART:20261014T183000')
+    expect(lines).toContain('DURATION:PT20M')
+    expect(lines).toContain(String.raw`SUMMARY:Law\, contracts\; week`)
+    expect(lines).toContain('DESCRIPTION:Due cards')
+    expect(lines).toContain('TRIGGER:PT0M')
+    // Plan 2: Sundays only; the first Sunday after the export.
+    expect(lines).toContain('UID:plan-p2@cursus')
+    expect(lines).toContain('RRULE:FREQ=WEEKLY;BYDAY=SU')
+    expect(lines).toContain('DTSTART:20261018T070500')
+    expect(lines).toContain('DURATION:PT45M')
+    expect(lines).toContain('TRIGGER:-PT10M')
+    expect(lines).toContain('DTSTAMP:20261014T100000Z')
+    // Same plans, same calendar: re-importing updates the events instead of duplicating them.
+    expect(buildIcs({ now, plans: [{ id: 'p2', summary: 'Sunday', weekdays: [7], time: '07:05' }] })).toContain(
+      'UID:plan-p2@cursus',
+    )
+  })
+
+  test('long names fold at 75 octets without splitting a character', () => {
+    const summary = 'Révisions — chapitre très long '.repeat(6)
+    const ics = buildIcs({ now, plans: [{ id: 'long', summary, weekdays: [2], time: '09:00' }] })
+    for (const raw of ics.split('\r\n')) expect(new TextEncoder().encode(raw).length).toBeLessThanOrEqual(75)
+    expect(unfold(ics)).toContain(`SUMMARY:${escapeText(summary)}`)
+  })
+
+  test('invalid plans are refused', () => {
+    const plan = { id: 'x', summary: 's', weekdays: [1], time: '09:00' }
+    expect(() => buildIcs({ now, plans: [{ ...plan, time: '9:00' }] })).toThrow(RangeError)
+    expect(() => buildIcs({ now, plans: [{ ...plan, time: '24:00' }] })).toThrow(RangeError)
+    expect(() => buildIcs({ now, plans: [{ ...plan, weekdays: [] }] })).toThrow(RangeError)
+    expect(() => buildIcs({ now, plans: [{ ...plan, weekdays: [0] }] })).toThrow(RangeError)
+    expect(() => buildIcs({ now, plans: [{ ...plan, weekdays: [8] }] })).toThrow(RangeError)
+    expect(() => buildIcs({ now, plans: [{ ...plan, durationMinutes: 0 }] })).toThrow(RangeError)
+    expect(() => buildIcs({ now, plans: [{ ...plan, alarmMinutes: -5 }] })).toThrow(RangeError)
+    expect(() => buildIcs({ now, plans: [{ ...plan, alarmMinutes: 1.5 }] })).toThrow(RangeError)
+  })
+})

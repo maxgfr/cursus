@@ -1,0 +1,14 @@
+/* Identity, not a call to action: a quiet neutral pill (never the accent). */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.5rem;
+  padding: 0.125rem 0.625rem;
+  border-radius: var(--radius-pill);
+  background: var(--surface-pressed);
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}

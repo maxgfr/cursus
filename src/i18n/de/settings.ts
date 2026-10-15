@@ -88,4 +88,22 @@ export const settings = {
   groupPrefs: 'Präferenzen',
   groupData: 'Deine Daten',
   groupHelp: 'Hilfe',
+  versionTitle: 'Version und Updates',
+  versionBuild: 'Cursus {version} · {commit} · erstellt am {date}',
+  versionFormat: 'Datenformat der Synchronisierung: Version {writes} (liest {reads})',
+  updateCheck: 'Nach Updates suchen',
+  updateChecking: 'Suche nach Updates …',
+  updateCurrent: 'Cursus ist auf dem neuesten Stand. Zuletzt geprüft um {time}.',
+  updateAvailable: 'Eine neue Version ist bereit. Deine Änderungen werden gesichert, bevor sie startet.',
+  updateNow: 'Jetzt aktualisieren',
+  updateOffline: 'Du bist offline. Verbinde dich mit dem Internet, um nach Updates zu suchen.',
+  updateUnsupported:
+    'In diesem Fenster kann nicht nach Updates gesucht werden (Entwicklung oder privates Surfen). Lade neu, um die neueste Version zu erhalten.',
+  updateFailed: 'Die Suche nach Updates ist fehlgeschlagen. Versuche es gleich noch einmal.',
+  updateDownloadFailed: 'Die neue Version konnte nicht geladen werden. Versuche es gleich noch einmal.',
+  updateApplyFailed: 'Das Update konnte nicht starten. Deine Änderungen sind sicher. Versuche es noch einmal.',
+  updateNeeded:
+    'Änderungen von einem anderen Gerät brauchen ein neueres Cursus. Sie bleiben auf diesem Gerät und werden nach dem Update übernommen.',
+  updateNoneYet:
+    'Es ist noch keine neuere Version veröffentlicht. Bis dahin bleiben diese Änderungen sicher auf diesem Gerät.',
 } as const satisfies Shape<typeof en>

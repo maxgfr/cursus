@@ -46,9 +46,11 @@ async function settings(page: Page) {
   return page.getByRole('dialog', { name: 'Section settings' })
 }
 
+/** The local date `days` study days from now: a study day starts at 04:00, as in the app. */
 function isoIn(page: Page, days: number): Promise<string> {
   return page.evaluate((n) => {
     const d = new Date()
+    if (d.getHours() < 4) d.setDate(d.getDate() - 1)
     d.setDate(d.getDate() + n)
     const pad = (x: number) => String(x).padStart(2, '0')
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`

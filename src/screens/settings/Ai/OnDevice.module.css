@@ -1,0 +1,70 @@
+.facts {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.fact {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+}
+
+/* Label beside value from tablet width; stacked on a phone, so long German labels never squeeze the value. */
+@media (min-width: 600px) {
+  .fact {
+    grid-template-columns: minmax(8rem, 12rem) minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+}
+
+.fact dt {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.fact dd {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.note {
+  color: var(--ink-3);
+  font-size: var(--text-footnote);
+}
+
+.name {
+  font-size: var(--text-title);
+  font-weight: 700;
+  line-height: var(--leading-tight);
+  overflow-wrap: anywhere;
+}
+
+.meter {
+  width: 100%;
+  height: 8px;
+  accent-color: var(--accent);
+}
+
+.percent {
+  font-variant-numeric: tabular-nums;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.confirm {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--surface-pressed);
+}

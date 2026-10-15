@@ -48,8 +48,9 @@ export const sync = {
     'Seit mehr als einem Tag ist eine Änderung auf diesem Gerät auf keinem Ziel bestätigt. Öffne ein Ziel, um den Grund zu sehen.',
   upgradeTitle: 'Ein anderes Gerät nutzt ein neueres Cursus',
   upgradeBody: {
-    one: '{count} Änderung von einem anderen Gerät braucht ein Cursus-Update, um gelesen zu werden.',
-    other: '{count} Änderungen von anderen Geräten brauchen ein Cursus-Update, um gelesen zu werden.',
+    one: '{count} Änderung von einem anderen Gerät braucht ein Cursus-Update, um gelesen zu werden. Sie bleibt hier und wird nach dem Update übernommen.',
+    other:
+      '{count} Änderungen von anderen Geräten brauchen ein Cursus-Update, um gelesen zu werden. Sie bleiben hier und werden nach dem Update übernommen.',
   },
   mergeTitle: 'Zwei Bibliotheken zusammenführen?',
   mergeBody:

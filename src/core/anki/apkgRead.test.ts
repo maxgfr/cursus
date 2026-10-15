@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { unzipSync, zipSync } from 'fflate'
 import * as Y from 'yjs'
 import { blobStore } from '../log/blobs'
 import { createWorkspace } from '../model/workspace'
@@ -6,6 +7,8 @@ import { virtualClock } from '../ports/clock'
 import { seededRng } from '../ports/rng'
 import { memoryStore } from '../storage/memoryStore'
 import { ApkgError, cardSides, courseTitle, deckPlacement, importApkg, previewPlacements, readApkg } from './apkgRead'
+import { exportApkg } from './apkgWrite'
+import { loadSql } from './schema11'
 
 const fixture = async (name: string) =>
   new Uint8Array(await Bun.file(new URL(`../../../tests/fixtures/anki/${name}`, import.meta.url)).arrayBuffer())
@@ -210,4 +213,44 @@ test('preview lists the course and every subset the import will create', async (
   ])
   const flat = await readApkg(await fixture('modern.apkg'))
   expect(previewPlacements(flat.collection)).toEqual(['Bio', 'Bio › Cells', 'Geo'])
+})
+
+describe('a damaged or hostile revlog', () => {
+  /** Our own export of one card with three reviews, its revlog then rewritten by `sql`. */
+  async function tampered(sql: string): Promise<Uint8Array> {
+    const src = setup()
+    const course = src.ws.courses.create({ title: 'Bio' })
+    const card = src.ws.cards.create({ courseId: course, kind: 'basic' })
+    src.ws.text({ id: card, field: 'front' }).insert(0, 'Q')
+    src.ws.text({ id: card, field: 'back' }).insert(0, 'A')
+    for (const at of [1_700_000_000_000, 1_700_000_600_000, 1_700_086_400_000])
+      src.ws.reviews.record({ cardId: card, rating: 3, at, ms: 1_000 })
+    const zip = unzipSync(await exportApkg(src.ws, src.blobs, { now: 1_700_200_000_000 }))
+    const SQL = await loadSql()
+    const db = new SQL.Database(zip['collection.anki2'])
+    db.run(sql)
+    const collection = db.export()
+    db.close()
+    return zipSync({ ...zip, 'collection.anki2': collection })
+  }
+
+  test.each([
+    ['an ease that is not a number', "update revlog set ease = 'x' where id = (select min(id) from revlog)"],
+    ['a fractional ease', 'update revlog set ease = 2.5 where id = (select min(id) from revlog)'],
+  ])('%s: the row is left out, the rest imported, nothing unreadable written', async (_, sql) => {
+    const bytes = await tampered(sql)
+    const { ws, blobs } = setup()
+    expect(await importApkg(bytes, ws, blobs)).toMatchObject({ imported: 1, reviews: 2 })
+    const card = ws.cards.list()[0]
+    if (!card) throw new Error('no card')
+    expect(ws.reviews.forCard(card.id)).toHaveLength(2)
+    expect(ws.reviews.quarantined()).toEqual([])
+  })
+
+  test('an answer time that is not a number keeps the review, with no time', async () => {
+    const bytes = await tampered("update revlog set time = 'z'")
+    const { ws, blobs } = setup()
+    expect(await importApkg(bytes, ws, blobs)).toMatchObject({ reviews: 3 })
+    expect(ws.reviews.all().map((r) => r.ms)).toEqual([0, 0, 0])
+  })
 })

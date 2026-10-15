@@ -1,0 +1,53 @@
+/* Pinned where a toast sits: above the tab bar, the home indicator and the keyboard. */
+.region {
+  position: fixed;
+  z-index: 20;
+  right: var(--gutter);
+  bottom: calc(var(--toast-offset, 0px) + env(safe-area-inset-bottom) + var(--space-4) + var(--kb-inset));
+  left: var(--gutter);
+  display: grid;
+  justify-items: center;
+  pointer-events: none;
+}
+
+.bar {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  max-width: min(100%, 30rem);
+  padding: var(--space-2);
+  border-radius: var(--radius-surface);
+  background: var(--surface);
+  box-shadow:
+    var(--lift),
+    0 0 0 var(--hairline-width) var(--hairline);
+  pointer-events: auto;
+  overflow-wrap: anywhere;
+  animation: enter var(--dur) var(--ease-out);
+}
+
+.note {
+  max-width: 24rem;
+  padding-inline: var(--space-2);
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+  text-align: center;
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bar {
+    animation-name: fade;
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+  }
+}

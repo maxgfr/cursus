@@ -11,11 +11,12 @@ import {
 } from '../../core/srs/fsrs'
 import { type DailyGoal, dailyGoal, daysUntil, type ExamPlan } from '../../core/srs/planner'
 import {
-  activity,
+  activitySplit,
   countByPhase,
-  type DayActivity,
+  type DayActivitySplit,
   type ForecastDay,
   forecast,
+  practiceRetention,
   type Retention,
   trueRetention,
 } from '../../core/srs/stats'
@@ -31,11 +32,16 @@ export interface ExamRow {
 }
 
 export interface StatsData {
-  /** One entry per study day of the window, oldest first (zero-filled). */
-  days: DayActivity[]
+  /** One entry per study day of the window, oldest first (zero-filled); cramming counted apart within each. */
+  days: DayActivitySplit[]
   reviews: number
   ms: number
+  /** Cramming reviews among `reviews`: done, but kept out of the schedule. */
+  practice: number
+  /** Retention of scheduled reviews only. */
   retention: Retention
+  /** Pass rate of the window's cramming reviews, apart from true retention. */
+  practiceRetention: Retention
   forecast: ForecastDay[]
   phases: Record<CardState['phase'], number>
   exams: ExamRow[]
@@ -48,6 +54,8 @@ export function examTime(date: string): number {
   return new Date(y ?? 1970, (m ?? 1) - 1, d ?? 1, 12).getTime()
 }
 
+const pick = (r: { at: number; ms: number; rating: number }) => ({ at: r.at, ms: r.ms, rating: r.rating })
+
 export function computeStats(ws: ModelWorkspace, now: number): StatsData {
   const tz = localOffset(now)
   const courses = ws.courses.list()
@@ -55,7 +63,7 @@ export function computeStats(ws: ModelWorkspace, now: number): StatsData {
   const cards = ws.cards.list().filter((c) => live.has(c.courseId) && !c.suspended)
   const scheduler = createScheduler({ desiredRetention: ws.prefs.get('desiredRetention') })
   const states = new Map<Id, CardState>()
-  const events: { at: number; ms: number }[] = []
+  const events: { at: number; ms: number; rating: number; p?: true }[] = []
   for (const c of cards) {
     const log = ws.reviews.forCard(c.id)
     if (log.length === 0) {
@@ -63,16 +71,16 @@ export function computeStats(ws: ModelWorkspace, now: number): StatsData {
       continue
     }
     states.set(c.id, scheduler.replay(c.id, log))
-    for (const r of effectiveReviews(log)) events.push({ at: r.at, ms: r.ms })
+    for (const r of effectiveReviews(log)) events.push(r.p === true ? { ...pick(r), p: true } : pick(r))
   }
 
   const today = studyDay(now, tz)
   const first = today - WINDOW_DAYS + 1
   const from = dayStart(first, tz)
-  const byDay = new Map(activity(events, tz).map((a) => [a.day, a]))
+  const byDay = new Map(activitySplit(events, tz).map((a) => [a.day, a]))
   const days = Array.from(
     { length: WINDOW_DAYS },
-    (_, i) => byDay.get(first + i) ?? { day: first + i, reviews: 0, ms: 0 },
+    (_, i) => byDay.get(first + i) ?? { day: first + i, reviews: 0, ms: 0, practice: 0, practiceMs: 0 },
   )
 
   const exams: ExamRow[] = []
@@ -95,7 +103,9 @@ export function computeStats(ws: ModelWorkspace, now: number): StatsData {
     days,
     reviews: days.reduce((n, d) => n + d.reviews, 0),
     ms: days.reduce((n, d) => n + d.ms, 0),
+    practice: days.reduce((n, d) => n + d.practice, 0),
     retention: trueRetention(states.values(), from, now + 1),
+    practiceRetention: practiceRetention(events, from, now + 1),
     forecast: forecast(states.values(), now, tz, 7),
     phases: countByPhase(states.values()),
     exams,

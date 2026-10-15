@@ -1,7 +1,16 @@
-import { type DeepPartial, generateText, type LanguageModel, Output, streamText } from 'ai'
+import {
+  type DeepPartial,
+  generateText,
+  type LanguageModel,
+  type LanguageModelUsage,
+  NoObjectGeneratedError,
+  Output,
+  streamText,
+} from 'ai'
 import type { z } from 'zod'
 import type { CatalogModel, CatalogProvider } from './catalogTrim'
 import type { TokenUsage } from './cost'
+import { LOCAL_PROVIDER } from './local'
 import { type AiFeature, type UsageSink, usageEvent } from './usage'
 
 export class AiConfigError extends Error {}
@@ -18,6 +27,11 @@ export interface ModelRef {
 /** Builds a language model; provider packages are loaded only when first needed. */
 export async function createModel(ref: ModelRef): Promise<LanguageModel> {
   const { provider, modelId, apiKey } = ref
+  if (provider.id === LOCAL_PROVIDER) {
+    // Keyless and offline: the model runs in this browser, the engine in a worker loaded on first use.
+    const { localModels } = await import('./localModels')
+    return localModels().languageModel(modelId)
+  }
   if (provider.browser.verdict === 'blocked') {
     throw new AiConfigError(`${provider.id} cannot be called from a browser`)
   }
@@ -79,16 +93,45 @@ function record(ctx: FeatureCtx, feature: AiFeature, usage: TokenUsage): void {
   ctx.onUsage?.(usageEvent(feature, ctx.info, usage, (ctx.now ?? Date.now)()))
 }
 
-export async function generateStructured<T>(ctx: FeatureCtx, req: StructuredRequest<T>): Promise<T> {
-  const res = await generateText({
-    model: ctx.model,
-    system: req.system,
-    prompt: req.prompt,
-    output: Output.object({ schema: req.schema }),
-    abortSignal: ctx.signal,
-  })
-  record(ctx, req.feature, tokens(res.totalUsage))
+/**
+ * Records what a failed call was still billed for, then rethrows: an answer that came back but did not parse or
+ * match the schema (`NoObjectGeneratedError`, truncated or invalid JSON) cost its tokens all the same, and a
+ * retry pays again. Unreported, the spending, the synced usage and the caps would all under-count.
+ */
+function recordFailure(ctx: FeatureCtx, feature: AiFeature, e: unknown): never {
+  if (NoObjectGeneratedError.isInstance(e) && e.usage) record(ctx, feature, tokens(e.usage))
+  throw e
+}
+
+/**
+ * Runs one structured call and reports its usage, whether its answer is used or refused (see `recordFailure`).
+ * Every feature calling `generateText` directly goes through here.
+ */
+export async function billed<T>(
+  ctx: FeatureCtx,
+  feature: AiFeature,
+  call: () => PromiseLike<{ output: T; totalUsage: LanguageModelUsage }>,
+): Promise<T> {
+  let res: { output: T; totalUsage: LanguageModelUsage }
+  try {
+    res = await call()
+  } catch (e) {
+    recordFailure(ctx, feature, e)
+  }
+  record(ctx, feature, tokens(res.totalUsage))
   return res.output
+}
+
+export function generateStructured<T>(ctx: FeatureCtx, req: StructuredRequest<T>): Promise<T> {
+  return billed(ctx, req.feature, () =>
+    generateText({
+      model: ctx.model,
+      system: req.system,
+      prompt: req.prompt,
+      output: Output.object({ schema: req.schema }),
+      abortSignal: ctx.signal,
+    }),
+  )
 }
 
 export interface StructuredStream<T> {
@@ -105,7 +148,12 @@ export function streamStructured<T>(ctx: FeatureCtx, req: StructuredRequest<T>):
     abortSignal: ctx.signal,
   })
   const output = (async () => {
-    const value = await res.output
+    let value: T
+    try {
+      value = await res.output
+    } catch (e) {
+      recordFailure(ctx, req.feature, e)
+    }
     record(ctx, req.feature, tokens(await res.totalUsage))
     return value
   })()

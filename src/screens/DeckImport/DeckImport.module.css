@@ -1,0 +1,271 @@
+.stack {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.tight {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.hint {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+  line-height: var(--leading-body);
+}
+
+.error {
+  color: var(--danger);
+  font-size: var(--text-footnote);
+  line-height: var(--leading-body);
+}
+
+.success {
+  color: var(--success);
+  font-size: var(--text-footnote);
+}
+
+.heading {
+  font-size: var(--text-headline);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.label {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+  font-weight: 600;
+}
+
+.select {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-3);
+  border: var(--hairline-width) solid var(--hairline-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: max(16px, var(--text-body));
+}
+
+.select:focus-visible {
+  border-color: var(--focus);
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+}
+
+.field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* The file well: a calm drop target that is also the picker's button. */
+.drop {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-4);
+  border: var(--hairline-width) dashed var(--hairline-strong);
+  border-radius: var(--radius-surface);
+  background: var(--surface);
+  text-align: center;
+}
+
+.drop[data-over="true"] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.dropText {
+  max-width: 34rem;
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+  line-height: var(--leading-body);
+}
+
+.summary {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-4);
+  border-radius: var(--radius-surface);
+  background: var(--surface);
+  box-shadow: 0 0 0 var(--hairline-width) var(--hairline);
+}
+
+.summaryTitle {
+  font-size: var(--text-headline);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  overflow-wrap: anywhere;
+}
+
+/* Units: a grouped inset list, one row per slide, page or section. */
+.units {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  border-radius: var(--radius-surface);
+  background: var(--surface);
+  box-shadow: 0 0 0 var(--hairline-width) var(--hairline);
+  list-style: none;
+  overflow: hidden;
+}
+
+.unit {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  scroll-margin-top: var(--space-6);
+}
+
+.unit + .unit {
+  border-top: var(--hairline-width) solid var(--hairline);
+}
+
+.unit[data-level="2"] {
+  padding-inline-start: calc(var(--space-4) + var(--space-4));
+}
+
+.unit[data-level="3"],
+.unit[data-level="4"] {
+  padding-inline-start: calc(var(--space-4) + var(--space-8));
+}
+
+.unit[aria-current="location"] {
+  background: var(--accent-soft);
+}
+
+.unit:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.thumb {
+  display: grid;
+  place-items: center;
+  align-self: start;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-small);
+  background: var(--surface-pressed);
+  overflow: hidden;
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.thumbLabel {
+  color: var(--ink-3);
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.unitBody {
+  display: grid;
+  align-content: start;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.unitName {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+  font-size: var(--text-body);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+}
+
+.unitKind {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.unitTitle {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.unitMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--ink-3);
+  font-size: var(--text-caption);
+  font-weight: 600;
+}
+
+.unitText {
+  color: var(--ink);
+  font-size: var(--text-footnote);
+  line-height: var(--leading-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.unitText[data-clip="true"],
+.notesLine[data-clip="true"] {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.notesLine[data-clip="true"] {
+  -webkit-line-clamp: 2;
+}
+
+.notesLine {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+  line-height: var(--leading-body);
+  overflow-wrap: anywhere;
+}
+
+.notes {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--surface-pressed);
+}
+
+.notesLabel {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+  font-weight: 600;
+}
+
+@media (max-width: 30rem) {
+  .unit {
+    grid-template-columns: 4rem minmax(0, 1fr);
+    padding-inline: var(--space-3);
+  }
+
+  .unit[data-level="2"],
+  .unit[data-level="3"],
+  .unit[data-level="4"] {
+    padding-inline-start: calc(var(--space-3) + var(--space-3));
+  }
+}

@@ -44,8 +44,9 @@ export const sync = {
     'For more than a day, a change on this device has not been confirmed on any destination. Open a destination to see why.',
   upgradeTitle: 'Another device uses a newer Cursus',
   upgradeBody: {
-    one: '{count} change from another device needs an update of Cursus to be read.',
-    other: '{count} changes from other devices need an update of Cursus to be read.',
+    one: '{count} change from another device needs an update of Cursus to be read. It’s kept here and applied after the update.',
+    other:
+      '{count} changes from other devices need an update of Cursus to be read. They’re kept here and applied after the update.',
   },
   mergeTitle: 'Merge two libraries?',
   mergeBody: '{dest} holds a different library. Merging combines both here and on every device, and cannot be undone.',

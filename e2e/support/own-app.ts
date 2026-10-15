@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs'
-import { cp, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { cp, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { tmpdir } from 'node:os'
@@ -29,8 +29,63 @@ const TYPES: Record<string, string> = {
 export type OwnApp = {
   /** The app's base URL on this private origin (ends with the base path). */
   url: string
-  /** Publishes a "new version": same worker code, different bytes. */
-  publishNewVersion: () => Promise<void>
+  /**
+   * Publishes a "new version": same worker code, different bytes. With `commit`, a new build as a real deploy
+   * makes it: the build identity (Settings › General) changes, so do the names of the chunks that hold or
+   * import it, index.html and the precache manifest.
+   */
+  publishNewVersion: (next?: { commit: string }) => Promise<void>
+}
+
+/** The build identity as the minifier writes it (src/app/buildInfo.ts, filled by vite.config.ts `define`). */
+const COMMIT = /commit:([`"'])([0-9a-f]{7,40}|dev)\1/
+
+/**
+ * Rewrites the copy as the next build: the chunk holding the build identity, then every chunk importing a
+ * renamed one, get new names (as content hashes would), index.html points at them, and the precache manifest
+ * lists them. Old files stay, as on a real host. Returns the new worker script.
+ */
+async function rebuild(root: string, worker: string, commit: string): Promise<string> {
+  const assets = join(root, 'assets')
+  const code = new Map<string, string>()
+  for (const name of await readdir(assets))
+    if (name.endsWith('.js')) code.set(name, await readFile(join(assets, name), 'utf8'))
+  const renamed = new Map<string, string>()
+  const rename = (name: string) => renamed.set(name, name.replace(/\.js$/, `.${commit}.js`))
+  for (const [name, text] of code) {
+    if (!COMMIT.test(text)) continue
+    code.set(
+      name,
+      text.replace(COMMIT, (_m, q: string) => `commit:${q}${commit}${q}`),
+    )
+    rename(name)
+  }
+  if (renamed.size === 0) throw new Error('No chunk holds the build identity')
+  for (let grew = true; grew; ) {
+    grew = false
+    for (const [name, text] of code) {
+      if (renamed.has(name) || ![...renamed.keys()].some((old) => text.includes(old))) continue
+      rename(name)
+      grew = true
+    }
+  }
+  const relink = (text: string) => {
+    let out = text
+    for (const [old, now] of renamed) out = out.replaceAll(old, now)
+    return out
+  }
+  let manifest = worker
+  for (const [old, now] of renamed) {
+    await writeFile(join(assets, now), relink(code.get(old) ?? ''))
+    const entry = `{url:"assets/${old}",revision:null}`
+    if (!manifest.includes(entry)) throw new Error(`${old} is not precached as expected`)
+    manifest = manifest.replace(entry, `{url:"assets/${now}",revision:null}`)
+  }
+  const html = join(root, 'index.html')
+  await writeFile(html, relink(await readFile(html, 'utf8')))
+  const page = /\{url:"index\.html",revision:"[^"]*"\}/
+  if (!page.test(manifest)) throw new Error('index.html is not precached as expected')
+  return manifest.replace(page, `{url:"index.html",revision:"${commit}"}`)
 }
 
 async function serveCopy(): Promise<OwnApp & { close: () => Promise<void> }> {
@@ -67,8 +122,10 @@ async function serveCopy(): Promise<OwnApp & { close: () => Promise<void> }> {
   const sw = join(root, 'sw.js')
   return {
     url: `http://localhost:${port}${BASE}`,
-    publishNewVersion: async () => {
-      await writeFile(sw, `${await readFile(sw, 'utf8')}\n// next version\n`)
+    publishNewVersion: async (next) => {
+      let worker = await readFile(sw, 'utf8')
+      if (next) worker = await rebuild(root, worker, next.commit)
+      await writeFile(sw, `${worker}\n// next version\n`)
     },
     close: async () => {
       server.closeAllConnections()

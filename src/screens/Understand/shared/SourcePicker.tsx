@@ -1,4 +1,4 @@
-import { FileImage, FileText, NotebookText, Sparkles } from 'lucide-react'
+import { FileImage, FileText, NotebookText, Presentation, Sparkles } from 'lucide-react'
 import { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { Link } from 'wouter'
 import { paths, to } from '../../../app/routes.ts'
@@ -7,12 +7,16 @@ import type { Chunk } from '../../../core/ai/retrieval'
 import type { SourceRef } from '../../../core/ai/schemas'
 import type { StudyScope } from '../../../core/contracts/workspace'
 import { blobStore } from '../../../core/log/blobs'
+import { isPhoto, type Photo, photoLabel, toPhoto } from '../../../core/model/photos'
+import type { SourceRecord } from '../../../core/model/schema'
 import type { SectionTree } from '../../../core/model/sections'
 import { useT } from '../../../i18n/react.tsx'
 import { buttonClass } from '../../../ui/components/Button.tsx'
 import { EmptyState } from '../../../ui/components/EmptyState.tsx'
+import { useThumbs } from '../../Photos/files.ts'
 import styles from './ai.module.css'
-import { chunksFor, PASTED } from './sources.ts'
+import { citationText, useCitedUnit } from './citations.ts'
+import { chunksFor, deckReader, PASTED } from './sources.ts'
 
 export interface Selection {
   courseId: string
@@ -44,6 +48,9 @@ function sectionOptions(tree: SectionTree, courseId: string): { id: string; labe
 }
 
 const ICONS = { note: NotebookText, pdf: FileText, image: FileImage } as const
+/** Slides and documents read unit by unit, whatever their file's `kind`. */
+const iconOf = (s: SourceRecord) =>
+  s.support === 'deck' ? Presentation : s.support === 'document' ? FileText : ICONS[s.kind]
 
 /** Course, sources and optional pasted text an AI request is grounded in. */
 export function SourcePicker({ value, onChange }: { value: Selection; onChange: (s: Selection) => void }) {
@@ -132,7 +139,7 @@ export function SourcePicker({ value, onChange }: { value: Selection; onChange: 
         ) : (
           <ul className={styles.checks}>
             {sources.map((s) => {
-              const Icon = ICONS[s.kind]
+              const Icon = iconOf(s)
               return (
                 <li key={s.id}>
                   <label className={styles.check}>
@@ -169,12 +176,13 @@ export function SourcePicker({ value, onChange }: { value: Selection; onChange: 
 
 export const emptySelection: Selection = { courseId: '', sectionId: '', sourceIds: [], pasted: '' }
 
-/** Loads the passages for a selection (PDF text is extracted on demand). */
+/** Loads the passages for a selection (PDF text and decks are read on demand). */
 export function useChunkLoader(): (s: Selection) => Promise<Chunk[]> {
   const rt = useRuntime()
   const ws = useWorkspace()
   const blobs = useMemo(() => blobStore(rt.store), [rt])
-  return useCallback((s: Selection) => chunksFor(ws, blobs, s.sourceIds, s.pasted), [ws, blobs])
+  const readDeck = useMemo(() => deckReader(rt), [rt])
+  return useCallback((s: Selection) => chunksFor(ws, blobs, s.sourceIds, s.pasted, readDeck), [ws, blobs, readDeck])
 }
 
 /** Shown instead of an AI screen until a model and key are set up. */
@@ -194,17 +202,34 @@ export function NoModel() {
   )
 }
 
-/** A citation: links to the cited source (and page) when it is a saved source. */
+/** A citation: links to the cited source (and page, slide or section) when it is a saved source. */
 export function Citation({ sourceRef }: { sourceRef: SourceRef }) {
   const t = useT()
   const source = useWorkspaceData([{ id: sourceRef.sourceId }], (ws) => ws.sources.get(sourceRef.sourceId))
+  const unit = useCitedUnit(source, sourceRef.page)
   const label = sourceRef.sourceId === PASTED ? t('ai.pastedSource') : (source?.title ?? t('ai.unknownSource'))
-  const text = sourceRef.page === undefined ? label : t('ai.citePage', { source: label, page: sourceRef.page })
+  const text = citationText(t, label, source, sourceRef.page, unit)
   if (!source) return <span className={styles.cite}>{text}</span>
+  if (isPhoto(source)) return <PhotoCitation photo={toPhoto(source)} />
   const href = sourceRef.page === undefined ? to.source(source.id) : `${to.source(source.id)}?page=${sourceRef.page}`
   return (
     <Link href={href} className={styles.cite} aria-label={t('ai.openCitation', { source: text })}>
       {text}
+    </Link>
+  )
+}
+
+/** A cited photo: its thumbnail and name, opening the photo viewer. */
+function PhotoCitation({ photo }: { photo: Photo }) {
+  const t = useT()
+  const thumb = useThumbs([photo.blobId]).get(photo.blobId)
+  const name = photoLabel(photo)
+  return (
+    <Link href={to.photo(photo.id)} className={styles.cite} aria-label={t('photos.aiOpenPhoto', { name })}>
+      {thumb?.kind === 'ready' && (
+        <img className={styles.citeThumb} src={thumb.url} alt="" data-rotation={photo.rotation} />
+      )}
+      {name}
     </Link>
   )
 }

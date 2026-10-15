@@ -14,6 +14,7 @@ import {
   parseCatalogFile,
   unknownFacts,
 } from './catalogTrim'
+import { LOCAL_PROVIDER, LOCAL_PROVIDER_INFO } from './local'
 
 export const MODELS_DEV_URL = 'https://models.dev/api.json'
 
@@ -72,7 +73,9 @@ export async function refreshCatalog(
   )
 }
 
+/** A catalog provider, or the on-device one, which no catalog lists. */
 export function findProvider(catalog: Catalog, providerId: string): CatalogProvider | undefined {
+  if (providerId === LOCAL_PROVIDER) return LOCAL_PROVIDER_INFO
   return catalog.providers.find((p) => p.id === providerId)
 }
 

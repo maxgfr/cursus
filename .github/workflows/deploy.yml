@@ -1,7 +1,12 @@
 name: Deploy
 on:
-  push:
-    branches: [main]
+  # Pushes to main deploy through release.yml once CI is green; this also allows a manual redeploy of main.
+  workflow_call:
+    inputs:
+      version:
+        description: Release version the build shows in Settings (empty = latest tag)
+        type: string
+        default: ''
   workflow_dispatch:
 permissions:
   contents: read
@@ -15,8 +20,12 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VITE_BASE: /cursus/
+      APP_VERSION: ${{ inputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Tags let the build fall back to the latest release when no version is passed.
+          fetch-depth: 0
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.3

@@ -9,6 +9,7 @@ import { ListGroup, ListRow } from '../../../ui/components/List.tsx'
 import { Sheet } from '../../../ui/components/Sheet.tsx'
 import { Screen } from '../../../ui/shell/Screen.tsx'
 import { noteError } from '../Diagnostic/recent.ts'
+import { UpdateControl } from '../General/update.tsx'
 import { beginOAuth, cloudkitSignIn, commit, folderSupported, pickFolder } from './connect.ts'
 import { DestSheet, stateText } from './DestSheet.tsx'
 import { errorText, useAction, useDestinations, useWorkspaceConfirm } from './hooks.tsx'
@@ -105,12 +106,15 @@ export default function SyncSettings() {
     <Screen title={t('settings.sync')} back={paths.settings}>
       <div className={styles.stack}>
         {status?.alarm && <Banner title={t('sync.alarmTitle')} body={t('sync.alarmBody')} />}
+        {/* Nothing is at risk: the changes are kept and applied after the update, offered right here. */}
         {(status?.needsUpgrade ?? 0) > 0 && (
-          <Banner
-            title={t('sync.upgradeTitle')}
-            body={t('sync.upgradeBody', { count: status?.needsUpgrade ?? 0 })}
-            action={<Button onClick={() => location.reload()}>{t('common.reload')}</Button>}
-          />
+          <section className={styles.card} aria-labelledby="sync-upgrade">
+            <h2 id="sync-upgrade" className={styles.sectionTitle}>
+              {t('sync.upgradeTitle')}
+            </h2>
+            <p className={styles.prose}>{t('sync.upgradeBody', { count: status?.needsUpgrade ?? 0 })}</p>
+            <UpdateControl waitingChanges />
+          </section>
         )}
         {engineError !== null && (
           <p className={styles.bad} role="alert">

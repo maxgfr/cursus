@@ -1,4 +1,4 @@
-import type { Id, StudyScope } from '../contracts/workspace'
+import type { Id, SessionScope } from '../contracts/workspace'
 import { type CardState, dayStart, newCardState, studyDay } from './fsrs'
 
 export interface QueueCard {
@@ -21,14 +21,48 @@ export interface QueueInput {
    * Only cards of this course or subset (descendants included) are queued. Today's reviews of every card
    * still count: the daily new-card budget and sibling burying are the student's, not the subset's.
    */
-  scope?: StudyScope
+  scope?: SessionScope
 }
 
-/** In the scope's course and, for a subset, filed in it or below it. No scope: every card. */
-export function inScope(card: QueueCard, scope: StudyScope | undefined): boolean {
+/**
+ * In the scope's course and, for a subset, filed in it or below it. No scope (or an empty one): every card. A
+ * subset alone (no course) needs no course check: section ids are unique.
+ */
+export function inScope(card: QueueCard, scope: SessionScope | undefined): boolean {
   if (scope === undefined) return true
-  if (card.courseId !== scope.courseId) return false
+  if (scope.courseId !== undefined && card.courseId !== scope.courseId) return false
   return scope.sectionId === undefined || (card.sections ?? []).includes(scope.sectionId)
+}
+
+/** What today's reviews (practice ones are not in the states) mean for any queue built today. */
+export interface StudyDayContext {
+  /** Start of the next study day. */
+  endOfDay: number
+  isToday(t: number | null): boolean
+  /** Sibling groups with a card reviewed today. */
+  buried: ReadonlySet<string>
+  /** New cards introduced today, every course included. */
+  newDoneToday: number
+}
+
+export function studyDayContext(
+  cards: readonly QueueCard[],
+  states: ReadonlyMap<Id, CardState>,
+  now: number,
+  tzOffsetMin: number,
+): StudyDayContext {
+  const today = studyDay(now, tzOffsetMin)
+  const isToday = (t: number | null): boolean => t !== null && studyDay(t, tzOffsetMin) === today
+  const buried = new Set<string>()
+  let newDoneToday = 0
+  for (const c of cards) {
+    const s = states.get(c.id)
+    if (!s || !isToday(s.lastReview)) continue
+    if (c.sibling !== undefined) buried.add(c.sibling)
+    const first = s.history[0]
+    if (first && isToday(first.at)) newDoneToday++
+  }
+  return { endOfDay: dayStart(today + 1, tzOffsetMin), isToday, buried, newDoneToday }
 }
 
 export interface QueueEntry {
@@ -47,19 +81,7 @@ const byDueThenId = (a: CardState, b: CardState): number =>
  */
 export function buildQueue(input: QueueInput): QueueEntry[] {
   const { cards, states, now, tzOffsetMin } = input
-  const today = studyDay(now, tzOffsetMin)
-  const endOfDay = dayStart(today + 1, tzOffsetMin)
-  const isToday = (t: number | null): boolean => t !== null && studyDay(t, tzOffsetMin) === today
-
-  const buried = new Set<string>()
-  let newDoneToday = 0
-  for (const c of cards) {
-    const s = states.get(c.id)
-    if (!s || !isToday(s.lastReview)) continue
-    if (c.sibling !== undefined) buried.add(c.sibling)
-    const first = s.history[0]
-    if (first && isToday(first.at)) newDoneToday++
-  }
+  const { endOfDay, isToday, buried, newDoneToday } = studyDayContext(cards, states, now, tzOffsetMin)
 
   const learning: CardState[] = []
   const reviews: CardState[] = []

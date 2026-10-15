@@ -92,6 +92,16 @@ bun run preview      # serve the build
 | `bun run check` | typecheck, lint, test, build, size |
 | `bun run check:all` | check, coverage, S3, Anki and e2e |
 
+### Releases
+
+Every push to `main` runs CI (`check:all`); only when it is green does
+[semantic-release](https://semantic-release.gitbook.io) read the commits since the last tag
+([Conventional Commits](https://www.conventionalcommits.org): `fix:` → patch, `feat:` → minor,
+`BREAKING CHANGE:` → major), tag `vX.Y.Z`, publish a GitHub release with its notes, and deploy that
+version to GitHub Pages (`.github/workflows/release.yml`). Nothing is committed back: the build takes its
+version from the tag, and Settings › General shows it with the commit, the build date and the sync data
+format, plus a check for updates.
+
 ### Testing approach
 
 - `src/core/**` is plain TypeScript without React or the DOM and is tested with `bun test`, including

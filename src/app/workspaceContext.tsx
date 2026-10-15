@@ -17,6 +17,8 @@ import { createWorkspace, type ModelWorkspace } from '../core/model/workspace'
 import { systemClock } from '../core/ports/clock'
 import { defaultLocks } from '../core/ports/locks'
 import { cryptoRng } from '../core/ports/rng'
+import type { ReplaySnapshot } from '../core/srs/fsrs'
+import { readSavedReplays } from '../core/srs/savedReplays'
 import { type IdbStore, idbStore } from '../core/storage/idbStore'
 
 /** Seal after this much quiet, and at most this long after the first unsealed edit. */
@@ -28,6 +30,8 @@ export interface Runtime {
   readonly ws: ModelWorkspace
   readonly doc: Y.Doc
   readonly store: IdbStore
+  /** The replays an earlier launch saved, read before the replica was ready (null: none, unreadable or late). */
+  readonly replays: ReplaySnapshot | null
   readonly log: LocalLogImpl
   readonly locks: Locks
   readonly clock: Clock
@@ -42,9 +46,37 @@ export interface Runtime {
   onSealed(fn: () => void): () => void
 }
 
+export interface ReplicaDeps {
+  store: IdbStore
+  locks: Locks
+  clock: Clock
+  rng: Rng
+  /** Reads the replays an earlier launch saved; never rejects and is bounded (default `readSavedReplays`). */
+  readReplays?: (store: IdbStore) => Promise<ReplaySnapshot | null>
+}
+
 /**
- * Opens the local replica: loads the persisted log into a fresh doc (origin REPLAY, never captured),
- * then captures every later local edit. Nothing is written to the doc here.
+ * Loads the persisted log into a fresh doc (origin REPLAY, never captured) and, alongside it, the replays an
+ * earlier launch saved: the replica is ready only with both, so the first study computation starts from those
+ * replays instead of racing them. Their read is bounded and never fails the launch (a full replay instead).
+ */
+export async function loadReplica(
+  deps: ReplicaDeps,
+): Promise<{ log: LocalLogImpl; doc: Y.Doc; ws: ModelWorkspace; replays: ReplaySnapshot | null }> {
+  const { store, locks, clock, rng } = deps
+  const log = createLocalLog({ store, locks, clock, rng })
+  const replays = (deps.readReplays ?? readSavedReplays)(store)
+  const { updates } = await log.load()
+  const deviceId = await log.deviceId()
+  const doc = new Y.Doc()
+  for (const u of updates) Y.applyUpdateV2(doc, u, REPLAY)
+  const ws = createWorkspace(doc, { rng, clock, deviceId })
+  return { log, doc, ws, replays: await replays }
+}
+
+/**
+ * Opens the local replica (see `loadReplica`), then captures every later local edit. Nothing is written to
+ * the doc here.
  */
 async function openRuntime(): Promise<Runtime> {
   const listeners = new Set<() => void>()
@@ -62,12 +94,7 @@ async function openRuntime(): Promise<Runtime> {
   const locks = defaultLocks()
   const clock = systemClock
   const rng = cryptoRng(clock)
-  const log = createLocalLog({ store, locks, clock, rng })
-  const { updates } = await log.load()
-  const deviceId = await log.deviceId()
-  const doc = new Y.Doc()
-  for (const u of updates) Y.applyUpdateV2(doc, u, REPLAY)
-  const ws = createWorkspace(doc, { rng, clock, deviceId })
+  const { log, doc, ws, replays } = await loadReplica({ store, locks, clock, rng })
 
   let quietTimer: ReturnType<typeof setTimeout> | undefined
   let firstUnsealedAt: number | undefined
@@ -108,6 +135,7 @@ async function openRuntime(): Promise<Runtime> {
     ws,
     doc,
     store,
+    replays,
     log,
     locks,
     clock,
@@ -130,6 +158,19 @@ type BootState = { phase: 'loading' } | { phase: 'ready'; rt: Runtime } | { phas
 
 // One replica per page, even under StrictMode's double effects.
 let opening: Promise<Runtime> | null = null
+
+/**
+ * Starts opening the local replica at once, before the first render: reading and inflating the library
+ * then overlaps the language catalog's load instead of waiting for it. The provider picks up this same
+ * opening and shows its failure, if any (with a retry).
+ */
+export function openReplicaEarly(): void {
+  if (opening !== null) return
+  const started = openRuntime()
+  opening = started
+  // Handled by the provider once it mounts: until then the rejection must not count as unhandled.
+  started.catch(() => undefined)
+}
 
 const RuntimeContext = createContext<Runtime | null>(null)
 

@@ -84,4 +84,21 @@ export const settings = {
   groupPrefs: 'Preferences',
   groupData: 'Your data',
   groupHelp: 'Help',
+  versionTitle: 'Version and updates',
+  versionBuild: 'Cursus {version} · {commit} · built {date}',
+  versionFormat: 'Sync data format: version {writes} (reads {reads})',
+  updateCheck: 'Check for updates',
+  updateChecking: 'Checking for updates…',
+  updateCurrent: 'Cursus is up to date. Last checked at {time}.',
+  updateAvailable: 'A new version is ready. Your edits are saved before it opens.',
+  updateNow: 'Update now',
+  updateOffline: 'You’re offline. Connect to the internet to check for updates.',
+  updateUnsupported:
+    'Updates can’t be checked in this window (development or private browsing). Reload to get the latest version.',
+  updateFailed: 'Couldn’t check for updates. Try again in a moment.',
+  updateDownloadFailed: 'The new version couldn’t be downloaded. Try again in a moment.',
+  updateApplyFailed: 'The update couldn’t start. Your edits are safe. Try again.',
+  updateNeeded:
+    'Changes from another device need a newer Cursus. They’re kept on this device and applied after the update.',
+  updateNoneYet: 'No newer version is published yet. Those changes stay safe on this device until then.',
 } as const

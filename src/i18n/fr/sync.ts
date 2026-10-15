@@ -48,8 +48,9 @@ export const sync = {
     'Depuis plus d’un jour, une modification de cet appareil n’est confirmée sur aucune destination. Ouvrez une destination pour voir pourquoi.',
   upgradeTitle: 'Un autre appareil utilise un Cursus plus récent',
   upgradeBody: {
-    one: '{count} modification d’un autre appareil nécessite une mise à jour de Cursus pour être lue.',
-    other: '{count} modifications d’autres appareils nécessitent une mise à jour de Cursus pour être lues.',
+    one: '{count} modification d’un autre appareil nécessite une mise à jour de Cursus pour être lue. Elle est conservée ici et appliquée après la mise à jour.',
+    other:
+      '{count} modifications d’autres appareils nécessitent une mise à jour de Cursus pour être lues. Elles sont conservées ici et appliquées après la mise à jour.',
   },
   mergeTitle: 'Fusionner deux bibliothèques ?',
   mergeBody:

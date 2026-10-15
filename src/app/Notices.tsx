@@ -20,6 +20,21 @@ export default function Notices() {
   const [message, setMessage] = useState<string | null>(null)
 
   useEffect(() => {
+    // After an update, a downloaded model's new engine script is stored before going offline needs it.
+    const keep = () => {
+      import('../screens/settings/Ai/onDeviceStore.ts')
+        .then((m) => m.keepEngineFresh())
+        .catch((e: unknown) => console.error('on-device engine not kept for offline use', e))
+    }
+    if (typeof requestIdleCallback === 'function') {
+      const id = requestIdleCallback(keep, { timeout: 10_000 })
+      return () => cancelIdleCallback(id)
+    }
+    const id = setTimeout(keep, 2_000)
+    return () => clearTimeout(id)
+  }, [])
+
+  useEffect(() => {
     if (!engine) return
     consumeLaunchedFiles(
       (files) => {

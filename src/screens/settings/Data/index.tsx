@@ -7,6 +7,8 @@ import { useLocale, useT } from '../../../i18n/react.tsx'
 import { Button } from '../../../ui/components/Button.tsx'
 import { ListGroup, ListRow } from '../../../ui/components/List.tsx'
 import { Screen } from '../../../ui/shell/Screen.tsx'
+import { PhotoDeviceSetting } from '../../Photos/DeviceSetting.tsx'
+import { loadFile } from '../../Photos/files.ts'
 import { noteError } from '../Diagnostic/recent.ts'
 import { useAction, useDestinations, useWorkspaceConfirm } from '../Sync/hooks.tsx'
 import { absorb, download, exportBackup, fileStamp } from '../Sync/registry.ts'
@@ -105,9 +107,15 @@ export default function DataSettings() {
 
   const coursePackage = (id: string, title: string) =>
     run(`pkg:${id}`, async () => {
-      const { exportCourse, COURSE_EXT } = await import('../../../core/export/coursePackage')
-      download(exportCourse(rt.ws, id), `${safe(title)}${COURSE_EXT}`, 'application/zip')
-      done(t('settings.exportDone'))
+      const { exportCoursePackage, COURSE_EXT } = await import('../../../core/export/coursePackage')
+      // With its photos and files; one out of reach (on demand, offline) is left out and said so.
+      const { bytes, missing } = await exportCoursePackage(rt.ws, id, (fid) => loadFile(rt, engine, fid))
+      download(bytes, `${safe(title)}${COURSE_EXT}`, 'application/zip')
+      if (missing === 0) done(t('settings.exportDone'))
+      else {
+        setMessage(null)
+        setPartial(t('photos.packageMissing', { count: missing }))
+      }
     })
 
   const ankiExport = (id: string, title: string) =>
@@ -116,7 +124,9 @@ export default function DataSettings() {
         import('../../../core/anki/apkgWrite'),
         import('../../../core/log/blobs'),
       ])
-      const bytes = await exportApkg(rt.ws, blobStore(rt.store), { courseIds: [id], now: rt.clock.now() })
+      // Card photos kept on demand are fetched for the package like any other.
+      const blobs = { ...blobStore(rt.store), get: (fid: string) => loadFile(rt, engine, fid) }
+      const bytes = await exportApkg(rt.ws, blobs, { courseIds: [id], now: rt.clock.now() })
       download(bytes, `${safe(title)}.apkg`, 'application/octet-stream')
       done(t('anki.exported'))
     })
@@ -125,8 +135,12 @@ export default function DataSettings() {
     run('pkg-import', async () => {
       const file = await bytesOf(e)
       if (!file) return
-      const { importCourse } = await import('../../../core/export/coursePackage')
-      importCourse(rt.ws, file.bytes)
+      const [{ importCoursePackage }, { blobStore }] = await Promise.all([
+        import('../../../core/export/coursePackage'),
+        import('../../../core/log/blobs'),
+      ])
+      // Its files are stored first, then the course that refers to them.
+      await importCoursePackage(rt.ws, blobStore(rt.store), file.bytes)
       done(t('settings.courseImported'))
     })
 
@@ -182,6 +196,8 @@ export default function DataSettings() {
             </div>
           )}
         </section>
+
+        <PhotoDeviceSetting />
 
         <section className={styles.card} aria-labelledby="data-backup">
           <h2 id="data-backup" className={styles.sectionTitle}>

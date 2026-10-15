@@ -29,6 +29,18 @@
   font-weight: 600;
 }
 
+/* A session's name and its cramming chip: centred, wrapping under a long name rather than widening the bar. */
+.titleGroup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
 .main {
   display: grid;
   align-content: start;

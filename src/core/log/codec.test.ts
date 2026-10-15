@@ -2,9 +2,23 @@ import { describe, expect, test } from 'bun:test'
 import fc from 'fast-check'
 import { zlibSync } from 'fflate'
 import * as Y from 'yjs'
+import { codec as v1Codec } from '../../../tests/fixtures/v1-reader/codec'
 import { EnvelopeError } from '../contracts/errors'
 import type { Header } from '../contracts/log'
-import { blobKey, bmanKey, codec, decode, encode, keyFor, MAGIC, parseKey, refsOf, sha256Hex } from './codec'
+import {
+  blobKey,
+  bmanKey,
+  codec,
+  decode,
+  decodeAsync,
+  encode,
+  FORMAT_VERSION,
+  keyFor,
+  MAGIC,
+  parseKey,
+  refsOf,
+  sha256Hex,
+} from './codec'
 
 const H64 = 'ab'.repeat(32)
 const FIX = `${import.meta.dir}/../../../tests/fixtures/v1/`
@@ -60,7 +74,7 @@ describe('parseKey', () => {
       'seg/dev1/0000000042-0123456789ABCDEF.seg',
       'seg/de v/0000000042-0123456789abcdef.seg',
       'seg/a/b/0000000042-0123456789abcdef.seg',
-      'fmt/v2',
+      'fmt/v3',
       '/fmt/v1',
       `blob/cd/${H64}`,
       `bman/${H64}x`,
@@ -119,8 +133,8 @@ describe('encode / decode', () => {
     expect(() => decode(withKey('seg', bytes), bytes)).toThrow(expect.objectContaining({ kind: 'magic' }))
   })
   test('unknown version, undecodable body or header ⇒ EnvelopeError version', () => {
-    const v2 = new Uint8Array([...MAGIC, 2, 0])
-    expect(() => decode(withKey('seg', v2), v2)).toThrow(expect.objectContaining({ kind: 'version' }))
+    const v3 = new Uint8Array([...MAGIC, 3, 0])
+    expect(() => decode(withKey('seg', v3), v3)).toThrow(expect.objectContaining({ kind: 'version' }))
     const junk = new Uint8Array([...MAGIC, 1, 9, 9, 9])
     expect(() => decode(withKey('seg', junk), junk)).toThrow(expect.objectContaining({ kind: 'version' }))
     const hj = new TextEncoder().encode('{"v":2}')
@@ -162,6 +176,66 @@ describe('encode / decode', () => {
   })
 })
 
+describe('decodeAsync (platform zlib)', () => {
+  test('decodes exactly what decode does, any header and update', async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        fc.stringMatching(/^[A-Za-z0-9_-]{1,64}$/),
+        fc.integer({ min: 0, max: 9_999_999_999 }),
+        fc.uint8Array({ maxLength: 4096 }),
+        async (deviceId, seq, update) => {
+          const { key, bytes } = encode(header({ deviceId, seq }), update)
+          expect(await decodeAsync(key, bytes)).toEqual(decode(key, bytes))
+        },
+      ),
+      { numRuns: 50 },
+    )
+    expect(codec.decodeAsync).toBe(decodeAsync)
+  })
+  test('a large update (megabytes) comes back byte for byte', async () => {
+    const u = updateOf((d) => {
+      const m = d.getMap('m')
+      for (let i = 0; i < 20_000; i++) m.set(`k${i}`, { i, text: `review ${i} of a long history` })
+    })
+    const { key, bytes } = encode(header(), u)
+    expect((await decodeAsync(key, bytes)).update).toEqual(u)
+  })
+  test('the same errors as decode: hash, magic, version, a key that is not a segment', async () => {
+    const { key, bytes } = encode(header(), new Uint8Array([0]))
+    const bad = bytes.slice()
+    bad[bad.length - 1] = (bad[bad.length - 1] ?? 0) ^ 1
+    await expect(decodeAsync(key, bad)).rejects.toMatchObject({ kind: 'hash' })
+    const magic = new Uint8Array([1, 2, 3, 4, 1, 0])
+    await expect(decodeAsync(withKey('seg', magic), magic)).rejects.toMatchObject({ kind: 'magic' })
+    const junk = new Uint8Array([...MAGIC, 1, 9, 9, 9])
+    await expect(decodeAsync(withKey('seg', junk), junk)).rejects.toMatchObject({ kind: 'version' })
+    const other = encode(header(), new Uint8Array()).bytes
+    await expect(decodeAsync(withKey('seg', other, 'dev1', 4), other)).rejects.toMatchObject({ kind: 'hash' })
+    await expect(decodeAsync('fmt/v1', new Uint8Array())).rejects.toThrow(RangeError)
+  })
+  test('without a platform zlib or SHA-256, falls back to the bundled ones', async () => {
+    const native = globalThis.DecompressionStream
+    const subtle = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(crypto), 'subtle')
+    const { key, bytes } = encode(
+      header(),
+      updateOf((d) => d.getText('t').insert(0, 'fallback')),
+    )
+    const bad = bytes.slice()
+    bad[bad.length - 1] = (bad[bad.length - 1] ?? 0) ^ 1
+    try {
+      Reflect.deleteProperty(globalThis, 'DecompressionStream')
+      Object.defineProperty(crypto, 'subtle', { configurable: true, value: undefined })
+      expect(await decodeAsync(key, bytes)).toEqual(decode(key, bytes))
+      await expect(decodeAsync(key, bad)).rejects.toMatchObject({ kind: 'hash' })
+    } finally {
+      globalThis.DecompressionStream = native
+      Reflect.deleteProperty(crypto, 'subtle')
+      if (subtle && crypto.subtle === undefined) Object.defineProperty(crypto, 'subtle', subtle)
+    }
+    expect(crypto.subtle).toBeDefined()
+  })
+})
+
 describe('refsOf', () => {
   test('finds cursus-blob refs in map values, text, embeds, formats and arrays', () => {
     const ids = ['1', '2', '3', '4', '5'].map((c) => c.repeat(64))
@@ -192,7 +266,8 @@ describe('v1 fixtures (never regenerated)', () => {
       'course-1': { id: 'course-1', title: 'Fixture course', cover: `cursus-blob:${H64}` },
     })
     expect(refsOf(update)).toEqual([H64])
-    expect(encode(h, update).bytes).toEqual(bytes)
+    // Version 1 is still exactly what this codec lays out when asked for it (it now writes version 2).
+    expect(encode(h, update, 1).bytes).toEqual(bytes)
   })
   test('checkpoint.bin decodes with covers and the same state', async () => {
     const bytes = new Uint8Array(await Bun.file(`${FIX}checkpoint.bin`).arrayBuffer())
@@ -203,5 +278,68 @@ describe('v1 fixtures (never regenerated)', () => {
     Y.applyUpdateV2(doc, update)
     expect(doc.getMap('courses').get('course-1')).toBeInstanceOf(Y.Map)
     expect((doc.getMap('courses').get('course-1') as Y.Map<string>).get('title')).toBe('Fixture course')
+  })
+})
+
+const FIX2 = `${import.meta.dir}/../../../tests/fixtures/v2/`
+const SEG2_KEY = 'seg/fixturedev/0000000000-cf7595873c8df2e1.seg'
+const CKPT2_KEY = 'ckpt/fixturedev/935eb772d0667f61.ckpt'
+
+describe('v2 fixtures (never regenerated)', () => {
+  test('segment.bin decodes to the documented content, the compact review log included', async () => {
+    const bytes = new Uint8Array(await Bun.file(`${FIX2}segment.bin`).arrayBuffer())
+    expect(bytes[MAGIC.length]).toBe(2)
+    const { header: h, update } = decode(SEG2_KEY, bytes)
+    expect(h).toEqual({ v: 1, kind: 'seg', deviceId: 'fixturedev', seq: 0, createdAt: 1700000000000, blobRefs: [H64] })
+    const doc = new Y.Doc()
+    Y.applyUpdateV2(doc, update)
+    expect(doc.getMap('courses').toJSON()).toEqual({
+      'course-1': { id: 'course-1', title: 'Fixture course', cover: `cursus-blob:${H64}` },
+    })
+    expect(doc.getArray('reviewLog').toJSON()).toEqual(['[1,"review-1","card-1",3,1700000000000,4000,"fixturedev"]'])
+    expect(refsOf(update)).toEqual([H64])
+    expect(encode(h, update).bytes).toEqual(bytes)
+    expect(await decodeAsync(SEG2_KEY, bytes)).toEqual(decode(SEG2_KEY, bytes))
+  })
+  test('checkpoint.bin decodes with covers and the same state', async () => {
+    const bytes = new Uint8Array(await Bun.file(`${FIX2}checkpoint.bin`).arrayBuffer())
+    const { header: h, update } = decode(CKPT2_KEY, bytes)
+    expect(h).toMatchObject({ kind: 'ckpt', covers: [SEG2_KEY], blobRefs: [H64] })
+    const doc = new Y.Doc()
+    Y.applyUpdateV2(doc, update)
+    expect((doc.getMap('courses').get('course-1') as Y.Map<string>).get('title')).toBe('Fixture course')
+    expect(doc.getArray('reviewLog').length).toBe(1)
+  })
+})
+
+describe('format gate: an earlier build never applies what this one writes', () => {
+  test('this build writes version 2 and reads versions 1 and 2', async () => {
+    expect(FORMAT_VERSION).toBe(2)
+    const u = updateOf((d) => d.getArray('reviewLog').push(['[2,"v","r"]']))
+    const { key, bytes } = encode(header(), u)
+    expect(bytes[MAGIC.length]).toBe(2)
+    expect(decode(key, bytes).update).toEqual(u)
+    const old = encode(header(), u, 1)
+    expect(old.bytes[MAGIC.length]).toBe(1)
+    expect(decode(old.key, old.bytes).update).toEqual(u)
+    expect((await decodeAsync(old.key, old.bytes)).update).toEqual(u)
+  })
+  test('the last version-1 codec refuses every object this build writes, as a version (needs-upgrade) error', async () => {
+    const segment = encode(
+      header(),
+      updateOf((d) => d.getMap('m').set('a', 1)),
+    )
+    const checkpoint = encode(header({ kind: 'ckpt', covers: [segment.key] }), new Uint8Array())
+    const fixture = new Uint8Array(await Bun.file(`${FIX2}segment.bin`).arrayBuffer())
+    for (const [key, bytes] of [
+      [segment.key, segment.bytes],
+      [checkpoint.key, checkpoint.bytes],
+      [SEG2_KEY, fixture],
+    ] as const)
+      expect(() => v1Codec.decode(key, bytes)).toThrow(expect.objectContaining({ kind: 'version' }))
+    expect(() => v1Codec.decode(segment.key, segment.bytes)).toThrow(EnvelopeError)
+    // What it wrote itself, it still reads, as this build does.
+    const v1 = new Uint8Array(await Bun.file(`${FIX}segment.bin`).arrayBuffer())
+    expect(v1Codec.decode(SEG_KEY, v1)).toEqual(decode(SEG_KEY, v1))
   })
 })

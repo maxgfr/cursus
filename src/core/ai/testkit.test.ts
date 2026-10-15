@@ -31,6 +31,18 @@ export function jsonModel(value: unknown, input = 100, output = 50): MockLanguag
   })
 }
 
+/** A model whose answer is not the JSON asked for (truncated, say), still billed for `input`/`output` tokens. */
+export function brokenModel(text = '{"answer": "trunc', input = 100, output = 50): MockLanguageModelV4 {
+  return new MockLanguageModelV4({
+    doGenerate: {
+      content: [{ type: 'text', text }],
+      finishReason: { unified: 'length', raw: undefined },
+      usage: usage(input, output),
+      warnings: [],
+    },
+  })
+}
+
 export function streamModel(deltas: string[], input = 10, output = 5): MockLanguageModelV4 {
   return new MockLanguageModelV4({
     doStream: {

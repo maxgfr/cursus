@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRuntime, useWorkspace } from '../../../app/workspaceContext.tsx'
 import { findModel, findProvider, isCurrentCatalog, loadBundledCatalog } from '../../../core/ai/catalog'
-import { type Catalog, type CatalogModel, type CatalogProvider, isBrowserCallable } from '../../../core/ai/catalogTrim'
+import type { Catalog, CatalogModel, CatalogProvider } from '../../../core/ai/catalogTrim'
 import { createModel, type FeatureCtx, outputLanguage } from '../../../core/ai/client'
 import { type AiConfig, CUSTOM_PROVIDER, migrateConfig } from '../../../core/ai/config'
 import { costOf } from '../../../core/ai/cost'
 import { checkKey, type DeviceCheck, type DeviceChecks, routeStatus } from '../../../core/ai/deviceCheck'
+import { LOCAL_PROVIDER, LOCAL_PROVIDER_INFO } from '../../../core/ai/local'
 import type { AiUsageEvent } from '../../../core/ai/usage'
 import type { ModelWorkspace } from '../../../core/model/workspace'
 import { type Secrets, secretsVault } from '../../../core/storage/secrets'
@@ -30,12 +31,33 @@ export function useVault(): Secrets {
   return useMemo(() => secretsVault(rt.store), [rt])
 }
 
+/** The on-device model the config names, as the features see it, and whether its files are all here. */
+export interface LocalRoute {
+  info: CatalogModel
+  downloaded: boolean
+}
+
 export interface AiSettings {
   config: AiConfig
   catalog: Catalog
   /** Key of the selected provider, if any. */
   apiKey: string
   checks: DeviceChecks
+  /** Set when the config names a model that runs on this device (no catalog lists those). */
+  local?: LocalRoute
+}
+
+/**
+ * The on-device model `modelId`, looked up in llm-models' browser catalog. That module and the
+ * service load only here, when the config names an on-device model: never for a cloud route.
+ */
+async function loadLocalRoute(modelId: string): Promise<LocalRoute | undefined> {
+  const { localModels } = await import('../../../core/ai/localModels')
+  const service = localModels()
+  const model = service.find(modelId)
+  const info = service.info(modelId)
+  if (!model || !info) return undefined
+  return { info, downloaded: await service.handle(model).isDownloaded() }
 }
 
 export async function loadAiSettings(vault: Secrets): Promise<AiSettings> {
@@ -43,8 +65,13 @@ export async function loadAiSettings(vault: Secrets): Promise<AiSettings> {
   // A catalog stored by an older version has another shape: fall back to the bundled one.
   const catalog = isCurrentCatalog(stored) ? stored : await loadBundledCatalog()
   const config = migrateConfig(await vault.get<unknown>(CONFIG), catalog)
-  const apiKey = config.providerId ? ((await vault.get<string>(keyName(config.providerId))) ?? '') : ''
   const checks = (await vault.get<DeviceChecks>(CHECKS)) ?? {}
+  if (config.providerId === LOCAL_PROVIDER) {
+    // Keyless: nothing to read from the vault but the config.
+    const local = config.modelId ? await loadLocalRoute(config.modelId) : undefined
+    return local ? { config, catalog, apiKey: '', checks, local } : { config, catalog, apiKey: '', checks }
+  }
+  const apiKey = config.providerId ? ((await vault.get<string>(keyName(config.providerId))) ?? '') : ''
   return { config, catalog, apiKey, checks }
 }
 
@@ -90,14 +117,22 @@ export function effectiveProvider(provider: CatalogProvider, baseUrl: string | u
   }
 }
 
-/** The configured route resolved against the catalog, or the custom endpoint. */
+/**
+ * The configured route resolved against the catalog, the custom endpoint, or the on-device model
+ * (`localInfo` looks those up: no catalog lists them).
+ */
 export function resolveRoute(
   config: AiConfig,
   catalog: Catalog,
   customName: string,
+  localInfo: (modelId: string) => CatalogModel | undefined = () => undefined,
 ): { provider: CatalogProvider; info: CatalogModel } | undefined {
   const { providerId, modelId } = config
   if (!providerId || !modelId) return undefined
+  if (providerId === LOCAL_PROVIDER) {
+    const info = localInfo(modelId)
+    return info ? { provider: LOCAL_PROVIDER_INFO, info } : undefined
+  }
   if (providerId === CUSTOM_PROVIDER) {
     const provider = customProvider(customName, config.baseUrl ?? '')
     if (!provider.api) return undefined
@@ -124,24 +159,47 @@ export function languageName(config: AiConfig, courseLanguage: string | undefine
   return outputLanguage(courseLanguage, uiLocale)
 }
 
-/** Records a usage event in the workspace as `provider/model` so its cost can be priced later. */
+/**
+ * Records a usage event in the workspace as `provider/model` so its cost can be priced later, with the source it
+ * was spent on when there is one.
+ */
 export function recordUsage(ws: ModelWorkspace, e: AiUsageEvent): void {
-  ws.aiUsage.record({ model: `${e.provider}/${e.model}`, inTok: e.inputTokens, outTok: e.outputTokens })
+  ws.aiUsage.record({
+    model: `${e.provider}/${e.model}`,
+    inTok: e.inputTokens,
+    outTok: e.outputTokens,
+    ...(e.sourceId === undefined ? {} : { src: e.sourceId }),
+  })
 }
 
-/** Cost of this month's usage, priced with the current catalog. */
-export function monthCostOf(ws: ModelWorkspace, catalog: Catalog, now: number): number {
-  const d = new Date(now)
-  const start = new Date(d.getFullYear(), d.getMonth(), 1).getTime()
-  const end = new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime()
+/** Cost of the synced usage events `keep` selects, priced with the current catalog (on-device: nothing). */
+function usageCost(
+  ws: ModelWorkspace,
+  catalog: Catalog,
+  keep: (e: ReturnType<ModelWorkspace['aiUsage']['list']>[number]) => boolean,
+): number {
   let total = 0
   for (const e of ws.aiUsage.list()) {
-    if (e.at < start || e.at >= end) continue
+    if (!keep(e)) continue
     const slash = e.model.indexOf('/')
+    if (slash > 0 && e.model.slice(0, slash) === LOCAL_PROVIDER) continue
     const info = slash > 0 ? findModel(catalog, e.model.slice(0, slash), e.model.slice(slash + 1)) : undefined
     total += costOf({ inputTokens: e.inTok, outputTokens: e.outTok }, info?.cost)
   }
   return total
+}
+
+/** Cost of this month's usage, priced with the current catalog (an on-device model costs nothing). */
+export function monthCostOf(ws: ModelWorkspace, catalog: Catalog, now: number): number {
+  const d = new Date(now)
+  const start = new Date(d.getFullYear(), d.getMonth(), 1).getTime()
+  const end = new Date(d.getFullYear(), d.getMonth() + 1, 1).getTime()
+  return usageCost(ws, catalog, (e) => e.at >= start && e.at < end)
+}
+
+/** What a source cost so far on every device (usage synced with its source), priced with the current catalog. */
+export function sourceCostOf(ws: ModelWorkspace, catalog: Catalog, sourceId: string): number {
+  return usageCost(ws, catalog, (e) => e.src === sourceId)
 }
 
 export type AiModelState =
@@ -151,11 +209,16 @@ export type AiModelState =
       status: 'ready'
       info: CatalogModel
       provider: CatalogProvider
+      /** The model runs in this browser: it needs no connection (nor a key). */
+      runsOffline: boolean
       /** Builds a feature context; `courseLanguage` picks the output language when set to auto. */
       context(signal: AbortSignal, courseLanguage?: string): Promise<FeatureCtx>
     }
 
-/** The selected model, ready to call, or `missing` when no model or key is set up. */
+/**
+ * The selected model, ready to call, or `missing` when no model or key is set up. An on-device model
+ * needs no key, but must be downloaded on this device.
+ */
 export function useAiModel(): AiModelState {
   const vault = useVault()
   const ws = useWorkspace()
@@ -178,10 +241,13 @@ export function useAiModel(): AiModelState {
     }
   }, [vault])
 
-  const route = useMemo(
-    () => (settings ? resolveRoute(settings.config, settings.catalog, CUSTOM_PROVIDER) : undefined),
-    [settings],
-  )
+  const route = useMemo(() => {
+    if (!settings) return undefined
+    const local = settings.local
+    return resolveRoute(settings.config, settings.catalog, CUSTOM_PROVIDER, (id) =>
+      local?.info.id === id ? local.info : undefined,
+    )
+  }, [settings])
 
   const context = useCallback(
     async (signal: AbortSignal, courseLanguage?: string): Promise<FeatureCtx> => {
@@ -203,11 +269,15 @@ export function useAiModel(): AiModelState {
     if (failed) return { status: 'missing' }
     if (!settings) return { status: 'loading' }
     if (!route) return { status: 'missing' }
+    if (route.provider.id === LOCAL_PROVIDER) {
+      if (!settings.local?.downloaded) return { status: 'missing' }
+      return { status: 'ready', info: route.info, provider: route.provider, runsOffline: true, context }
+    }
     // A route this device saw blocked stays on: the settings show it and offer a new test. A
     // provider that moved to an unchecked address gets no key until the user tests it there.
     if (routeStatus(route.provider, settings.checks, Date.now()).kind === 'moved') return { status: 'missing' }
     // A local server may need no key; every catalog provider does.
     if (settings.apiKey === '' && route.provider.id !== CUSTOM_PROVIDER) return { status: 'missing' }
-    return { status: 'ready', info: route.info, provider: route.provider, context }
+    return { status: 'ready', info: route.info, provider: route.provider, runsOffline: false, context }
   }, [failed, settings, route, context])
 }

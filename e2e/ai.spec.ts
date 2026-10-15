@@ -356,6 +356,54 @@ test('a custom endpoint over plain http is refused unless it is this machine', a
   await expect(page.getByRole('button', { name: 'Test', exact: true })).toBeEnabled()
 })
 
+test('a base URL typed right after picking the custom endpoint is kept, even when its saved key loads late', async ({
+  page,
+}) => {
+  await page.goto('./#/settings/ai')
+  await expect(page.getByRole('heading', { level: 1, name: 'AI' })).toBeVisible()
+  await expect(providerPicker(page)).toHaveValue('anthropic')
+  await putSecret(page, 'ai-key-custom', 'sk-local-proxy')
+  // A device under load: the vault answers late. A write held open on its store makes the route's key
+  // lookup wait until the hold is released.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const open = indexedDB.open('cursus-v1')
+        open.onerror = () => reject(open.error)
+        open.onsuccess = () => {
+          const w = window as Window & { __release?: () => void; __released?: Promise<void> }
+          const tx = open.result.transaction('secrets', 'readwrite')
+          const store = tx.objectStore('secrets')
+          let held = true
+          w.__release = () => {
+            held = false
+          }
+          w.__released = new Promise<void>((done) => {
+            tx.oncomplete = () => done()
+          })
+          const keepAlive = () => {
+            if (held) store.get('hold').onsuccess = keepAlive
+          }
+          keepAlive()
+          resolve()
+        }
+      }),
+  )
+  // A user types at once: no waiting for the route's saved key.
+  await providerPicker(page).selectOption({ label: 'Custom OpenAI-compatible endpoint' })
+  await page.getByLabel('Base URL').fill('http://192.168.1.20:11434/v1')
+  await page.evaluate(() => {
+    const w = window as Window & { __release?: () => void; __released?: Promise<void> }
+    w.__release?.()
+    return w.__released
+  })
+  // The saved key has arrived, and what the user typed meanwhile is still there.
+  await expect(page.getByLabel('API key (optional)')).toHaveValue('sk-local-proxy')
+  await page.getByLabel('Model name').fill('llama3.2')
+  await expect(page.getByLabel('Base URL')).toHaveValue('http://192.168.1.20:11434/v1')
+  await expect(page.getByText(/^Plain http works only for this device/)).toBeVisible()
+})
+
 test('a custom OpenAI-compatible endpoint: the Ollama preset', async ({ page }) => {
   await page.route('http://localhost:11434/v1/**', async (route) => {
     if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS })
@@ -386,6 +434,8 @@ test('AI screens ask for a model until one is set up', async ({ page }) => {
 test('Understand streams a cited explanation, then checks an explanation back', async ({ page }) => {
   const prompts = await mockProvider(page)
   await configure(page)
+  // Since S-044 adding a document proposes questions on its own (auto-questions.spec.ts): off for this manual flow.
+  await page.getByRole('radio', { name: 'Do nothing' }).check({ force: true })
 
   // Ground the explanation in the course's own sources: a written note and an imported PDF.
   await page.goto('./#/')

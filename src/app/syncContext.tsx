@@ -80,8 +80,15 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         { createAppEngine, bootDestinations, pendingOAuthKey, clearOAuthParam },
         { createScheduler, browserTimers },
         { blobStore },
+        { keptOnDemand },
       ] = await guardChunk(
-        () => Promise.all([import('./destinations.ts'), import('../core/sync/scheduler'), import('../core/log/blobs')]),
+        () =>
+          Promise.all([
+            import('./destinations.ts'),
+            import('../core/sync/scheduler'),
+            import('../core/log/blobs'),
+            import('../core/content/photos'),
+          ]),
         'sync.engine',
         noteError,
       )
@@ -94,6 +101,8 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         rng: rt.rng,
         doc: rt.doc,
         unsaved: () => rt.capture.unsaved(),
+        // "Photos on this device: on demand" leaves photo chunks on the destinations until a photo is opened.
+        onDemand: (mime) => keptOnDemand(rt.store, mime),
         confirmWorkspace: (q) => (confirmer.current ? confirmer.current(q) : Promise.resolve(false)),
       })
       const scheduler = createScheduler({

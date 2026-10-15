@@ -286,8 +286,8 @@ describe('needs-upgrade', () => {
   test('too-new or undecodable segment is kept, skipped, blocks compaction coverage, then re-applied', async () => {
     const base = memoryStore()
     const locks = memoryLocks()
-    const v2 = new Uint8Array([...MAGIC, 2, 1, 2, 3])
-    const newerKey = keyFor({ v: 1, kind: 'seg', deviceId: 'future', seq: 0, createdAt: 0, blobRefs: [] }, v2)
+    const v3 = new Uint8Array([...MAGIC, 3, 1, 2, 3])
+    const newerKey = keyFor({ v: 1, kind: 'seg', deviceId: 'future', seq: 0, createdAt: 0, blobRefs: [] }, v3)
     const { log } = setup({ store: base, locks })
     const before = foreignSegment('a', 0, (d) => d.getMap('m').set('before', 1), 1)
     const notYjs = encode(
@@ -295,7 +295,7 @@ describe('needs-upgrade', () => {
       new Uint8Array([255, 255, 255]),
     )
     await log.ingest(before.key, before.bytes)
-    const rec = await log.ingest(newerKey, v2)
+    const rec = await log.ingest(newerKey, v3)
     expect(rec).toMatchObject({ state: 'needs-upgrade', header: { deviceId: 'future', seq: 0 } })
     expect(await log.ingest(notYjs.key, notYjs.bytes)).toMatchObject({ state: 'needs-upgrade' })
     // a segment the current build CAN read, but an older build could not:
@@ -331,9 +331,9 @@ describe('needs-upgrade', () => {
     )
     const rec = await log.ingest(newer.key, newer.bytes)
     expect(rec).toMatchObject({ state: 'needs-upgrade', header: { blobRefs: [ref] } })
-    const v2 = new Uint8Array([...MAGIC, 2, 9, 9])
-    const opaqueKey = keyFor({ v: 1, kind: 'seg', deviceId: 'future', seq: 0, createdAt: 0, blobRefs: [] }, v2)
-    await log.ingest(opaqueKey, v2)
+    const v3 = new Uint8Array([...MAGIC, 3, 9, 9])
+    const opaqueKey = keyFor({ v: 1, kind: 'seg', deviceId: 'future', seq: 0, createdAt: 0, blobRefs: [] }, v3)
+    await log.ingest(opaqueKey, v3)
     const rows = await store.read(['segments'], (tx) =>
       Promise.all([newer.key, opaqueKey].map((k) => tx.get<SegmentRow>('segments', k))),
     )

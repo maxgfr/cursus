@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test'
+import { codec as v1Codec } from '../../tests/fixtures/v1-reader/codec'
 import { blobRef } from '../core/log/blobs'
-import { bmanKey, parseKey } from '../core/log/codec'
+import { blobKey, bmanKey, parseKey } from '../core/log/codec'
+import { addPhoto } from '../core/model/photos'
 import { memoryLocks } from '../core/ports/locks'
 import { seededRng } from '../core/ports/rng'
 import { createSyncEngine } from '../core/sync/engine'
@@ -9,6 +11,7 @@ import { zipStore } from '../core/sync/providers/zip'
 import type { SyncScheduler } from '../core/sync/scheduler'
 import { loadCatalog } from '../i18n/index.ts'
 import {
+  absorb,
   bootDestinations,
   commit,
   createAppEngine,
@@ -140,6 +143,82 @@ describe('backup export', () => {
     expect(keys.has(bmanKey(present))).toBe(true)
     expect(keys.has(bmanKey(absent))).toBe(false)
     expect(backup.missingFiles).toBe(1)
+  })
+
+  test('a photo kept on demand counts as missing when its bytes cannot be fetched (offline), fetched when they can', async () => {
+    // Device A takes a photo and syncs it; device B (an iPad keeping photos on demand) gets its manifest only.
+    const w = world(8)
+    const a = await device(81, w.clock)
+    const da = a.engine.addDest({ remote: w.remote() })
+    const photo = await a.blobs.put(new Uint8Array(300).fill(5), 'image/jpeg')
+    const course = a.ws.courses.create({ title: 'Bio' })
+    addPhoto(a.ws, { courseId: course, title: 'Board', blobId: photo })
+    await a.commit()
+    await a.engine.round(da)
+    const b = await device(82, w.clock, { onDemand: (mime) => mime.startsWith('image/') })
+    const db = b.engine.addDest({ remote: w.remote() })
+    await b.engine.round(db)
+    expect(await b.blobs.read(bmanKey(photo))).not.toBeNull()
+    expect(await b.blobs.get(photo)).toBeNull()
+    const host: Host = {
+      store: b.store,
+      log: b.log,
+      clock: w.clock,
+      rng: seededRng(83, w.clock),
+      seal: () => b.commit(),
+    }
+    const keysOf = async (bytes: Uint8Array) => {
+      const keys = new Set<string>()
+      for await (const e of zipStore({ bytes }).list('')) keys.add(e.key)
+      return keys
+    }
+    const chunks = (await b.blobs.manifest(photo))?.chunks.map(blobKey) ?? []
+    expect(chunks.length).toBeGreaterThan(0)
+
+    // Offline: no destination can be reached. The archive holds the manifest but not the photo's bytes.
+    b.engine.removeDest(db)
+    const offline = await exportBackup(host, b.engine)
+    const offlineKeys = await keysOf(offline.bytes)
+    expect(chunks.some((c) => offlineKeys.has(c))).toBe(false)
+    expect(offline.missingFiles).toBe(1)
+
+    // Online: the photo is fetched from the destination first, and the archive is complete.
+    b.engine.addDest({ remote: w.remote() })
+    const online = await exportBackup(host, b.engine)
+    const onlineKeys = await keysOf(online.bytes)
+    for (const c of chunks) expect(onlineKeys.has(c)).toBe(true)
+    expect(online.missingFiles).toBe(0)
+  })
+
+  test('a backup made by this build is kept as needs-upgrade by the previous build, never half applied', async () => {
+    const { w, d, host, engine } = await setup(9)
+    const course = d.ws.courses.create({ title: 'Anatomy' })
+    const card = d.ws.cards.create({ courseId: course, kind: 'basic' })
+    d.ws.reviews.record({ cardId: card, rating: 3, at: w.clock.now(), ms: 1_000 })
+    await d.commit()
+    const backup = await exportBackup(host, engine)
+    const prev = await device(91, w.clock, { codec: v1Codec })
+    const prevHost: Host = {
+      store: prev.store,
+      log: prev.log,
+      clock: w.clock,
+      rng: seededRng(92, w.clock),
+      seal: () => prev.commit(),
+    }
+    await absorb(prevHost, prev.engine, zipStore({ bytes: backup.bytes }))
+    expect(prev.engine.status().needsUpgrade).toBeGreaterThan(0)
+    expect(prev.ws.cards.list()).toEqual([])
+    // This build reads its own backup whole.
+    const next = await device(93, w.clock)
+    const nextHost: Host = {
+      store: next.store,
+      log: next.log,
+      clock: w.clock,
+      rng: seededRng(94, w.clock),
+      seal: () => next.commit(),
+    }
+    await absorb(nextHost, next.engine, zipStore({ bytes: backup.bytes }))
+    expect(next.ws.reviews.forCard(card)).toHaveLength(1)
   })
 
   test('a complete library exports with nothing missing', async () => {

@@ -214,10 +214,10 @@ describe('files: closure', () => {
       { v: 1, kind: 'seg', deviceId: 'newer', seq: 0, createdAt: 1, blobRefs: [blob] },
       new Uint8Array([255, 255, 255]),
     )
-    const v2 = new Uint8Array([0x43, 0x52, 0x53, 0x59, 2, 7, 7])
-    const opaque = `seg/future/0000000000-${sha256Hex(v2).slice(0, 16)}.seg`
+    const v3 = new Uint8Array([0x43, 0x52, 0x53, 0x59, 3, 7, 7])
+    const opaque = `seg/future/0000000000-${sha256Hex(v3).slice(0, 16)}.seg`
     expect(await old.log.ingest(newer.key, newer.bytes)).toMatchObject({ state: 'needs-upgrade' })
-    expect(await old.log.ingest(opaque, v2)).toMatchObject({ state: 'needs-upgrade' })
+    expect(await old.log.ingest(opaque, v3)).toMatchObject({ state: 'needs-upgrade' })
     const d2 = old.engine.addDest({ remote: w.remote('d2') })
     const r = await old.engine.round(d2)
     const k2 = await keysOf(w.remote('d2'))

@@ -1,7 +1,8 @@
 import { ListChecks, Sparkles } from 'lucide-react'
 import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from 'react'
 import { paths, withScope } from '../../app/routes.ts'
-import { useWorkspace } from '../../app/workspaceContext.tsx'
+import { useRuntime, useWorkspace } from '../../app/workspaceContext.tsx'
+import { readingChunks } from '../../core/ai/features/describePhoto'
 import { explainBack } from '../../core/ai/features/explainBack'
 import { type Chunk, isValidRef } from '../../core/ai/retrieval'
 import type { ExplainBackReview, SourceRef, Understanding } from '../../core/ai/schemas'
@@ -11,6 +12,7 @@ import { Button } from '../../ui/components/Button.tsx'
 import { Field } from '../../ui/components/Field.tsx'
 import { ListGroup, ListRow } from '../../ui/components/List.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
+import { ExplainSelection } from '../../ui/ExplainLauncher.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { useScopeOnce } from '../Section/scope.ts'
 import styles from './shared/ai.module.css'
@@ -47,14 +49,29 @@ export default function Understand() {
   const abort = useRef<AbortController | null>(null)
 
   const onSelection = useCallback((s: Selection) => setSelection(s), [])
+  const rt = useRuntime()
+  const [photosRead, setPhotosRead] = useState(0)
+  // A chosen photo grounds the request (and is cited) through what a vision model read on it, kept on this device.
+  const loadAll = useCallback(
+    async (s: Selection): Promise<Chunk[]> => {
+      const photoIds = s.sourceIds.filter((id) => ws.sources.get(id)?.kind === 'image')
+      const [chunks, read] = await Promise.all([loadChunks(s), readingChunks(rt.store, photoIds)])
+      return [...chunks, ...read]
+    },
+    [loadChunks, ws, rt],
+  )
 
   // Estimated cost of the next request, refreshed as the selection changes.
   useEffect(() => {
     if (ai.status !== 'ready') return
     let live = true
-    loadChunks(selection).then(
+    loadAll(selection).then(
       (chunks) => {
-        if (live) setEstimate(estimateCost(ai.info, chunks))
+        if (!live) return
+        setEstimate(estimateCost(ai.info, chunks))
+        setPhotosRead(
+          new Set(chunks.filter((c) => ws.sources.get(c.sourceId)?.kind === 'image').map((c) => c.sourceId)).size,
+        )
       },
       () => {
         if (live) setEstimate(null)
@@ -63,7 +80,7 @@ export default function Understand() {
     return () => {
       live = false
     }
-  }, [ai, selection, loadChunks])
+  }, [ai, selection, loadAll, ws])
 
   useEffect(() => () => abort.current?.abort(), [])
 
@@ -89,7 +106,7 @@ export default function Understand() {
     setFiche(null)
     setDone(null)
     try {
-      const chunks = await loadChunks(selection)
+      const chunks = await loadAll(selection)
       const ctx = await ai.context(ctl.signal, courseLanguage)
       const s = streamUnderstanding(ctx, { topic: topic.trim(), level, chunks })
       setGrounded(s.grounded)
@@ -130,6 +147,7 @@ export default function Understand() {
           ]}
         />
         <SourcePicker value={selection} onChange={onSelection} />
+        {photosRead > 0 && <p className={styles.hint}>{t('photos.aiUnderstandPhotos', { count: photosRead })}</p>}
         <div className={styles.row}>
           <Button type="submit" variant="primary" loading={busy} disabled={!topic.trim()}>
             {t('ai.explain')}
@@ -167,6 +185,12 @@ export default function Understand() {
           {done && <p className={styles.hint}>{t('ai.sources')}</p>}
         </article>
       )}
+
+      <ExplainSelection
+        within="article"
+        courseId={selection.courseId || undefined}
+        sectionId={selection.sectionId || undefined}
+      />
 
       {done && <ExplainBack topic={topic.trim()} chunks={grounded} courseLanguage={courseLanguage} />}
 

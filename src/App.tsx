@@ -1,4 +1,4 @@
-import { type ReactNode, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type ReactNode, Suspense, useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'wouter'
 import { lazyChunk, nothing } from './app/lazyChunk.tsx'
 import { HashRouter, Routes } from './app/router.tsx'
@@ -21,14 +21,34 @@ const Notices = lazyChunk('notices', () => import('./app/Notices.tsx'), nothing)
 const isPaletteKey = (e: KeyboardEvent) =>
   (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k'
 
-let paletteReady: (() => void) | null = null
+/**
+ * ⌘K / Ctrl+K works from the first paint: a tiny listener, in place before anything renders, holds a press
+ * made while the palette's code is still loading (or before any effect has run), then replays it to the
+ * palette once it listens.
+ */
+let held: { metaKey: boolean; ctrlKey: boolean } | null = null
+const holdPress = (e: KeyboardEvent) => {
+  if (!isPaletteKey(e)) return
+  e.preventDefault()
+  held = { metaKey: e.metaKey, ctrlKey: e.ctrlKey }
+}
+document.addEventListener('keydown', holdPress)
+
+/** The palette listens now: the holding listener steps aside and a held press is replayed. */
+function paletteListens() {
+  document.removeEventListener('keydown', holdPress)
+  const p = held
+  held = null
+  if (p) document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', bubbles: true, cancelable: true, ...p }))
+}
+
 const LazyPalette = lazyChunk<object>(
   'palette',
   () =>
     import('./ui/CommandPalette.tsx').then(({ CommandPalette }) => ({
       default: function ReadyPalette() {
         // Runs after the palette's own effects: its ⌘K listener is in place.
-        useEffect(() => paletteReady?.(), [])
+        useEffect(paletteListens, [])
         return <CommandPalette />
       },
     })),
@@ -36,32 +56,7 @@ const LazyPalette = lazyChunk<object>(
   nothing,
 )
 
-/**
- * ⌘K / Ctrl+K works from the first paint: a tiny listener holds a press made while the palette's code
- * is still loading, then replays it to the palette once it listens.
- */
 function Palette() {
-  const pressed = useRef<{ metaKey: boolean; ctrlKey: boolean } | null>(null)
-  const ready = useRef(false)
-  const onKey = useCallback((e: KeyboardEvent) => {
-    if (ready.current || !isPaletteKey(e)) return
-    e.preventDefault()
-    pressed.current = { metaKey: e.metaKey, ctrlKey: e.ctrlKey }
-  }, [])
-  useEffect(() => {
-    document.addEventListener('keydown', onKey)
-    paletteReady = () => {
-      ready.current = true
-      document.removeEventListener('keydown', onKey)
-      const p = pressed.current
-      pressed.current = null
-      if (p) document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', bubbles: true, cancelable: true, ...p }))
-    }
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      paletteReady = null
-    }
-  }, [onKey])
   return (
     <Suspense fallback={null}>
       <LazyPalette />

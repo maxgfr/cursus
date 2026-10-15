@@ -3,14 +3,16 @@ import { Suspense, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Link, useLocation } from 'wouter'
 import { noteLoadFailure } from '../../app/chunkGuard.ts'
-import { ChunkFailed, lazyChunk } from '../../app/lazyChunk.tsx'
+import { ChunkFailed, lazyChunk, nothing } from '../../app/lazyChunk.tsx'
 import { paths } from '../../app/routes.ts'
 import { useSync } from '../../app/syncContext.tsx'
+import { useWorkspaceData } from '../../app/workspaceContext.tsx'
 import { formatDuration } from '../../i18n/format.ts'
 import { intlTag } from '../../i18n/index.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
 import { SyncBadge } from '../../ui/components/Badges.tsx'
-import { Button } from '../../ui/components/Button.tsx'
+import { Banner } from '../../ui/components/Banner.tsx'
+import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { EmptyState } from '../../ui/components/EmptyState.tsx'
 import { IconButton } from '../../ui/components/IconButton.tsx'
 import { Keycap } from '../../ui/components/Keycap.tsx'
@@ -35,6 +37,20 @@ const NewCourseSheet = lazyChunk<Parameters<typeof import('./NewCourseSheet.tsx'
   'today.newCourse',
   () => import('./NewCourseSheet.tsx').then((m) => ({ default: m.NewCourseSheet })),
   ({ open, retry, again }) => (open ? <ChunkFailed retry={retry} again={again} /> : null),
+)
+
+// Off the first paint: the next planned session's line arrives right after it (and simply stays away should it fail).
+const SessionLine = lazyChunk<object>(
+  'today.sessionLine',
+  () => import('./SessionLine.tsx').then((m) => ({ default: m.SessionLine })),
+  nothing,
+)
+
+// Off the first paint too: the proposed questions' line (it never loads the AI code).
+const DraftsLine = lazyChunk<object>(
+  'today.draftsLine',
+  () => import('./DraftsLine.tsx').then((m) => ({ default: m.DraftsLine })),
+  nothing,
 )
 
 const MINUTE = 60_000
@@ -94,6 +110,8 @@ export default function Today() {
   const study = useStudy()
   const { summary, status } = useSync()
   const start = useStartReview()
+  // Synced review events this version cannot read: kept in the library, left out of the schedule, said here.
+  const unreadable = useWorkspaceData(['reviews'], (ws) => ws.reviews.quarantined().length)
   const [adding, setAdding] = useState(false)
   const add = () => setAdding(true)
   useStartKey(study.due > 0 && !adding, start)
@@ -122,6 +140,17 @@ export default function Today() {
       <Suspense fallback={null}>
         <NewCourseSheet open={adding} onClose={() => setAdding(false)} />
       </Suspense>
+      {unreadable > 0 && (
+        <Banner
+          title={t('today.unreadableReviewsTitle')}
+          body={t('today.unreadableReviews', { count: unreadable })}
+          action={
+            <Link href={paths.settingsDiagnostic} className={styles.setup}>
+              {t('today.unreadableReviewsDetails')}
+            </Link>
+          }
+        />
+      )}
       {!hasData && install}
       {study.courses.length === 0 ? (
         <EmptyState
@@ -190,7 +219,18 @@ export default function Today() {
                 </p>
               </>
             )}
+            {hasData && (
+              <Link href={paths.sessionNew} className={`${buttonClass({ variant: 'plain' })} ${styles.newSession}`}>
+                {t('review.newSession')}
+              </Link>
+            )}
           </section>
+          <Suspense fallback={null}>
+            <SessionLine />
+          </Suspense>
+          <Suspense fallback={null}>
+            <DraftsLine />
+          </Suspense>
           {hasData && status !== null && !backedUp && (
             <p className={styles.backup} data-testid="backup-line">
               {t('today.backupLine')} ·{' '}

@@ -97,6 +97,10 @@ describe('buildQueue', () => {
     expect(inScope({ id: 'x' }, { courseId: 'law' })).toBe(false)
     expect(inScope({ id: 'x', courseId: 'law' }, { courseId: 'law', sectionId: 's' })).toBe(false)
     expect(inScope({ id: 'x' }, undefined)).toBe(true)
+    // A session scope: empty (every card) or a subset alone (section ids are unique).
+    expect(inScope({ id: 'x', courseId: 'law' }, {})).toBe(true)
+    expect(inScope({ id: 'x', courseId: 'law', sections: ['s'] }, { sectionId: 's' })).toBe(true)
+    expect(inScope({ id: 'x', courseId: 'law' }, { sectionId: 's' })).toBe(false)
   })
 
   test("a scoped queue keeps the student's daily new-card budget and sibling burying", () => {

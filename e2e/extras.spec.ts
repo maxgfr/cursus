@@ -56,6 +56,28 @@ test('⌘K palette jumps to a screen and closes with Escape', async ({ page }) =
   expect(errors).toEqual([])
 })
 
+test('⌘K pressed the moment Today paints opens the palette', async ({ page }) => {
+  const errors = watchErrors(page)
+  // The press lands as soon as the Today heading is in the document, before anything that runs after the paint.
+  await page.addInitScript(() => {
+    let pressed = false
+    const observer = new MutationObserver(() => {
+      if (pressed) return
+      const today = [...document.querySelectorAll('h1')].some((h) => h.textContent === 'Today')
+      if (!today) return
+      pressed = true
+      observer.disconnect()
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', ctrlKey: true, bubbles: true, cancelable: true }))
+    })
+    observer.observe(document, { childList: true, subtree: true })
+  })
+  await openToday(page)
+  const dialog = page.getByRole('dialog', { name: 'Command palette' })
+  await expect(dialog).toBeVisible()
+  await expect(dialog.getByRole('combobox')).toBeFocused()
+  expect(errors).toEqual([])
+})
+
 test('CSV import, accent-insensitive search in the palette and app badge', async ({ page }) => {
   await page.addInitScript(() => {
     const calls: number[] = []
@@ -121,8 +143,15 @@ test('Stats: forecast, exam plan, share a course and calendar export', async ({ 
   const errors = watchErrors(page)
   await openToday(page)
   await createCourse(page, 'Chemistry')
-  const exam = new Date(Date.now() + 12 * 86_400_000)
-  const iso = `${exam.getFullYear()}-${String(exam.getMonth() + 1).padStart(2, '0')}-${String(exam.getDate()).padStart(2, '0')}`
+  // 12 study days ahead, computed in the page as the app counts them: a study day starts at 04:00, so between
+  // midnight and 04:00 it is still the previous one.
+  const iso = await page.evaluate(() => {
+    const d = new Date()
+    if (d.getHours() < 4) d.setDate(d.getDate() - 1)
+    d.setDate(d.getDate() + 12)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  })
   await page
     .getByRole('button', { name: /settings/i })
     .first()

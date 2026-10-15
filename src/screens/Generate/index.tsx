@@ -1,7 +1,7 @@
-import { Trash2 } from 'lucide-react'
+import { Presentation, Trash2 } from 'lucide-react'
 import { type FormEvent, useCallback, useEffect, useId, useState } from 'react'
 import { Link } from 'wouter'
-import { paths, to } from '../../app/routes.ts'
+import { paths, to, withScope } from '../../app/routes.ts'
 import { useWorkspace } from '../../app/workspaceContext.tsx'
 import { generateCards } from '../../core/ai/features/generateCards'
 import type { CardDraft } from '../../core/ai/schemas'
@@ -124,6 +124,20 @@ export default function Generate() {
 
   return (
     <Screen title={t('ai.generate')} back={paths.understand}>
+      <Link
+        href={withScope(
+          paths.deckImport,
+          selection.courseId === ''
+            ? null
+            : selection.sectionId === ''
+              ? { courseId: selection.courseId }
+              : { courseId: selection.courseId, sectionId: selection.sectionId },
+        )}
+        className={buttonClass({ variant: 'secondary' })}
+      >
+        <Presentation size={18} aria-hidden="true" />
+        {t('ai.deckFromFile')}
+      </Link>
       <form className={styles.stack} onSubmit={submit}>
         <Field label={t('ai.topicOptional')} value={topic} onChange={(e) => setTopic(e.target.value)} />
         <Segmented

@@ -1,0 +1,39 @@
+.hint {
+  color: var(--ink-3);
+  font-size: var(--text-caption);
+}
+
+/* Paste and drop need a keyboard or a pointer: the hint shows where they exist. */
+@media not ((hover: hover) and (pointer: fine)) {
+  .hint {
+    display: none;
+  }
+}
+
+.note {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+}
+
+.errors {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-surface);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: var(--text-footnote);
+  list-style: none;
+}
+
+.gallery {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.count {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+  font-weight: 600;
+}

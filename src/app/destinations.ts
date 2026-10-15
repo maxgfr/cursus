@@ -1,3 +1,4 @@
+import { EnvelopeError } from '../core/contracts/errors'
 import type { LocalLog } from '../core/contracts/log'
 import type { Clock, LocalStore, Rng } from '../core/contracts/ports'
 import type { Key, RemoteStore } from '../core/contracts/remote'
@@ -374,10 +375,13 @@ export async function absorb(
   return error === undefined ? { added } : { added, error }
 }
 
-/** A `.cursus` archive, and the files its notes refer to that this device does not hold (so it lacks too). */
+/** A `.cursus` archive, and the files its notes refer to whose bytes it lacks (this device does not hold them). */
 export interface Backup {
   bytes: Uint8Array
-  /** Files (PDFs, images) referenced by the library but not on this device yet: not in the archive. */
+  /**
+   * Files (PDFs, images) referenced by the library whose bytes are not all in the archive: never received, or
+   * kept on demand (manifest only) and not reachable from any destination during the export.
+   */
   missingFiles: number
 }
 
@@ -385,10 +389,11 @@ export interface Backup {
  * Writes this whole library (log, files, key envelopes) into a `.cursus` archive. The engine lays down
  * the markers, envelopes and every file this device holds; a local backup is not bound by the remote
  * rule that holds a segment back until its files are confirmed, so every segment the device has goes in,
- * verbatim. Files the device never received are counted, not hidden.
+ * verbatim. A file kept on demand is fetched from a destination first (the engine's rounds do); a file whose bytes
+ * are still not all here (never received, or offline) is counted, not hidden: its manifest alone is no file.
  */
 export async function exportBackup(h: Host, engine: SyncEngineImpl): Promise<Backup> {
-  const [{ zipStore }, { bmanKey }, { blobStore }] = await Promise.all([
+  const [{ zipStore }, { blobKey, bmanKey }, { blobStore }] = await Promise.all([
     import('../core/sync/providers/zip'),
     import('../core/log/codec'),
     import('../core/log/blobs'),
@@ -428,15 +433,23 @@ export async function exportBackup(h: Host, engine: SyncEngineImpl): Promise<Bac
     await zip.put(key, bytes)
     inZip.add(key)
   }
-  // Files referenced by the library but absent from this device: their manifests are not in the archive.
+  // Files referenced by the library whose bytes are not all in the archive: no manifest, or a manifest whose
+  // chunks this device does not hold (kept on demand and not fetched, say offline).
   const rows = await h.store.read(['segments'], (tx) => tx.getAll<{ header?: { blobRefs?: string[] } }>('segments'))
-  const missing = new Set<string>()
-  for (const row of rows)
-    for (const ref of row.header?.blobRefs ?? []) {
-      if (inZip.has(bmanKey(ref))) continue
-      if ((await blobs.read(bmanKey(ref))) === null) missing.add(ref)
+  const refs = new Set<string>()
+  for (const row of rows) for (const ref of row.header?.blobRefs ?? []) refs.add(ref)
+  let missingFiles = 0
+  for (const ref of refs) {
+    let chunks: readonly string[] | null = null
+    try {
+      if (inZip.has(bmanKey(ref))) chunks = (await blobs.manifest(ref))?.chunks ?? null
+    } catch (e) {
+      // A manifest this build cannot read: the file cannot be put back together from the archive either.
+      if (!(e instanceof EnvelopeError)) throw e
     }
-  return { bytes: zip.toBytes(), missingFiles: missing.size }
+    if (chunks === null || !chunks.every((c) => inZip.has(blobKey(c)))) missingFiles++
+  }
+  return { bytes: zip.toBytes(), missingFiles }
 }
 
 /** Saves bytes as a file through a temporary link. */

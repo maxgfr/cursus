@@ -98,6 +98,9 @@ const MIME: Record<string, string> = {
   flac: 'audio/flac',
 }
 
+/** An Anki ease that is a Cursus rating: an integer from 1 to 4. */
+const isAnkiRating = (ease: number): ease is Rating => ease === 1 || ease === 2 || ease === 3 || ease === 4
+
 export function mimeOf(name: string): string {
   return MIME[name.split('.').pop()?.toLowerCase() ?? ''] ?? 'application/octet-stream'
 }
@@ -239,7 +242,8 @@ export async function importApkg(
 
   const revlogByCard = new Map<number, typeof collection.revlog>()
   for (const r of collection.revlog) {
-    if (r.ease < 1 || r.ease > 4 || r.type === 4) continue
+    // A hostile or damaged row (ease 'x' reads as NaN, which no range test catches) is left out, never written.
+    if (!isAnkiRating(r.ease) || !Number.isFinite(r.id) || r.type === 4) continue
     const list = revlogByCard.get(r.cid) ?? []
     list.push(r)
     revlogByCard.set(r.cid, list)
@@ -296,8 +300,9 @@ export async function importApkg(
       ws.text({ id, field: 'front' }).insert(0, p.front)
       ws.text({ id, field: 'back' }).insert(0, p.back)
       if (opts.keepHistory === false) continue
+      // `ease` was checked to be a rating when the revlog was grouped.
       for (const r of revlogByCard.get(p.card.id) ?? [])
-        history.push({ cardId: id, rating: r.ease as Rating, at: r.id, ms: r.time })
+        history.push({ cardId: id, rating: r.ease as Rating, at: r.id, ms: Number.isFinite(r.time) ? r.time : 0 })
     }
     // One push for the whole history: per-review pushes in one transaction are quadratic in Yjs.
     reviews = ws.reviews.recordMany(history).length

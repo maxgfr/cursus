@@ -1,0 +1,26 @@
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+/* A name and, for cramming, its chip: the chip wraps under a long (German) name instead of squeezing it. */
+.title {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  display: block;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The plain button's own padding is pulled back so its label lines up with the facts above. */
+.relaunch {
+  display: block;
+  margin-inline-start: calc(-1 * var(--space-2));
+}

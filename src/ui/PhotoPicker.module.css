@@ -1,0 +1,12 @@
+.picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* A Mac (fine pointer that hovers) has no camera to point at the board: only the library button shows. */
+@media (hover: hover) and (pointer: fine) {
+  .picker .camera {
+    display: none;
+  }
+}

@@ -230,7 +230,7 @@ export function checkEndpoint(url: string): EndpointCheck {
 
 /** Providers the client can call: a protocol it speaks, at an https base URL. */
 export function keepProvider(p: { id: string; npm?: string | null }, api: string | null): boolean {
-  return clientPackage(p) !== null && api !== null && api.startsWith('https://')
+  return clientPackage(p) !== null && api?.startsWith('https://') === true
 }
 
 /** Vendor ids as aggregators spell them, mapped to the provider id of the vendor's own API. */

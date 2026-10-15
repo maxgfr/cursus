@@ -19,6 +19,36 @@ export function activity(reviews: readonly { at: number; ms: number }[], tzOffse
   return [...map.values()].sort((a, b) => a.day - b.day)
 }
 
+export interface DayActivitySplit extends DayActivity {
+  /** Practice (cram) reviews among `reviews`, and their time among `ms`. */
+  practice: number
+  practiceMs: number
+}
+
+/**
+ * Like `activity`, with practice reviews counted apart: they are part of the totals (the student did them) but
+ * shown separately, as they never moved the schedule.
+ */
+export function activitySplit(
+  reviews: readonly { at: number; ms: number; p?: true }[],
+  tzOffsetMin: number,
+): DayActivitySplit[] {
+  const map = new Map<number, DayActivitySplit>()
+  for (const r of reviews) {
+    const day = studyDay(r.at, tzOffsetMin)
+    const a = map.get(day) ?? { day, reviews: 0, ms: 0, practice: 0, practiceMs: 0 }
+    const ms = Math.max(0, r.ms)
+    a.reviews++
+    a.ms += ms
+    if (r.p === true) {
+      a.practice++
+      a.practiceMs += ms
+    }
+    map.set(day, a)
+  }
+  return [...map.values()].sort((a, b) => a.day - b.day)
+}
+
 export interface Retention {
   passed: number
   total: number
@@ -65,4 +95,20 @@ export function countByPhase(states: Iterable<CardState>): Record<CardState['pha
   const out = { new: 0, learning: 0, review: 0, relearning: 0 }
   for (const s of states) out[s.phase]++
   return out
+}
+
+/** Practice reviews within [from, to) answered Hard or better: their own pass rate, apart from true retention. */
+export function practiceRetention(
+  reviews: readonly { at: number; rating: number; p?: true }[],
+  from: number,
+  to: number,
+): Retention {
+  let passed = 0
+  let total = 0
+  for (const r of reviews) {
+    if (r.p !== true || r.at < from || r.at >= to) continue
+    total++
+    if (r.rating > 1) passed++
+  }
+  return { passed, total, rate: total === 0 ? null : passed / total }
 }

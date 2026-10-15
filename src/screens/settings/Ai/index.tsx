@@ -1,7 +1,8 @@
 import { Check, RefreshCw } from 'lucide-react'
 import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { paths } from '../../../app/routes.ts'
-import { useWorkspace } from '../../../app/workspaceContext.tsx'
+import { useRuntime, useWorkspace } from '../../../app/workspaceContext.tsx'
 import {
   type CatalogHit,
   findProvider,
@@ -14,6 +15,7 @@ import {
 import { type Catalog, type CatalogProvider, checkEndpoint } from '../../../core/ai/catalogTrim'
 import { createModel } from '../../../core/ai/client'
 import { classifyFailure, reachOrigin } from '../../../core/ai/deviceCheck'
+import { LOCAL_PROVIDER } from '../../../core/ai/local'
 import { usageEvent } from '../../../core/ai/usage'
 import { formatDate, formatUsd } from '../../../i18n/format.ts'
 import { useLocale, useT } from '../../../i18n/react.tsx'
@@ -22,6 +24,7 @@ import { Field } from '../../../ui/components/Field.tsx'
 import { ListGroup, ListRow } from '../../../ui/components/List.tsx'
 import { Segmented } from '../../../ui/components/Segmented.tsx'
 import { cx } from '../../../ui/cx.ts'
+import { resumeAutoQuestions } from '../../../ui/data/autoQuestions.ts'
 import { Screen } from '../../../ui/shell/Screen.tsx'
 import styles from '../../Understand/shared/ai.module.css'
 import {
@@ -45,6 +48,9 @@ import {
   saveKey,
   useVault,
 } from '../../Understand/shared/aiConfig.ts'
+import { AutoQuestions } from './AutoQuestions.tsx'
+import { localModelName, OnDevice } from './OnDevice.tsx'
+import { checkDevice, modelState, pickedLocalModel, releaseEngine, useOnDevice } from './onDeviceStore.ts'
 
 /** Rows rendered at once; the count says how many more a narrower search would reveal. */
 const MAX_RESULTS = 60
@@ -96,6 +102,7 @@ function Editor({ initial }: { initial: Loaded }) {
   const locale = useLocale()
   const vault = useVault()
   const ws = useWorkspace()
+  const rt = useRuntime()
   const [config, setConfig] = useState<AiConfig>(initial.config)
   const [catalog, setCatalog] = useState<Catalog>(initial.catalog)
   const [checks, setChecks] = useState<DeviceChecks>(initial.checks)
@@ -117,9 +124,11 @@ function Editor({ initial }: { initial: Loaded }) {
   const structuredId = useId()
   const providerSelectId = useId()
 
+  const local = useOnDevice()
   const now = Date.now()
   const providerId = config.providerId ?? DEFAULT_PROVIDER
   const isCustom = providerId === CUSTOM_PROVIDER
+  const isLocal = providerId === LOCAL_PROVIDER
   // A stored provider the catalog no longer lists (blocked, or a protocol we no longer speak).
   const orphan = !isCustom && config.providerId !== undefined && !findProvider(catalog, providerId)
   const endpoint = baseUrl.trim() === '' ? 'ok' : checkEndpoint(baseUrl)
@@ -129,11 +138,18 @@ function Editor({ initial }: { initial: Loaded }) {
   const provider: CatalogProvider | undefined = isCustom
     ? customProvider(customName, baseUrl)
     : catalogProvider && effectiveProvider(catalogProvider, baseUrl)
+  // On-device models come from llm-models (loaded with the card); the one saved is known from the start.
+  const localInfo = (id: string) =>
+    local.service?.info(id) ?? (initial.local?.info.id === id ? initial.local.info : undefined)
   const selected = resolveRoute(
     isCustom ? { ...config, modelId: customModel.trim() || undefined, baseUrl } : config,
     catalog,
     customName,
+    localInfo,
   )
+  const localChoice = local.device.kind === 'ready' ? local.device.choice : undefined
+  const selectedLocal = isLocal && config.modelId ? modelState(local, config.modelId).cache : null
+  const selectedLocalReady = selectedLocal ? selectedLocal.complete : initial.local?.downloaded === true
 
   const groups = useMemo(() => {
     if (isCustom && query.trim() === '') return []
@@ -144,7 +160,23 @@ function Editor({ initial }: { initial: Loaded }) {
     }
     return searchCatalog(catalog, query, { providerId, structured, reachable })
   }, [catalog, query, providerId, structured, browserOnly, checks, isCustom])
-  const total = groups.reduce((n, g) => n + g.hits.length, 0)
+  /**
+   * The on-device models in the same search: the ones that fit this device (the pick first). Like a
+   * catalog provider, a query naming it lists them all; otherwise models whose name matches.
+   */
+  const localHits = useMemo(() => {
+    if (!localChoice) return []
+    const all = [localChoice.model, ...localChoice.alternatives].filter((m) => !structured || m.structured_output)
+    const ws = query.trim().toLowerCase().split(/\s+/).filter(Boolean)
+    if (ws.length === 0) return isLocal ? all : []
+    const providerHay = `${t('ai.localProvider')} ${LOCAL_PROVIDER} ${t('ai.localSearchTerms')}`.toLowerCase()
+    if (ws.every((w) => providerHay.includes(w))) return all
+    return all.filter((m) => {
+      const hay = `${providerHay} ${localModelName(m)} ${m.id} ${m.family} ${m.series}`.toLowerCase()
+      return ws.every((w) => hay.includes(w))
+    })
+  }, [localChoice, structured, query, isLocal, t])
+  const total = groups.reduce((n, g) => n + g.hits.length, 0) + localHits.length
   const monthCost = monthCostOf(ws, catalog, Date.now())
 
   const providerOptions = useMemo(() => {
@@ -161,6 +193,8 @@ function Editor({ initial }: { initial: Loaded }) {
   const update = async (next: AiConfig) => {
     setConfig(next)
     await saveConfig(vault, next)
+    // Documents waiting for a model (or for this one) get their questions proposed now.
+    void resumeAutoQuestions(rt, { model: true })
   }
 
   /** Switches the route's provider: its own key and URL, and the same model there when it has it. */
@@ -172,27 +206,47 @@ function Editor({ initial }: { initial: Loaded }) {
       if (modelId) await update({ ...config, modelId })
       return
     }
+    // The route switches at once, with its own empty base URL: anything typed from now on belongs to it.
+    let next: AiConfig
+    if (nextId === CUSTOM_PROVIDER) {
+      next = { ...config, providerId: nextId, modelId: customModel.trim() || undefined, baseUrl: undefined }
+    } else if (nextId === LOCAL_PROVIDER) {
+      // Keyless: the model picked for this device unless one was chosen (waiting for the pick if needed).
+      const id = modelId ?? localChoice?.model.id ?? (await checkDevice().then(pickedLocalModel))
+      next = { ...config, providerId: nextId, modelId: id, baseUrl: undefined }
+    } else {
+      const current = selected?.info.name
+      const same = current ? modelsOf(catalog, nextId).find((h) => h.entry.name === current) : undefined
+      const id = modelId ?? same?.route.id ?? recommendedModel(catalog, nextId)?.route.id
+      next = { ...config, providerId: nextId, modelId: id, baseUrl: undefined }
+    }
     // The saved key loads asynchronously. Until it does the field is empty (the previous provider's key
     // is not this one's), and once the user focuses or types in it, what they enter wins over the load.
     const seq = ++switchSeq.current
     keyTyped.current = false
     setApiKey('')
-    const saved = await loadKey(vault, nextId)
+    setBaseUrl('')
+    const [saved] = await Promise.all([loadKey(vault, nextId), update(next)])
     // A newer switch owns the selection now.
     if (seq !== switchSeq.current) return
-    if (!keyTyped.current) setApiKey(saved)
-    setBaseUrl('')
-    if (nextId === CUSTOM_PROVIDER) {
-      await update({ ...config, providerId: nextId, modelId: customModel.trim() || undefined, baseUrl: undefined })
-      return
-    }
-    const current = selected?.info.name
-    const same = current ? modelsOf(catalog, nextId).find((h) => h.entry.name === current) : undefined
-    const id = modelId ?? same?.route.id ?? recommendedModel(catalog, nextId)?.route.id
-    await update({ ...config, providerId: nextId, modelId: id, baseUrl: undefined })
+    // Committed with the check: left to a later render, the key could land after the user focused the field
+    // (keyTyped set too late to stop it) and their typing would be appended to it.
+    if (!keyTyped.current) flushSync(() => setApiKey(saved))
   }
 
   const choose = (p: CatalogProvider, hit: CatalogHit) => void switchProvider(p.id, hit.route.id)
+
+  // The engine started to rank the models for this device. Leaving the screen lets its worker and GPU
+  // memory go, unless a download runs or the on-device model is the default (the features will use it).
+  const localDefault = useRef(isLocal)
+  localDefault.current = isLocal
+  useEffect(
+    () => () => {
+      if (!localDefault.current) releaseEngine()
+    },
+    [],
+  )
+  const chooseLocal = (modelId: string) => void switchProvider(LOCAL_PROVIDER, modelId)
 
   const applyPreset = (preset: (typeof PRESETS)[number]) => {
     setBaseUrl(preset.baseUrl)
@@ -274,22 +328,42 @@ function Editor({ initial }: { initial: Loaded }) {
     }
   }
 
-  let shown = 0
-  const selectedStatus = provider ? routeStatus(provider, checks, now) : undefined
+  let shown = Math.min(localHits.length, MAX_RESULTS)
+  // On-device has no route status: it is either downloaded here or not.
+  const selectedStatus = provider && !isLocal ? routeStatus(provider, checks, now) : undefined
+  const onDevice = (
+    <OnDevice snap={local} configuredId={isLocal ? config.modelId : undefined} onUseAsDefault={chooseLocal} />
+  )
 
   return (
     <div className={styles.stack}>
       <ListGroup title={t('ai.model')}>
-        <ListRow
-          title={selected ? selected.info.name : t('ai.chooseModel')}
-          subtitle={
-            selected && provider
-              ? t('ai.through', { provider: provider.name }) +
-                (selected.info.cost ? ` · ${priceText(t, locale, selected.info.cost)}` : '')
-              : undefined
-          }
-          trailing={selectedStatus ? <StatusBadge status={selectedStatus} /> : undefined}
-        />
+        {isLocal ? (
+          <ListRow
+            title={selected ? <span translate="no">{selected.info.name}</span> : t('ai.chooseModel')}
+            subtitle={selected ? t('ai.localFree') : undefined}
+            trailing={
+              selected ? (
+                selectedLocalReady ? (
+                  <span className={cx(styles.badge, styles.badgeGood)}>{t('ai.localBadgeReady')}</span>
+                ) : (
+                  <span className={styles.badge}>{t('ai.localBadgeMissing')}</span>
+                )
+              ) : undefined
+            }
+          />
+        ) : (
+          <ListRow
+            title={selected ? selected.info.name : t('ai.chooseModel')}
+            subtitle={
+              selected && provider
+                ? t('ai.through', { provider: provider.name }) +
+                  (selected.info.cost ? ` · ${priceText(t, locale, selected.info.cost)}` : '')
+                : undefined
+            }
+            trailing={selectedStatus ? <StatusBadge status={selectedStatus} /> : undefined}
+          />
+        )}
       </ListGroup>
 
       <div className={styles.field}>
@@ -321,6 +395,7 @@ function Editor({ initial }: { initial: Loaded }) {
               </option>
             ))}
           </optgroup>
+          <option value={LOCAL_PROVIDER}>{t('ai.localProvider')}</option>
           <option value={CUSTOM_PROVIDER}>{customName}</option>
         </select>
         <p className={styles.hint}>{t('ai.providerHint')}</p>
@@ -330,6 +405,8 @@ function Editor({ initial }: { initial: Loaded }) {
           </p>
         )}
       </div>
+
+      {isLocal && onDevice}
 
       <section className={styles.stack} aria-labelledby="ai-catalog-h">
         <div className={styles.row}>
@@ -383,6 +460,42 @@ function Editor({ initial }: { initial: Loaded }) {
             : t('ai.modelCount', { count: total })}
         </p>
         {total === 0 && !(isCustom && query.trim() === '') && <p className={styles.muted}>{t('ai.noMatch')}</p>}
+        {localHits.length > 0 && (
+          <section className={styles.tight} aria-labelledby="ai-group-on-device">
+            <div className={styles.row}>
+              <h3 id="ai-group-on-device" className={styles.label}>
+                {t('ai.localProvider')}
+              </h3>
+              <span className={styles.hint}>{t('ai.localFree')}</span>
+            </div>
+            <ul className={cx(styles.list, styles.card)} aria-label={t('ai.localProvider')}>
+              {localHits.slice(0, MAX_RESULTS).map((m) => {
+                const isSelected = isLocal && m.id === config.modelId
+                return (
+                  <li key={m.id}>
+                    <button
+                      type="button"
+                      className={styles.modelRow}
+                      aria-pressed={isSelected}
+                      onClick={() => chooseLocal(m.id)}
+                    >
+                      <span className={styles.modelName}>
+                        <span translate="no">{localModelName(m)}</span>
+                        <span translate="no">{m.id}</span>
+                      </span>
+                      <span className={styles.row}>
+                        {localChoice?.model.id === m.id && (
+                          <span className={styles.badge}>{t('ai.recommendedModel')}</span>
+                        )}
+                        {isSelected && <Check size={18} aria-hidden="true" />}
+                      </span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          </section>
+        )}
         {groups.map((g) => {
           if (shown >= MAX_RESULTS) return null
           const hits = g.hits.slice(0, MAX_RESULTS - shown)
@@ -434,7 +547,7 @@ function Editor({ initial }: { initial: Loaded }) {
         })}
       </section>
 
-      {provider && !orphan && (
+      {provider && !orphan && !isLocal && (
         <form className={styles.stack} onSubmit={saveConnection} aria-labelledby="ai-conn-h">
           <h2 id="ai-conn-h" className={styles.heading}>
             {t('ai.connection', { provider: provider.name })}
@@ -525,6 +638,8 @@ function Editor({ initial }: { initial: Loaded }) {
         </form>
       )}
 
+      {!isLocal && onDevice}
+
       <Segmented<AiLanguage>
         label={t('ai.outputLanguage')}
         value={config.language}
@@ -547,6 +662,8 @@ function Editor({ initial }: { initial: Loaded }) {
           {languageStatus.text}
         </p>
       )}
+
+      <AutoQuestions monthCost={monthCost} />
 
       <section className={styles.card} aria-labelledby="ai-cost-h">
         <h2 id="ai-cost-h" className={styles.label}>

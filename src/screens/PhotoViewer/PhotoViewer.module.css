@@ -1,0 +1,195 @@
+.viewer {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 100dvh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--gutter);
+  border-bottom: var(--hairline-width) solid var(--hairline);
+  background: var(--surface);
+}
+
+.heading {
+  flex: 1 1 0%;
+  min-width: 0;
+  text-align: center;
+}
+
+.title {
+  overflow: hidden;
+  font-size: var(--text-body);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.position {
+  color: var(--ink-3);
+  font-size: var(--text-caption);
+  font-variant-numeric: tabular-nums;
+}
+
+.main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+}
+
+.view {
+  display: grid;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  background: var(--surface-pressed);
+}
+
+.stage {
+  height: min(68dvh, 52rem);
+  overflow: hidden;
+  touch-action: pan-x pan-y;
+  overscroll-behavior: contain;
+}
+
+.stage[data-zoomed] {
+  overflow: auto;
+  cursor: grab;
+}
+
+.stage:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+/* Centres the photo while it fits; once larger, the stage scrolls to every edge of it. */
+.canvas {
+  display: grid;
+  place-items: center;
+  width: max-content;
+  min-width: 100%;
+  height: max-content;
+  min-height: 100%;
+}
+
+.photo {
+  display: block;
+  max-width: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.loading,
+.missing {
+  max-width: 32rem;
+  padding: var(--space-4) var(--gutter);
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+  text-align: center;
+}
+
+.missing {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+}
+
+.tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding-inline: var(--gutter);
+}
+
+.zoom {
+  min-width: 5.5rem;
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--text-footnote);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.zoom:hover {
+  background: var(--surface);
+}
+
+.zoom:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.keys {
+  padding-inline: var(--gutter);
+  color: var(--ink-3);
+  font-size: var(--text-caption);
+  text-align: center;
+}
+
+@media not ((hover: hover) and (pointer: fine)) {
+  .view .keys {
+    display: none;
+  }
+}
+
+.details {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  width: 100%;
+  max-width: var(--content-max);
+  margin-inline: auto;
+  padding: var(--space-4) var(--gutter) calc(var(--space-10) + env(safe-area-inset-bottom));
+}
+
+.attached {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+}
+
+.link {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* iPad landscape and Mac: the photo takes the width, the details sit beside it. */
+@media (min-width: 1000px) {
+  .main {
+    grid-template-columns: minmax(0, 1fr) 22rem;
+    align-items: stretch;
+  }
+
+  .view {
+    align-content: start;
+    min-height: calc(100dvh - 4rem);
+  }
+
+  .stage {
+    height: calc(100dvh - 10rem);
+  }
+
+  .details {
+    border-inline-start: var(--hairline-width) solid var(--hairline);
+    background: var(--bg);
+  }
+}

@@ -435,3 +435,16 @@ test('reloading while deferred chunks are still loading raises no page error', a
   expect(thrown).toEqual([])
   await page.unrouteAll({ behavior: 'ignoreErrors' })
 })
+
+test('blocked service workers skip the update machinery without recording a failure', async ({ page }) => {
+  const thrown: string[] = []
+  page.on('pageerror', (e) => thrown.push(e.message))
+  // This file blocks service workers: `register()` resolves without a registration. The app has asked once it warns.
+  const asked = page.waitForEvent('console', (m) => m.text().includes('Service Worker registration blocked'))
+  await openToday(page)
+  await asked
+  await goHash(page, '#/settings/diagnostic')
+  await expect(page.locator('pre')).toContainText('"errors"')
+  expect(await page.locator('pre').textContent()).not.toContain('pwa.start')
+  expect(thrown).toEqual([])
+})

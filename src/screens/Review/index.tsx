@@ -1,9 +1,10 @@
 import { Undo2, X } from 'lucide-react'
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { useLocation } from 'wouter'
-import { paths } from '../../app/routes.ts'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useLocation, useSearch } from 'wouter'
+import { paths, sessionFrom, to } from '../../app/routes.ts'
 import { useWorkspace, useWorkspaceData } from '../../app/workspaceContext.tsx'
-import type { Id, Rating } from '../../core/contracts/workspace'
+import type { Id, NewReview, Rating } from '../../core/contracts/workspace'
+import { relaunchFailed, sessionQueue, sessionReview } from '../../core/model/sessions'
 import { intlTag } from '../../i18n/index.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
 import { Button } from '../../ui/components/Button.tsx'
@@ -13,11 +14,16 @@ import { Toast } from '../../ui/components/Toast.tsx'
 import { useStudy } from '../../ui/data/useStudy.ts'
 import { Sanitized } from '../../ui/render/Sanitized.tsx'
 import { SpeakButton } from '../../ui/SpeakButton.tsx'
+import { useBlobResolver } from '../Photos/files.ts'
 import { useScopeOnce } from '../Section/scope.ts'
+import { sessionLabel } from '../Sessions/describe.ts'
+import { PracticeChip } from '../Sessions/PracticeChip.tsx'
 import { useAiModel } from '../Understand/shared/aiConfig.ts'
 import { Explain, Improve, OwnWords } from './Assist.tsx'
+import { ExplainActions } from './ExplainActions.tsx'
 import { describeFailure } from './failure.ts'
 import styles from './Review.module.css'
+import { SessionDone } from './SessionDone.tsx'
 import {
   type CardView,
   dropReturnsOf,
@@ -51,14 +57,38 @@ function isTyping(target: EventTarget | null): boolean {
   return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
 }
 
-/** Review focus view: one card at a time, nothing else on screen. */
+/**
+ * Review focus view: one card at a time, nothing else on screen. Opened for a custom session (`?session=…`), it
+ * runs that session's queue; relaunching its missed cards starts a fresh run.
+ */
 export default function Review() {
+  const asked = sessionFrom(useSearch())
+  const [run, setRun] = useState(asked)
+  if (asked !== null && asked !== run) setRun(asked)
+  return <ReviewRun key={run ?? ''} sessionId={run} />
+}
+
+function ReviewRun({ sessionId }: { sessionId: Id | null }) {
   const t = useT()
   const ws = useWorkspace()
   const [, navigate] = useLocation()
   const study = useStudy()
   const scope = useScopeOnce()
-  const [start] = useState(() => startQueue(ws, Date.now(), scope ?? undefined))
+  const [session] = useState(() => (sessionId === null ? undefined : ws.sessions.get(sessionId)))
+  const [start] = useState(() => {
+    const now = Date.now()
+    if (session === undefined) return startQueue(ws, now, scope ?? undefined)
+    const { scope: where, kind, limit, practice, cardIds } = session
+    const queue = sessionQueue(ws, {
+      scope: where,
+      kind,
+      now,
+      practice,
+      ...(limit ? { limit } : {}),
+      ...(cardIds ? { cardIds } : {}),
+    })
+    return { queue: queue.map((e) => e.cardId), learning: [] }
+  })
   const [queue, setQueue] = useState<QueueEntry[]>(() => start.queue.map((id) => ({ id })))
   const [index, setIndex] = useState(0)
   /** The queue position whose answer is showing (a card can come back later in the session). */
@@ -70,10 +100,11 @@ export default function Review() {
   const shownAt = useRef(Date.now())
   // Back to where the session started from (Today, a course), or Today when opened directly.
   const leave = useCallback(() => {
+    if (session !== undefined) ws.sessions.end(session.id)
     if ((window.history.state as { cursusIndex?: number } | null) !== null && window.history.length > 1)
       window.history.back()
     else navigate(paths.today)
-  }, [navigate])
+  }, [navigate, session, ws])
 
   const currentId = queue[index]?.id
   const revealed = currentId !== undefined && revealedAt === index
@@ -101,7 +132,9 @@ export default function Review() {
       if (!card || !revealed) return
       const now = Date.now()
       try {
-        const reviewId = ws.reviews.record({ cardId: card.id, rating, at: now, ms: now - shownAt.current })
+        const given: NewReview = { cardId: card.id, rating, at: now, ms: now - shownAt.current }
+        // In a session, the review carries it, and stays out of the schedule when the session is cramming.
+        const reviewId = ws.reviews.record(session === undefined ? given : sessionReview(session, given))
         setAnswered((a) => [...a, { cardId: card.id, reviewId }])
         setError(null)
         setIndex((i) => i + 1)
@@ -110,7 +143,7 @@ export default function Review() {
         setError(describeFailure(e, t))
       }
     },
-    [card, revealed, ws, t],
+    [card, revealed, ws, t, session],
   )
 
   const undo = useCallback(() => {
@@ -130,10 +163,11 @@ export default function Review() {
     setQueue((q) => q.filter((e, i) => i < index || e.id !== currentId))
   }, [currentId, index])
 
-  // One listener for the whole session, reading the state of the latest render.
+  // One listener for the whole session, reading the state of the latest render. In place as the first card
+  // paints (a layout effect, not one run after the paint): a key pressed as soon as the card shows is never lost.
   const keys = useRef({ card, revealed, reveal, rate, undo, leave })
   keys.current = { card, revealed, reveal, rate, undo, leave }
-  useEffect(() => {
+  useLayoutEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const { card, revealed, reveal, rate, undo, leave } = keys.current
       if (e.defaultPrevented || document.querySelector('dialog[open]')) return
@@ -185,7 +219,9 @@ export default function Review() {
   // Cards that come back today (graded Again, on a learning step) rejoin the session when due;
   // until then the session waits for them rather than claiming everything is done.
   const [now, setNow] = useState(Date.now)
-  const pending = finished ? returning(ws, [...start.learning, ...answered.map((a) => a.cardId)], now) : []
+  // A custom session is its queue, fixed when it starts: what it sends back (on a learning step) waits for Today.
+  const pending =
+    finished && session === undefined ? returning(ws, [...start.learning, ...answered.map((a) => a.cardId)], now) : []
   const dueNow = pending.filter((p) => p.due <= now)
   const nextAt = pending[0]?.due ?? null
   useEffect(() => {
@@ -212,7 +248,10 @@ export default function Review() {
     <div className={styles.focus}>
       <header className={styles.bar}>
         <IconButton icon={X} label={t('common.close')} onClick={leave} />
-        <h1 className={styles.title}>{t('review.title')}</h1>
+        <div className={styles.titleGroup}>
+          <h1 className={styles.title}>{session === undefined ? t('review.title') : sessionLabel(ws, t, session)}</h1>
+          {session?.practice === true && <PracticeChip />}
+        </div>
         <span className={styles.barSpacer} />
       </header>
       {card && !finished ? (
@@ -233,6 +272,15 @@ export default function Review() {
           }}
           onToast={setToast}
           remaining={total - done}
+        />
+      ) : session !== undefined ? (
+        <SessionDone
+          session={session}
+          onLeave={leave}
+          onRelaunch={() => {
+            const id = relaunchFailed(ws, session.id)
+            if (id !== null) navigate(to.sessionRun(id), { replace: true, state: { session: id } })
+          }}
         />
       ) : (
         <Finished
@@ -291,6 +339,8 @@ function CardStage({
   const hintId = useId()
   const now = Date.now()
   const tag = intlTag(locale)
+  // Card photos (`cursus-blob:`), fetched from a destination when kept on demand.
+  const resolveBlob = useBlobResolver(`${card.front}\n${card.back}`)
 
   // After the reveal, focus lands on the grades group (its question is announced), not on a grade:
   // nothing is preselected, and Space or Enter gives Good.
@@ -310,7 +360,7 @@ function CardStage({
         {/* No eyebrow: the question text and the pressed answer surface carry the distinction. */}
         <section className={styles.face} aria-label={t('review.question')} data-testid="question">
           <div className={styles.faceText}>
-            <Sanitized markdown={card.front} />
+            <Sanitized markdown={card.front} resolveBlob={resolveBlob} />
           </div>
           <SpeakButton text={speakable(card.front)} lang={card.language} label={t('review.readQuestion')} />
         </section>
@@ -319,7 +369,7 @@ function CardStage({
             {/* Centred in the footprint it shares with the hidden answer. */}
             <div className={styles.backRow}>
               <div className={styles.faceText}>
-                <Sanitized markdown={card.back} />
+                <Sanitized markdown={card.back} resolveBlob={resolveBlob} />
               </div>
               <SpeakButton text={speakable(card.back)} lang={card.language} label={t('review.readAnswer')} />
             </div>
@@ -379,6 +429,7 @@ function CardStage({
           <Explain key={card.id} card={card} ai={ai} onToast={onToast} />
         </>
       )}
+      <ExplainActions key={card.id} card={card} revealed={revealed} ai={ai} />
     </div>
   )
 }

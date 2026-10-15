@@ -5,10 +5,13 @@ import {
   FolderInput,
   FolderPlus,
   Image,
+  Images,
   Layers,
   NotebookText,
   PenLine,
+  Play,
   Plus,
+  Presentation,
   Settings2,
   Sparkles,
 } from 'lucide-react'
@@ -18,6 +21,7 @@ import { type Captured, usePasteCapture } from '../../app/paste.ts'
 import { paths, to, withScope } from '../../app/routes.ts'
 import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { Id, StudyScope } from '../../core/contracts/workspace'
+import type { SourceRecord } from '../../core/model/schema'
 import { useT } from '../../i18n/react.tsx'
 import { Breadcrumb } from '../../ui/Breadcrumb.tsx'
 import { courseHue } from '../../ui/components/Badges.tsx'
@@ -27,6 +31,7 @@ import { IconButton } from '../../ui/components/IconButton.tsx'
 import { ListGroup, ListRow } from '../../ui/components/List.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
 import { Toast } from '../../ui/components/Toast.tsx'
+import { proposeFor, proposeWhenWritten } from '../../ui/data/autoQuestions.ts'
 import { MoveSheet, moveItemTo, type Place } from '../../ui/MoveSheet.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { newCardId } from '../CardEditor/draft.ts'
@@ -39,6 +44,7 @@ import { ExamCountdown } from '../Today/CourseRows.tsx'
 import { backTarget, earlierPaths } from './backTarget.ts'
 import styles from './Course.module.css'
 import { CourseSettings } from './CourseSettings.tsx'
+import { DraftsLine } from './DraftsLine.tsx'
 
 type Tab = 'cards' | 'sources' | 'fiches'
 
@@ -59,6 +65,17 @@ const savedFrom = (state: unknown): boolean =>
   typeof state === 'object' && state !== null && 'cardSaved' in state && state.cardSaved === true
 
 const KIND_ICON = { note: FileText, pdf: FileText, image: Image } as const
+
+type T = ReturnType<typeof useT>
+
+/** How a source is named in the list: a .pptx or .docx is kept as `note` for older clients, its `support` says what it is. */
+function sourceKind(t: T, s: Pick<SourceRecord, 'kind' | 'support'>): { icon: typeof FileText; label: string } {
+  if (s.kind === 'pdf') return { icon: FileText, label: t('course.kindPdf') }
+  if (s.kind === 'image') return { icon: Image, label: t('course.kindPhoto') }
+  if (s.support === 'deck') return { icon: Presentation, label: t('ai.kindSlides') }
+  if (s.support === 'document') return { icon: FileText, label: t('ai.kindDocument') }
+  return { icon: KIND_ICON[s.kind], label: t('course.kindNote') }
+}
 
 /** A course root (no `sectionId`) or one of its sections: its subsets first, then its own items. */
 export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: Id }) {
@@ -128,11 +145,14 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   )
   const where = sectionId === undefined ? { courseId } : { courseId, sectionId }
 
+  /** Adds a source and opens it; its questions are proposed (per « When I add a document »). */
   const run = async (work: () => Promise<string>) => {
     setBusy(true)
     setError(null)
     try {
-      navigate(to.source(await work()))
+      const id = await work()
+      void proposeFor(rt, id)
+      navigate(to.source(id))
     } catch (e) {
       noteError('course.import', e)
       setError(t('course.importFailed'))
@@ -144,7 +164,11 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   usePasteCapture(
     (c: Captured) => {
       if (c.kind === 'image') void run(() => addImage(rt, where, c.blob, c.name, t('course.untitledPhoto')))
-      else navigate(to.source(addNote(rt, where, t('course.pastedNote'), c.text)))
+      else {
+        const id = addNote(rt, where, t('course.pastedNote'), c.text)
+        void proposeFor(rt, id)
+        navigate(to.source(id))
+      }
     },
     { enabled: data !== null && tab === 'sources' && !settings && !adding && moving === null },
   )
@@ -169,7 +193,12 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
     rt.ws.sections.restore(id)
     dismissTrashed()
   }
-  const newNote = () => navigate(to.source(addNote(rt, where, t('course.untitledNote'))))
+  const newNote = () => {
+    const id = addNote(rt, where, t('course.untitledNote'))
+    // Empty for now: proposed once the student leaves it with something written.
+    proposeWhenWritten(id)
+    navigate(to.source(id))
+  }
   const onPdf = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.currentTarget.files?.[0]
     e.currentTarget.value = ''
@@ -209,6 +238,16 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
       >
         {t('course.takePhoto')}
       </Button>
+      {/* Slides or a structured document (.pptx, .docx, .pdf), read slide by slide or section by section. */}
+      <Link href={withScope(paths.deckImport, scope)} className={buttonClass({})}>
+        <Presentation size={18} aria-hidden="true" />
+        {t('ai.deckImportAction')}
+      </Link>
+      {/* The photo gallery of this place (its subsets' photos included): with the sources, never among the cards. */}
+      <Link href={to.photos(courseId, sectionId)} className={buttonClass({ variant: 'plain' })}>
+        <Images size={18} aria-hidden="true" />
+        {t('photos.title')}
+      </Link>
       <input
         ref={pdfInput}
         className="sr-only"
@@ -281,17 +320,30 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
         {section !== null && <span>{due > 0 ? t('course.dueInScope', { count: due }) : t('course.nothingDue')}</span>}
         <ExamCountdown examDate={examDate} />
       </p>
-      {section !== null && (
+      {section === null && <DraftsLine courseId={courseId} />}
+      {(section !== null || data.total > 0) && (
         <div className={styles.study}>
-          {due > 0 && (
+          {section !== null && due > 0 && (
             <Button variant="primary" onClick={() => navigate(withScope(paths.review, scope))}>
               {t('common.start')}
             </Button>
           )}
-          <Link href={withScope(paths.understand, scope)} className={buttonClass({ variant: 'secondary' })}>
-            <Sparkles size={18} aria-hidden="true" />
-            {t('course.understand')}
-          </Link>
+          {section !== null && (
+            <Link href={withScope(paths.understand, scope)} className={buttonClass({ variant: 'secondary' })}>
+              <Sparkles size={18} aria-hidden="true" />
+              {t('course.understand')}
+            </Link>
+          )}
+          {/* A custom session over this course or subset (descendants included). */}
+          {data.total > 0 && (
+            <Button
+              variant="secondary"
+              icon={<Play size={18} aria-hidden="true" />}
+              onClick={() => navigate(withScope(paths.sessionNew, scope))}
+            >
+              {t('review.newSession')}
+            </Button>
+          )}
         </div>
       )}
       {children.length > 0 && (
@@ -384,16 +436,14 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
           ) : (
             <ListGroup title={t('course.tabSources')} hideTitle>
               {sources.map((s) => {
-                const Icon = KIND_ICON[s.kind]
+                const { icon: Icon, label } = sourceKind(t, s)
                 return (
                   <ListRow
                     key={s.id}
                     href={to.source(s.id)}
                     leading={<Icon size={20} />}
                     title={s.title}
-                    subtitle={t(
-                      s.kind === 'pdf' ? 'course.kindPdf' : s.kind === 'image' ? 'course.kindPhoto' : 'course.kindNote',
-                    )}
+                    subtitle={label}
                   />
                 )
               })}

@@ -4,7 +4,7 @@ import type { BlobStore } from '../contracts/log'
 import type { Id } from '../contracts/workspace'
 import type { CardRecord } from '../model/schema'
 import type { ModelWorkspace } from '../model/workspace'
-import { type CardState, createScheduler, DAY_MS, type Phase } from '../srs/fsrs'
+import { type CardState, createScheduler, DAY_MS, type Phase, scheduledReviews } from '../srs/fsrs'
 import { blobRefs, markdownToAnki } from './mdToAnki'
 import { loadSql, SCHEMA11_DDL } from './schema11'
 
@@ -243,18 +243,21 @@ export async function exportApkg(ws: ModelWorkspace, blobs: BlobStore, opts: Exp
       ])
 
       if (opts.withHistory === false) continue
-      const graded = events.filter((e) => 'rating' in e)
+      // The revlog is the schedule's history: the reviews that moved it, in replay order. Practice reviews never
+      // did (they stay out of the export: an Anki row of type 3 with a factor would enter Anki's FSRS, and
+      // importing it back would make it a counted review here).
+      const scheduled = scheduledReviews(events)
+      const position = new Map(scheduled.map((e, i) => [e.id, i]))
       let lastIvl = 0
-      for (let i = 0; i < state.history.length; i++) {
-        const step = state.history[i]
-        if (!step) continue
-        const after = sched.replay(c.id, graded.slice(0, i + 1))
+      for (const step of state.history) {
+        const at = position.get(step.reviewId)
+        if (at === undefined) continue
+        const after = sched.replay(c.id, scheduled.slice(0, at + 1))
         const ivlAfter = interval(after, step.at)
         let rid = step.at
         while (usedRevIds.has(rid)) rid++
         usedRevIds.add(rid)
-        const ms = graded.find((e) => e.id === step.reviewId)
-        const time = ms && 'ms' in ms ? Math.min(60_000, Math.round(ms.ms)) : 0
+        const time = Math.min(60_000, Math.round(scheduled[at]?.ms ?? 0))
         insRev.run([rid, id, -1, step.rating, ivlAfter, lastIvl, 2500, time, REVLOG_TYPE[step.phaseBefore]])
         lastIvl = ivlAfter
       }

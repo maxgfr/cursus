@@ -50,6 +50,8 @@ export default function DiagnosticSettings() {
       device: await rt.log.deviceId(),
       workspace: engine ? await engine.workspaceId() : null,
       localObjects: (await rt.log.keys()).size,
+      // Synced review events this version cannot read: kept in the library, left out of the schedule.
+      unreadableReviews: rt.ws.reviews.quarantined(),
       save,
       engineError: engineError === null ? null : String(engineError),
       destinations: (records ?? []).map((r) => ({

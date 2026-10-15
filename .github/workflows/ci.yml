@@ -1,8 +1,8 @@
 name: CI
 on:
-  push:
-    branches: [main]
   pull_request:
+  # Pushes to main run this through release.yml, which releases and deploys only when it is green.
+  workflow_call:
 jobs:
   check:
     runs-on: ubuntu-latest

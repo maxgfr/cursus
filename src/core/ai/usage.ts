@@ -9,6 +9,12 @@ export type AiFeature =
   | 'quiz'
   | 'improveCard'
   | 'explainBack'
+  | 'explainQuestion'
+  | 'explainConcept'
+  | 'describePhoto'
+  | 'photoToCards'
+  | 'readDeck'
+  | 'deckQuestions'
 
 /** One event of the workspace's `aiUsage` array. */
 export interface AiUsageEvent {
@@ -19,6 +25,8 @@ export interface AiUsageEvent {
   inputTokens: number
   outputTokens: number
   cost: number
+  /** The source the tokens were spent on (background questions): its per-document cap counts them. */
+  sourceId?: string
 }
 
 export type UsageSink = (e: AiUsageEvent) => void

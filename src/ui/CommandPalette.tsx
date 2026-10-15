@@ -1,11 +1,13 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   BookOpen,
+  CalendarClock,
   CalendarPlus,
   ChartColumn,
   FileText,
   Layers,
   Library,
+  Play,
   Search as SearchIcon,
   Settings,
   Sun,
@@ -17,9 +19,10 @@ import { type Captured, usePasteCapture } from '../app/paste.ts'
 import { paths, to } from '../app/routes.ts'
 import { useWorkspace, useWorkspaceData } from '../app/workspaceContext.tsx'
 import type { Id } from '../core/contracts/workspace'
-import { fold } from '../core/model/search'
+import { fold, type SearchHit } from '../core/model/search'
 import type { ModelWorkspace } from '../core/model/workspace'
 import { useT } from '../i18n/react.tsx'
+import { noteError } from '../screens/settings/Diagnostic/recent.ts'
 import styles from './CommandPalette.module.css'
 import { Sheet } from './components/Sheet.tsx'
 import { Toast } from './components/Toast.tsx'
@@ -40,9 +43,14 @@ function capturesOwnPaste(location: string): boolean {
   return /^\/(course|source|card)\//.test(location) || location === paths.review || location === paths.onboarding
 }
 
-function searchItems(ws: ModelWorkspace, q: string, cardTitle: string, go: (href: string) => void): Item[] {
+function searchItems(
+  ws: ModelWorkspace,
+  hits: readonly SearchHit[],
+  cardTitle: string,
+  go: (href: string) => void,
+): Item[] {
   const out: Item[] = []
-  for (const h of ws.search.search(q)) {
+  for (const h of hits) {
     if (out.length >= MAX_RESULTS) break
     if (h.kind === 'courses') {
       const c = ws.courses.get(h.id)
@@ -93,6 +101,8 @@ export function CommandPalette() {
   const study = useStudy()
   useDueBadge(study.due)
   const courses = useWorkspaceData(['courses'], (w) => w.courses.list())
+  // Search hits arrive asynchronously (the first search loads the engine), for the query they answer.
+  const [found, setFound] = useState<{ q: string; hits: readonly SearchHit[] }>({ q: '', hits: [] })
 
   const close = useCallback(() => {
     setOpen(false)
@@ -163,6 +173,24 @@ export function CommandPalette() {
     [ws, t, go],
   )
 
+  const searched = open && captured === null ? query.trim() : ''
+  useEffect(() => {
+    if (searched === '') return
+    let live = true
+    ws.search.search(searched).then(
+      (hits) => {
+        if (live) setFound({ q: searched, hits })
+      },
+      (e: unknown) => {
+        noteError('palette.search', e)
+        if (live) setToast(t('common.chunkFailed'))
+      },
+    )
+    return () => {
+      live = false
+    }
+  }, [searched, ws, t])
+
   const items = useMemo((): Item[] => {
     if (!open) return []
     const q = query.trim()
@@ -182,6 +210,8 @@ export function CommandPalette() {
       { id: 'today', group: 'go', title: t('common.cmdToday'), icon: Sun, run: () => go(paths.today) },
       { id: 'courses', group: 'go', title: t('common.cmdCourses'), icon: Library, run: () => go(paths.courses) },
       { id: 'stats', group: 'go', title: t('common.cmdStats'), icon: ChartColumn, run: () => go(paths.stats) },
+      { id: 'sessions', group: 'go', title: t('review.sessions'), icon: CalendarClock, run: () => go(paths.sessions) },
+      { id: 'newSession', group: 'go', title: t('review.newSession'), icon: Play, run: () => go(paths.sessionNew) },
       { id: 'settings', group: 'go', title: t('common.cmdSettings'), icon: Settings, run: () => go(paths.settings) },
       { id: 'search', group: 'go', title: t('common.cmdSearch'), icon: SearchIcon, run: () => go(paths.search) },
     ]
@@ -206,9 +236,9 @@ export function CommandPalette() {
         },
       },
     ]
-    const results = q === '' ? [] : searchItems(ws, q, t('common.cardTitle'), go)
+    const results = q === '' || found.q !== q ? [] : searchItems(ws, found.hits, t('common.cardTitle'), go)
     return [...nav.filter((i) => match(i.title)), ...actions.filter((i) => match(i.title)), ...results]
-  }, [open, query, captured, courses, ws, t, go, close, addNote])
+  }, [open, query, captured, courses, ws, t, go, close, addNote, found])
 
   const current = Math.min(active, Math.max(0, items.length - 1))
   const optionId = (i: number) => `${listId}-${i}`

@@ -14,6 +14,7 @@ import { EmptyState } from '../../ui/components/EmptyState.tsx'
 import { ListGroup, ListRow } from '../../ui/components/List.tsx'
 import { Toast } from '../../ui/components/Toast.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
+import { useFileLoader } from '../Photos/files.ts'
 import { computeStats } from './compute.ts'
 import { downloadCalendar, shareCourse } from './files.ts'
 import styles from './Stats.module.css'
@@ -23,6 +24,7 @@ export default function Stats() {
   const t = useT()
   const locale = useLocale()
   const ws = useWorkspace()
+  const loadFile = useFileLoader()
   const stats = useWorkspaceData(['courses', 'cards', 'reviews', 'prefs'], (w) => computeStats(w, Date.now()))
   const courses = useWorkspaceData(['courses'], (w) => w.courses.list())
   const [message, setMessage] = useState<string | null>(null)
@@ -39,7 +41,7 @@ export default function Stats() {
   }
 
   const onShare = (id: Id) => {
-    shareCourse(ws, id).then(
+    shareCourse(ws, id, loadFile).then(
       (r) => {
         if (r !== 'cancelled') flash(t('common.shareDone'))
       },
@@ -99,7 +101,11 @@ export default function Stats() {
           <div className={styles.tile}>
             <span className={styles.tileLabel}>{t('common.statsActivity')}</span>
             <span className={styles.tileValue}>{t('common.statsReviews', { count: stats.reviews })}</span>
-            <span className={styles.tileHint}>{formatDuration(locale, stats.ms)}</span>
+            <span className={styles.tileHint}>
+              {stats.practice > 0
+                ? `${formatDuration(locale, stats.ms)} · ${t('review.statsCrammingShare', { count: stats.practice })}`
+                : formatDuration(locale, stats.ms)}
+            </span>
           </div>
           <div className={styles.tile}>
             <span className={styles.tileLabel}>{t('common.statsRetention')}</span>
@@ -118,6 +124,18 @@ export default function Stats() {
               {stats.phases.learning + stats.phases.relearning} · {t('common.statsPhaseReview')} {stats.phases.review}
             </span>
           </div>
+          {stats.practice > 0 && (
+            // Cramming apart: the student did it, but it never moved a review date nor the retention above.
+            <div className={styles.tile} data-testid="cramming-tile">
+              <span className={styles.tileLabel}>{t('review.statsCramming')}</span>
+              <span className={styles.tileValue}>{t('common.statsReviews', { count: stats.practice })}</span>
+              <span className={styles.tileHint}>
+                {stats.practiceRetention.rate === null
+                  ? t('review.statsCrammingNone')
+                  : t('review.statsCrammingRate', { rate: formatPercent(locale, stats.practiceRetention.rate) })}
+              </span>
+            </div>
+          )}
         </section>
 
         <div className={styles.tile}>

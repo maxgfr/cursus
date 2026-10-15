@@ -68,3 +68,79 @@ export const explainBackSchema = z.object({
   feedback: z.string(),
 })
 export type ExplainBackReview = z.infer<typeof explainBackSchema>
+
+export const explainQuestionSchema = z.object({
+  restatement: z.string().describe('what the question asks, in plain words, without answering it'),
+  terms: z.array(
+    z.object({
+      term: z.string().describe('a term that appears in the question'),
+      definition: z.string(),
+      sourceRef: sourceRefSchema.optional(),
+    }),
+  ),
+  context: z.string().describe('where the question fits in the course and why it matters'),
+  citations: z.array(sourceRefSchema).describe('blocks of the course that help understand the question'),
+})
+export type QuestionExplanationDraft = z.infer<typeof explainQuestionSchema>
+
+export const explainConceptSchema = z.object({
+  definition: z.string().describe('one or two sentences'),
+  explanation: z.string(),
+  example: z.string(),
+  relatedConcepts: z.array(z.string()).describe('neighbouring concepts worth exploring next, as short terms'),
+  citations: z.array(sourceRefSchema),
+  suggestedCard: z.object({
+    front: z.string().describe('an atomic question about the concept'),
+    back: z.string().describe('its short answer'),
+  }),
+})
+export type ConceptExplanation = z.infer<typeof explainConceptSchema>
+
+export const photoDescriptionSchema = z.object({
+  kind: z
+    .enum(['table', 'slide', 'handwriting', 'diagram', 'document', 'other'])
+    .describe('what the photo mainly shows'),
+  title: z.string().describe('a short title for what the photo shows'),
+  transcription: z
+    .string()
+    .describe(
+      'every legible word, verbatim and in its original language, in reading order; tables as Markdown tables; empty if there is no text',
+    ),
+  explanation: z
+    .string()
+    .describe('what the content means for a student: the diagram explained, the idea of the slide'),
+  keyPoints: z.array(z.string()).describe('the few facts worth remembering, as short sentences'),
+})
+export type PhotoDescription = z.infer<typeof photoDescriptionSchema>
+
+const unitNumbers = z.array(z.number().int()).describe('numbers of the <<<UNIT n="...">>> blocks concerned')
+
+/** A deck (slides, sections or pages) read unit by unit: outline, key notions, recurring ideas, summaries. */
+export const deckReadingSchema = z.object({
+  title: z.string().describe('what the material is about, in a few words'),
+  outline: z.array(z.object({ heading: z.string(), units: unitNumbers })).describe('the plan, in order'),
+  notions: z
+    .array(z.object({ term: z.string(), definition: z.string().describe('one sentence'), units: unitNumbers }))
+    .describe('the key notions a student must know'),
+  recurring: z
+    .array(z.object({ theme: z.string(), units: unitNumbers }))
+    .describe('ideas that come back across several units'),
+  units: z
+    .array(z.object({ unit: z.number().int(), summary: z.string().describe('two sentences at most') }))
+    .describe('one entry per unit read'),
+})
+export type DeckReadingDraft = z.infer<typeof deckReadingSchema>
+export const deckSynthesisSchema = deckReadingSchema.omit({ units: true })
+
+export const deckQuestionSchema = z.object({
+  unit: z.number().int().describe('n of the <<<UNIT>>> block the question is about'),
+  type: z.enum(['qa', 'cloze', 'explain']),
+  difficulty: z.enum(['easy', 'medium', 'hard']),
+  front: z
+    .string()
+    .describe('qa: the question; cloze: the full sentence with {{c1::hidden}} deletions; explain: the prompt'),
+  back: z.string().describe('qa: the short answer; cloze: empty; explain: a model answer in a few sentences'),
+  quote: z.string().optional().describe('a short passage of the unit, copied verbatim, that supports the answer'),
+})
+export type DeckQuestionDraft = z.infer<typeof deckQuestionSchema>
+export const deckQuestionsSchema = z.object({ questions: z.array(deckQuestionSchema) })

@@ -5,6 +5,15 @@ export const paths = {
   course: '/course/:id',
   section: '/course/:id/s/:sectionId',
   source: '/source/:id',
+  /** Questions made from a deck source (slides, a document), unit by unit. */
+  deckQuestions: '/source/:id/questions',
+  /** Import slides or a document (`?course=…&section=…`). */
+  deckImport: '/import',
+  photos: '/course/:id/photos',
+  sectionPhotos: '/course/:id/s/:sectionId/photos',
+  photo: '/photo/:id',
+  /** « To review »: questions proposed on the documents added. */
+  inbox: '/inbox',
   card: '/card/:id',
   trash: '/trash',
   history: '/history/:id',
@@ -14,6 +23,9 @@ export const paths = {
   generate: '/generate',
   quiz: '/quiz',
   stats: '/stats',
+  sessions: '/sessions',
+  sessionNew: '/sessions/new',
+  sessionPlan: '/sessions/plan/:id',
   search: '/search',
   settings: '/settings',
   settingsGeneral: '/settings/general',
@@ -39,9 +51,25 @@ export const to = {
       ? `/course/${encodeURIComponent(courseId)}/s/${encodeURIComponent(sectionId)}`
       : `/course/${encodeURIComponent(courseId)}`,
   source: (id: string) => `/source/${encodeURIComponent(id)}`,
+  deckQuestions: (id: string) => `/source/${encodeURIComponent(id)}/questions`,
+  /** The photo gallery of a course root, or of one of its subsets (descendants included). */
+  photos: (courseId: string, sectionId?: string | null) =>
+    sectionId
+      ? `/course/${encodeURIComponent(courseId)}/s/${encodeURIComponent(sectionId)}/photos`
+      : `/course/${encodeURIComponent(courseId)}/photos`,
+  photo: (id: string) => `/photo/${encodeURIComponent(id)}`,
   card: (id: string) => `/card/${encodeURIComponent(id)}`,
   history: (id: string) => `/history/${encodeURIComponent(id)}`,
+  /** A planned session's editor; `new` creates one. */
+  sessionPlan: (id: string) => `/sessions/plan/${encodeURIComponent(id)}`,
+  /** The review focus view running a started session. */
+  sessionRun: (sessionId: string) => `/review?${new URLSearchParams({ session: sessionId }).toString()}`,
 } as const
+
+/** The session a review was opened for (`?session=…`), if any. */
+export function sessionFrom(search: string): string | null {
+  return new URLSearchParams(search).get('session') || null
+}
 
 /** A study scope carried in the query (`?course=…&section=…`): read once by the screen, then dropped. */
 export function withScope(path: string, scope: { courseId: string; sectionId?: string } | null): string {
@@ -62,5 +90,6 @@ export function scopeFrom(search: string): { courseId: string; sectionId?: strin
 
 /** Focus routes hide the navigation chrome (tab bar / sidebar). */
 export function isFocusRoute(location: string): boolean {
-  return location === paths.review || location === paths.onboarding
+  // The photo viewer is full screen: the photo gets the whole width and height.
+  return location === paths.review || location === paths.onboarding || location.startsWith('/photo/')
 }

@@ -68,6 +68,21 @@ describe('replay cache', () => {
     expect(sch.replay('c', renamed).history.at(-1)?.reviewId).toBe('c-zz')
   })
 
+  test('an earlier review replaced by another with the same time and rating names the new one in the history', () => {
+    // A review voided while another device answered the same card at the same instant with the same rating:
+    // the schedule is the same, but the history must name the review that is actually there.
+    const log = history('g', 6)
+    const sch = freshScheduler()
+    sch.replay('g', log)
+    const swapped = log.map((r, i) => (i === 2 ? { ...r, id: 'g-02x' } : r))
+    expect(sch.replay('g', swapped)).toEqual(freshScheduler().replay('g', swapped))
+    // The same with reviews appended since: the resumed history names the review that is there too.
+    const sch2 = freshScheduler()
+    sch2.replay('g', log.slice(0, 4))
+    const longer = history('g', 8).map((r, i) => (i === 1 ? { ...r, id: 'g-01x' } : r))
+    expect(sch2.replay('g', longer)).toEqual(freshScheduler().replay('g', longer))
+  })
+
   test('a snapshot restored on a new launch gives the same states without replaying', () => {
     const logs = ['d', 'e', 'f'].map((id) => history(id, 15))
     const first = freshScheduler()

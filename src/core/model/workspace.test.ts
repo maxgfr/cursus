@@ -19,7 +19,7 @@ function sync(a: Y.Doc, b: Y.Doc) {
 }
 
 describe('workspace', () => {
-  test('no writes at startup, reads included', () => {
+  test('no writes at startup, reads included', async () => {
     const doc = new Y.Doc()
     let updates = 0
     doc.on('update', () => updates++)
@@ -28,7 +28,7 @@ describe('workspace', () => {
     expect(w.prefs.get('locale')).toBe('en')
     expect(w.prefs.get('dailyNewCards')).toBe(20)
     expect(w.reviews.forCard('x')).toEqual([])
-    expect(w.search.search('anything')).toEqual([])
+    expect(await w.search.search('anything')).toEqual([])
     const off = w.subscribe('courses', () => {})
     off()
     expect(updates).toBe(0)

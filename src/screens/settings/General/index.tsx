@@ -8,10 +8,14 @@ import { ListGroup, ListRow } from '../../../ui/components/List.tsx'
 import { Segmented } from '../../../ui/components/Segmented.tsx'
 import { Screen } from '../../../ui/shell/Screen.tsx'
 import styles from '../Sync/settings.module.css'
+import { VersionSection } from './Version.tsx'
 
 type LanguageChoice = 'auto' | BaseLocale
 
-/** Appearance (written only when the user picks one), the interface language (this device only). */
+/**
+ * Appearance (written only when the user picks one), the interface language (this device only), and this
+ * version of Cursus with its updates.
+ */
 export default function GeneralSettings() {
   const t = useT()
   const rt = useRuntime()
@@ -84,6 +88,7 @@ export default function GeneralSettings() {
         <ListGroup title={t('settings.about')} footer={t('settings.languageHint')}>
           <ListRow title={t('settings.languageAuto')} trailing={<span translate="no">{navigator.language}</span>} />
         </ListGroup>
+        <VersionSection />
       </div>
     </Screen>
   )

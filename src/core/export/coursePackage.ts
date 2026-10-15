@@ -1,5 +1,7 @@
-import { unzipSync, zipSync } from 'fflate'
+import { type Unzipped, unzipSync, type Zippable, zipSync } from 'fflate'
 import { z } from 'zod'
+import { blobIdOf, blobIdsIn, photoRef } from '../content/photos'
+import type { BlobStore } from '../contracts/log'
 import type { Id } from '../contracts/workspace'
 import type { CardOrigin } from '../model/schema'
 import type { ModelWorkspace } from '../model/workspace'
@@ -7,6 +9,9 @@ import type { ModelWorkspace } from '../model/workspace'
 export const COURSE_EXT = '.cursus-course'
 const FORMAT = 'cursus-course/1'
 const ENTRY = 'course.json'
+/** Stored files travel as `media/<h64>` entries next to `course.json` (packages made before files have none). */
+const MEDIA_DIR = 'media/'
+const H64 = /^[0-9a-f]{64}$/
 
 /**
  * Package-local references (`s0`, `f0`…) replace ids: an import always mints fresh ones.
@@ -38,6 +43,14 @@ const PackageSchema = z.object({
       kind: z.enum(['note', 'pdf', 'image']),
       title: z.string(),
       body: z.string(),
+      /** The source's stored file (a photo, a PDF), shipped in `media/`. */
+      blob: z.string().regex(H64).optional(),
+      caption: optStr,
+      rotation: z.number().int().optional(),
+      width: z.number().positive().optional(),
+      height: z.number().positive().optional(),
+      /** The note or PDF (package ref) a photo is attached to. */
+      attachedRef: optStr,
     }),
   ),
   fiches: z.array(
@@ -69,6 +82,8 @@ const PackageSchema = z.object({
       origin: z.enum(['manual', 'ai', 'anki', 'cloze'] satisfies readonly CardOrigin[]).optional(),
     }),
   ),
+  /** Every stored file the course refers to (photos, PDFs, card images and sounds) and its type. */
+  media: z.array(z.object({ id: z.string().regex(H64), mime: z.string() })).default([]),
 })
 
 export type CoursePackage = z.infer<typeof PackageSchema>
@@ -121,8 +136,45 @@ function checkTree(pkg: CoursePackage): string[] {
   return order
 }
 
-/** Shares one course's content (no reviews, no attachments' bytes) as a `.cursus-course` zip. */
-export function exportCourse(w: ModelWorkspace, courseId: Id): Uint8Array {
+/** A stored file shipped inside a package. */
+export interface CourseFile {
+  id: string
+  mime: string
+  bytes: Uint8Array
+}
+
+/** A source's stored file id, bare (older builds also wrote it as `cursus-blob:<h64>`). */
+function sourceFileId(blobId: string | undefined): string | undefined {
+  if (blobId === undefined) return undefined
+  return blobIdOf(blobId) ?? (H64.test(blobId) ? blobId : undefined)
+}
+
+/** Stored files a course refers to: its sources' files and every `cursus-blob:` in its texts, sorted. */
+export function courseFileIds(w: ModelWorkspace, courseId: Id): string[] {
+  const ids = new Set<string>()
+  const add = (id: string | undefined) => {
+    if (id !== undefined && H64.test(id)) ids.add(id)
+  }
+  const scan = (id: Id, field: 'body' | 'front' | 'back') => {
+    for (const ref of blobIdsIn(w.text({ id, field }).toString())) add(ref)
+  }
+  for (const s of w.sources.list({ courseId })) {
+    add(sourceFileId(s.blobId))
+    scan(s.id, 'body')
+  }
+  for (const f of w.fiches.list({ courseId })) scan(f.id, 'body')
+  for (const k of w.cards.list({ courseId })) {
+    scan(k.id, 'front')
+    scan(k.id, 'back')
+  }
+  return [...ids].sort()
+}
+
+/**
+ * Shares one course's content (no reviews) as a `.cursus-course` zip, with the stored files given in `files`
+ * (see `exportCoursePackage`, which gathers them).
+ */
+export function exportCourse(w: ModelWorkspace, courseId: Id, files: readonly CourseFile[] = []): Uint8Array {
   const c = w.courses.get(courseId)
   if (!c) throw new CoursePackageError(`No course ${courseId}`)
   const sourceRef = new Map<Id, string>()
@@ -156,12 +208,25 @@ export function exportCourse(w: ModelWorkspace, courseId: Id): Uint8Array {
         kind: s.kind,
         title: s.title,
         body: w.text({ id: s.id, field: 'body' }).toString(),
+        // Named even when not shipped: the file may already be on the importing device, or arrive by sync.
+        blob: sourceFileId(s.blobId),
+        caption: s.caption,
+        rotation: s.rotation,
+        width: s.width,
+        height: s.height,
       }
     }),
     fiches: [],
     cards: [],
+    media: files.map((f) => ({ id: f.id, mime: f.mime })),
   }
   const mapRef = (id: Id | undefined) => (id === undefined ? undefined : sourceRef.get(id))
+  // Attachments point at sources of the same course: refs exist once every source has one.
+  w.sources.list({ courseId }).forEach((s, i) => {
+    const target = mapRef(s.attachedTo)
+    const entry = pkg.sources[i]
+    if (target !== undefined && entry) entry.attachedRef = target
+  })
   pkg.fiches = w.fiches.list({ courseId }).map((f, i) => {
     ficheRef.set(f.id, `f${i}`)
     return {
@@ -188,13 +253,28 @@ export function exportCourse(w: ModelWorkspace, courseId: Id): Uint8Array {
     tags: k.tags,
     origin: k.origin,
   }))
-  return zipSync({ [ENTRY]: new TextEncoder().encode(JSON.stringify(pkg)) }, { mtime: new Date(Date.UTC(2000, 0, 1)) })
+  const entries: Zippable = { [ENTRY]: new TextEncoder().encode(JSON.stringify(pkg)) }
+  // Photos and PDFs are compressed already: stored as they are.
+  for (const f of files) entries[`${MEDIA_DIR}${f.id}`] = [f.bytes, { level: 0 }]
+  return zipSync(entries, { mtime: new Date(Date.UTC(2000, 0, 1)) })
+}
+
+function unzipPackage(bytes: Uint8Array): Unzipped {
+  try {
+    return unzipSync(bytes)
+  } catch (err) {
+    throw new CoursePackageError(`Not a ${COURSE_EXT} file: ${err instanceof Error ? err.message : String(err)}`)
+  }
 }
 
 export function readCoursePackage(bytes: Uint8Array): CoursePackage {
+  return parsePackage(unzipPackage(bytes))
+}
+
+function parsePackage(zip: Unzipped): CoursePackage {
   let json: unknown
   try {
-    const entry = unzipSync(bytes)[ENTRY]
+    const entry = zip[ENTRY]
     if (!entry) throw new Error(`missing ${ENTRY}`)
     json = JSON.parse(new TextDecoder().decode(entry))
   } catch (err) {
@@ -211,13 +291,34 @@ export function readCoursePackage(bytes: Uint8Array): CoursePackage {
   return parsed.data
 }
 
+/** The stored files a package ships (entries listed in its `media` and present in the zip). */
+export function readCourseFiles(bytes: Uint8Array): CourseFile[] {
+  const zip = unzipPackage(bytes)
+  const pkg = parsePackage(zip)
+  return pkg.media.flatMap((m) => {
+    const data = zip[`${MEDIA_DIR}${m.id}`]
+    return data ? [{ id: m.id, mime: m.mime, bytes: data }] : []
+  })
+}
+
 /**
  * Imports a package as a NEW course: every entity gets a fresh id, nothing existing is touched; subset
  * parent links are remapped to the new ids. A broken tree (cycle, unknown parent) is rejected up front.
+ * `stored` maps a shipped file id to the id it was stored under here (the same, content addressed, unless the
+ * package lied); a file the package does not ship keeps its id (it may be on this device, or arrive by sync).
  */
-export function importCourse(w: ModelWorkspace, bytes: Uint8Array): Id {
+export function importCourse(
+  w: ModelWorkspace,
+  bytes: Uint8Array,
+  stored: ReadonlyMap<string, string> = new Map(),
+): Id {
   const pkg = readCoursePackage(bytes)
   const order = checkTree(pkg)
+  const fileId = (id: string): string => stored.get(id) ?? id
+  const remap = (md: string): string =>
+    stored.size === 0
+      ? md
+      : md.replace(/cursus-blob:([0-9a-f]{64})/g, (_all, id: string) => `cursus-blob:${fileId(id)}`)
   // One all-or-nothing transaction; subsets parents first.
   return w.atomic(() => {
     const courseId = w.courses.create({
@@ -251,9 +352,28 @@ export function importCourse(w: ModelWorkspace, bytes: Uint8Array): Id {
     const sources = new Map<string, Id>()
     const fiches = new Map<string, Id>()
     for (const s of pkg.sources) {
-      const id = w.sources.create({ courseId, kind: s.kind, title: s.title, ...placed(s.sectionRef) })
+      const blobId = s.blob === undefined ? undefined : fileId(s.blob)
+      const rotation = s.rotation === 90 || s.rotation === 180 || s.rotation === 270 ? s.rotation : undefined
+      const id = w.sources.create({
+        courseId,
+        kind: s.kind,
+        title: s.title,
+        ...placed(s.sectionRef),
+        ...(blobId === undefined ? {} : { blobId }),
+        // A photo names its file as `cursus-blob:` so sync never sends it before the file.
+        ...(blobId !== undefined && s.kind === 'image' ? { photo: photoRef(blobId) } : {}),
+        caption: s.caption,
+        rotation,
+        width: s.width,
+        height: s.height,
+      })
       sources.set(s.ref, id)
-      if (s.body) w.text({ id, field: 'body' }).insert(0, s.body)
+      if (s.body) w.text({ id, field: 'body' }).insert(0, remap(s.body))
+    }
+    for (const s of pkg.sources) {
+      const target = s.attachedRef === undefined ? undefined : sources.get(s.attachedRef)
+      const id = sources.get(s.ref)
+      if (target !== undefined && id !== undefined && target !== id) w.sources.update(id, { attachedTo: target })
     }
     for (const f of pkg.fiches) {
       const id = w.fiches.create({
@@ -269,7 +389,7 @@ export function importCourse(w: ModelWorkspace, bytes: Uint8Array): Id {
         }),
       })
       fiches.set(f.ref, id)
-      if (f.body) w.text({ id, field: 'body' }).insert(0, f.body)
+      if (f.body) w.text({ id, field: 'body' }).insert(0, remap(f.body))
     }
     for (const c of pkg.cards) {
       const id = w.cards.create({
@@ -281,9 +401,48 @@ export function importCourse(w: ModelWorkspace, bytes: Uint8Array): Id {
         tags: c.tags,
         origin: c.origin,
       })
-      if (c.front) w.text({ id, field: 'front' }).insert(0, c.front)
-      if (c.back) w.text({ id, field: 'back' }).insert(0, c.back)
+      if (c.front) w.text({ id, field: 'front' }).insert(0, remap(c.front))
+      if (c.back) w.text({ id, field: 'back' }).insert(0, remap(c.back))
     }
     return courseId
   })
+}
+
+/** Reads a stored file of this device, fetching it from a destination if needed; null when out of reach. */
+export type FileLoader = (id: string) => Promise<Blob | null>
+
+/**
+ * A course package with its stored files. A file out of reach right now (kept on demand, offline) is left out
+ * and counted in `missing`: the package still imports, without that file.
+ */
+export async function exportCoursePackage(
+  w: ModelWorkspace,
+  courseId: Id,
+  load: FileLoader,
+): Promise<{ bytes: Uint8Array; missing: number }> {
+  if (!w.courses.get(courseId)) throw new CoursePackageError(`No course ${courseId}`)
+  const files: CourseFile[] = []
+  let missing = 0
+  for (const id of courseFileIds(w, courseId)) {
+    const blob = await load(id)
+    if (blob === null) missing++
+    else
+      files.push({ id, mime: blob.type || 'application/octet-stream', bytes: new Uint8Array(await blob.arrayBuffer()) })
+  }
+  return { bytes: exportCourse(w, courseId, files), missing }
+}
+
+/**
+ * Imports a package and its files: each file is stored durably FIRST, then the one transaction that refers to
+ * them creates the course (never a reference before its file).
+ */
+export async function importCoursePackage(
+  w: ModelWorkspace,
+  blobs: Pick<BlobStore, 'put'>,
+  bytes: Uint8Array,
+): Promise<Id> {
+  const files = readCourseFiles(bytes)
+  const stored = new Map<string, string>()
+  for (const f of files) stored.set(f.id, await blobs.put(f.bytes, f.mime))
+  return importCourse(w, bytes, stored)
 }

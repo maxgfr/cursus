@@ -2,22 +2,37 @@ import { ExternalLink, FolderInput, History, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useParams, useSearch } from 'wouter'
 import { to } from '../../app/routes.ts'
+import { useSync } from '../../app/syncContext.tsx'
 import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { SourceRecord } from '../../core/model/schema'
 import { useT } from '../../i18n/react.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
+import { leftNote } from '../../ui/data/autoQuestions.ts'
+import { ExplainSelection } from '../../ui/ExplainLauncher.tsx'
 import { MarkdownEditor } from '../../ui/editor/MarkdownEditor.tsx'
 import { MoveSheet, moveItemTo } from '../../ui/MoveSheet.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import NotFound from '../NotFound/index.tsx'
-import { loadBlob } from './importers.ts'
+import AttachedPhotos from '../Photos/Attached.tsx'
+import { loadFile } from '../Photos/files.ts'
+import { noteError } from '../settings/Diagnostic/recent.ts'
+import { DeckView } from './DeckView.tsx'
+import { Proposals } from './Proposals.tsx'
 import styles from './Source.module.css'
 
-type FileState = { phase: 'loading' } | { phase: 'missing' } | { phase: 'ready'; url: string; size: number }
+type FileState =
+  | { phase: 'loading' }
+  | { phase: 'fetching' }
+  | { phase: 'missing' }
+  | { phase: 'ready'; url: string; size: number }
 
-/** Object URL of a source's stored file, revoked when the screen leaves. */
+/**
+ * Object URL of a source's stored file, revoked when the screen leaves. A file not on this device yet (a photo
+ * kept "on demand", or not synced down yet) is downloaded from a destination when the source opens.
+ */
 function useSourceFile(blobId: string | undefined): FileState {
   const rt = useRuntime()
+  const { engine } = useSync()
   const [state, setState] = useState<FileState>({ phase: 'loading' })
   useEffect(() => {
     if (blobId === undefined) {
@@ -27,22 +42,29 @@ function useSourceFile(blobId: string | undefined): FileState {
     let live = true
     let url: string | null = null
     setState({ phase: 'loading' })
-    loadBlob(rt, blobId).then(
-      (blob) => {
-        if (!live) return
-        if (blob === null) return setState({ phase: 'missing' })
-        url = URL.createObjectURL(blob)
-        setState({ phase: 'ready', url, size: blob.size })
-      },
-      () => {
-        if (live) setState({ phase: 'missing' })
-      },
-    )
+    loadFile(rt, null, blobId)
+      .then((local) => {
+        if (local !== null || engine === null) return local
+        if (live) setState({ phase: 'fetching' })
+        return loadFile(rt, engine, blobId)
+      })
+      .then(
+        (blob) => {
+          if (!live) return
+          if (blob === null) return setState({ phase: 'missing' })
+          url = URL.createObjectURL(blob)
+          setState({ phase: 'ready', url, size: blob.size })
+        },
+        (e: unknown) => {
+          noteError('source.file', e)
+          if (live) setState({ phase: 'missing' })
+        },
+      )
     return () => {
       live = false
       if (url !== null) URL.revokeObjectURL(url)
     }
-  }, [rt, blobId])
+  }, [rt, engine, blobId])
   return state
 }
 
@@ -56,6 +78,12 @@ function Attachment({ source, page }: { source: SourceRecord; page: number | und
   const t = useT()
   const file = useSourceFile(source.blobId)
   if (file.phase === 'loading') return <p className={styles.note}>{t('common.loading')}</p>
+  if (file.phase === 'fetching')
+    return (
+      <p className={styles.note} role="status">
+        {source.kind === 'image' ? t('photos.downloading') : t('ai.sourceDownloading')}
+      </p>
+    )
   if (file.phase === 'missing') return <p className={styles.note}>{t('course.fileMissing')}</p>
   if (source.kind === 'image') {
     return <img className={styles.photo} src={file.url} alt={source.title} />
@@ -97,6 +125,8 @@ export default function Source() {
   }, [search])
   const [moving, setMoving] = useState(false)
   const [movedTo, setMovedTo] = useState<string | null>(null)
+  // A note written here for the first time gets its questions proposed when the student leaves it.
+  useEffect(() => () => leftNote(rt, id), [rt, id])
   const found = useWorkspaceData(['sources', 'sections'], (w) => {
     const s = w.sources.get(id)
     return s && s.deletedAt === undefined ? { source: s, sectionId: w.sections.tree().sectionOf(s) } : null
@@ -111,11 +141,18 @@ export default function Source() {
   return (
     <Screen title={source.title} back={home}>
       {source.kind !== 'note' && <Attachment source={source} page={page} />}
+      {/* Slides or a structured document: read unit by unit, cited as « slide 12 », « section 2.3 ». */}
+      {source.support !== undefined && <DeckView source={source} cited={page} />}
       <MarkdownEditor
         text={rt.ws.text({ id: source.id, field: 'body' })}
-        label={source.kind === 'note' ? t('common.sourceTitle') : t('course.sourceNotes')}
+        label={
+          source.kind === 'note' && source.support === undefined ? t('common.sourceTitle') : t('course.sourceNotes')
+        }
         placeholder={t('common.sourceEmpty')}
       />
+      <ExplainSelection courseId={source.courseId} sectionId={sectionId ?? undefined} />
+      {source.kind !== 'image' && <AttachedPhotos sourceId={source.id} />}
+      <Proposals sourceId={source.id} />
       <div className={styles.actions}>
         <Link href={to.history(source.id)} className={buttonClass({ variant: 'plain' })}>
           <History size={18} aria-hidden="true" />

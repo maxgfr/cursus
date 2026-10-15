@@ -1,35 +1,25 @@
 import type { Id } from '../../core/contracts/workspace'
-import { COURSE_EXT, exportCourse } from '../../core/export/coursePackage'
+import { COURSE_EXT, exportCoursePackage, type FileLoader } from '../../core/export/coursePackage'
 import { buildIcs } from '../../core/export/ics'
 import type { ModelWorkspace } from '../../core/model/workspace'
-
-/** Saves a file through a temporary link (works offline, no permissions). */
-export function download(name: string, blob: Blob): void {
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = name
-  a.rel = 'noopener'
-  document.body.append(a)
-  a.click()
-  a.remove()
-  setTimeout(() => URL.revokeObjectURL(url), 1_000)
-}
-
-function safeName(title: string): string {
-  return title.replace(/[\\/:*?"<>|]+/g, '').trim() || 'course'
-}
+import { icsPlans } from '../Sessions/calendar.ts'
+import { download, safeName } from './download.ts'
 
 /**
- * Shares one course as a `.cursus-course` file: the Web Share sheet where it accepts files,
- * otherwise a download. Resolves to 'shared', 'downloaded' or 'cancelled'.
+ * Shares one course as a `.cursus-course` file, with its photos and files (`load` reads them, fetching one kept on
+ * demand): the Web Share sheet where it accepts files, otherwise a download. Resolves to 'shared', 'downloaded' or
+ * 'cancelled'.
  */
-export async function shareCourse(ws: ModelWorkspace, courseId: Id): Promise<'shared' | 'downloaded' | 'cancelled'> {
+export async function shareCourse(
+  ws: ModelWorkspace,
+  courseId: Id,
+  load: FileLoader,
+): Promise<'shared' | 'downloaded' | 'cancelled'> {
   const course = ws.courses.get(courseId)
   if (!course) throw new Error(`No course ${courseId}`)
-  const bytes = new Uint8Array(exportCourse(ws, courseId))
-  const name = `${safeName(course.title)}${COURSE_EXT}`
-  const blob = new Blob([bytes], { type: 'application/zip' })
+  const { bytes } = await exportCoursePackage(ws, courseId, load)
+  const name = `${safeName(course.title, 'course')}${COURSE_EXT}`
+  const blob = new Blob([new Uint8Array(bytes)], { type: 'application/zip' })
   const file = new File([blob], name, { type: 'application/zip' })
   if (typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })) {
     try {
@@ -45,7 +35,7 @@ export async function shareCourse(ws: ModelWorkspace, courseId: Id): Promise<'sh
   return 'downloaded'
 }
 
-/** Daily reminder at 18:00 plus one all-day event per course exam. */
+/** Daily reminder at 18:00, one all-day event per course exam and one weekly event per planned session. */
 export function downloadCalendar(
   ws: ModelWorkspace,
   labels: { daily: string; examPrefix: string },
@@ -57,6 +47,7 @@ export function downloadCalendar(
     daily: { hour: 18, minute: 0, summary: labels.daily },
     exams,
     examPrefix: labels.examPrefix,
+    plans: icsPlans(ws.plans.list()),
   })
   download('cursus.ics', new Blob([ics], { type: 'text/calendar;charset=utf-8' }))
 }

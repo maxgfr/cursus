@@ -1,4 +1,4 @@
-import MiniSearch from 'minisearch'
+import type MiniSearch from 'minisearch'
 import * as Y from 'yjs'
 import type { Id } from '../contracts/workspace'
 import { type EntityCollection, ROOT, TEXT_FIELDS, textKey } from './schema'
@@ -36,14 +36,15 @@ export function fold(s: string): string {
     .toLowerCase()
 }
 
-/** Full-text index kept current on every transaction. Reads only; never writes. */
+/**
+ * Full-text index kept current on every transaction. Reads only; never writes. Built on the first search,
+ * not at launch: indexing a large library would delay the first screen, and the engine (minisearch) is
+ * loaded then too, so it is no part of the first screen's code.
+ */
 export class SearchIndex {
-  private readonly ms = new MiniSearch<Doc>({
-    fields: ['title', 'text', 'path'],
-    storeFields: ['kind', 'courseId', 'sections', 'path'],
-    processTerm: (t) => fold(t),
-    searchOptions: { prefix: true, fuzzy: 0.2, boost: { title: 2, path: 0.5 }, processTerm: (t) => fold(t) },
-  })
+  /** The index, once the first search has loaded the engine and built it. */
+  private ms: MiniSearch<Doc> | null = null
+  private loading: Promise<MiniSearch<Doc>> | null = null
   private readonly texts: Y.Map<Y.Text>
   private readonly sectionRoot: Y.Map<Y.Map<unknown>>
   private readonly roots: Map<EntityCollection, Y.Map<Y.Map<unknown>>>
@@ -56,8 +57,30 @@ export class SearchIndex {
     this.texts = doc.getMap(ROOT.texts)
     this.sectionRoot = doc.getMap(ROOT.sections)
     this.roots = new Map(KINDS.map((k) => [k, doc.getMap<Y.Map<unknown>>(ROOT[k])]))
-    for (const kind of KINDS) for (const id of this.root(kind).keys()) this.reindex(kind, id)
     doc.on('afterTransaction', this.onTx)
+  }
+
+  /** Loads the engine and builds the index from the doc as it is then (once; again after a failed load). */
+  private build(): Promise<MiniSearch<Doc>> {
+    this.loading ??= import('minisearch').then(
+      ({ default: Engine }) => {
+        const ms = new Engine<Doc>({
+          fields: ['title', 'text', 'path'],
+          storeFields: ['kind', 'courseId', 'sections', 'path'],
+          processTerm: (t) => fold(t),
+          searchOptions: { prefix: true, fuzzy: 0.2, boost: { title: 2, path: 0.5 }, processTerm: (t) => fold(t) },
+        })
+        for (const kind of KINDS) for (const id of this.root(kind).keys()) this.reindex(ms, kind, id)
+        this.ms = ms
+        return ms
+      },
+      (e: unknown) => {
+        // A chunk that failed to load (offline before it was cached) is fetched again by the next search.
+        this.loading = null
+        throw e
+      },
+    )
+    return this.loading
   }
 
   dispose(): void {
@@ -71,6 +94,9 @@ export class SearchIndex {
   }
 
   private readonly onTx = (tr: Y.Transaction): void => {
+    // Before the first search there is no index to keep current: it is built from the doc as it is then.
+    const ms = this.ms
+    if (!ms) return
     const dirty = new Map<Id, EntityCollection>()
     for (const type of tr.changedParentTypes.keys()) {
       // A section renamed, moved or trashed changes the path and visibility of everything filed below it.
@@ -81,7 +107,7 @@ export class SearchIndex {
       for (const kind of KINDS) {
         const root = this.root(kind)
         if (Object.is(type, root)) {
-          for (const id of root.keys()) if (this.shouldCheck(id, kind)) dirty.set(id, kind)
+          for (const id of root.keys()) if (this.shouldCheck(ms, id, kind)) dirty.set(id, kind)
         } else if (type.parent === root && type instanceof Y.Map) {
           dirty.set(String(type.get('id')), kind)
         }
@@ -94,17 +120,17 @@ export class SearchIndex {
         }
       }
     }
-    for (const [id, kind] of dirty) this.reindex(kind, id)
+    for (const [id, kind] of dirty) this.reindex(ms, kind, id)
   }
 
-  private shouldCheck(id: Id, kind: EntityCollection): boolean {
-    return !this.ms.has(id) || this.root(kind).get(id) === undefined
+  private shouldCheck(ms: MiniSearch<Doc>, id: Id, kind: EntityCollection): boolean {
+    return !ms.has(id) || this.root(kind).get(id) === undefined
   }
 
-  private reindex(kind: EntityCollection, id: Id): void {
+  private reindex(ms: MiniSearch<Doc>, kind: EntityCollection, id: Id): void {
     const m = this.root(kind).get(id)
     const live = m && m.get('deletedAt') === undefined && m.get('purgedAt') === undefined
-    if (this.ms.has(id)) this.ms.discard(id)
+    if (ms.has(id)) ms.discard(id)
     if (!m || !live) return
     const title = m.get('title')
     const rawCourse = kind === 'courses' ? id : m.get('courseId')
@@ -114,7 +140,7 @@ export class SearchIndex {
     const tree = place.sectionId === undefined ? null : this.tree()
     if (tree?.itemHidden(place)) return
     const text = TEXT_FIELDS[kind].map((f) => this.texts.get(textKey(id, f))?.toString() ?? '').join('\n')
-    this.ms.add({
+    ms.add({
       id,
       kind,
       title: typeof title === 'string' ? title : '',
@@ -125,10 +151,11 @@ export class SearchIndex {
     })
   }
 
-  /** `sectionId` keeps hits filed in that section or below it. */
-  search(q: string, f?: { kind?: EntityCollection; courseId?: Id; sectionId?: Id }): SearchHit[] {
+  /** `sectionId` keeps hits filed in that section or below it. The first search loads the engine. */
+  async search(q: string, f?: { kind?: EntityCollection; courseId?: Id; sectionId?: Id }): Promise<SearchHit[]> {
     if (!q.trim()) return []
-    return this.ms
+    const ms = await this.build()
+    return ms
       .search(q, {
         filter: (r) =>
           (f?.kind === undefined || r.kind === f.kind) &&

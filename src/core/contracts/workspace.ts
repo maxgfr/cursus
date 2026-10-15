@@ -62,6 +62,10 @@ export interface NewReview {
   rating: Rating
   at: number
   ms: number
+  /** The session the review was given in (absent on reviews recorded before sessions existed). */
+  sid?: Id
+  /** Practice (cram): counted in the statistics, kept out of the FSRS schedule. */
+  p?: true
 }
 export type Review = (NewReview & { id: Id; dev: string }) | { id: Id; voids: Id }
 export interface Prefs {
@@ -70,7 +74,60 @@ export interface Prefs {
   dailyNewCards: number
   desiredRetention: number
 }
-export type Scope = 'courses' | 'sections' | 'sources' | 'fiches' | 'cards' | 'reviews' | 'prefs' | { id: Id }
+export type Scope =
+  | 'courses'
+  | 'sections'
+  | 'sources'
+  | 'fiches'
+  | 'cards'
+  | 'reviews'
+  | 'prefs'
+  | 'sessions'
+  | 'plans'
+  | 'drafts'
+  | { id: Id }
+
+/**
+ * What a study session asks for: today's due cards, cards due in the next days, cards failed lately, new cards, or
+ * every card of the scope (lowest estimated retention first).
+ */
+export type SessionKind = 'due' | 'ahead' | 'failed' | 'new' | 'all'
+/** A course, one of its subsets (descendants included), or every course when empty. */
+export interface SessionScope {
+  courseId?: Id
+  sectionId?: Id
+}
+export interface NewSession {
+  scope: SessionScope
+  kind: SessionKind
+  limit?: number
+  /** True: its reviews are practice (`p`), kept out of the schedule. False: they count like any review. */
+  practice: boolean
+  /** The planned session it was started from. */
+  planId?: Id
+  /** Only these cards (relaunching a session's failed cards). */
+  cardIds?: Id[]
+}
+export interface Session extends NewSession {
+  id: Id
+  startedAt: number
+  endedAt?: number
+}
+/** ISO weekday: 1 = Monday … 7 = Sunday. */
+export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7
+/** A named, recurring session: on these weekdays at this local time. */
+export interface PlanInput {
+  name: string
+  courseId?: Id
+  sectionId?: Id
+  kind: SessionKind
+  limit?: number
+  weekdays: Weekday[]
+  /** Local wall-clock time, `HH:MM`. */
+  time: string
+  practice: boolean
+}
+export interface Plan extends EntityMeta, PlanInput {}
 
 export interface Repo<T, In> {
   list(f?: { courseId?: Id; trashed?: boolean }): readonly T[]

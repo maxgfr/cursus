@@ -116,7 +116,8 @@ export async function device(
   const store = o.store ?? memoryStore()
   const locks = o.locks ?? memoryLocks()
   const rng = seededRng(seed, clock)
-  const log = createLocalLog({ store, locks, clock, rng, onClone: (a, b) => o.clones?.push([a, b]) })
+  // A codec given (an earlier build's, say) serves the local log as well as the engine.
+  const log = createLocalLog({ store, locks, clock, rng, codec: o.codec, onClone: (a, b) => o.clones?.push([a, b]) })
   const blobs = blobStore(store)
   const doc = new Y.Doc()
   doc.clientID = rng.u32() // fresh per session, never persisted

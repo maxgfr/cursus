@@ -2,14 +2,13 @@ import { CircleCheck, HardDrive, Smartphone, Sparkles, TriangleAlert } from 'luc
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation } from 'wouter'
 import { paths, to } from '../../app/routes.ts'
-import { useWorkspace } from '../../app/workspaceContext.tsx'
+import { useRuntime } from '../../app/workspaceContext.tsx'
 import { estimate, persisted, requestPersistence } from '../../core/storage/persist'
-import { formatPercent } from '../../i18n/format.ts'
-import { intlTag } from '../../i18n/index.ts'
+import { formatBytes, formatPercent } from '../../i18n/format.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
-import { createDemoCourse } from './demo.ts'
+import { noteError } from '../settings/Diagnostic/recent.ts'
 import styles from './Onboarding.module.css'
 
 interface InstallState {
@@ -47,28 +46,31 @@ function useStorageHealth(): [Health | null, () => Promise<void>] {
   return [health, ask]
 }
 
-function bytes(locale: ReturnType<typeof useLocale>, n: number): string {
-  const mb = n / 1_000_000
-  const unit = mb >= 1000 ? 'gigabyte' : 'megabyte'
-  const value = unit === 'gigabyte' ? mb / 1000 : mb
-  return new Intl.NumberFormat(intlTag(locale), {
-    style: 'unit',
-    unit,
-    unitDisplay: 'short',
-    maximumFractionDigits: value < 10 ? 1 : 0,
-  }).format(value)
-}
-
 export default function Onboarding() {
   const t = useT()
   const locale = useLocale()
-  const ws = useWorkspace()
+  const rt = useRuntime()
   const [, navigate] = useLocation()
   const [install] = useState(installState)
   const [health, askPersist] = useStorageHealth()
   const [asking, setAsking] = useState(false)
 
-  const demo = () => navigate(to.course(createDemoCourse(ws, t)))
+  const [demoState, setDemoState] = useState<'idle' | 'creating' | 'failed'>('idle')
+
+  // The demo course and the code that makes it load only now: they never weigh on the first paint.
+  const demo = () => {
+    if (demoState === 'creating') return
+    setDemoState('creating')
+    import('./demo.ts')
+      .then(({ createDemoCourse }) => createDemoCourse(rt, t, locale === 'pseudo' ? undefined : locale))
+      .then(
+        (id) => navigate(to.course(id)),
+        (e: unknown) => {
+          noteError('onboarding.demo', e)
+          setDemoState('failed')
+        },
+      )
+  }
 
   return (
     <Screen title={t('common.welcomeTitle')}>
@@ -125,8 +127,8 @@ export default function Onboarding() {
                   {health.usage === null
                     ? t('today.storageUnknown')
                     : t('today.storageUsage', {
-                        used: bytes(locale, health.usage.usage),
-                        quota: bytes(locale, health.usage.quota),
+                        used: formatBytes(locale, health.usage.usage),
+                        quota: formatBytes(locale, health.usage.quota),
                         percent: formatPercent(
                           locale,
                           health.usage.quota > 0 ? health.usage.usage / health.usage.quota : 0,
@@ -165,8 +167,16 @@ export default function Onboarding() {
           </h2>
           <p className={styles.body}>{t('today.demoBody')}</p>
           <div>
-            <Button onClick={demo}>{t('today.demoAction')}</Button>
+            <Button loading={demoState === 'creating'} onClick={demo}>
+              {t('today.demoAction')}
+            </Button>
           </div>
+          {demoState === 'failed' && (
+            <div className={styles.warning} role="alert">
+              <TriangleAlert size={18} aria-hidden="true" />
+              <p>{t('today.demoFailed')}</p>
+            </div>
+          )}
         </div>
       </section>
 

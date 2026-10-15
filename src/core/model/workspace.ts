@@ -1,6 +1,7 @@
 import * as Y from 'yjs'
 import type { Clock, Rng } from '../contracts/ports'
 import type { Id, ItemKind, Prefs, Scope, StudyScope, Workspace } from '../contracts/workspace'
+import { DraftRepo } from './drafts'
 import { EntityNotFoundError, EntityRepo } from './repos'
 import { AiUsageLog, ReviewLog } from './reviews'
 import {
@@ -21,6 +22,7 @@ import {
 } from './schema'
 import { SearchIndex } from './search'
 import { SectionRepo } from './sections'
+import { PlanRepo, SessionLog } from './sessionLog'
 
 interface Observable {
   observeDeep(f: () => void): void
@@ -53,6 +55,12 @@ export interface ModelWorkspace extends Workspace {
   atomic<T>(fn: () => T): T
   reviews: ReviewLog
   aiUsage: AiUsageLog
+  /** Study sessions: a log of start and end events. Their reviews carry the session id (`sid`). */
+  sessions: SessionLog
+  /** Planned, recurring sessions. */
+  plans: PlanRepo
+  /** Proposed questions awaiting review, and the « questions proposées automatiquement » settings. */
+  drafts: DraftRepo
   search: SearchIndex
   dispose(): void
 }
@@ -93,6 +101,16 @@ export function createWorkspace(doc: Y.Doc, deps: WorkspaceDeps): ModelWorkspace
   cardRepo.hideWhen((e) => sections.tree().itemHidden(e))
   const reviews = new ReviewLog(doc, deps.rng, deps.deviceId)
   const aiUsage = new AiUsageLog(doc, deps.rng, deps.clock, deps.deviceId)
+  const sessions = new SessionLog(doc, deps.rng, deps.clock, deps.deviceId)
+  const plans = new PlanRepo(rd)
+  const drafts = new DraftRepo(rd, {
+    courses,
+    sources,
+    sections,
+    cards: cardRepo,
+    text: (ref) => text(ref),
+    atomic: (fn) => api.atomic(fn),
+  })
   const prefsMap = doc.getMap<unknown>(ROOT.prefs)
   const texts = doc.getMap<Y.Text>(ROOT.texts)
   const search = new SearchIndex(doc, () => sections.tree())
@@ -102,6 +120,8 @@ export function createWorkspace(doc: Y.Doc, deps: WorkspaceDeps): ModelWorkspace
     sources,
     fiches,
     cards: cardRepo,
+    plans,
+    drafts,
   }
 
   function text(ref: { id: Id; field: TextField }): Y.Text {
@@ -114,10 +134,18 @@ export function createWorkspace(doc: Y.Doc, deps: WorkspaceDeps): ModelWorkspace
   function subscribe(scope: Scope, fn: () => void): () => void {
     const handler = () => fn()
     if (typeof scope === 'string') {
-      const target: Observable =
-        scope === 'reviews' ? reviews.yArray : scope === 'prefs' ? prefsMap : repos[scope].yRoot
-      target.observeDeep(handler)
-      return () => target.unobserveDeep(handler)
+      const targets: readonly Observable[] =
+        scope === 'reviews'
+          ? reviews.yRoots
+          : scope === 'sessions'
+            ? [sessions.yArray]
+            : scope === 'prefs'
+              ? [prefsMap]
+              : [repos[scope].yRoot]
+      for (const t of targets) t.observeDeep(handler)
+      return () => {
+        for (const t of targets) t.unobserveDeep(handler)
+      }
     }
     const targets: Observable[] = []
     for (const repo of Object.values(repos)) {
@@ -165,7 +193,7 @@ export function createWorkspace(doc: Y.Doc, deps: WorkspaceDeps): ModelWorkspace
     return out
   }
 
-  return {
+  const api: ModelWorkspace = {
     doc,
     courses,
     sources,
@@ -177,6 +205,9 @@ export function createWorkspace(doc: Y.Doc, deps: WorkspaceDeps): ModelWorkspace
     exams,
     reviews,
     aiUsage,
+    sessions,
+    plans,
+    drafts,
     search,
     prefs: {
       get<K extends keyof Prefs>(k: K): Prefs[K] {
@@ -199,7 +230,8 @@ export function createWorkspace(doc: Y.Doc, deps: WorkspaceDeps): ModelWorkspace
     atomic<T>(fn: () => T): T {
       if (doc._transaction !== null) return fn()
       const origin = { atomic: true }
-      const um = new Y.UndoManager([...Object.values(repos).map((r) => r.yRoot), texts, reviews.yArray, prefsMap], {
+      const roots = [...Object.values(repos).map((r) => r.yRoot), texts, ...reviews.yRoots, sessions.yArray, prefsMap]
+      const um = new Y.UndoManager(roots, {
         trackedOrigins: new Set([origin]),
         captureTimeout: 0,
       })
@@ -227,4 +259,5 @@ export function createWorkspace(doc: Y.Doc, deps: WorkspaceDeps): ModelWorkspace
       search.dispose()
     },
   }
+  return api
 }

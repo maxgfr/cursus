@@ -14,7 +14,7 @@ import {
 } from '../../core/srs/fsrs'
 import { nearestExam } from '../../core/srs/planner'
 import { buildQueue } from '../../core/srs/queue'
-import { idbStore } from '../../core/storage/idbStore'
+import { REPLAYS_KEY } from '../../core/srs/savedReplays'
 import { type CourseHue, courseHue } from '../components/Badges.tsx'
 
 export interface CourseStudy {
@@ -62,28 +62,14 @@ export function examCourse(ws: ModelWorkspace, now: number): { id: Id; days: num
 }
 
 // ---- Replays kept between launches ----
-// Replaying 200,000 reviews is most of a cold launch. The scheduler's replay cache is kept in this
-// device's kv and seeds the next launch; each entry is used only when its fingerprint still matches.
-const REPLAYS_KEY = 'srs.replays'
-
-let stored: ReplaySnapshot | null = null
-// Read as soon as the app loads, alongside the workspace itself.
-if (typeof indexedDB !== 'undefined') {
-  const early = idbStore()
-  early
-    .read(['kv'], (tx) => tx.get<ReplaySnapshot>('kv', REPLAYS_KEY))
-    .then((s) => {
-      stored = s ?? null
-    })
-    .catch((e: unknown) => console.error('saved replays unavailable', e))
-    .finally(() => early.close())
-}
+// The replica reads the replays an earlier launch saved before it is ready (see loadReplica): the first
+// computation starts from them instead of racing their read and replaying the whole history.
 
 const seeded = new WeakSet<Scheduler>()
-function seedOnce(scheduler: Scheduler): void {
-  if (stored === null || seeded.has(scheduler)) return
+function seedOnce(scheduler: Scheduler, saved: ReplaySnapshot | null): void {
+  if (saved === null || seeded.has(scheduler)) return
   seeded.add(scheduler)
-  scheduler.restore(stored)
+  scheduler.restore(saved)
 }
 
 let saveStore: LocalStore | null = null
@@ -117,13 +103,14 @@ function median(values: number[]): number | null {
   return s.length % 2 ? (s[mid] ?? null) : ((s[mid - 1] ?? 0) + (s[mid] ?? 0)) / 2
 }
 
-export function computeStudy(ws: ModelWorkspace, now: number): StudySummary {
+/** Today's summary; `saved` (the replays an earlier launch saved) seeds the scheduler before anything replays. */
+export function computeStudy(ws: ModelWorkspace, now: number, saved: ReplaySnapshot | null = null): StudySummary {
   const tz = localOffset(now)
   const courses = ws.courses.list()
   const live = new Set(courses.map((c) => c.id))
   const cards = ws.cards.list().filter((c) => live.has(c.courseId) && !c.suspended)
   const scheduler = createScheduler({ desiredRetention: ws.prefs.get('desiredRetention') })
-  seedOnce(scheduler)
+  seedOnce(scheduler, saved)
   saveScheduler = scheduler
   const states = new Map<Id, CardState>()
   const times: number[] = []
@@ -207,7 +194,7 @@ const shared = new WeakMap<ModelWorkspace, Shared>()
  * One computation serves every component on screen (shell, Today, course rows): replaying a large history
  * is the costly part of a launch. Recomputed when the data changes, and at least once a minute.
  */
-function sharedStudy(ws: ModelWorkspace, now: number): StudySummary {
+function sharedStudy(ws: ModelWorkspace, now: number, saved: ReplaySnapshot | null): StudySummary {
   let entry = shared.get(ws)
   if (!entry) {
     const created: Shared = { version: 0 }
@@ -221,7 +208,7 @@ function sharedStudy(ws: ModelWorkspace, now: number): StudySummary {
   const minute = Math.floor(now / 60_000)
   const last = entry.last
   if (last && last.version === entry.version && last.minute === minute) return last.value
-  const value = computeStudy(ws, now)
+  const value = computeStudy(ws, now, saved)
   scheduleSave()
   entry.last = { version: entry.version, minute, value }
   return value
@@ -229,12 +216,13 @@ function sharedStudy(ws: ModelWorkspace, now: number): StudySummary {
 
 /** Today's study summary, recomputed whenever courses, sections, cards, reviews or prefs change. */
 export function useStudy(): StudySummary {
-  saveStore = useRuntime().store
+  const rt = useRuntime()
+  saveStore = rt.store
   const ws = useWorkspace()
   // Re-renders on a new minute and when the data changes; the summary is shared and cached per minute.
   useMinute()
   useWorkspaceData(SCOPES, () => ({}))
-  return sharedStudy(ws, Date.now())
+  return sharedStudy(ws, Date.now(), rt.replays)
 }
 
 /**

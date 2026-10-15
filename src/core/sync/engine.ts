@@ -84,6 +84,11 @@ export interface SyncEngineOptions {
   awaitingMs?: number
   /** Captured edits the local log has not acknowledged yet (`Capture.unsaved()` of every doc). */
   unsaved?: () => number
+  /**
+   * Files of this type stay on the destinations until opened (`fetchBlob`): their manifest is downloaded (the
+   * file stays listed), their chunks are not. Nothing is ever removed anywhere because of it.
+   */
+  onDemand?: (mime: string) => boolean | Promise<boolean>
 }
 
 export interface RoundResult {
@@ -106,6 +111,8 @@ export interface SyncEngineImpl extends SyncEngine {
   /** Builds a checkpoint now if any applied segment is uncovered. */
   checkpoint(): Promise<Key | null>
   workspaceId(): Promise<string | null>
+  /** Brings a file (manifest, then chunks) to this device from any destination; false if none has it whole. */
+  fetchBlob(id: string): Promise<boolean>
 }
 
 /** Persisted per destination in the `dests` store. */
@@ -219,6 +226,8 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
   const headers = new Map<Key, Header>()
   /** Chunk keys of each manifest (immutable). */
   const manifests = new Map<Key, Key[]>()
+  /** Type of each manifest's file (immutable), cached alongside its chunks. */
+  const mimes = new Map<Key, string>()
   /** Bodies already read this round (proving plaintext): the download uses them instead of a second GET. */
   const prefetched = new WeakMap<Entry, Uint8Array>()
   let cached: EngineStatus = computeStatus({
@@ -283,9 +292,31 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
     if (known) return known
     const bytes = await blobs.read(bman)
     if (!bytes) return null
-    const keys = [...new Set(parseManifest(bytes).chunks)].map(blobKey)
+    const parsed = parseManifest(bytes)
+    const keys = [...new Set(parsed.chunks)].map(blobKey)
     manifests.set(bman, keys)
+    mimes.set(bman, parsed.mime)
     return keys
+  }
+
+  /**
+   * Chunks this device leaves on the destinations until their file is opened: those of local manifests whose type
+   * is kept on demand, minus any chunk another (wanted) file shares.
+   */
+  const onDemandChunks = async (bmans: Iterable<Key>): Promise<Set<Key>> => {
+    const later = new Set<Key>()
+    const onDemand = o.onDemand
+    if (!onDemand) return later
+    const wanted = new Set<Key>()
+    for (const bm of bmans) {
+      const keys = await chunksOf(bm)
+      const mime = mimes.get(bm)
+      if (!keys || mime === undefined) continue
+      const target = (await onDemand(mime)) ? later : wanted
+      for (const k of keys) target.add(k)
+    }
+    for (const k of wanted) later.delete(k)
+    return later
   }
 
   /** Local plaintext of a data key. */
@@ -542,7 +573,7 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
     sealed: boolean,
     listing: Listing,
     signal: AbortSignal | undefined,
-  ): Promise<{ down: number; deferred: number; noKey: boolean }> => {
+  ): Promise<{ down: number; deferred: number; noKey: boolean; later: Set<Key> }> => {
     let inv = await inventory()
     const freshDevice = inv.log.size === 0
     const rank = (k: Key): number => {
@@ -564,7 +595,11 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
       else if (r !== 'absent') deferred++
       if (r === 'no-key') noKey = true
     }
-    for (const key of missing) await take(key, listing.entries.get(key) ?? [])
+    const isChunk = (k: Key): boolean => parseKey(k)?.kind === 'blob'
+    for (const key of missing.filter((k) => !isChunk(k))) await take(key, listing.entries.get(key) ?? [])
+    // Manifests are in by now: chunks of files kept on demand wait until the file is opened.
+    let later = await onDemandChunks((await inventory()).bmans)
+    for (const key of missing.filter(isChunk)) if (!later.has(key)) await take(key, listing.entries.get(key) ?? [])
     // Closure of files: what local segments reference must be local too. A full listing already
     // showed everything this destination has; an incremental one fetches by key.
     inv = await inventory()
@@ -572,12 +607,13 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
     for (const k of inv.log) for (const id of (await headerOf(k))?.blobRefs ?? []) wantedBmans.add(bmanKey(id))
     for (const k of wantedBmans) if (!inv.bmans.has(k) && !listing.full && !listing.entries.has(k)) await take(k, [])
     inv = await inventory()
+    later = await onDemandChunks(inv.bmans)
     for (const bm of inv.bmans) {
       for (const c of (await chunksOf(bm)) ?? []) {
-        if (!inv.chunks.has(c) && !listing.full && !listing.entries.has(c)) await take(c, [])
+        if (!inv.chunks.has(c) && !later.has(c) && !listing.full && !listing.entries.has(c)) await take(c, [])
       }
     }
-    return { down, deferred, noKey }
+    return { down, deferred, noKey, later }
   }
 
   /** Still to send: not confirmed, and not sent less than 10 min ago (unless verifying: it is not there). */
@@ -686,8 +722,13 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
       }
     }
     inv = await inventory()
+    // A file kept on demand whose manifest this destination already holds needs nothing from elsewhere here.
+    const later = await onDemandChunks(inv.bmans)
     for (const bm of inv.bmans) {
-      for (const c of (await chunksOf(bm)) ?? []) if (!inv.chunks.has(c)) await fetchElsewhere(d.rt.id, c)
+      const here = m.confirmed[bm] !== undefined
+      for (const c of (await chunksOf(bm)) ?? []) {
+        if (!inv.chunks.has(c) && !(here && later.has(c))) await fetchElsewhere(d.rt.id, c)
+      }
     }
     inv = await inventory()
     const chunks = [...inv.chunks].filter(want).sort()
@@ -819,7 +860,7 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
     const inv = await inventory()
     // A key that could not be downloaded here but is local now (fetched elsewhere) is no longer a problem.
     for (const k of Object.keys(m.failures)) if (has(inv, k)) delete m.failures[k]
-    d.rt.incoming = [...listing.entries.keys()].filter((k) => isData(k) && !has(inv, k)).length
+    d.rt.incoming = [...listing.entries.keys()].filter((k) => isData(k) && !has(inv, k) && !dl.later.has(k)).length
     d.rt.corrupt = Object.values(m.failures).filter((n) => n >= maxFailures).length
     d.rt.state = dl.noKey ? 'needs-passphrase' : 'ok'
     if (d.rt.corrupt > 0) d.rt.reason = 'corrupt'
@@ -1082,6 +1123,20 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
     },
     async workspaceId() {
       return (await store.read(['kv'], (tx) => tx.get<string>('kv', 'workspaceId'))) ?? null
+    },
+    async fetchBlob(id) {
+      const bm = bmanKey(id)
+      if ((await blobs.read(bm)) === null && !(await fetchElsewhere('', bm))) return false
+      const chunks = await chunksOf(bm)
+      if (chunks === null) return false
+      let fetched = false
+      for (const c of chunks) {
+        if ((await blobs.read(c)) !== null) continue
+        if (!(await fetchElsewhere('', c))) return false
+        fetched = true
+      }
+      if (fetched) await refresh()
+      return true
     },
   }
 

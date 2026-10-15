@@ -4,6 +4,7 @@ import {
   defaultRoute,
   findEntry,
   findModel,
+  findProvider,
   isCurrentCatalog,
   loadBundledCatalog,
   MODELS_DEV_URL,
@@ -32,6 +33,7 @@ import {
   type ProviderLike,
 } from './catalogTrim'
 import { migrateConfig } from './config'
+import { LOCAL_PROVIDER, LOCAL_PROVIDER_INFO } from './local'
 
 const AT = '2026-10-14T00:00:00.000Z'
 const ok: BrowserCheck = { verdict: 'callable', evidence: 'preflight', checkedAt: AT }
@@ -171,6 +173,14 @@ describe('routes', () => {
     const m = findModel(build(), 'openrouter', 'anthropic/claude-haiku-5.5')
     expect(m).toMatchObject({ id: 'anthropic/claude-haiku-5.5', provider: 'openrouter', name: 'Claude Haiku 5.5' })
     expect(m?.cost).toEqual({ input: 0.12, output: 0.6 })
+  })
+
+  test('findProvider knows the on-device provider, which no catalog lists', () => {
+    const c = build()
+    expect(c.providers.some((p) => p.id === LOCAL_PROVIDER)).toBe(false)
+    expect(findProvider(c, LOCAL_PROVIDER)).toEqual(LOCAL_PROVIDER_INFO)
+    expect(findProvider(c, 'anthropic')?.id).toBe('anthropic')
+    expect(findProvider(c, 'nobody')).toBeUndefined()
   })
 
   test('recommended model: the provider’s own, structured, newest', () => {

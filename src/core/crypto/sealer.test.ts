@@ -309,9 +309,9 @@ describe('sealed destinations end to end', () => {
     expect(keys.filter((k) => k.startsWith('seg/'))).toEqual([])
     // a future segment the build cannot read is copied as is
     const { MAGIC, keyFor } = await import('../log/codec')
-    const v2 = new Uint8Array([...MAGIC, 2, 0])
-    const future = keyFor({ v: 1, kind: 'seg', deviceId: 'future', seq: 0, createdAt: 0, blobRefs: [] }, v2)
-    await old.put(future, v2)
+    const v3 = new Uint8Array([...MAGIC, 3, 0])
+    const future = keyFor({ v: 1, kind: 'seg', deviceId: 'future', seq: 0, createdAt: 0, blobRefs: [] }, v3)
+    await old.put(future, v3)
     const t2 = memoryRemote({ bucket: w.bucket, prefix: 'new2' })
     const r2 = await sealDestination({
       source: old,

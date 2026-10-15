@@ -1,6 +1,8 @@
 import {
+  default_w,
   type FSRS,
   type Card as FsrsCard,
+  forgetting_curve,
   fsrs,
   GenSeedStrategyWithCardId,
   type Grade,
@@ -71,6 +73,14 @@ const STATES: Record<Phase, State> = {
 
 const isGraded = (r: Review): r is GradedReview => !('voids' in r)
 
+/** A practice (cram) review: it counts in the statistics but never in the FSRS schedule. */
+export const isPractice = (r: Review): boolean => 'p' in r && r.p === true
+
+/** Effective reviews that drive the schedule: practice reviews left out. */
+export function scheduledReviews(events: readonly Review[]): GradedReview[] {
+  return effectiveReviews(events).filter((r) => r.p !== true)
+}
+
 /** Orders by (at, id), the replay order shared by every device. */
 export function compareReviews(a: { at: number; id: Id }, b: { at: number; id: Id }): number {
   if (a.at !== b.at) return a.at - b.at
@@ -105,10 +115,10 @@ export function effectiveReviews(events: readonly Review[]): GradedReview[] {
   })
 }
 
-/** Groups effective reviews per card (already sorted and clamped). */
-export function reviewsByCard(events: readonly Review[]): Map<Id, GradedReview[]> {
+/** Groups effective reviews per card (already sorted and clamped); `scheduled` leaves practice reviews out. */
+export function reviewsByCard(events: readonly Review[], o: { scheduled?: boolean } = {}): Map<Id, GradedReview[]> {
   const out = new Map<Id, GradedReview[]>()
-  for (const r of effectiveReviews(events)) {
+  for (const r of o.scheduled === true ? scheduledReviews(events) : effectiveReviews(events)) {
     const list = out.get(r.cardId)
     if (list) list.push(r)
     else out.set(r.cardId, [r])
@@ -165,9 +175,12 @@ function toFsrsCard(s: CardState): FsrsCard & { cardId: Id } {
 
 export interface Scheduler {
   readonly params: SrsParams
-  /** Replays a card's reviews (any order, voids included) into its current state. Cached by (cardId, count, reviews). */
+  /**
+   * Replays a card's reviews (any order, voids included) into its current state. Practice reviews are left out
+   * before anything else, so they never reach the cache fingerprint. Cached by (cardId, count, reviews).
+   */
   replay(cardId: Id, events: readonly Review[]): CardState
-  /** Replays every card present in the log. */
+  /** Replays every card with at least one scheduled (non-practice) review in the log. */
   replayAll(events: readonly Review[]): Map<Id, CardState>
   /** Next due time for each rating if the card were reviewed at `now`. */
   previewIntervals(state: CardState, now: number): Record<Rating, number>
@@ -280,16 +293,26 @@ export function createScheduler(params: Partial<SrsParams> = {}): Scheduler {
     let card: FsrsCard & { cardId: Id } = newCardFsrs(cardId, reviews[0] as GradedReview)
     let steps: ReplayStep[] = []
     if (hit && hit.count <= reviews.length) {
-      for (let i = 0; i < hit.count; i++) hash = step(hash, reviews[i] as GradedReview)
+      const cached = hit.state.history
+      // The hash covers times and ratings only: an earlier review replaced by another with the same time and
+      // rating (one voided, another merged) keeps the schedule but not the history, which names each review.
+      let renamed = false
+      for (let i = 0; i < hit.count; i++) {
+        const r = reviews[i] as GradedReview
+        hash = step(hash, r)
+        if ((cached[i] as ReplayStep).reviewId !== r.id) renamed = true
+      }
       const at = reviews[hit.count - 1] as GradedReview
       if (hash === hit.hash && at.id === hit.lastId && at.at === hit.lastAt) {
+        const history = renamed ? cached.map((h, i) => ({ ...h, reviewId: (reviews[i] as GradedReview).id })) : cached
         if (hit.count === reviews.length) {
-          cache.set(cardId, hit)
-          return hit.state
+          const same = renamed ? { ...hit, state: { ...hit.state, history } } : hit
+          cache.set(cardId, same)
+          return same.state
         }
+        steps = history.slice()
         from = hit.count
         card = hit.card
-        steps = hit.state.history.slice()
       } else hash = 0
     }
     // Step-by-step with a card carrying `cardId`, so the fuzz seed is per card
@@ -358,12 +381,13 @@ export function createScheduler(params: Partial<SrsParams> = {}): Scheduler {
     replay(cardId, events) {
       return replaySorted(
         cardId,
-        effectiveReviews(events).filter((r) => r.cardId === cardId),
+        scheduledReviews(events).filter((r) => r.cardId === cardId),
       )
     },
     replayAll(events) {
       const out = new Map<Id, CardState>()
-      for (const [cardId, list] of reviewsByCard(events)) out.set(cardId, replaySorted(cardId, list))
+      for (const [cardId, list] of reviewsByCard(events, { scheduled: true }))
+        out.set(cardId, replaySorted(cardId, list))
       return out
     },
     previewIntervals(state, now) {
@@ -378,6 +402,15 @@ export function createScheduler(params: Partial<SrsParams> = {}): Scheduler {
   }
   schedulers.set(id, scheduler)
   return scheduler
+}
+
+/**
+ * Estimated probability of recalling the card at `now` (FSRS forgetting curve, default weights); 0 for a card
+ * never reviewed.
+ */
+export function retrievability(state: CardState, now: number): number {
+  if (state.phase === 'new' || state.lastReview === null || state.stability <= 0) return 0
+  return forgetting_curve(default_w, Math.max(0, now - state.lastReview) / DAY_MS, state.stability)
 }
 
 function newCardFsrs(cardId: Id, first: GradedReview): FsrsCard & { cardId: Id } {

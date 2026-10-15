@@ -20,6 +20,8 @@ export type ParsedKey =
 export interface EnvelopeCodec {
   encode(h: Header, yUpdateV2: Uint8Array): { key: Key; bytes: Uint8Array }
   decode(key: Key, bytes: Uint8Array): { header: Header; update: Uint8Array } // EnvelopeError 'hash'|'magic'|'version'
+  /** `decode`, inflating off the JS thread where the platform can (same checks, same errors). */
+  decodeAsync?(key: Key, bytes: Uint8Array): Promise<{ header: Header; update: Uint8Array }>
   parseKey(name: string): ParsedKey | null
 } // strict : null pour « x 2.seg »
 export interface SegmentRec {

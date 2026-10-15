@@ -81,3 +81,26 @@ destinations. Record the date, devices and OS versions with each run.
 - [ ] **Real keys.** For each provider used (for example OpenAI, Anthropic, Google, OpenRouter), enter a
   key and generate cards from a source. Expected: cards generated from the device without any proxy; usage
   and cost recorded; a wrong key shows a clear error. Repeat on iPhone.
+
+## AI on this device (WebGPU)
+
+Automated runs inject the engine (CI browsers have no usable GPU); `LIVE_WEBLLM=1 bun test
+tests/live/local-model.test.ts` covers Chrome on a Mac. The rest needs the real devices, on Safari 26 or later.
+Record the model picked, its download size and how long a quiz takes.
+
+- [ ] **WebGPU available inside a Worker on iOS Safari.** Not verified yet: WebLLM runs in a Web Worker, and
+  the card only checks `navigator.gpu` on the page. On iPhone, *Settings > AI*. Expected: *On this device*
+  recommends a model; after the download, a quiz works. If the download completes but every request fails
+  with a WebGPU error, WebGPU is missing in workers on that iOS version: note the version and the error.
+- [ ] **iPhone: download, offline, memory.** Installed app on iPhone, *Settings > AI > On this device*.
+  Expected: a small model is recommended, the memory line says it is an estimate (Safari reports no
+  memory) and the download size is shown before anything is fetched. Download on Wi-Fi with the screen on;
+  lock the phone half-way, unlock: the download either goes on or offers *Resume download*, never starts
+  over. *Use as default model*, turn on flight mode, force-quit and reopen, run a quiz and *Explain*:
+  answers come, nothing asks for a key. The tab is not killed for memory during a quiz.
+- [ ] **iPad: space refusal and removal.** On an iPad with little free space, try the download. Expected:
+  refused with the figures (needed, free, kept for the library), the library untouched. After freeing space,
+  download, then *Remove*: the confirmation names the size, and *Settings > Data* shows the space back.
+- [ ] **Mac: Safari and Chrome.** On a Mac, in Safari and in Chrome. Expected: Chrome's memory line cites
+  the RAM the browser reports, Safari's says it is an estimate; both download, run offline after a restart
+  of the browser, and the cost line reads *Free, on this device*.

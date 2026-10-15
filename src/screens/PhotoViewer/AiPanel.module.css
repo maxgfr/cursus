@@ -1,0 +1,159 @@
+.panel {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--ink);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.title {
+  font-size: var(--text-headline);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+}
+
+.subtitle {
+  font-size: var(--text-body);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+}
+
+.block {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.block + .block {
+  padding-top: var(--space-5);
+  border-top: var(--hairline-width) solid var(--hairline);
+}
+
+/* Focused when a result arrives: VoiceOver reads it from here. */
+.result {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.result:focus,
+.quiet:focus {
+  outline: none;
+}
+
+.thumb {
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: var(--radius-small);
+  background: var(--surface-raised);
+  object-fit: cover;
+}
+
+.thumb[data-rotation="90"] {
+  transform: rotate(90deg);
+}
+
+.thumb[data-rotation="180"] {
+  transform: rotate(180deg);
+}
+
+.thumb[data-rotation="270"] {
+  transform: rotate(270deg);
+}
+
+.section {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.lead {
+  font-weight: 600;
+  line-height: var(--leading-body);
+  text-wrap: pretty;
+}
+
+.body {
+  max-width: 70ch;
+  line-height: var(--leading-body);
+  white-space: pre-wrap;
+}
+
+/*
+ * A transcribed table always fits the panel: columns share its width and a word breaks only when it is wider
+ * than its column, so nothing scrolls sideways on a phone.
+ */
+.transcription {
+  min-width: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-small);
+  background: var(--surface-raised);
+}
+
+.transcription :global(table) {
+  width: 100%;
+  table-layout: fixed;
+}
+
+.transcription :global(th),
+.transcription :global(td) {
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.note {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+  line-height: var(--leading-body);
+}
+
+.settingsLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.settingsLink:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-small);
+}
+
+.busy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  color: var(--ink-2);
+}
+
+.spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--hairline-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2.4s;
+  }
+}

@@ -1,8 +1,12 @@
 import { describe, expect, test } from 'bun:test'
+import { NoObjectGeneratedError } from 'ai'
 import { z } from 'zod'
 import type { CatalogProvider } from './catalogTrim'
 import { AiConfigError, createModel, generateStructured, outputLanguage, streamStructured } from './client'
-import { ctxFor, jsonModel, streamModel } from './testkit.test'
+import { fakeGpu, fakeLocalEngine, LOCAL_PROVIDER, LOCAL_PROVIDER_INFO } from './local'
+import { memoryCaches } from './localkit.test'
+import { configureLocalModels, findLocalModel, localModelInfo, localModels } from './localModels'
+import { brokenModel, ctxFor, jsonModel, streamModel } from './testkit.test'
 import type { AiUsageEvent } from './usage'
 
 const schema = z.object({ answer: z.string(), n: z.number() })
@@ -41,6 +45,46 @@ describe('client', () => {
     await expect(
       generateStructured(ctxFor(model), { feature: 'quiz', system: 'S', prompt: 'P', schema }),
     ).rejects.toThrow()
+  })
+
+  test('a refused answer (truncated or invalid JSON, or off-schema) is still billed and reported', async () => {
+    for (const [text, inTok, outTok] of [
+      ['{"answer": "trunc', 1000, 100],
+      ['{"answer": 3, "n": "x"}', 400, 40],
+    ] as const) {
+      const events: AiUsageEvent[] = []
+      const run = generateStructured(ctxFor(brokenModel(text, inTok, outTok), events), {
+        feature: 'quiz',
+        system: 'S',
+        prompt: 'P',
+        schema,
+      })
+      await expect(run).rejects.toBeInstanceOf(NoObjectGeneratedError)
+      expect(events).toEqual([
+        expect.objectContaining({
+          feature: 'quiz',
+          inputTokens: inTok,
+          outputTokens: outTok,
+          cost: expect.any(Number),
+        }),
+      ])
+      expect(events[0]?.cost).toBeGreaterThan(0)
+    }
+  })
+
+  test('a streamed answer that does not parse is still billed and reported', async () => {
+    const events: AiUsageEvent[] = []
+    const s = streamStructured(ctxFor(streamModel(['{"answer":"he', 'llo"'], 30, 20), events), {
+      feature: 'understand',
+      system: 'S',
+      prompt: 'P',
+      schema,
+    })
+    for await (const _ of s.partial) {
+      // drained
+    }
+    await expect(s.output).rejects.toBeInstanceOf(NoObjectGeneratedError)
+    expect(events).toEqual([expect.objectContaining({ feature: 'understand', inputTokens: 30, outputTokens: 20 })])
   })
 
   test('streamStructured yields partial objects then the full one', async () => {
@@ -118,6 +162,40 @@ describe('client', () => {
       { url: 'https://api.anthropic.com/v1/messages', header: 'true' },
       { url: 'https://api.minimax.io/anthropic/v1/messages', header: null },
     ])
+  })
+
+  test('the on-device model is keyless, refused until downloaded, and free', async () => {
+    const id = 'Qwen3-1.7B-q4f16_1-MLC'
+    const caches = memoryCaches()
+    configureLocalModels({
+      env: () => ({ gpu: fakeGpu() }),
+      engine: () => fakeLocalEngine({ models: [id], caches }),
+      storage: { estimate: async () => ({ usage: 0, quota: 2 ** 40 }) },
+      caches,
+    })
+    try {
+      const ref = { provider: LOCAL_PROVIDER_INFO, modelId: id, apiKey: '' }
+      await expect(createModel(ref)).rejects.toMatchObject({ code: 'not-downloaded' })
+      const described = findLocalModel(id)
+      if (!described) throw new Error(`${id} is missing from llm-models`)
+      await localModels().handle(described).download()
+      const events: AiUsageEvent[] = []
+      const out = await generateStructured(
+        {
+          model: await createModel(ref),
+          info: localModelInfo(described),
+          language: 'English',
+          onUsage: (e) => events.push(e),
+        },
+        { feature: 'quiz', system: 'S', prompt: 'P', schema },
+      )
+      expect(out).toEqual({ answer: 'x', n: 0 })
+      expect(events).toHaveLength(1)
+      expect(events[0]).toMatchObject({ provider: LOCAL_PROVIDER, model: id, cost: 0 })
+      expect(events[0]?.inputTokens).toBeGreaterThan(0)
+    } finally {
+      configureLocalModels(null)
+    }
   })
 
   test('output language: course first, then UI', () => {

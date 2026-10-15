@@ -1,0 +1,132 @@
+/* A document and its proposed questions: a surface in the flow, like Today's hero. */
+.source {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-surface);
+  background: var(--surface);
+  box-shadow: var(--lift);
+  min-width: 0;
+}
+
+.sourceHead {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.sourceTitle {
+  font-size: var(--text-headline);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.sourceLink {
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-small);
+}
+
+.sourceLink:hover {
+  text-decoration: underline;
+}
+
+.sourceLink:focus-visible,
+.link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.meta {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+}
+
+.job {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.jobText,
+.jobWarn,
+.jobError {
+  flex: 1 1 16rem;
+  min-width: 0;
+  font-size: var(--text-footnote);
+  line-height: var(--leading-body);
+  overflow-wrap: anywhere;
+}
+
+.jobText {
+  color: var(--ink-2);
+}
+
+.jobWarn {
+  color: var(--ink);
+}
+
+.jobError {
+  color: var(--danger);
+}
+
+.jobActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.link {
+  color: var(--accent-ink);
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: var(--radius-small);
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+/* The discreet invitation to set up a model: a quiet surface, never an alarm. */
+.invite {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4);
+  border-radius: var(--radius-surface);
+  background: var(--surface);
+  box-shadow: var(--lift);
+}
+
+.inviteText {
+  flex: 1 1 16rem;
+  min-width: 0;
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+  overflow-wrap: anywhere;
+}
+
+.saveBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.error {
+  color: var(--danger);
+  font-size: var(--text-footnote);
+}
+
+/* One calm line on a source or a course: where its proposed questions stand. */
+.line {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+}

@@ -1,0 +1,59 @@
+.photos {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  position: relative;
+}
+
+.thumb {
+  display: grid;
+  place-items: center;
+  width: 5.5rem;
+  height: 5.5rem;
+  border-radius: var(--radius-control);
+  background: var(--surface-pressed);
+  color: var(--ink-3);
+  object-fit: cover;
+}
+
+.item .remove {
+  position: absolute;
+  top: calc(-1 * var(--space-2));
+  right: calc(-1 * var(--space-2));
+  background: var(--surface);
+  box-shadow: var(--lift);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.errors {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-surface);
+  background: var(--warning-soft);
+  color: var(--warning);
+  font-size: var(--text-footnote);
+  list-style: none;
+}
+
+.empty {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+}

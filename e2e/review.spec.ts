@@ -491,6 +491,27 @@ test('undoing the Again that brought a card back removes its return from the que
   expect(errors).toEqual([])
 })
 
+test('Space pressed the moment the card paints reveals it', async ({ page }) => {
+  const errors = watchErrors(page)
+  await seed(page, { course: 'Biology', cards: [{ front: 'Powerhouse of the cell?', back: 'The mitochondrion' }] })
+  // The press lands as soon as the card's reveal button is in the document, before anything run after the paint.
+  await page.addInitScript(() => {
+    let pressed = false
+    const observer = new MutationObserver(() => {
+      if (pressed) return
+      const shown = [...document.querySelectorAll('button')].some((b) => /Show answer/.test(b.textContent ?? ''))
+      if (!shown) return
+      pressed = true
+      observer.disconnect()
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }))
+    })
+    observer.observe(document, { childList: true, subtree: true })
+  })
+  await page.goto('./#/review')
+  await expect(page.getByTestId('answer')).toBeVisible()
+  expect(errors).toEqual([])
+})
+
 test('Esc leaves the review for where it was opened from', async ({ page }, info) => {
   test.skip(isPhone(info.project.name), 'no hardware keyboard on the phone')
   await seed(page, { course: 'Biology', cards: [{ front: 'Powerhouse of the cell?', back: 'The mitochondrion' }] })

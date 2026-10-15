@@ -1,8 +1,11 @@
+import type { Runtime } from '../../../app/workspaceContext.tsx'
 import type { CatalogModel } from '../../../core/ai/catalogTrim'
 import { costOf } from '../../../core/ai/cost'
 import type { Chunk } from '../../../core/ai/retrieval'
 import { contextBudget, estimateTokens } from '../../../core/ai/retrieval'
+import type { DeckUnit } from '../../../core/content/deck'
 import type { BlobStore } from '../../../core/contracts/log'
+import type { SourceRecord } from '../../../core/model/schema'
 import type { ModelWorkspace } from '../../../core/model/workspace'
 
 /** Source id used for text pasted straight into an AI screen (not saved, not linkable). */
@@ -34,18 +37,51 @@ export function splitText(sourceId: string, text: string, page?: number): Chunk[
   return out
 }
 
-/** Passages of the chosen sources: note text, PDF pages (page numbers kept for citations). Images carry no text. */
+/** The units of a slide deck or document source, read from its stored file; null while that file is not here. */
+export type DeckReader = (
+  source: SourceRecord,
+) => Promise<readonly Pick<DeckUnit, 'index' | 'title' | 'text' | 'notes'>[] | null>
+
+/**
+ * Reads deck sources the way the import does: from the stored file, through its cache of the last decks
+ * read. The reader's code loads with the first deck source; a file sync has not brought yet is skipped.
+ */
+export function deckReader(rt: Runtime): DeckReader {
+  return async (source) => {
+    const { DeckFileMissing, loadDeck } = await import('../../DeckImport/deckSource.ts')
+    try {
+      return (await loadDeck(rt, source)).deck.units
+    } catch (e) {
+      if (e instanceof DeckFileMissing) return null
+      throw e
+    }
+  }
+}
+
+/** A unit's text as the model reads it: title, body, speaker notes. */
+function unitText(unit: Pick<DeckUnit, 'title' | 'text' | 'notes'>): string {
+  return [unit.title, unit.text, unit.notes ? `Speaker notes: ${unit.notes}` : ''].filter((x) => x.trim()).join('\n\n')
+}
+
+/**
+ * Passages of the chosen sources: note text, PDF pages, the slides, pages or sections of a deck or document
+ * (their number kept as `page` for citations: the source view opens `?page=N` at unit N). Images carry no text.
+ */
 export async function chunksFor(
   ws: ModelWorkspace,
   blobs: BlobStore,
   sourceIds: readonly string[],
   pasted: string,
+  readDeck: DeckReader,
 ): Promise<Chunk[]> {
   const out: Chunk[] = []
   for (const id of sourceIds) {
     const s = ws.sources.get(id)
     if (!s || s.deletedAt !== undefined) continue
-    if (s.kind === 'note') {
+    if (s.support !== undefined) {
+      // A deck's text lives in its file, not in the note body.
+      for (const unit of (await readDeck(s)) ?? []) out.push(...splitText(id, unitText(unit), unit.index))
+    } else if (s.kind === 'note') {
       out.push(...splitText(id, ws.text({ id, field: 'body' }).toString()))
     } else if (s.kind === 'pdf') {
       const blobId = s.blobId ?? s.blobIds?.[0]
