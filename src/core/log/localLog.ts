@@ -1,6 +1,6 @@
 import * as Y from 'yjs'
 import { EnvelopeError } from '../contracts/errors'
-import type { EnvelopeCodec, Header, LocalLog, SegmentRec } from '../contracts/log'
+import type { EnvelopeCodec, Header, IngestGate, LocalLog, SegmentRec } from '../contracts/log'
 import type { Clock, LocalStore, Locks, ReadTx, Rng } from '../contracts/ports'
 import type { Key } from '../contracts/remote'
 import { codec as defaultCodec, refsOf } from './codec'
@@ -15,6 +15,8 @@ export interface SegmentRow extends SegmentRec {
    * real ones. Absent: the header itself is unreadable — its files are unknown and it is never relayed.
    */
   refsKnown?: true
+  /** `held` rows only: when the sync guard held it back on this device. */
+  heldAt?: number
 }
 interface PendingRow {
   update: Uint8Array
@@ -204,7 +206,7 @@ export function createLocalLog(o: LocalLogOptions): LocalLogImpl {
       })
     },
 
-    ingest(key, plain) {
+    ingest(key, plain, gate?: IngestGate) {
       return underLock(async () => {
         const parsed = codec.parseKey(key)
         if (!parsed || (parsed.kind !== 'seg' && parsed.kind !== 'ckpt')) throw new RangeError(`Not a log key: ${key}`)
@@ -220,11 +222,19 @@ export function createLocalLog(o: LocalLogOptions): LocalLogImpl {
           cloned = rng.id()
           ops.push({ put: 'kv', key: 'deviceId', value: cloned }, { put: 'kv', key: 'seq', value: 0 })
         }
+        // Only a segment that would be applied is asked about: what cannot be read is never applied anyway.
+        const verdict =
+          decoded?.applicable && gate
+            ? await gate({ key, header: decoded.header, update: codec.decode(key, plain).update })
+            : { hold: false }
+        ops.push(...(verdict.writes ?? []))
         const arrival = (arrival0 ?? 0) + 1
         const row: SegmentRow = !decoded
           ? { key, bytes: plain, arrival, own: false, header: placeholder(key), state: 'needs-upgrade' }
           : decoded.applicable
-            ? { key, bytes: plain, arrival, own: false, header: decoded.header, state: 'applied' }
+            ? verdict.hold
+              ? { key, bytes: plain, arrival, own: false, header: decoded.header, state: 'held', heldAt: clock.now() }
+              : { key, bytes: plain, arrival, own: false, header: decoded.header, state: 'applied' }
             : {
                 key,
                 bytes: plain,
@@ -243,6 +253,30 @@ export function createLocalLog(o: LocalLogOptions): LocalLogImpl {
 
     load,
 
+    async held() {
+      const { rows } = await allRows()
+      return rows
+        .filter((r) => r.state === 'held')
+        .map((r) => ({ rec: toRec(r), update: updateOf(r), heldAt: r.heldAt ?? 0 }))
+    },
+
+    release(keys, writes = []) {
+      return underLock(async () => {
+        const rows = await store.read(['segments'], (tx) =>
+          Promise.all(keys.map((k) => tx.get<SegmentRow>('segments', k))),
+        )
+        const released: SegmentRow[] = []
+        for (const r of rows) {
+          if (r?.state !== 'held') continue
+          const { heldAt: _, ...rest } = r
+          released.push({ ...rest, state: 'applied' })
+        }
+        released.sort((a, b) => a.arrival - b.arrival)
+        await store.commit([...released.map((r) => ({ put: 'segments' as const, key: r.key, value: r })), ...writes])
+        return released.map(toRec)
+      })
+    },
+
     async since(arrival) {
       const { rows } = await allRows()
       return rows
@@ -260,7 +294,7 @@ export function createLocalLog(o: LocalLogOptions): LocalLogImpl {
       return new Set(keys.filter((k): k is string => typeof k === 'string'))
     },
 
-    /** Snapshot rebuilt in a fresh Y.Doc from persisted data only; coverage stops before needs-upgrade. */
+    /** Snapshot rebuilt in a fresh Y.Doc from persisted data only; coverage stops before needs-upgrade or held. */
     compact() {
       return underLock(async () => {
         const { rows, snap } = await allRows()

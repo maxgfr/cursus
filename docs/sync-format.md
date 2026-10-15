@@ -97,7 +97,8 @@ the same holds for them. Course packages (`.cursus-course`) carry no Yjs update 
 ### Checkpoints
 
 A checkpoint is built in a fresh `Y.Doc` from persisted segments only (never from the live document), in
-arrival order, stopping before the first `needs-upgrade` segment. Its update is the full state
+arrival order, stopping before the first segment that is not applied (`needs-upgrade`, or `held`: see
+[Held deletions](#held-deletions-local-state)). Its update is the full state
 (`Y.encodeStateAsUpdateV2`) and `covers` lists exactly the segments applied. A new device downloads
 checkpoints first, then only the segments not covered by them.
 
@@ -191,3 +192,28 @@ Per destination, a sync round lists, downloads what is missing, uploads what is 
   merge cannot be undone).
 - An unknown object under the device's own `deviceId` means the device was cloned: it takes a new
   `deviceId`.
+
+## Held deletions (local state)
+
+Nothing in this section changes what is stored on a destination: it describes how a reader treats what it
+downloads. Objects missing from a destination never delete anything locally; they are only uploaded again.
+
+A downloaded segment or checkpoint that this build can apply is first tried on a scratch copy of the local
+library (`src/core/sync/holdGuard.ts`). Deletions add up over a sliding window of 24 hours, measured on the
+reading device's clock when each object arrives (`createdAt` is not trusted), in two totals: per writing
+`deviceId`, and across all remote devices together. A deletion is a course, section, source, study sheet or
+card going from live to trashed (`deletedAt`), purged (`purgedAt`) or removed, or a text of at least 200
+characters losing at least 80 % of them. A total crosses at 20, or at half of the live entities when the
+library holds at least 5. The object that makes a device's own total cross, and every later object of that
+device, is stored locally with state `held` instead of `applied`. When the aggregate total crosses, the
+object that made it cross is held, and so is every later object of every device that deleted something
+within the window; a device that deleted nothing keeps applying. A device syncing for the first time (empty
+library) holds nothing.
+
+A `held` object is kept byte for byte and its key counts as present, so listings and confirmations stay
+unchanged. It is neither applied, loaded, replayed into history, covered by a checkpoint nor uploaded to any
+destination, and it is not counted as unprotected. The user then either applies it (it becomes `applied`, in
+arrival order) or keeps the library: it is applied, and a forward restoration of everything it deleted is
+written as an ordinary local edit, which syncs out like any other. Either choice restarts every window, the
+aggregate one included.
+Local row states are therefore `applied`, `needs-upgrade` and `held`; only the first is ever replayed.

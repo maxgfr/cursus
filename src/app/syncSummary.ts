@@ -18,7 +18,12 @@ export function summarize(
   if (save.blocked || save.versionChanged) return { kind: 'unsaved' }
   if (error !== null) return { kind: 'attention' }
   if (status === null || status.dests.length === 0) return { kind: 'local' }
-  if (status.alarm || status.needsUpgrade > 0 || status.dests.some((d) => ATTENTION.has(d.state)))
+  if (
+    status.alarm ||
+    status.needsUpgrade > 0 ||
+    (status.held ?? 0) > 0 ||
+    status.dests.some((d) => ATTENTION.has(d.state))
+  )
     return { kind: 'attention' }
   if (!online) return { kind: 'offline' }
   if (status.safe && !stale && save.unsaved === 0) return { kind: 'protected', count: status.protectedOn }

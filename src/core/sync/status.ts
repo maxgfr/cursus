@@ -24,6 +24,8 @@ export interface EngineStatus extends SyncStatus {
   protectedOn: number
   /** Captured edits the local log has not acknowledged yet (failed append, queued behind one). */
   unsaved: number
+  /** Segments from another device the sync guard holds back until the user decides (always set by `computeStatus`). */
+  held?: number
 }
 
 /** Runtime part of a destination status, owned by the engine and the scheduler. */
@@ -49,6 +51,8 @@ export interface StatusInput {
   seen: Readonly<Record<Key, number>>
   unsealed: number
   needsUpgrade: number
+  /** Held segments (sync guard); their keys are not in `local`. */
+  held?: number
   /** Captured updates not yet acknowledged by the local log (kept in memory, retried). */
   unsaved?: number
 }
@@ -103,5 +107,6 @@ export function computeStatus(i: StatusInput): EngineStatus {
     alarm,
     protectedOn,
     unsaved,
+    held: i.held ?? 0,
   }
 }

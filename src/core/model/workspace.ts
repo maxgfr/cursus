@@ -1,6 +1,8 @@
 import * as Y from 'yjs'
 import type { Clock, Rng } from '../contracts/ports'
 import type { Id, ItemKind, Prefs, Scope, StudyScope, Workspace } from '../contracts/workspace'
+import { REMOTE } from '../log/origins'
+import { type DeletionReport, deletionsBetween, track } from './deletions'
 import { DraftRepo } from './drafts'
 import { EntityNotFoundError, EntityRepo } from './repos'
 import { AiUsageLog, ReviewLog } from './reviews'
@@ -23,6 +25,7 @@ import {
 import { SearchIndex } from './search'
 import { SectionRepo } from './sections'
 import { PlanRepo, SessionLog } from './sessionLog'
+import { applyForward } from './textForward'
 
 interface Observable {
   observeDeep(f: () => void): void
@@ -62,6 +65,15 @@ export interface ModelWorkspace extends Workspace {
   /** Proposed questions awaiting review, and the « questions proposées automatiquement » settings. */
   drafts: DraftRepo
   search: SearchIndex
+  /** What applying these remote updates would delete here, worked out on a scratch copy: the library is untouched. */
+  previewRemote(updates: readonly Uint8Array[]): DeletionReport
+  /**
+   * Applies remote updates the sync guard held back, in order, as remote changes (never captured). With `keep`, then
+   * writes in the same synchronous step, as local edits that sync out, a forward restoration of what they deleted:
+   * entities they trashed, purged or removed are live again, texts they emptied are back to their content. Returns
+   * what they deleted.
+   */
+  absorbHeld(updates: readonly Uint8Array[], mode: 'apply' | 'keep'): DeletionReport
   dispose(): void
 }
 
@@ -193,6 +205,42 @@ export function createWorkspace(doc: Y.Doc, deps: WorkspaceDeps): ModelWorkspace
     return out
   }
 
+  function previewRemote(updates: readonly Uint8Array[]): DeletionReport {
+    const scratch = new Y.Doc()
+    try {
+      Y.applyUpdateV2(scratch, Y.encodeStateAsUpdateV2(doc))
+      const touched = track(scratch, () => {
+        for (const u of updates) Y.applyUpdateV2(scratch, u, REMOTE)
+      })
+      return deletionsBetween(doc, scratch, touched)
+    } finally {
+      scratch.destroy()
+    }
+  }
+
+  /** Brings back, forward, what `report` says was deleted (a local edit: it syncs out like any other). */
+  function restoreForward(report: DeletionReport): void {
+    doc.transact(() => {
+      for (const e of report.entities) {
+        const root = repos[e.kind].yRoot
+        const m = root.get(e.id)
+        if (m instanceof Y.Map) {
+          if (m.has('deletedAt')) m.delete('deletedAt')
+          if (m.has('purgedAt')) m.delete('purgedAt')
+          continue
+        }
+        const back = new Y.Map<unknown>()
+        root.set(e.id, back)
+        for (const [k, v] of Object.entries(e.fields)) if (k !== 'deletedAt' && k !== 'purgedAt') back.set(k, v)
+      }
+      for (const t of report.texts) {
+        const cur = texts.get(t.key)
+        if (cur instanceof Y.Text) applyForward(cur, t.before)
+        else texts.set(t.key, new Y.Text(t.before))
+      }
+    })
+  }
+
   const api: ModelWorkspace = {
     doc,
     courses,
@@ -255,6 +303,20 @@ export function createWorkspace(doc: Y.Doc, deps: WorkspaceDeps): ModelWorkspace
       }
     },
     subscribe,
+    previewRemote,
+    absorbHeld(updates, mode) {
+      const report = previewRemote(updates)
+      Y.transact(
+        doc,
+        () => {
+          for (const u of updates) Y.applyUpdateV2(doc, u)
+        },
+        REMOTE,
+        false,
+      )
+      if (mode === 'keep' && report.total > 0) restoreForward(report)
+      return report
+    },
     dispose() {
       search.dispose()
     },

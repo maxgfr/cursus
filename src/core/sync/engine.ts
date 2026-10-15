@@ -1,6 +1,6 @@
 import * as Y from 'yjs'
 import { EnvelopeError, RemoteError, type RemoteErrorKind } from '../contracts/errors'
-import type { BlobStore, EnvelopeCodec, Header, Keyring, LocalLog, Sealer } from '../contracts/log'
+import type { BlobStore, EnvelopeCodec, Header, IngestGate, Keyring, LocalLog, Sealer } from '../contracts/log'
 import type { Clock, LocalStore, Locks, Rng } from '../contracts/ports'
 import type { Entry, Key, RemoteStore } from '../contracts/remote'
 import type { DestState, SyncEngine } from '../contracts/sync'
@@ -11,6 +11,7 @@ import { REPLAY } from '../log/origins'
 import { memoryLocks } from '../ports/locks'
 import { memoryStore } from '../storage/memoryStore'
 import { buildCheckpoint, CHECKPOINT_EVERY, persistedDoc } from './checkpoints'
+import { HOLD_KV, type HoldBook, judge, Shadow } from './holdGuard'
 import { syncLockName } from './identity'
 import {
   confirmByListing,
@@ -89,6 +90,22 @@ export interface SyncEngineOptions {
    * file stays listed), their chunks are not. Nothing is ever removed anywhere because of it.
    */
   onDemand?: (mime: string) => boolean | Promise<boolean>
+  /**
+   * The sync guard (holdGuard.ts): segments from another device that would delete much of the library here are
+   * stored `held` (neither applied, loaded, checkpointed nor relayed) until `release`.
+   */
+  holdDeletions?: boolean
+}
+
+/** A segment the sync guard holds back. */
+export interface HeldSegment {
+  key: Key
+  deviceId: string
+  /** When the writing device sealed it (its own clock: informative only). */
+  createdAt: number
+  /** When it was held back here. */
+  heldAt: number
+  update: Uint8Array
 }
 
 export interface RoundResult {
@@ -113,6 +130,13 @@ export interface SyncEngineImpl extends SyncEngine {
   workspaceId(): Promise<string | null>
   /** Brings a file (manifest, then chunks) to this device from any destination; false if none has it whole. */
   fetchBlob(id: string): Promise<boolean>
+  /** Segments the sync guard holds back, in arrival order. */
+  held(): Promise<HeldSegment[]>
+  /**
+   * Marks these held segments applied and restarts the guard's windows (every device's, and so the aggregate). The caller has applied
+   * them to the live doc first (`Workspace.absorbHeld`): this never touches it.
+   */
+  release(keys: readonly Key[]): Promise<void>
 }
 
 /** Persisted per destination in the `dests` store. */
@@ -281,10 +305,19 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
     const known = headers.get(key)
     if (known) return known
     const row = await store.read(['segments'], (tx) => tx.get<SegmentRow>('segments', key))
-    if (!row || (row.state !== 'applied' && row.refsKnown !== true)) return null
+    if (!row || (row.state === 'needs-upgrade' && row.refsKnown !== true)) return null
     // Only applied headers are cached: `refresh` counts the rows missing from the cache as upgrades.
     if (row.state === 'applied') headers.set(key, row.header)
     return row.header
+  }
+
+  /** The held ones among these log keys (applied ones are cached in `headers`, never held again). */
+  const heldAmong = async (keys: Iterable<Key>): Promise<Set<Key>> => {
+    const unknown = [...keys].filter((k) => !headers.has(k))
+    const rows = await store.read(['segments'], (tx) =>
+      Promise.all(unknown.map((k) => tx.get<SegmentRow>('segments', k))),
+    )
+    return new Set(rows.flatMap((r) => (r?.state === 'held' ? [r.key] : [])))
   }
 
   const chunksOf = async (bman: Key): Promise<Key[] | null> => {
@@ -347,6 +380,36 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
     return d.cfg.remote.put(key, await sealer.seal(keyring, key, plain))
   }
 
+  /** Scratch copy incoming updates are tried on (the guard); made afresh for each round, dropped after a hold. */
+  let shadow: Shadow | null = null
+  const dropShadow = (): void => {
+    shadow?.destroy()
+    shadow = null
+  }
+  const makeShadow = async (): Promise<Shadow> => {
+    if (o.doc) return new Shadow(o.doc)
+    const doc = await persistedDoc(store, codec)
+    try {
+      return new Shadow(doc)
+    } finally {
+      doc.destroy()
+    }
+  }
+  const gate: IngestGate | undefined = o.holdDeletions
+    ? async ({ header, update }) => {
+        const book = (await store.read(['kv'], (tx) => tx.get<HoldBook>('kv', HOLD_KV))) ?? {}
+        if (book[header.deviceId]?.holding) return { hold: true }
+        shadow ??= await makeShadow()
+        const effect = shadow.effectOf(update)
+        // A device syncing for the first time has nothing here to lose yet.
+        if (shadow.empty) return { hold: false }
+        const { hold, next } = judge(book, header.deviceId, effect, clock.now())
+        // The copy now holds what is held back: the next segment is tried on a fresh one.
+        if (hold) dropShadow()
+        return { hold, writes: next ? [{ put: 'kv', key: HOLD_KV, value: next }] : [] }
+      }
+    : undefined
+
   const apply = (update: Uint8Array): void => {
     const doc = o.doc
     if (!doc) return
@@ -357,7 +420,7 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
   const ingestPlain = async (key: Key, plain: Uint8Array): Promise<void> => {
     const kind = parseKey(key)?.kind
     if (kind === 'seg' || kind === 'ckpt') {
-      const rec = await log.ingest(key, plain)
+      const rec = await log.ingest(key, plain, gate)
       if (rec === 'duplicate') return
       if (rec.state === 'applied') {
         headers.set(key, rec.header)
@@ -574,6 +637,8 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
     listing: Listing,
     signal: AbortSignal | undefined,
   ): Promise<{ down: number; deferred: number; noKey: boolean; later: Set<Key> }> => {
+    // Tried against the library as it stands now, local edits included.
+    dropShadow()
     let inv = await inventory()
     const freshDevice = inv.log.size === 0
     const rank = (k: Key): number => {
@@ -713,7 +778,9 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
       if (!m.markersOk) up += await repairMarkers(d, m, ws, signal)
     }
     let inv = await inventory()
-    const logKeys = [...inv.log].filter(want).sort()
+    // Held back here: relayed nowhere until the user decides.
+    const held = await heldAmong(inv.log)
+    const logKeys = [...inv.log].filter((k) => want(k) && !held.has(k)).sort()
     // Files a segment needs but this device lacks: fetch them from another destination first.
     for (const k of logKeys) {
       for (const id of (await headerOf(k))?.blobRefs ?? []) {
@@ -905,17 +972,20 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
 
   const refresh = async (): Promise<EngineStatus> => {
     const inv = await inventory()
-    const local = new Set<Key>([...inv.log, ...inv.chunks, ...inv.bmans])
+    const held = new Set<Key>()
     const [pending, seen0, upgrades] = await store.read(['pending', 'kv', 'segments'], async (tx) => {
       const keys = [...inv.log].filter((k) => !headers.has(k))
       const rows = await Promise.all(keys.map((k) => tx.get<SegmentRow>('segments', k)))
       let upgrades = 0
       for (const r of rows) {
         if (r?.state === 'applied') headers.set(r.key, r.header)
+        else if (r?.state === 'held') held.add(r.key)
         else if (r) upgrades++
       }
       return Promise.all([tx.count('pending'), tx.get<Record<Key, number>>('kv', 'sync:seen'), upgrades])
     })
+    // What is held back is not this device's to protect (it is not relayed) until the user takes it.
+    const local = new Set<Key>([...inv.log, ...inv.chunks, ...inv.bmans].filter((k) => !held.has(k)))
     const seen = { ...(seen0 ?? {}) }
     let changed = false
     const now = clock.now()
@@ -942,6 +1012,7 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
       seen,
       unsealed: pending,
       needsUpgrade: upgrades,
+      held: held.size,
       unsaved: o.unsaved?.() ?? 0,
     })
     emit()
@@ -1123,6 +1194,27 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
     },
     async workspaceId() {
       return (await store.read(['kv'], (tx) => tx.get<string>('kv', 'workspaceId'))) ?? null
+    },
+    async held() {
+      return (await log.held()).map(({ rec, update, heldAt }) => ({
+        key: rec.key,
+        deviceId: rec.header.deviceId,
+        createdAt: rec.header.createdAt,
+        heldAt,
+        update,
+      }))
+    },
+    async release(keys) {
+      // Every window restarts, the aggregate one included; a device whose segments stay held (they arrived after
+      // the caller read them) stays held.
+      const releasing = new Set(keys)
+      const next: HoldBook = {}
+      for (const h of await log.held()) {
+        if (!releasing.has(h.rec.key)) next[h.rec.header.deviceId] = { events: [], holding: true }
+      }
+      await log.release(keys, [{ put: 'kv', key: HOLD_KV, value: next }])
+      dropShadow()
+      await refresh()
     },
     async fetchBlob(id) {
       const bm = bmanKey(id)

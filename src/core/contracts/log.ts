@@ -1,3 +1,4 @@
+import type { WriteOp } from './ports'
 import type { Key } from './remote'
 
 export interface Header {
@@ -29,12 +30,28 @@ export interface SegmentRec {
   arrival: number
   own: boolean
   header: Header
-  state: 'applied' | 'needs-upgrade'
+  /**
+   * `held` (local only, never in the sync format): a segment from another device kept back by the sync guard
+   * until the user decides. Neither loaded, replayed, checkpointed nor relayed while held.
+   */
+  state: 'applied' | 'needs-upgrade' | 'held'
 }
+/**
+ * Asked by `ingest` about a new, applicable segment, under the log lock: whether to hold it, and writes
+ * (other stores only) committed in the same transaction as the row.
+ */
+export type IngestGate = (seg: { key: Key; header: Header; update: Uint8Array }) => Promise<{
+  hold: boolean
+  writes?: WriteOp[]
+}>
 export interface LocalLog {
   appendLocal(update: Uint8Array): Promise<void>
   seal(): Promise<SegmentRec | null>
-  ingest(key: Key, plain: Uint8Array): Promise<SegmentRec | 'duplicate'> // vérifie + stocke, n'applique jamais
+  ingest(key: Key, plain: Uint8Array, gate?: IngestGate): Promise<SegmentRec | 'duplicate'> // vérifie + stocke, n'applique jamais
+  /** Held segments, in arrival order, with when each was held here. */
+  held(): Promise<{ rec: SegmentRec; update: Uint8Array; heldAt: number }[]>
+  /** Marks these held segments applied (others are ignored), with `writes` in the same transaction. */
+  release(keys: readonly Key[], writes?: WriteOp[]): Promise<SegmentRec[]>
   load(): Promise<{ updates: Uint8Array[]; through: number }>
   since(arrival: number): Promise<{ rec: SegmentRec; update: Uint8Array }[]>
   bytes(key: Key): Promise<Uint8Array | null>

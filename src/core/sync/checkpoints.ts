@@ -53,8 +53,9 @@ export interface CheckpointOptions {
 
 /**
  * Builds a checkpoint in a FRESH Y.Doc from persisted segments only (never from the live doc), in
- * arrival order, stopping before the first `needs-upgrade` segment. `covers` lists exactly the
- * segments it contains. The checkpoint is ingested into the local log, so it is uploaded like a segment.
+ * arrival order, stopping before the first segment not applied (`needs-upgrade`, or `held` by the sync
+ * guard). `covers` lists exactly the segments it contains. The checkpoint is ingested into the local log,
+ * so it is uploaded like a segment.
  */
 export async function buildCheckpoint(o: CheckpointOptions): Promise<SegmentRec | null> {
   const codec = o.codec ?? defaultCodec

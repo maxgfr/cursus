@@ -146,7 +146,8 @@ export function keyringFor(h: Host, destId: string): DestinationKeyring {
 
 /** The engine every device runs: sealed destinations open and seal with the WebCrypto sealer. */
 export function createAppEngine(o: Omit<SyncEngineOptions, 'sealer'>): SyncEngineImpl {
-  return createSyncEngine({ ...o, sealer: createSealer(o.rng) })
+  // The app always guards against mass deletions arriving from elsewhere (holdGuard.ts).
+  return createSyncEngine({ holdDeletions: true, ...o, sealer: createSealer(o.rng) })
 }
 
 /** The OAuth return page put `{ params, receivedAt }` under this key of `kv`; reading it removes it. */

@@ -493,3 +493,98 @@ describe('origins', () => {
     expect(cap.unsaved()).toBe(1)
   })
 })
+
+describe('held (sync guard)', () => {
+  const holdAll = async () => ({ hold: true, writes: [{ put: 'kv' as const, key: 'marker', value: 1 }] })
+
+  test('a held segment is stored but neither loaded, replayed, compacted nor listed by since()', async () => {
+    const { log, store } = setup()
+    const a = foreignSegment('peer', 0, (d) => d.getMap('m').set('a', 1), 51)
+    const b = foreignSegment('peer', 1, (d) => d.getMap('m').set('b', 2), 52)
+    const asked: string[] = []
+    const ok = await log.ingest(a.key, a.bytes, async (s) => {
+      asked.push(s.header.deviceId)
+      expect(s.key).toBe(a.key)
+      expect(Y.decodeUpdateV2(s.update).structs.length).toBeGreaterThan(0)
+      return { hold: false }
+    })
+    expect(ok).toMatchObject({ state: 'applied' })
+    const held = await log.ingest(b.key, b.bytes, holdAll)
+    expect(held).toMatchObject({ state: 'held', arrival: 2 })
+    expect(asked).toEqual(['peer'])
+    // The gate's writes land with the row.
+    expect(await store.read(['kv'], (tx) => tx.get('kv', 'marker'))).toBe(1)
+    expect(
+      rebuild((await log.load()).updates)
+        .getMap('m')
+        .toJSON(),
+    ).toEqual({ a: 1 })
+    expect((await log.since(0)).map((r) => r.rec.key)).toEqual([a.key])
+    expect((await log.keys()).has(b.key)).toBe(true)
+    expect(await log.bytes(b.key)).toEqual(b.bytes)
+    await log.compact()
+    const snap = await store.read(['snapshot'], (tx) => tx.get<{ through: number }>('snapshot', 'main'))
+    expect(snap?.through).toBe(1)
+    const list = await log.held()
+    expect(list.map((h) => [h.rec.key, h.rec.state, h.heldAt])).toEqual([[b.key, 'held', 5000]])
+    expect(
+      rebuild([list[0]?.update ?? new Uint8Array()])
+        .getMap('m')
+        .toJSON(),
+    ).toEqual({ b: 2 })
+  })
+
+  test('the gate is not asked about what cannot be applied, nor about a duplicate', async () => {
+    const { log } = setup()
+    let asked = 0
+    const gate = async () => {
+      asked++
+      return { hold: true }
+    }
+    const seg = foreignSegment('peer', 0, (d) => d.getMap('m').set('a', 1))
+    const notYjs = encode(
+      { v: 1, kind: 'seg', deviceId: 'peer', seq: 1, createdAt: 1, blobRefs: [] },
+      new Uint8Array([9, 9, 9]),
+    )
+    expect(await log.ingest(notYjs.key, notYjs.bytes, gate)).toMatchObject({ state: 'needs-upgrade' })
+    expect(asked).toBe(0)
+    expect(await log.ingest(seg.key, seg.bytes, gate)).toMatchObject({ state: 'held' })
+    expect(await log.ingest(seg.key, seg.bytes, gate)).toBe('duplicate')
+    expect(asked).toBe(1)
+  })
+
+  test('release marks held rows applied in arrival order, ignores the rest, and survives a reload', async () => {
+    const { log, store, locks } = setup()
+    const a = foreignSegment('peer', 0, (d) => d.getMap('m').set('a', 1), 51)
+    const b = foreignSegment('peer', 1, (d) => d.getMap('m').set('b', 2), 52)
+    const c = foreignSegment('other', 0, (d) => d.getMap('m').set('c', 3), 53)
+    await log.ingest(a.key, a.bytes, holdAll)
+    await log.ingest(b.key, b.bytes, holdAll)
+    await log.ingest(c.key, c.bytes)
+    const reloaded = createLocalLog({ store, locks, clock: virtualClock(9000), rng: seededRng(2) })
+    expect((await reloaded.held()).map((h) => h.rec.key)).toEqual([a.key, b.key])
+    expect(
+      rebuild((await reloaded.load()).updates)
+        .getMap('m')
+        .toJSON(),
+    ).toEqual({ c: 3 })
+    const out = await reloaded.release(
+      [b.key, c.key, a.key, 'seg/none/0000000000-0000000000000000.seg'],
+      [{ put: 'kv', key: 'after', value: 2 }],
+    )
+    expect(out.map((r) => [r.key, r.state])).toEqual([
+      [a.key, 'applied'],
+      [b.key, 'applied'],
+    ])
+    expect(await store.read(['kv'], (tx) => tx.get('kv', 'after'))).toBe(2)
+    expect(await reloaded.held()).toEqual([])
+    const row = await store.read(['segments'], (tx) => tx.get<SegmentRow>('segments', a.key))
+    expect(row?.heldAt).toBeUndefined()
+    expect(
+      rebuild((await reloaded.load()).updates)
+        .getMap('m')
+        .toJSON(),
+    ).toEqual({ a: 1, b: 2, c: 3 })
+    expect((await reloaded.since(0)).map((r) => r.rec.key)).toEqual([a.key, b.key, c.key])
+  })
+})

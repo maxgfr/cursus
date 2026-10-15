@@ -4,7 +4,7 @@ import { lazyChunk, nothing } from './app/lazyChunk.tsx'
 import { HashRouter, Routes } from './app/router.tsx'
 import { isFocusRoute } from './app/routes.ts'
 import { SaveBanner } from './app/SaveBanner.tsx'
-import { SyncProvider } from './app/syncContext.tsx'
+import { SyncProvider, useSync } from './app/syncContext.tsx'
 import { useRuntime, useWorkspaceData, WorkspaceProvider } from './app/workspaceContext.tsx'
 import { detectFromEnvironment, UI_LOCALE_KEY } from './i18n/index.ts'
 import { I18nProvider, useSetLocale, useT } from './i18n/react.tsx'
@@ -19,6 +19,19 @@ import { Shell } from './ui/shell/Shell.tsx'
 
 // Not needed to paint Today: fetched right after it. Should it fail to load, the app goes on without it.
 const Notices = lazyChunk('notices', () => import('./app/Notices.tsx'), nothing)
+// Loaded only while the sync guard holds something back.
+const HeldReview = lazyChunk('held', () => import('./app/HeldReview.tsx'), nothing)
+
+/** "Sync held back a deletion from another device", on every screen while something is held. */
+function HeldBanner() {
+  const { status } = useSync()
+  if (!status?.held) return null
+  return (
+    <Suspense fallback={null}>
+      <HeldReview />
+    </Suspense>
+  )
+}
 
 const isPaletteKey = (e: KeyboardEvent) =>
   (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k'
@@ -159,6 +172,7 @@ export function App() {
               <ChatProvider>
                 <AppShell />
                 <SaveBanner />
+                <HeldBanner />
                 <Palette />
               </ChatProvider>
               {/* Separate boundaries: one chunk loading never holds back another. */}
