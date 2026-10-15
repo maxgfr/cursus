@@ -1,6 +1,5 @@
 import {
   CalendarCheck,
-  ChartColumn,
   Cloud,
   Database,
   FileText,
@@ -55,7 +54,6 @@ export default function Settings() {
         <ListRow href={paths.settingsAi} leading={<Sparkles size={ICON} />} title={t('common.setAi')} />
       </ListGroup>
       <ListGroup title={t('settings.groupData')}>
-        <ListRow href={paths.stats} leading={<ChartColumn size={ICON} />} title={t('common.statsTitle')} />
         <ListRow href={paths.settingsData} leading={<Database size={ICON} />} title={t('common.setData')} />
         <ListRow href={paths.trash} leading={<Trash2 size={ICON} />} title={t('common.trashTitle')} />
       </ListGroup>

@@ -47,6 +47,7 @@ export const today = {
   },
   laterBody: 'En cours d’apprentissage : elles reviennent plus tard aujourd’hui.',
   startKey: 'S',
+  plannedTitle: 'Prévu aujourd’hui : {name}',
   courseDue: { one: '{count} à revoir', other: '{count} à revoir' },
   backupLine: 'Pas encore de sauvegarde',
   backupAction: 'Ajouter une sauvegarde',
@@ -65,6 +66,7 @@ export const today = {
     other: '{count} cartes suggérées depuis {courses} cours',
   },
   draftsReview: 'Accepter ou modifier',
+  draftsHeroBody: 'Acceptez les bonnes : elles rejoignent vos révisions.',
   // --- fin S-044 ---
   unreadableReviewsTitle: 'Une partie de l’historique est illisible.',
   unreadableReviews: {
@@ -76,11 +78,12 @@ export const today = {
   // --- Demo course: every feature, written when the student asks for it ---
   obLoopTitle: 'Comment fonctionne Cursus',
   obLoop1Title: 'Ajoutez ce que vous étudiez',
-  obLoop1Body: 'Notes, PDF, diapositives ou photos, rangés dans un cours.',
+  obLoop1Body: 'Dans un cours, touchez « {add} » : une note, un PDF, des diapositives ou des photos.',
   obLoop2Title: 'Transformez-le en cartes',
-  obLoop2Body: 'Écrivez vos questions, ou acceptez celles que l’IA propose à partir de vos sources.',
+  obLoop2Body:
+    'Touchez « {generate} » pour que l’IA les propose à partir de vos sources, ou « {newCard} » pour en écrire une.',
   obLoop3Title: 'Révisez quelques minutes par jour',
-  obLoop3Body: 'Aujourd’hui montre ce qui est à revoir. Chaque carte revient juste avant que vous ne l’oubliiez.',
+  obLoop3Body: 'Dans {today}, touchez « {start} ». Chaque carte revient juste avant que vous ne l’oubliiez.',
   obDataBody:
     'Tout reste sur cet appareil, sans compte. Ajoutez une sauvegarde dans Réglages › Sync pour en garder une copie ailleurs.',
   obAiTitle: 'L’IA, seulement si vous le souhaitez',
@@ -172,5 +175,4 @@ export const today = {
   firstCardTitle: 'Ajoutez votre première carte',
   firstCardBody: 'Écrivez une carte dans un cours, ou ajoutez une source et acceptez les cartes suggérées.',
   firstCardAction: 'Écrire une carte',
-  practice: 'S’entraîner',
 } as const satisfies Shape<typeof en>

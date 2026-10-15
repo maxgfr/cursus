@@ -389,15 +389,17 @@ test('Course: empty states teach and offer the next action; Back returns to Toda
   // The dot leads the meta row, flush with the title.
   expect(meta.x - title.x).toBeLessThan(24)
 
+  await page.getByRole('radio', { name: 'Cards' }).click()
   const cards = emptyState(page, 'No cards yet')
   await expect(cards.getByText('A card asks one thing')).toBeVisible()
   await expect(cards.getByRole('button', { name: 'New card' })).toBeVisible()
   await page.getByRole('radio', { name: 'Sources' }).click()
   const sources = emptyState(page, 'No sources yet')
-  await expect(sources.getByRole('button', { name: 'Write a note' })).toBeVisible()
+  await expect(sources.getByRole('button', { name: 'Add', exact: true })).toBeVisible()
   await page.getByRole('radio', { name: 'Study sheets' }).click()
   const sheets = emptyState(page, 'No study sheets yet')
-  await expect(sheets.getByRole('link', { name: 'Understand…' })).toBeVisible()
+  // Without a model the course offers no AI action (nor a setup link).
+  await expect(sheets.getByRole('link')).toHaveCount(0)
 
   // A card moved to the trash comes back with Undo.
   await page.getByRole('radio', { name: 'Cards' }).click()
@@ -405,6 +407,8 @@ test('Course: empty states teach and offer the next action; Back returns to Toda
   await page.getByRole('textbox', { name: 'Front' }).click()
   await page.keyboard.type('Basement membrane')
   await page.keyboard.press('ControlOrMeta+s')
+  // The « Card saved. » toast can sit over the row on a phone.
+  await page.getByRole('button', { name: 'Dismiss' }).click()
   await main.getByRole('link', { name: /Basement membrane/ }).click()
   await page.getByRole('button', { name: 'Move to trash' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Histology' })).toBeVisible()

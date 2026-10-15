@@ -141,8 +141,10 @@ test('adding a PDF proposes questions; they are reviewed by slide and the accept
 
   // Today: one calm line, and the way to the review.
   await go(page, '#/', 'Today')
-  await expect(page.getByTestId('drafts-line')).toHaveText('6 cards suggested from Physiology · Accept or edit')
-  await page.getByTestId('drafts-line').getByRole('link', { name: 'Accept or edit' }).click()
+  // Nothing due yet: the suggested cards are the main action.
+  const hero = page.getByTestId('drafts-hero')
+  await expect(hero.getByRole('heading', { level: 2 })).toHaveText('6 cards suggested from Physiology')
+  await hero.getByRole('link', { name: 'Accept or edit' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Suggested cards' })).toBeVisible()
 
   // Grouped by document, then by slide; edit, reject (undoable until saved), accept one, then all of a slide.
@@ -212,6 +214,7 @@ test('« Do nothing » proposes nothing; « Add them directly » puts the questi
     .first()
     .click()
   await page.getByRole('radio', { name: 'Sources' }).check({ force: true })
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
   await page.getByRole('button', { name: 'Write a note' }).click()
   await page.getByRole('textbox', { name: 'Source' }).click()
   await page.keyboard.type('Roots drink water. Leaves catch light.')
@@ -272,6 +275,7 @@ test('without a model the documents wait with a discreet invitation; slides and 
 }) => {
   const calls = await mockProvider(page)
   await newCourse(page, 'Anatomy')
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
   await page.getByRole('link', { name: 'Slides or document' }).click()
   await page.getByLabel('Choose a file').setInputFiles(join(DECKS, 'notes.docx'))
   await expect(page.getByRole('heading', { level: 1, name: 'Physiology notes' })).toBeVisible()

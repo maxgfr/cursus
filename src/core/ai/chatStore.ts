@@ -3,6 +3,7 @@
  * library), never synced: they touch neither the workspace nor the sync format. Newest first, at most
  * `MAX_CONVERSATIONS` per course; the oldest go first.
  */
+import { z } from 'zod'
 import type { LocalStore } from '../contracts/ports'
 import type { ChatMessage } from './features/tutorChat'
 
@@ -36,11 +37,42 @@ export function titleOf(messages: readonly ChatMessage[]): string {
   return first.length > TITLE_CHARS ? `${first.slice(0, TITLE_CHARS - 1).trimEnd()}…` : first
 }
 
+const ref = z.object({ sourceId: z.string(), page: z.number().optional() })
+const guarded = z.object({ text: z.string(), leaked: z.boolean(), original: z.string().optional() })
+const common = { card: z.object({ front: z.string(), back: z.string() }), cost: z.number().optional() }
+
+/** A structured answer as stored: « Explain the question » or « Why? ». */
+const richSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('explainQuestion'),
+    value: z.object({
+      restatement: guarded,
+      terms: z.array(z.object({ term: guarded, definition: guarded, sourceRef: ref.optional() })),
+      context: guarded,
+      citations: z.array(ref),
+      leaked: z.boolean(),
+    }),
+    ...common,
+  }),
+  z.object({
+    kind: z.literal('explainCard'),
+    value: z.object({
+      explanation: z.string(),
+      example: z.string().optional(),
+      mnemonic: z.string().optional(),
+      sourceRef: ref.optional(),
+      citations: z.array(ref),
+    }),
+    ...common,
+  }),
+])
+
 const isMessage = (m: unknown): m is ChatMessage =>
   typeof m === 'object' &&
   m !== null &&
   ((m as ChatMessage).role === 'user' || (m as ChatMessage).role === 'assistant') &&
-  typeof (m as ChatMessage).text === 'string'
+  typeof (m as ChatMessage).text === 'string' &&
+  ((m as ChatMessage).rich === undefined || richSchema.safeParse((m as ChatMessage).rich).success)
 
 const isConversation = (c: unknown): c is Conversation =>
   typeof c === 'object' &&

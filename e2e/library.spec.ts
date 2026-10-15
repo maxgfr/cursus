@@ -100,6 +100,7 @@ test('Today: first-launch state, "+" action, due counts and the exam countdown',
   await expect(page.getByText('12 days left')).toBeVisible()
 
   // One card makes one new card due today.
+  await page.getByRole('radio', { name: 'Cards' }).check()
   await page.getByRole('button', { name: 'New card' }).click()
   await typeInto(page, 'Front', 'What does the sinoatrial node do?')
   await page.getByRole('button', { name: 'Save', exact: true }).click()
@@ -170,6 +171,7 @@ test('Sources: a note, a PDF opened natively, a photo and a pasted text', async 
   await createCourse(page, 'Biology')
   await page.getByRole('radio', { name: 'Sources' }).check()
 
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
   await page.getByRole('button', { name: 'Write a note' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Untitled note' })).toBeVisible()
   await typeInto(page, 'Source', 'Mitochondria make ATP.')
@@ -223,6 +225,7 @@ test('Card editor: the cloze assistant hides phrases and previews one card each'
   const errors = watchErrors(page)
   await openToday(page)
   await createCourse(page, 'Cells')
+  await page.getByRole('radio', { name: 'Cards' }).check()
   await page.getByRole('button', { name: 'New card' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Card' })).toBeVisible()
   await page.getByRole('radio', { name: 'Fill in the blank' }).check()
@@ -257,17 +260,21 @@ test('Trash: restore, then delete forever with the history caveat explained', as
   const errors = watchErrors(page)
   await openToday(page)
   await createCourse(page, 'Law')
+  await page.getByRole('radio', { name: 'Cards' }).check()
   await page.getByRole('button', { name: 'New card' }).click()
   await typeInto(page, 'Front', 'Consideration')
   // A new card exists only once saved; then, opened again, it can go to the trash.
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(page.getByText('Card saved.')).toBeVisible()
+  // The toast can sit over the row on a phone.
+  await page.getByRole('button', { name: 'Dismiss' }).click()
   await page
     .getByRole('main')
     .getByRole('link', { name: /Consideration/ })
     .click()
   await page.getByRole('button', { name: 'Move to trash' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Law' })).toBeVisible()
+  await page.getByRole('radio', { name: 'Cards' }).check()
   await expect(page.getByRole('heading', { name: /No cards yet/ })).toBeVisible()
 
   await page.goto('./#/trash')
@@ -314,6 +321,7 @@ test('History: replay to an earlier version, then restore it forward', async ({ 
   await openToday(page)
   await createCourse(page, 'History of art')
   await page.getByRole('radio', { name: 'Sources' }).check()
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
   await page.getByRole('button', { name: 'Write a note' }).click()
   const editor = page.getByRole('textbox', { name: 'Source' })
   await typeInto(page, 'Source', 'Version one.')
@@ -375,7 +383,7 @@ test('Onboarding: install first, Safari tab warning, storage health and an expli
   await page.getByRole('button', { name: 'Try a demo course' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Demo: Cell biology' })).toBeVisible()
   // The demo shows every feature at the course's root: the back link, its two subsets, the suggested cards'
-  // line, Generate cards and the two cards that live at the root (the rest sit in the subsets).
+  // line and the two cards that live at the root (the rest sit in the subsets).
   const main = page.getByRole('main')
   await expect(main.getByRole('link', { name: 'Back' })).toBeVisible()
   await expect(main.getByRole('link', { name: /^Membranes\b/ })).toBeVisible()
@@ -385,7 +393,7 @@ test('Onboarding: install first, Safari tab warning, storage health and an expli
   await expect(drafts.getByRole('link', { name: 'Accept or edit' })).toBeVisible()
   await expect(main.getByRole('link', { name: /What is the smallest unit of life\?/ })).toBeVisible()
   await expect(main.getByRole('link', { name: /Why can’t a spherical cell keep growing\?/ })).toBeVisible()
-  await expect(main.getByRole('link')).toHaveCount(7)
+  await expect(main.getByRole('link')).toHaveCount(6)
   await page.goto('./#/')
   await expect(page.getByRole('heading', { name: /due today$/ })).toBeVisible()
   await expect(page.getByRole('main').getByRole('link', { name: /Demo: Cell biology/ })).toContainText('3 due')

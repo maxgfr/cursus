@@ -21,6 +21,7 @@ test('a new version applied while typing loses no keystroke', async ({ page, own
 
   await createCourse(page, 'Pharmacology')
   await page.getByRole('radio', { name: 'Sources' }).check()
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
   await page.getByRole('button', { name: 'Write a note' }).click()
   const editor = page.getByRole('textbox', { name: 'Source' })
   await editor.click()
@@ -172,6 +173,7 @@ test('an update applied mid-draft in the card editor brings the draft back after
   await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible()
   await waitForController(page)
   await createCourse(page, 'Botany')
+  await page.getByRole('radio', { name: 'Cards' }).check()
   await page.getByRole('button', { name: 'New card' }).click()
   await expect(page.getByRole('textbox', { name: 'Front' })).toBeVisible()
 

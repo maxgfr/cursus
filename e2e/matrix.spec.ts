@@ -15,6 +15,7 @@ test('functional journey: course, note, cards, review, search, stats, reload', a
 
   await createCourse(page, 'Cell biology')
   await page.getByRole('radio', { name: 'Sources' }).check()
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
   await page.getByRole('button', { name: 'Write a note' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Untitled note' })).toBeVisible()
   await typeInto(page, 'Source', 'Mitochondria make ATP. Chloroplasts capture light.')

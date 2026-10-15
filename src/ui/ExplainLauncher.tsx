@@ -1,15 +1,10 @@
 import { MessageCircle } from 'lucide-react'
-import { type RefObject, Suspense, useCallback, useEffect, useRef, useState } from 'react'
-import { lazyChunk } from '../app/lazyChunk.tsx'
+import { type RefObject, useCallback, useEffect, useRef, useState } from 'react'
 import { useT } from '../i18n/react.tsx'
 import type { AiModelState } from '../screens/Understand/shared/aiConfig.ts'
 import { useChat } from './chat/context.tsx'
 import { Button } from './components/Button.tsx'
 import styles from './ExplainLauncher.module.css'
-import type { ExplainKind, ExplainSheetProps, ExplainTarget } from './ExplainSheet.tsx'
-
-/** The explanation sheet, loaded the first time something asks for an explanation. */
-export const LazyExplainSheet = lazyChunk<ExplainSheetProps>('explainSheet', () => import('./ExplainSheet.tsx'))
 
 /** Whether the browser says it is online, kept current. */
 export function useOnline(): boolean {
@@ -106,25 +101,6 @@ export const keepSelection = (e: { button: number; preventDefault: () => void })
   if (e.button === 0) e.preventDefault()
 }
 
-/** Launches of « Explain the question » or « Why? »: each gets a new `seq`, so the sheet knows it was asked again. */
-export function useExplainTarget(): {
-  target: ExplainTarget | null
-  open: boolean
-  launch: (kind: ExplainKind) => void
-  close: () => void
-} {
-  const [target, setTarget] = useState<ExplainTarget | null>(null)
-  const [open, setOpen] = useState(false)
-  const seq = useRef(0)
-  const launch = useCallback((kind: ExplainKind) => {
-    seq.current += 1
-    setTarget({ kind, seq: seq.current })
-    setOpen(true)
-  }, [])
-  const close = useCallback(() => setOpen(false), [])
-  return { target, open, launch, close }
-}
-
 export interface AskSelectionProps {
   /** Selector of the element whose text can be asked about; the screen's main content by default. */
   within?: string
@@ -160,19 +136,3 @@ export function AskSelection({ within = 'main' }: AskSelectionProps) {
     </div>
   )
 }
-
-/** The lazy sheet, mounted from the first request on so it keeps its results between openings. */
-function Sheet({
-  ai,
-  target,
-  ...rest
-}: { ai: AiModelState; target: ExplainTarget | null } & Omit<ExplainSheetProps, 'ai' | 'target'>) {
-  if (target === null || ai.status !== 'ready') return null
-  return (
-    <Suspense fallback={null}>
-      <LazyExplainSheet ai={ai} target={target} {...rest} />
-    </Suspense>
-  )
-}
-
-export { Sheet as ExplainSheetSlot }

@@ -690,14 +690,16 @@ test.describe('on-device model offline, explanations', () => {
 
     // Online first, so the screens' code is loaded (the service worker is off in this run).
     await go(page, '#/review')
-    await page.getByRole('button', { name: 'Explain the question' }).click()
-    const question = page.getByRole('dialog', { name: 'Explain the question' })
+    // The explanation answers in the chat, whose code loads with it; then the chat is closed.
+    await page.getByRole('main').getByRole('button', { name: 'Explain the question', exact: true }).click()
+    const question =
+      info.project.name === 'webkit-iphone'
+        ? page.getByRole('dialog', { name: 'Ask' })
+        : page.getByRole('complementary', { name: 'Ask' })
     await expect(question.getByText('It asks which part of the cell releases most of its energy.')).toBeVisible()
-    await question.getByRole('button', { name: 'Close' }).click()
-    // The chat's code too: opened once, then closed.
-    await page.keyboard.press('ControlOrMeta+j')
     await expect(page.getByRole('textbox', { name: 'Your question' })).toBeVisible()
     await page.keyboard.press(info.project.name === 'webkit-iphone' ? 'Escape' : 'ControlOrMeta+j')
+    await expect(question).toBeHidden()
     await go(page, '#/courses')
     await page
       .getByRole('main')
@@ -724,7 +726,9 @@ test.describe('on-device model offline, explanations', () => {
     if (info.project.name === 'webkit-iphone') await chat.getByRole('button', { name: 'Close' }).click()
 
     await go(page, '#/review')
-    await expect(page.getByRole('button', { name: 'Explain the question' })).toBeEnabled()
+    await expect(
+      page.getByRole('main').getByRole('button', { name: 'Explain the question', exact: true }),
+    ).toBeEnabled()
     await selectText(page, '[data-testid="question"]', 'cell')
     await expect(page.getByRole('button', { name: 'Ask about “cell”' })).toBeEnabled()
     await expect(page.getByText('You’re offline. Explanations need a connection.')).toHaveCount(0)

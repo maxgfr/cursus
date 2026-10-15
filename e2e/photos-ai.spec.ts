@@ -216,7 +216,7 @@ test('a photo is explained from a reduced copy, after its cost is shown, then ci
   // Understand grounds in the photo and cites it: thumbnail and link back to the photo.
   await expect(panel(page).getByText('Kept on this device: Understand can now use and cite this photo.')).toBeVisible()
   await panel(page).getByRole('link', { name: 'Understand' }).click()
-  await expect(page.getByRole('heading', { level: 1, name: 'Study tools' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Explain a topic' })).toBeVisible()
   await expect(page.getByRole('checkbox', { name: title })).toBeChecked()
   await expect(page.getByText('Includes what AI read on 1 photo.')).toBeVisible()
   await page.getByLabel('What do you want to understand?').fill('Krebs cycle')

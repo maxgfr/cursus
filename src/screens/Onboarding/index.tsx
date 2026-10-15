@@ -98,15 +98,15 @@ export default function Onboarding() {
         <ol className={styles.loopSteps}>
           <li>
             <strong>{t('today.obLoop1Title')}</strong>
-            <span>{t('today.obLoop1Body')}</span>
+            <span>{t('today.obLoop1Body', { add: t('sync.add') })}</span>
           </li>
           <li>
             <strong>{t('today.obLoop2Title')}</strong>
-            <span>{t('today.obLoop2Body')}</span>
+            <span>{t('today.obLoop2Body', { generate: t('ai.generate'), newCard: t('course.addCard') })}</span>
           </li>
           <li>
             <strong>{t('today.obLoop3Title')}</strong>
-            <span>{t('today.obLoop3Body')}</span>
+            <span>{t('today.obLoop3Body', { today: t('common.today'), start: t('common.start') })}</span>
           </li>
         </ol>
       </section>

@@ -21,11 +21,57 @@ import {
   SOURCES_RULE,
 } from '../retrieval'
 import type { SourceRef } from '../schemas'
-import { answerTerms, fence, type GuardedText, guardAnswer, keepValidRefs } from './explainQuestion'
+import type { AnswerExplanation } from './explainCard'
+import {
+  answerTerms,
+  fence,
+  type GuardedText,
+  guardAnswer,
+  keepValidRefs,
+  type QuestionExplanation,
+} from './explainQuestion'
+
+/** A structured answer kept in the thread: « Explain the question » or « Why? » on a card. */
+export type RichResult = (
+  | { kind: 'explainQuestion'; value: QuestionExplanation }
+  | { kind: 'explainCard'; value: AnswerExplanation }
+) & {
+  /** The card it explains. */
+  card: { front: string; back: string }
+  /** The cost estimated before the call, in USD. */
+  cost?: number
+}
 
 export interface ChatMessage {
   role: 'user' | 'assistant'
+  /** The message as plain text; for a structured answer, a readable rendition sent as history. */
   text: string
+  rich?: RichResult
+}
+
+/** What a guided turn asks of the tutor, beyond the student's words. */
+export type ChatIntent = 'hint' | 'mnemonic' | 'summarise' | 'approach'
+
+const INTENTS: Record<ChatIntent, string> = {
+  hint: 'The student asks for a hint: give one short hint that points them towards the answer without stating, naming or paraphrasing it.',
+  mnemonic:
+    'The student asks for a mnemonic: give one short, memorable mnemonic for the answer, then say in one line how it maps to it.',
+  summarise:
+    'The student asks for a summary of the source open: give its main points as a short list, each cited with its marker.',
+  approach:
+    'The student asks how to approach the quiz question: give the steps to reason it through, without giving the answer.',
+}
+
+/** The readable rendition of a structured answer: what the thread says, as the model reads it back. */
+export function richText(rich: RichResult): string {
+  if (rich.kind === 'explainQuestion') {
+    const v = rich.value
+    return [v.restatement.text, ...v.terms.map((t) => `- ${t.term.text}: ${t.definition.text}`), v.context.text]
+      .filter((s) => s.trim() !== '')
+      .join('\n\n')
+  }
+  const v = rich.value
+  return [v.explanation, v.example ?? '', v.mnemonic ?? ''].filter((s) => s.trim() !== '').join('\n\n')
 }
 
 /** What the student is looking at; every field is optional, an empty context is the whole library. */
@@ -39,6 +85,8 @@ export interface ChatContext {
   question?: string
   /** The passage a term was selected in, when the question is about that term. */
   excerpt?: string
+  /** A guided turn: what the student's action asks for. */
+  intent?: ChatIntent
 }
 
 export interface TutorTurn {
@@ -102,6 +150,7 @@ function baseSystem(context: ChatContext, language: string): string {
   if (context.question) {
     rules.push('Do not answer the quiz question for the student; help them reason towards it.')
   }
+  if (context.intent) rules.push(INTENTS[context.intent])
   rules.push(`Write in ${language}.`)
   return `${rules.join('\n')}\n\n<<<SCREEN>>>\n${describe(context)}\n<<<END SCREEN>>>`
 }

@@ -126,6 +126,7 @@ async function openImport(page: Page, course: string) {
   await page.goto('./#/')
   await createCourse(page, course)
   await page.getByRole('radio', { name: 'Sources' }).check({ force: true })
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
   await page.getByRole('link', { name: 'Slides or document' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Import slides or a document' })).toBeVisible()
 }

@@ -40,6 +40,8 @@ export default function Generate() {
   const ai = useAiModel()
   const loadChunks = useChunkLoader()
   const opened = useScopeOnce()
+  // Back to the course or section it was opened from, else to the courses.
+  const back = opened ? to.place(opened.courseId, opened.sectionId) : paths.courses
   const [selection, setSelection] = useState<Selection>(() => selectionFor(opened))
   const [topic, setTopic] = useState('')
   const [count, setCount] = useState<(typeof COUNTS)[number]>('10')
@@ -68,10 +70,10 @@ export default function Generate() {
     }
   }, [ai, selection, count, loadChunks])
 
-  if (ai.status === 'loading') return <Screen title={t('ai.generate')} back={paths.understand} />
+  if (ai.status === 'loading') return <Screen title={t('ai.generate')} back={back} />
   if (ai.status === 'missing')
     return (
-      <Screen title={t('ai.generate')} back={paths.understand}>
+      <Screen title={t('ai.generate')} back={back}>
         <NoModel reason={ai.reason} />
       </Screen>
     )
@@ -132,7 +134,7 @@ export default function Generate() {
   }
 
   return (
-    <Screen title={t('ai.generate')} back={paths.understand}>
+    <Screen title={t('ai.generate')} back={back}>
       <Link
         href={withScope(
           paths.deckImport,

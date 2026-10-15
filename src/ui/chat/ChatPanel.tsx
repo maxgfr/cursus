@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Link } from 'wouter'
+import { Link, useLocation } from 'wouter'
 import { paths, to } from '../../app/routes.ts'
 import { useRuntime, useWorkspace } from '../../app/workspaceContext.tsx'
 import {
@@ -20,33 +20,42 @@ import {
   listConversations,
   saveConversation,
 } from '../../core/ai/chatStore'
+import { explainCard } from '../../core/ai/features/explainCard'
+import { EXPLAIN_OUTPUT_TOKENS, explainQuestion } from '../../core/ai/features/explainQuestion'
 import {
   buildTutorTurn,
   type ChatContext,
+  type ChatIntent,
   type ChatMessage,
   type ChatSegment,
   guardReply,
   keepValidCitations,
   parseCitations,
+  type RichResult,
+  richText,
   tutorChat,
 } from '../../core/ai/features/tutorChat'
 import type { Chunk } from '../../core/ai/retrieval'
-import type { SourceRef } from '../../core/ai/schemas'
+import type { CardExplanation, QuestionExplanationDraft, SourceRef } from '../../core/ai/schemas'
 import { blobStore } from '../../core/log/blobs'
 import type { ModelWorkspace } from '../../core/model/workspace'
-import { useT } from '../../i18n/react.tsx'
+import { formatUsd } from '../../i18n/format.ts'
+import { useLocale, useT } from '../../i18n/react.tsx'
 import { describeFailure } from '../../screens/Review/failure.ts'
 import { useAiModel } from '../../screens/Understand/shared/aiConfig.ts'
 import { Citation } from '../../screens/Understand/shared/SourcePicker.tsx'
-import { chunksFor, deckReader } from '../../screens/Understand/shared/sources.ts'
+import { chunksFor, deckReader, estimateCost } from '../../screens/Understand/shared/sources.ts'
 import { Button, buttonClass } from '../components/Button.tsx'
 import { IconButton } from '../components/IconButton.tsx'
 import { Sheet } from '../components/Sheet.tsx'
 import { cx } from '../cx.ts'
+import { usePartial } from '../data/usePartial.ts'
 import { useCanCallAi } from '../ExplainLauncher.tsx'
 import { Sanitized } from '../render/Sanitized.tsx'
+import { actionById, actionsFor, type ChatAction } from './actions.ts'
 import styles from './ChatPanel.module.css'
 import { type ScreenContext, useChat } from './context.tsx'
+import { keyed, PartialRich, RichAnswer, RichNote } from './RichAnswer.tsx'
 
 const DOCKED = '(min-width: 1000px)'
 
@@ -101,19 +110,22 @@ interface Live {
   chunks: Chunk[]
 }
 
-/** Items with a React key from their content, repeats told apart by their rank among equals. */
-function keyed<T>(items: readonly T[], keyOf: (item: T) => string): { item: T; key: string }[] {
-  const seen = new Map<string, number>()
-  return items.map((item) => {
-    const base = keyOf(item)
-    const n = (seen.get(base) ?? 0) + 1
-    seen.set(base, n)
-    return { item, key: n === 1 ? base : `${base}#${n}` }
-  })
+/** A structured answer being written: which one, about which card. */
+interface LiveRich {
+  kind: RichResult['kind']
+  card: { front: string; back: string; revealed: boolean }
 }
+
+type Card = NonNullable<ScreenContext['card']>
+
+/** Whether a structured answer about `faces` may show in full: always, unless that card is on screen unrevealed. */
+const revealedFor = (faces: { front: string; back: string }, card: ScreenContext['card']) =>
+  !(card && !card.revealed && card.front === faces.front && card.back === faces.back)
 
 function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void }) {
   const t = useT()
+  const locale = useLocale()
+  const [, navigate] = useLocation()
   const ws = useWorkspace()
   const rt = useRuntime()
   const chat = useChat()
@@ -137,6 +149,10 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
   const [showHistory, setShowHistory] = useState(false)
   const [draft, setDraft] = useState('')
   const [live, setLive] = useState<Live | null>(null)
+  const [liveRich, setLiveRich] = useState<LiveRich | null>(null)
+  const [courseChunks, setCourseChunks] = useState<Chunk[]>([])
+  const questionStream = usePartial<QuestionExplanationDraft>()
+  const answerStream = usePartial<CardExplanation>()
   const [error, setError] = useState<string | null>(null)
   const abort = useRef<AbortController | null>(null)
   const chunkCache = useRef(new Map<string, Promise<Chunk[]>>())
@@ -159,21 +175,6 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
       alive = false
     }
   }, [rt, courseId])
-
-  // Opened on an explanation: a new chat that starts from it.
-  const seed = chat?.seed
-  const seeded = useRef<number | null>(null)
-  useEffect(() => {
-    if (!seed || seeded.current === seed.seq) return
-    seeded.current = seed.seq
-    abort.current?.abort()
-    setShowHistory(false)
-    setCurrent({
-      id: rt.rng.id(),
-      messages: [{ role: 'assistant', text: seed.text }],
-      ...(courseId ? { courseId } : {}),
-    })
-  }, [seed, rt, courseId])
 
   useEffect(() => {
     if (chat?.open) input.current?.focus({ preventScroll: true })
@@ -212,8 +213,23 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
     [rt, courseId],
   )
 
+  // The course's passages, from which the structured answers quote what they cite.
+  const hasRich = current.messages.some((m) => m.rich !== undefined)
+  useEffect(() => {
+    if (!hasRich) return
+    let alive = true
+    const ids = courseId ? ws.sources.list({ courseId }).map((s) => s.id) : []
+    loadChunks(ids).then(
+      (loaded) => alive && setCourseChunks(loaded),
+      (e: unknown) => console.warn('Course passages could not be read', e),
+    )
+    return () => {
+      alive = false
+    }
+  }, [hasRich, courseId, ws, loadChunks])
+
   const ask = useCallback(
-    async (history: ChatMessage[], excerpt?: string) => {
+    async (history: ChatMessage[], { excerpt, intent }: { excerpt?: string; intent?: ChatIntent } = {}) => {
       if (ai.status !== 'ready') return
       abort.current?.abort()
       const ctl = new AbortController()
@@ -225,12 +241,19 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
       let text = ''
       let grounded: Chunk[] = []
       try {
-        // Within a course its sources; elsewhere, or without the screen, the whole library.
+        // A summary reads its source; within a course its sources; elsewhere, or without the screen, the library.
         const scoped = screenOn && courseId !== undefined
-        const ids = ws.sources.list(scoped ? { courseId } : undefined).map((s) => s.id)
+        const ids =
+          intent === 'summarise' && context.sourceId
+            ? [context.sourceId]
+            : ws.sources.list(scoped ? { courseId } : undefined).map((s) => s.id)
         const chunks = await loadChunks(ids)
         const ctx = await ai.context(ctl.signal, course?.language)
-        const about = { ...describeContext(ws, context), ...(excerpt ? { excerpt } : {}) }
+        const about = {
+          ...describeContext(ws, context),
+          ...(excerpt ? { excerpt } : {}),
+          ...(intent ? { intent } : {}),
+        }
         const turn = buildTutorTurn(about, history, chunks, ctx.info, ctx.language)
         grounded = turn.chunks
         for await (const delta of tutorChat(ctx, turn)) {
@@ -258,20 +281,109 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
     [ai, current, screenOn, courseId, ws, loadChunks, course, context, t, persist],
   )
 
+  // « Explain the question » and « Why? »: a structured answer, written into the thread as it comes.
+  const explain = useCallback(
+    async (kind: RichResult['kind'], label: string, card: Card) => {
+      if (ai.status !== 'ready') return
+      abort.current?.abort()
+      const ctl = new AbortController()
+      abort.current = ctl
+      const conv = current
+      const history: ChatMessage[] = [...conv.messages, { role: 'user', text: label }]
+      setCurrent({ ...conv, messages: history })
+      setError(null)
+      const stream = kind === 'explainQuestion' ? questionStream : answerStream
+      questionStream.reset()
+      answerStream.reset()
+      setLiveRich({ kind, card })
+      let rich: RichResult | null = null
+      try {
+        const ids = courseId ? ws.sources.list({ courseId }).map((s) => s.id) : []
+        const loaded = await loadChunks(ids)
+        setCourseChunks(loaded)
+        const cost = estimateCost(ai.info, loaded, EXPLAIN_OUTPUT_TOKENS)
+        const ctx = { ...(await ai.context(ctl.signal, course?.language)), onPartial: stream.onPartial }
+        const input = { chunks: loaded, courseTitle: course?.title }
+        const faces = { front: card.front, back: card.back }
+        rich =
+          kind === 'explainQuestion'
+            ? {
+                kind,
+                card: faces,
+                cost,
+                value: await explainQuestion(ctx, { card: faces, revealed: card.revealed, ...input }),
+              }
+            : { kind, card: faces, cost, value: await explainCard(ctx, { ...faces, ...input }) }
+      } catch (e) {
+        if (!ctl.signal.aborted) {
+          console.warn('Explanation request failed', e)
+          setError(t('chat.failed', { reason: describeFailure(e, t) }))
+        }
+      }
+      if (abort.current === ctl) abort.current = null
+      stream.reset()
+      setLiveRich(null)
+      if (rich === null || ctl.signal.aborted) return
+      const messages: ChatMessage[] = [...history, { role: 'assistant', text: richText(rich), rich }]
+      setCurrent((c) => (c.id === conv.id ? { ...c, messages } : c))
+      persist(conv.id, messages, conv.courseId)
+    },
+    [ai, current, courseId, ws, loadChunks, course, t, persist, questionStream, answerStream],
+  )
+
+  const busy = live !== null || liveRich !== null
+
+  const perform = useCallback(
+    (action: ChatAction, on: ScreenContext) => {
+      if (action.kind === 'link') {
+        navigate(action.href)
+        return
+      }
+      if (action.kind === 'guided') {
+        void ask([...current.messages, { role: 'user', text: action.label }], { intent: action.intent })
+        return
+      }
+      const card = on.card
+      if (!card) return
+      const kind = action.id === 'why' ? 'explainCard' : 'explainQuestion'
+      // An explanation of this card already in the thread is shown again, not asked again.
+      const given = current.messages.some(
+        (m) => m.rich?.kind === kind && m.rich.card.front === card.front && m.rich.card.back === card.back,
+      )
+      if (!given) void explain(kind, action.label, card)
+    },
+    [navigate, ask, current.messages, explain],
+  )
+
+  // Run from the screen (« Explain the question » in review): as soon as the chat can, with the screen's context.
+  const running = chat?.running
+  const ran = useRef<number | null>(null)
+  useEffect(() => {
+    if (!running || ran.current === running.seq) return
+    // Waits for the course's conversation when the screen just moved to another course.
+    if (ai.status !== 'ready' || !callable || busy || current.courseId !== courseId) return
+    ran.current = running.seq
+    setShowHistory(false)
+    setDetached(null)
+    const action = actionById(t, screen, running.id)
+    if (action) perform(action, screen)
+    else console.warn(`Chat action "${running.id}" has nothing to act on here`)
+  }, [running, ai.status, callable, busy, current.courseId, courseId, t, screen, perform])
+
   // Asked from the screen (a term selected there): sent as soon as the chat can answer, in the chat on screen.
   const asked = chat?.asked
   const handled = useRef<number | null>(null)
   useEffect(() => {
     if (!asked || handled.current === asked.seq) return
-    if (ai.status !== 'ready' || !callable || live !== null) return
+    if (ai.status !== 'ready' || !callable || busy) return
     handled.current = asked.seq
     setShowHistory(false)
-    void ask([...current.messages, { role: 'user', text: asked.text }], asked.excerpt)
-  }, [asked, ai.status, callable, live, current.messages, ask])
+    void ask([...current.messages, { role: 'user', text: asked.text }], asked.excerpt ? { excerpt: asked.excerpt } : {})
+  }, [asked, ai.status, callable, busy, current.messages, ask])
 
   const send = (text: string) => {
     const q = text.trim()
-    if (q === '' || live !== null || !callable) return
+    if (q === '' || busy || !callable) return
     setDraft('')
     void ask([...current.messages, { role: 'user', text: q }])
   }
@@ -316,9 +428,12 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
   })
 
   const chip = chipLabel(t, ws, screen)
-  const suggestions = suggestionsFor(t, context)
+  const actions = actionsFor(t, context)
   const card = context.card
-  const busy = live !== null
+  const costOf = (rich: RichResult) =>
+    rich.cost === undefined || ai.status !== 'ready'
+      ? null
+      : `${t('ai.cost', { amount: formatUsd(locale, rich.cost) })} · ${ai.info.name}`
 
   const contextChip = screenOn ? (
     <span className={styles.chip}>
@@ -413,34 +528,82 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
       ) : (
         <>
           {docked && <div className={styles.context}>{contextChip}</div>}
+          {actions.length > 0 && (
+            <ul className={styles.actionRow} aria-label={t('chat.actions')}>
+              {actions.map((a) => (
+                <li key={a.id}>
+                  {a.kind === 'link' ? (
+                    <Link href={a.href} className={styles.suggestion}>
+                      {a.label}
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      className={styles.suggestion}
+                      disabled={!callable || busy}
+                      onClick={() => perform(a, context)}
+                    >
+                      {a.label}
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
           <div ref={log} className={styles.log} role="log" aria-label={t('chat.title')} aria-busy={busy || undefined}>
             {current.messages.length === 0 && !busy && (
               <div className={styles.intro}>
                 <p className={styles.muted}>{t('chat.intro')}</p>
-                <ul className={styles.suggestions}>
-                  {suggestions.map((s) => (
-                    <li key={s}>
-                      <button type="button" className={styles.suggestion} disabled={!callable} onClick={() => send(s)}>
-                        {s}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
               </div>
             )}
             {keyed(
               current.messages.map((m, at) => ({ m, before: current.messages[at - 1] })),
               ({ m }) => `${m.role}:${m.text}`,
-            ).map(({ item: { m, before }, key }) => (
-              <Message
-                key={key}
-                message={m}
-                question={before?.role === 'user' ? before.text : undefined}
-                card={card}
-                courseId={courseId}
-                sectionId={context.sectionId}
-              />
-            ))}
+            ).map(({ item: { m, before }, key }) => {
+              if (!m.rich) {
+                return (
+                  <Message
+                    key={key}
+                    message={m}
+                    question={before?.role === 'user' ? before.text : undefined}
+                    card={card}
+                    courseId={courseId}
+                    sectionId={context.sectionId}
+                  />
+                )
+              }
+              const cost = costOf(m.rich)
+              return (
+                <div key={key} className={styles.answer}>
+                  <span className="sr-only">{t('chat.tutor')}: </span>
+                  <RichAnswer
+                    rich={m.rich}
+                    revealed={revealedFor(m.rich.card, screen.card)}
+                    chunks={courseChunks}
+                    courseId={current.courseId}
+                    footer={cost && <RichNote>{cost}</RichNote>}
+                  />
+                </div>
+              )
+            })}
+            {liveRich && (
+              <div className={styles.answer}>
+                <span className="sr-only">{t('chat.tutor')}: </span>
+                {questionStream.partial || answerStream.partial ? (
+                  <PartialRich
+                    kind={liveRich.kind}
+                    question={questionStream.partial}
+                    answer={answerStream.partial}
+                    card={liveRich.card}
+                    revealed={revealedFor(liveRich.card, screen.card)}
+                  />
+                ) : (
+                  <p className={styles.muted} role="status">
+                    {t('chat.writing')}
+                  </p>
+                )}
+              </div>
+            )}
             {live && (
               <Answer segments={parseCitations(live.text, live.chunks).segments} card={card} streaming>
                 {live.text === '' && (
@@ -502,17 +665,6 @@ function chipLabel(t: ReturnType<typeof useT>, ws: ModelWorkspace, c: ScreenCont
   const course = c.courseId ? ws.courses.get(c.courseId) : undefined
   if (course) return course.title
   return t('chat.aboutLibrary')
-}
-
-function suggestionsFor(t: ReturnType<typeof useT>, c: ScreenContext): string[] {
-  const out: string[] = []
-  if (c.card) out.push(c.card.revealed ? t('chat.suggestExplainCard') : t('chat.suggestThinkCard'))
-  if (c.question) out.push(t('chat.suggestQuestion'))
-  if (c.sourceId) out.push(t('chat.suggestSummarise'))
-  if (c.sectionId) out.push(t('chat.suggestQuizSection'))
-  else if (c.courseId) out.push(t('chat.suggestQuizCourse'))
-  if (out.length < 3) out.push(t('chat.suggestConcept'))
-  return out.slice(0, 3)
 }
 
 /** The answer's text, citations removed, for a card or the clipboard. */

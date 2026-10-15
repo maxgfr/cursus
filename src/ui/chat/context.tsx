@@ -1,4 +1,5 @@
 import { createContext, type ReactNode, useContext, useEffect, useId, useMemo, useSyncExternalStore } from 'react'
+import type { ChatActionId } from './actions.ts'
 
 /** What a screen shows, for the chat beside it. Ids only: the panel reads titles and passages itself. */
 export interface ScreenContext {
@@ -11,9 +12,9 @@ export interface ScreenContext {
   question?: string
 }
 
-/** What the chat opens on: an explanation already shown, to ask a follow-up about. */
-export interface ChatSeed {
-  text: string
+/** An action of the panel to run as soon as the chat can (« Explain the question » from review, say). */
+export interface ChatRun {
+  id: ChatActionId
   seq: number
 }
 
@@ -28,7 +29,7 @@ export interface ChatSnapshot {
   open: boolean
   /** The most specific context the screens on display publish. */
   context: ScreenContext
-  seed: ChatSeed | null
+  running: ChatRun | null
   asked: ChatAsk | null
 }
 
@@ -45,7 +46,7 @@ class ChatHub {
   private readonly entries = new Map<string, ScreenContext>()
   private readonly listeners = new Set<() => void>()
   private seq = 0
-  snapshot: ChatSnapshot = { open: false, context: {}, seed: null, asked: null }
+  snapshot: ChatSnapshot = { open: false, context: {}, running: null, asked: null }
 
   subscribe = (l: () => void) => {
     this.listeners.add(l)
@@ -73,9 +74,9 @@ class ChatHub {
     if (open !== this.snapshot.open) this.emit({ open })
   }
 
-  openWith(text: string) {
+  runAction(id: ChatActionId) {
     this.seq += 1
-    this.emit({ open: true, seed: { text, seq: this.seq } })
+    this.emit({ open: true, running: { id, seq: this.seq } })
   }
 
   ask(text: string, excerpt?: string) {
@@ -89,13 +90,13 @@ const Hub = createContext<ChatHub | null>(null)
 export interface ChatApi extends ChatSnapshot {
   toggle(): void
   close(): void
-  /** Opens the chat on an explanation, to ask a follow-up. */
-  followUp(text: string): void
+  /** Opens the chat and runs one of its actions for the screen (see `actionsFor`). */
+  run(id: ChatActionId): void
   /** Opens the chat and asks `text` there, `excerpt` (what it was selected in) going along as context. */
   ask(text: string, excerpt?: string): void
 }
 
-const NO_SNAPSHOT: ChatSnapshot = { open: false, context: {}, seed: null, asked: null }
+const NO_SNAPSHOT: ChatSnapshot = { open: false, context: {}, running: null, asked: null }
 const noop = () => () => {}
 
 /** The chat beside the screens; null outside the app's shell (boot failure). */
@@ -108,7 +109,7 @@ export function useChat(): ChatApi | null {
         ...snap,
         toggle: () => hub.setOpen(!hub.snapshot.open),
         close: () => hub.setOpen(false),
-        followUp: (text: string) => hub.openWith(text),
+        run: (id: ChatActionId) => hub.runAction(id),
         ask: (text: string, excerpt?: string) => hub.ask(text, excerpt),
       },
     [hub, snap],

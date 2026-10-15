@@ -1,13 +1,4 @@
-import {
-  BookOpen,
-  CalendarCheck,
-  CalendarClock,
-  Lightbulb,
-  type LucideIcon,
-  MessageCircle,
-  Search,
-  Settings,
-} from 'lucide-react'
+import { BookOpen, CalendarCheck, CalendarClock, type LucideIcon, MessageCircle, Search, Settings } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, useLocation } from 'wouter'
 import { paths, to } from '../../app/routes.ts'
@@ -27,7 +18,7 @@ export interface ShellCourse {
 
 interface Tab {
   href: string
-  label: 'common.today' | 'common.navCourses' | 'review.sessions' | 'common.navUnderstand' | 'common.settings'
+  label: 'common.today' | 'common.navCourses' | 'common.navPractice' | 'common.settings'
   icon: LucideIcon
   match: (loc: string) => boolean
 }
@@ -40,18 +31,17 @@ const TABS: readonly Tab[] = [
     icon: BookOpen,
     match: (l) => l === paths.courses || /^\/(course|source|card|history)\//.test(l),
   },
-  // Sessions: past ones with their results, planned ones, a new one.
+  // Practice: sessions (past, planned, new), quiz, statistics and the course tools reached from there.
   {
     href: paths.sessions,
-    label: 'review.sessions',
+    label: 'common.navPractice',
     icon: CalendarClock,
-    match: (l) => l.startsWith(paths.sessions),
-  },
-  {
-    href: paths.understand,
-    label: 'common.navUnderstand',
-    icon: Lightbulb,
-    match: (l) => l === paths.understand || l === paths.generate || l === paths.quiz,
+    match: (l) =>
+      l.startsWith(paths.sessions) ||
+      l === paths.quiz ||
+      l === paths.stats ||
+      l === paths.understand ||
+      l === paths.generate,
   },
   { href: paths.settings, label: 'common.settings', icon: Settings, match: (l) => l.startsWith(paths.settings) },
 ]

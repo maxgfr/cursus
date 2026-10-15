@@ -33,6 +33,7 @@ async function crumb(page: Page, name: string) {
 
 /** Writes a card in the course or section on screen; Save brings the editor back here. */
 async function newCard(page: Page, front: string) {
+  await page.getByRole('radio', { name: 'Cards' }).check()
   await page.getByRole('button', { name: 'New card' }).first().click()
   await typeInto(page, 'Front', front)
   await typeInto(page, 'Back', 'Answer')
@@ -114,6 +115,7 @@ test('Move: a note to another section, a section under another, and a cycle refu
 
   // A note written at the course root moves into Torts.
   await page.getByRole('radio', { name: 'Sources' }).check()
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
   await page.getByRole('button', { name: 'Write a note' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Untitled note' })).toBeVisible()
   await page.getByRole('button', { name: 'Move to…' }).click()
@@ -266,6 +268,7 @@ async function mockProvider(page: Page): Promise<string[]> {
 
 async function writeNote(page: Page, text: string) {
   await page.getByRole('radio', { name: 'Sources' }).check()
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
   await page.getByRole('button', { name: 'Write a note' }).click()
   await typeInto(page, 'Source', text)
   await expect(page.getByRole('textbox', { name: 'Source' })).toContainText(text)
@@ -285,8 +288,8 @@ test('Understand from a section is grounded in that section’s sources only', a
   await writeNote(page, 'Chlorophyll captures light in leaf cells.')
   await crumb(page, 'Leaves')
 
-  await page.getByRole('link', { name: 'Understand…' }).click()
-  await expect(page.getByRole('heading', { level: 1, name: 'Study tools' })).toBeVisible()
+  await page.getByRole('link', { name: 'Explain a topic' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Explain a topic' })).toBeVisible()
   await expect(page.getByLabel('Section', { exact: true })).toHaveValue(/.+/)
   await expect(page.getByLabel('Section', { exact: true }).locator('option:checked')).toHaveText('Leaves')
   // Leaves itself has no note; its child Cells has one: descendants count, the course root's note doesn't.
@@ -362,6 +365,7 @@ test('A new card whose section went to the trash meanwhile is saved in the neare
   await createCourse(page, 'Law')
   await newSection(page, 'Contracts')
   await newSection(page, 'Formation')
+  await page.getByRole('radio', { name: 'Cards' }).check()
   await page.getByRole('button', { name: 'New card' }).first().click()
   await typeInto(page, 'Front', 'Offer and acceptance?')
   await page.waitForTimeout(400) // the draft is kept on the device a moment after typing

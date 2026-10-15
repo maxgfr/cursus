@@ -1,4 +1,4 @@
-import { BookOpen, ChartColumn, ListChecks, Plus } from 'lucide-react'
+import { BookOpen, Play, Plus } from 'lucide-react'
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Link, useLocation } from 'wouter'
@@ -7,7 +7,8 @@ import { ChunkFailed, lazyChunk, nothing } from '../../app/lazyChunk.tsx'
 import { onboarded } from '../../app/onboarding.ts'
 import { paths, to } from '../../app/routes.ts'
 import { useSync } from '../../app/syncContext.tsx'
-import { useWorkspaceData } from '../../app/workspaceContext.tsx'
+import { useWorkspace, useWorkspaceData } from '../../app/workspaceContext.tsx'
+import { nextPlanned, planSession } from '../../core/model/sessions'
 import { formatDuration } from '../../i18n/format.ts'
 import { intlTag } from '../../i18n/index.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
@@ -17,11 +18,12 @@ import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { EmptyState } from '../../ui/components/EmptyState.tsx'
 import { IconButton } from '../../ui/components/IconButton.tsx'
 import { Keycap } from '../../ui/components/Keycap.tsx'
-import { ListGroup, ListRow } from '../../ui/components/List.tsx'
+import { ListGroup } from '../../ui/components/List.tsx'
 import { useStudy } from '../../ui/data/useStudy.ts'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { newCardId } from '../CardEditor/draft.ts'
 import { formatInterval } from '../Review/interval.ts'
+import { formatWhen } from '../Sessions/describe.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 import { CourseRows } from './CourseRows.tsx'
 import { InstallHint } from './InstallHint.tsx'
@@ -49,7 +51,7 @@ const SessionLine = lazyChunk<object>(
 )
 
 // Off the first paint too: the proposed questions' line (it never loads the AI code).
-const DraftsLine = lazyChunk<object>(
+const DraftsLine = lazyChunk<{ hidden?: boolean }>(
   'today.draftsLine',
   () => import('./DraftsLine.tsx').then((m) => ({ default: m.DraftsLine })),
   nothing,
@@ -114,6 +116,43 @@ export default function Today() {
   const start = useStartReview()
   // Synced review events this version cannot read: kept in the library, left out of the schedule, said here.
   const unreadable = useWorkspaceData(['reviews'], (ws) => ws.reviews.quarantined().length)
+  // Suggested cards waiting: the main action once nothing is due.
+  const drafts = useWorkspaceData(['drafts', 'sources', 'courses', 'sections'], (ws) => {
+    const { total, sources } = ws.drafts.summary()
+    if (total === 0) return null
+    const first = sources[0]
+    return {
+      total,
+      courses: new Set(sources.map((x) => x.courseId)).size,
+      course: first ? (ws.courses.get(first.courseId)?.title ?? '') : '',
+    }
+  })
+  // A session planned for today (earlier today included): the main action once nothing is due or suggested.
+  const ws = useWorkspace()
+  const plannedToday = useWorkspaceData(['plans', 'courses', 'sessions'], (w) => {
+    const day = new Date()
+    const midnight = new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime()
+    const tomorrow = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1).getTime()
+    // A plan over a course in the trash waits there with it.
+    const live = w.plans
+      .list()
+      .filter((p) => p.courseId === undefined || w.courses.get(p.courseId)?.deletedAt === undefined)
+    // One already started since its time is done for today: the next one today, if any, takes its place.
+    const started = w.sessions.list()
+    let from = midnight
+    for (;;) {
+      const next = nextPlanned(live, from)
+      if (next === null || next.at >= tomorrow) return null
+      const done = started.some((s) => s.planId === next.plan.id && s.startedAt >= next.at)
+      if (!done) return next
+      from = next.at + 1
+    }
+  })
+  const startPlanned = () => {
+    if (plannedToday === null) return
+    const id = ws.sessions.start(planSession(plannedToday.plan))
+    navigate(to.sessionRun(id), { state: { session: id } })
+  }
   const [adding, setAdding] = useState(false)
   const add = () => setAdding(true)
   const [, navigate] = useLocation()
@@ -203,6 +242,18 @@ export default function Today() {
                   <Keycap>{t('today.startKey')}</Keycap>
                 </Button>
               </>
+            ) : drafts !== null ? (
+              <div data-testid="drafts-hero" className={styles.draftsHero}>
+                <h2 id="today-hero" className={styles.caughtUp}>
+                  {drafts.courses === 1
+                    ? t('today.draftsLine', { count: drafts.total, course: drafts.course })
+                    : t('today.draftsLineCourses', { count: drafts.total, courses: drafts.courses })}
+                </h2>
+                <p className={styles.meta}>{t('today.draftsHeroBody')}</p>
+                <Link href={paths.inbox} className={buttonClass({ variant: 'primary' })}>
+                  {t('today.draftsReview')}
+                </Link>
+              </div>
             ) : study.totalCards === 0 ? (
               <>
                 <h2 id="today-hero" className={styles.caughtUp}>
@@ -216,6 +267,16 @@ export default function Today() {
                   </Link>
                 )}
               </>
+            ) : plannedToday !== null ? (
+              <div data-testid="planned-hero">
+                <h2 id="today-hero" className={styles.caughtUp}>
+                  {t('today.plannedTitle', { name: plannedToday.plan.name })}
+                </h2>
+                <p className={styles.meta}>{formatWhen(locale, t, plannedToday.at, now)}</p>
+                <Button variant="primary" icon={<Play size={18} aria-hidden="true" />} onClick={startPlanned}>
+                  {t('review.startNow')}
+                </Button>
+              </div>
             ) : study.later !== null ? (
               <>
                 <h2 id="today-hero" className={styles.caughtUp}>
@@ -246,7 +307,7 @@ export default function Today() {
             <SessionLine />
           </Suspense>
           <Suspense fallback={null}>
-            <DraftsLine />
+            <DraftsLine hidden={study.due === 0} />
           </Suspense>
           {hasData && status !== null && !backedUp && (
             <p className={styles.backup} data-testid="backup-line">
@@ -260,12 +321,6 @@ export default function Today() {
           <ListGroup title={t('today.courses')}>
             <CourseRows courses={study.courses} />
           </ListGroup>
-          {hasData && (
-            <ListGroup title={t('today.practice')}>
-              <ListRow href={paths.quiz} leading={<ListChecks size={20} />} title={t('ai.quiz')} />
-              <ListRow href={paths.stats} leading={<ChartColumn size={20} />} title={t('common.cmdStats')} />
-            </ListGroup>
-          )}
         </>
       )}
     </Screen>

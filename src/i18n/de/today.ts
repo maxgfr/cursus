@@ -47,6 +47,7 @@ export const today = {
   },
   laterBody: 'Noch in der Lernphase: sie kommen später am Tag zurück.',
   startKey: 'S',
+  plannedTitle: 'Heute geplant: {name}',
   courseDue: { one: '{count} heute fällig', other: '{count} heute fällig' },
   backupLine: 'Noch keine Sicherung',
   backupAction: 'Sicherung einrichten',
@@ -62,6 +63,7 @@ export const today = {
     other: '{count} Karten zu {courses} Kursen vorgeschlagen',
   },
   draftsReview: 'Annehmen oder bearbeiten',
+  draftsHeroBody: 'Nimm die guten an, dann kommen sie in deine Wiederholung.',
   // --- Ende S-044 ---
   unreadableReviewsTitle: 'Ein Teil des Lernverlaufs ist nicht lesbar.',
   unreadableReviews: {
@@ -73,11 +75,12 @@ export const today = {
   // --- Demo course: every feature, written when the student asks for it ---
   obLoopTitle: 'So funktioniert Cursus',
   obLoop1Title: 'Füge hinzu, was du lernst',
-  obLoop1Body: 'Notizen, PDFs, Folien oder Fotos, abgelegt in einem Kurs.',
+  obLoop1Body: 'Tippe in einem Kurs auf „{add}“: eine Notiz, ein PDF, Folien oder Fotos.',
   obLoop2Title: 'Mach Karten daraus',
-  obLoop2Body: 'Schreib Fragen selbst oder übernimm die, die die KI aus deinen Quellen vorschlägt.',
+  obLoop2Body:
+    'Tippe auf „{generate}“, damit die KI sie aus deinen Quellen vorschlägt, oder auf „{newCard}“, um selbst eine zu schreiben.',
   obLoop3Title: 'Wiederhole ein paar Minuten am Tag',
-  obLoop3Body: 'Heute zeigt, was fällig ist. Jede Karte kommt, kurz bevor du sie vergessen würdest.',
+  obLoop3Body: 'Tippe unter {today} auf „{start}“. Jede Karte kommt, kurz bevor du sie vergessen würdest.',
   obDataBody:
     'Alles bleibt auf diesem Gerät, ohne Konto. Leg unter Einstellungen › Sync eine Sicherung an, um eine Kopie woanders zu haben.',
   obAiTitle: 'KI, nur wenn du willst',
@@ -169,5 +172,4 @@ export const today = {
   firstCardBody:
     'Schreib eine Karte in einem Kurs oder füge eine Quelle hinzu und übernimm die vorgeschlagenen Karten.',
   firstCardAction: 'Karte schreiben',
-  practice: 'Üben',
 } as const satisfies Shape<typeof en>

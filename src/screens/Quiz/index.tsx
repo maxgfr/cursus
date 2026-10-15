@@ -1,5 +1,5 @@
 import { type FormEvent, useCallback, useId, useState } from 'react'
-import { paths } from '../../app/routes.ts'
+import { paths, to } from '../../app/routes.ts'
 import { useWorkspace } from '../../app/workspaceContext.tsx'
 import { quiz } from '../../core/ai/features/quiz'
 import type { QuizQuestion } from '../../core/ai/schemas'
@@ -32,6 +32,8 @@ export default function Quiz() {
   const ai = useAiModel()
   const loadChunks = useChunkLoader()
   const opened = useScopeOnce()
+  // Back to the course or section it was opened from, else to the sessions.
+  const back = opened ? to.place(opened.courseId, opened.sectionId) : paths.sessions
   const [selection, setSelection] = useState<Selection>(() => selectionFor(opened))
   const [topic, setTopic] = useState('')
   const [count, setCount] = useState<(typeof COUNTS)[number]>('5')
@@ -51,10 +53,10 @@ export default function Quiz() {
     ...(pending ? { question: pending.question } : {}),
   })
 
-  if (ai.status === 'loading') return <Screen title={t('ai.quiz')} back={paths.understand} />
+  if (ai.status === 'loading') return <Screen title={t('ai.quiz')} back={back} />
   if (ai.status === 'missing')
     return (
-      <Screen title={t('ai.quiz')} back={paths.understand}>
+      <Screen title={t('ai.quiz')} back={back}>
         <NoModel reason={ai.reason} />
       </Screen>
     )
@@ -87,7 +89,7 @@ export default function Quiz() {
   const score = questions?.filter((q, i) => answers[i] === q.answerIndex).length ?? 0
 
   return (
-    <Screen title={t('ai.quiz')} back={paths.understand}>
+    <Screen title={t('ai.quiz')} back={back}>
       <form className={styles.stack} onSubmit={submit}>
         <Field label={t('ai.topicOptional')} value={topic} onChange={(e) => setTopic(e.target.value)} />
         <Segmented

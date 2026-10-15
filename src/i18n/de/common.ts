@@ -22,7 +22,7 @@ export const common = {
   skipToContent: 'Zum Inhalt springen',
   navMain: 'Hauptnavigation',
   navCourses: 'Kurse',
-  navUnderstand: 'Lernwerkzeuge',
+  navPractice: 'Üben',
   start: 'Starten',
   redo: 'Wiederholen',
   approx: '≈ {duration}',
@@ -67,9 +67,6 @@ export const common = {
   welcomeTitle: 'Willkommen bei Cursus',
   welcomeBody: 'Deine Kurse, deine Karten, deine Backups. Kein Konto, und alles funktioniert offline.',
   reviewEmpty: 'Gerade gibt es nichts zu wiederholen.',
-  understandBody: 'Wähle einen Kurs und frag nach dem, was unklar war. Die Antworten zitieren deine eigenen Quellen.',
-  generateBody:
-    'Wähle Quellen aus, aus denen Karten werden. Du prüfst jede vorgeschlagene Karte, bevor sie gespeichert wird.',
   quizBody: 'Wähle einen Kurs, um zu seinen Quellen abgefragt zu werden.',
   statsTitle: 'Statistik',
   statsEmpty: 'Dein Fortschritt erscheint hier nach den ersten Wiederholungen.',

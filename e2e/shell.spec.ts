@@ -70,10 +70,10 @@ test('tab bar on phone, sidebar on iPad landscape and Mac', async ({ page }, inf
   if (!box || !vp) throw new Error('no layout')
   const links = nav.getByRole('link')
   if (isPhone(info.project.name)) {
-    // Bottom tab bar: full width, pinned to the bottom, five items.
+    // Bottom tab bar: full width, pinned to the bottom, four items.
     expect(box.width).toBeGreaterThanOrEqual(vp.width - 1)
     expect(box.y + box.height).toBeGreaterThanOrEqual(vp.height - 1)
-    await expect(links).toHaveCount(5)
+    await expect(links).toHaveCount(4)
     // No hidden brand heading read before every page's <h1>.
     await expect(nav.getByRole('heading')).toHaveCount(0)
     await expect(nav.getByText('Cursus')).toBeHidden()
@@ -119,11 +119,12 @@ test('hash navigation between routes', async ({ page }) => {
   await expect(page).toHaveURL(/#\/courses$/)
   await expect(page.getByRole('heading', { level: 1, name: 'Courses' })).toBeVisible()
 
-  await nav.getByRole('link', { name: 'Study tools' }).click()
-  await expect(page).toHaveURL(/#\/understand$/)
-  await expect(page.getByRole('heading', { level: 1, name: 'Study tools' })).toBeVisible()
-  await page.getByRole('link', { name: 'Generate cards' }).click()
+  await nav.getByRole('link', { name: 'Practice' }).click()
+  await expect(page).toHaveURL(/#\/sessions$/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Practice' })).toBeVisible()
+  await page.goto('./#/generate')
   await expect(page).toHaveURL(/#\/generate$/)
+  await expect(nav.getByRole('link', { name: 'Practice' })).toHaveAttribute('aria-current', 'page')
 
   await nav.getByRole('link', { name: 'Settings' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Settings' })).toBeVisible()

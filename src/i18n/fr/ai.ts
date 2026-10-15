@@ -382,7 +382,6 @@ export const ai = {
   autoCapHint: 'Au-delà d’un plafond, un document attend votre accord et affiche son coût estimé.',
   autoMonthSpent: 'Dépensé ce mois-ci : {cost}.',
   // --- fin S-044 ---
-  studyTools: 'Outils d’étude',
   writingCards: { one: 'Rédaction… {count} carte pour l’instant', other: 'Rédaction… {count} cartes pour l’instant' },
   saveSheet: 'Enregistrer comme fiche',
   sheetSaved: 'Enregistrée dans les fiches de {course}.',

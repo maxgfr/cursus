@@ -41,7 +41,8 @@ export async function mainScreens(page: Page, query = ''): Promise<string[]> {
   const card = page.getByRole('main').locator('a[href*="#/card/"]').first()
   await expect(card).toBeVisible()
   const cardHash = hashOf(await card.getAttribute('href'))
-  await page.getByRole('radio').nth(1).check()
+  // Sources is the first tab in every locale (the pseudo one included).
+  await page.getByRole('radio').first().check()
   const source = page.getByRole('main').locator('a[href*="#/source/"]').first()
   await expect(source).toBeVisible()
   const sourceHash = hashOf(await source.getAttribute('href'))

@@ -383,7 +383,6 @@ export const ai = {
   autoCapHint: 'Über einem Limit wartet ein Dokument auf deine Zustimmung und zeigt seine geschätzten Kosten.',
   autoMonthSpent: 'Diesen Monat ausgegeben: {cost}.',
   // --- Ende S-044 ---
-  studyTools: 'Lernwerkzeuge',
   writingCards: { one: 'Schreibt… bisher {count} Karte', other: 'Schreibt… bisher {count} Karten' },
   saveSheet: 'Als Spickzettel speichern',
   sheetSaved: 'In den Spickzetteln von {course} gespeichert.',

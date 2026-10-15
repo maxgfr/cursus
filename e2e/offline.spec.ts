@@ -68,6 +68,7 @@ test('after the first load the app works fully offline, and edits are saved on t
 
   await go(page, '#/', 'Today')
   await createCourse(page, 'Offline anatomy')
+  await page.getByRole('radio', { name: 'Cards' }).check()
   await page.getByRole('button', { name: 'New card' }).click()
   await typeInto(page, 'Front', 'Longest bone?')
   await typeInto(page, 'Back', 'The femur')
@@ -77,7 +78,7 @@ test('after the first load the app works fully offline, and edits are saved on t
   for (const [hash, heading] of [
     ['#/search', 'Search'],
     ['#/stats', 'Statistics'],
-    ['#/understand', 'Study tools'],
+    ['#/understand', 'Explain a topic'],
     ['#/settings', 'Settings'],
     ['#/settings/data', 'Data'],
     ['#/review', 'Review'],

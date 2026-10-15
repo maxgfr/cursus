@@ -40,6 +40,7 @@ export const today = {
   laterTitle: { one: '{count} card back in {interval}', other: '{count} cards back, the first in {interval}' },
   laterBody: 'Still learning: they come back later today.',
   startKey: 'S',
+  plannedTitle: 'Planned today: {name}',
   courseDue: { one: '{count} due today', other: '{count} due today' },
   backupLine: 'No backup yet',
   backupAction: 'Add a backup',
@@ -55,6 +56,7 @@ export const today = {
     other: '{count} cards suggested from {courses} courses',
   },
   draftsReview: 'Accept or edit',
+  draftsHeroBody: 'Accept the good ones and they join your review.',
   // --- end S-044 ---
   unreadableReviewsTitle: 'Some study history cannot be read.',
   unreadableReviews: {
@@ -66,11 +68,11 @@ export const today = {
   // --- Demo course: every feature, written when the student asks for it ---
   obLoopTitle: 'How Cursus works',
   obLoop1Title: 'Add what you study',
-  obLoop1Body: 'Notes, PDFs, slides or photos, filed in a course.',
+  obLoop1Body: 'In a course, tap “{add}”: a note, a PDF, slides or photos.',
   obLoop2Title: 'Turn it into cards',
-  obLoop2Body: 'Write cards yourself, or accept the ones AI suggests from your sources.',
+  obLoop2Body: 'Tap “{generate}” to have AI suggest them from your sources, or “{newCard}” to write one.',
   obLoop3Title: 'Review a few minutes a day',
-  obLoop3Body: 'Today shows what is due. Each card comes back just before you would forget it.',
+  obLoop3Body: 'On {today}, tap “{start}”. Each card comes back just before you would forget it.',
   obDataBody:
     'Everything stays on this device, with no account. Add a backup in Settings › Sync to keep a copy elsewhere.',
   obAiTitle: 'AI, only if you want it',
@@ -161,5 +163,4 @@ export const today = {
   firstCardTitle: 'Add your first card',
   firstCardBody: 'Write a card in a course, or add a source and accept the cards suggested from it.',
   firstCardAction: 'Write a card',
-  practice: 'Practice',
 } as const

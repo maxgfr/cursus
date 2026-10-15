@@ -14,6 +14,7 @@ import { useAction, useDestinations, useWorkspaceConfirm } from '../Sync/hooks.t
 import { absorb, download, exportBackup, fileStamp } from '../Sync/registry.ts'
 import styles from '../Sync/settings.module.css'
 import { AnkiImport } from './AnkiImport.tsx'
+import { EraseSection } from './EraseSection.tsx'
 
 const MB = 1024 * 1024
 
@@ -281,6 +282,8 @@ export default function DataSettings() {
         </section>
 
         <AnkiImport />
+
+        <EraseSection onBackup={backup} backingUp={busy === 'backup'} />
       </div>
       {confirmSheet}
     </Screen>

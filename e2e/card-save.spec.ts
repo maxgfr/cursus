@@ -22,13 +22,16 @@ const cardRows = (page: Page) => page.getByRole('main').getByRole('list').getByR
 
 test('a new card exists only once saved; Save & new keeps going; Cancel leaves no empty card', async ({ page }) => {
   await createCourse(page, 'Botany')
+  await page.getByRole('radio', { name: 'Cards' }).check()
   await page.getByRole('button', { name: 'New card' }).click()
   await expect(save(page)).toBeDisabled()
   // Cancel without changes just leaves, and creates nothing.
   await page.getByRole('button', { name: 'Cancel' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Botany' })).toBeVisible()
+  await page.getByRole('radio', { name: 'Cards' }).check()
   await expect(page.getByRole('heading', { name: 'No cards yet' })).toBeVisible()
 
+  await page.getByRole('radio', { name: 'Cards' }).check()
   await page.getByRole('button', { name: 'New card' }).click()
   await typeInto(page, 'Front', 'Xylem carries?')
   await expect(page.getByRole('status').filter({ hasText: 'Unsaved changes' })).toBeVisible()
@@ -44,6 +47,7 @@ test('a new card exists only once saved; Save & new keeps going; Cancel leaves n
 
 test('typing changes nothing until Save; Save survives a reload; a reload mid-draft restores it', async ({ page }) => {
   await createCourse(page, 'Zoology')
+  await page.getByRole('radio', { name: 'Cards' }).check()
   await page.getByRole('button', { name: 'New card' }).click()
   await typeInto(page, 'Front', 'Fish breathe with?')
   await page.keyboard.press('ControlOrMeta+s')
@@ -53,6 +57,8 @@ test('typing changes nothing until Save; Save survives a reload; a reload mid-dr
   await expect(row).toBeVisible()
 
   // Edit without saving: the course still shows the saved text.
+  // The « Card saved. » toast can sit over the row on a phone.
+  await page.getByRole('button', { name: 'Dismiss' }).click()
   await row.click()
   await typeInto(page, 'Front', ' Gills')
   await expect(page.getByRole('status').filter({ hasText: 'Unsaved changes' })).toBeVisible()
@@ -86,12 +92,14 @@ test('typing changes nothing until Save; Save survives a reload; a reload mid-dr
 
 test('a double-click on Save, or a held ⌘S, creates exactly one card', async ({ page }) => {
   await createCourse(page, 'Mycology')
+  await page.getByRole('radio', { name: 'Cards' }).check()
   await page.getByRole('button', { name: 'New card' }).click()
   await typeInto(page, 'Front', 'Spores spread by?')
   await save(page).dblclick()
   await expect(page.getByRole('heading', { level: 1, name: 'Mycology' })).toBeVisible()
   await expect(cardRows(page)).toHaveText([/Spores spread by\?/])
 
+  await page.getByRole('radio', { name: 'Cards' }).check()
   await page.getByRole('button', { name: 'New card' }).click()
   await typeInto(page, 'Front', 'Hyphae form a?')
   // A held key: one press, then repeats.
@@ -137,6 +145,7 @@ test('a Save still writing when the draft copy comes due leaves no draft: the ne
   page,
 }) => {
   await createCourse(page, 'Genetics')
+  await page.getByRole('radio', { name: 'Cards' }).check()
   await page.getByRole('button', { name: 'New card' }).click()
   await typeInto(page, 'Front', 'Genes are made of?')
   // The log is busy: Save waits for its write longer than the draft copy waits after the last keystroke.
@@ -146,6 +155,7 @@ test('a Save still writing when the draft copy comes due leaves no draft: the ne
   await expect(page.getByRole('heading', { level: 1, name: 'Genetics' })).toBeVisible()
   await expect(cardRows(page)).toHaveText([/Genes are made of\? DNA/])
 
+  await page.getByRole('radio', { name: 'Cards' }).check()
   await page.getByRole('button', { name: 'New card' }).click()
   await expect(page.getByRole('textbox', { name: 'Front' })).toHaveText('')
   await expect(page.getByText('Unsaved draft restored.')).toHaveCount(0)
@@ -158,6 +168,7 @@ test('the editor offers its actions only where they stay: a tap on Cancel cannot
   await createCourse(page, 'Ecology')
   // The draft read waits: the editor is still loading when it first shows.
   await holdStores(page, ['kv'], 800)
+  await page.getByRole('radio', { name: 'Cards' }).check()
   await page.getByRole('button', { name: 'New card' }).click()
   const cancel = page.getByRole('button', { name: 'Cancel' })
   await expect(cancel).toBeVisible()

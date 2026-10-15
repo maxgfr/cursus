@@ -360,7 +360,6 @@ export const ai = {
   autoCapHint: 'Above a limit, a document waits for your approval and shows its estimated cost.',
   autoMonthSpent: 'Spent this month: {cost}.',
   // --- end S-044 ---
-  studyTools: 'Study tools',
   writingCards: { one: 'Writing… {count} card so far', other: 'Writing… {count} cards so far' },
   saveSheet: 'Save as study sheet',
   sheetSaved: 'Saved in the study sheets of {course}.',

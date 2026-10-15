@@ -342,15 +342,15 @@ test('own words: the AI suggests a grade to confirm; Why? explains and makes a c
   // Suggested, not preselected: focus is on the grades group.
   if (!phone) await expect(page.getByTestId('grades')).toBeFocused()
 
-  // « Why? » opens the same kind of sheet as « Explain the question », grounded and streamed.
-  await page.getByRole('button', { name: 'Why?' }).click()
-  const why = page.getByRole('dialog', { name: 'Why this is the answer' })
+  // « Why? » answers in the chat beside the card, like « Explain the question », grounded and streamed.
+  await page.getByRole('main').getByRole('button', { name: 'Why?' }).click()
+  const why = phone ? page.getByRole('dialog', { name: 'Ask' }) : page.getByRole('complementary', { name: 'Ask' })
   await expect(why.getByText('Mitochondria turn nutrients into ATP.')).toBeVisible()
   await expect(why.getByText('Mighty mitochondria')).toBeVisible()
   await why.getByRole('button', { name: 'Create a card on this point' }).click()
   await expect(why.getByText('Card added to Biology')).toBeVisible()
   await expect(why.getByRole('button', { name: 'Create a card on this point' })).toBeDisabled()
-  await why.getByRole('button', { name: 'Close' }).click()
+  if (phone) await why.getByRole('button', { name: 'Close' }).click()
 
   await easy.click()
   await expect(page.getByTestId('remaining')).toHaveText('1 left')

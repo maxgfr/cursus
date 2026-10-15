@@ -1,4 +1,4 @@
-import { CalendarPlus, Play, Plus, RotateCcw } from 'lucide-react'
+import { CalendarPlus, ChartColumn, ListChecks, Play, Plus, RotateCcw } from 'lucide-react'
 import { useState } from 'react'
 import { useLocation } from 'wouter'
 import { paths, to } from '../../app/routes.ts'
@@ -13,6 +13,7 @@ import { Toast } from '../../ui/components/Toast.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import type { PlanNotice } from '../SessionSetup/PlanEditor.tsx'
 import { noteError } from '../settings/Diagnostic/recent.ts'
+import { useAiModel } from '../Understand/shared/aiConfig.ts'
 import { downloadPlans } from './calendar.ts'
 import { formatWhen, KIND_LABEL, planSchedule, scopeName, sessionLabel } from './describe.ts'
 import { PracticeChip } from './PracticeChip.tsx'
@@ -24,12 +25,14 @@ const RECENT = 20
 const noticeFrom = (state: unknown): PlanNotice =>
   typeof state === 'object' && state !== null ? (state as PlanNotice) : {}
 
-/** Sessions: the planned ones (create, edit, add to the calendar) and the history with each session's results. */
+/** Practice: a new session, a quiz, the statistics; then the planned sessions (create, edit, add to the calendar) and the history with each session's results. */
 export default function Sessions() {
   const t = useT()
   const locale = useLocale()
   const ws = useWorkspace()
   const [, navigate] = useLocation()
+  // « Quiz me » is the AI's: offered only with a model ready.
+  const aiReady = useAiModel().status === 'ready'
   const [showAll, setShowAll] = useState(false)
   const [notice, setNotice] = useState<PlanNotice>(() => noticeFrom(history.state))
   const [message, setMessage] = useState<string | null>(null)
@@ -65,16 +68,29 @@ export default function Sessions() {
   const shown = showAll ? past : past.slice(0, RECENT)
 
   return (
-    <Screen title={t('review.sessions')} subtitle={t('review.sessionsHint')}>
-      <div className={styles.actions}>
-        <Button
-          variant="primary"
-          icon={<Play size={18} aria-hidden="true" />}
-          onClick={() => navigate(paths.sessionNew)}
-        >
-          {t('review.newSession')}
-        </Button>
-      </div>
+    <Screen title={t('review.practice')} subtitle={t('review.practiceHint')}>
+      <ListGroup>
+        <ListRow
+          href={paths.sessionNew}
+          leading={<Play size={20} strokeWidth={1.75} />}
+          title={t('review.newSession')}
+          subtitle={t('review.newSessionBody')}
+        />
+        {aiReady && (
+          <ListRow
+            href={paths.quiz}
+            leading={<ListChecks size={20} strokeWidth={1.75} />}
+            title={t('ai.quiz')}
+            subtitle={t('common.quizBody')}
+          />
+        )}
+        <ListRow
+          href={paths.stats}
+          leading={<ChartColumn size={20} strokeWidth={1.75} />}
+          title={t('common.statsTitle')}
+          subtitle={t('review.statsBody')}
+        />
+      </ListGroup>
       <ListGroup title={t('review.plannedSessions')} footer={plans.length === 0 ? t('review.plannedNone') : undefined}>
         {plans.map((p) => {
           const next = nextOccurrence(p, now)

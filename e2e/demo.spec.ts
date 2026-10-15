@@ -183,7 +183,7 @@ test('Demo: a review with an illustrated card, the sessions history relaunched, 
   expect(illustrated).toBe(1)
 
   // The history: a counted session and a cramming one, each with a missed card to relaunch.
-  await go(page, '#/sessions', 'Sessions')
+  await go(page, '#/sessions', 'Practice')
   const past = page.getByRole('region', { name: 'Past sessions' })
   await expect(past.getByTestId('cramming')).toHaveCount(1)
   await expect(past.getByRole('button', { name: /^Go over the forgotten ones/ })).toHaveCount(2)
@@ -244,7 +244,7 @@ test('German, dark: the demo course fits every screen and passes axe', async ({ 
   for (const [hash, heading] of [
     ['#/', 'Heute'],
     ['#/inbox', 'Vorgeschlagene Karten'],
-    ['#/sessions', 'Lerneinheiten'],
+    ['#/sessions', 'Üben'],
     ['#/stats', 'Statistik'],
   ] as const) {
     await go(page, hash, heading)

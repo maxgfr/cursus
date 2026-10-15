@@ -213,10 +213,10 @@ export function CommandPalette() {
     const nav: Item[] = [
       { id: 'today', group: 'go', title: t('common.cmdToday'), icon: Sun, run: () => go(paths.today) },
       { id: 'courses', group: 'go', title: t('common.cmdCourses'), icon: Library, run: () => go(paths.courses) },
+      { id: 'sessions', group: 'go', title: t('review.practice'), icon: CalendarClock, run: () => go(paths.sessions) },
+      { id: 'newSession', group: 'go', title: t('review.newSession'), icon: Play, run: () => go(paths.sessionNew) },
       { id: 'stats', group: 'go', title: t('common.cmdStats'), icon: ChartColumn, run: () => go(paths.stats) },
       { id: 'inbox', group: 'go', title: t('ai.inboxTitle'), icon: Inbox, run: () => go(paths.inbox) },
-      { id: 'sessions', group: 'go', title: t('review.sessions'), icon: CalendarClock, run: () => go(paths.sessions) },
-      { id: 'newSession', group: 'go', title: t('review.newSession'), icon: Play, run: () => go(paths.sessionNew) },
       { id: 'settings', group: 'go', title: t('common.cmdSettings'), icon: Settings, run: () => go(paths.settings) },
       { id: 'search', group: 'go', title: t('common.cmdSearch'), icon: SearchIcon, run: () => go(paths.search) },
     ]

@@ -147,3 +147,10 @@
 .installDismiss {
   margin-inline-start: calc(-1 * var(--space-2));
 }
+
+/* Suggested cards as the main action: same rhythm as the hero, the button left-aligned. */
+.draftsHero {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: start;
+}

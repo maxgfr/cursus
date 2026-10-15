@@ -1,6 +1,6 @@
 import {
-  Camera,
   Download,
+  Ellipsis,
   FileText,
   FileUp,
   Folder,
@@ -10,8 +10,8 @@ import {
   Images,
   Layers,
   Lightbulb,
+  MessageCircleQuestion,
   NotebookText,
-  PenLine,
   Play,
   Plus,
   Presentation,
@@ -36,6 +36,7 @@ import { EmptyState } from '../../ui/components/EmptyState.tsx'
 import { IconButton } from '../../ui/components/IconButton.tsx'
 import { ListGroup, ListRow } from '../../ui/components/List.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
+import { Sheet } from '../../ui/components/Sheet.tsx'
 import { Toast } from '../../ui/components/Toast.tsx'
 import { proposeFor, proposeWhenWritten } from '../../ui/data/autoQuestions.ts'
 import { MoveSheet, moveItemTo, type Place } from '../../ui/MoveSheet.tsx'
@@ -47,6 +48,8 @@ import { NewSectionSheet, SectionSettings } from '../Section/SectionSheets.tsx'
 import { addImage, addNote, addPdf } from '../Source/importers.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 import { ExamCountdown } from '../Today/CourseRows.tsx'
+import { useAiModel } from '../Understand/shared/aiConfig.ts'
+import { AddSheet } from './AddSheet.tsx'
 import { backTarget, earlierPaths } from './backTarget.ts'
 import styles from './Course.module.css'
 import { CourseSettings } from './CourseSettings.tsx'
@@ -94,7 +97,9 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   const t = useT()
   const rt = useRuntime()
   const [, navigate] = useLocation()
-  const [tab, setTab] = useState<Tab>('cards')
+  const [chosenTab, setTab] = useState<Tab | null>(null)
+  const [addingSource, setAddingSource] = useState(false)
+  const [moreCards, setMoreCards] = useState(false)
   const [settings, setSettings] = useState(false)
   const [adding, setAdding] = useState(false)
   const [moving, setMoving] = useState<{ kind: 'section' | 'fiches'; id: Id; name: string } | null>(null)
@@ -113,6 +118,8 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   const [reading, setReading] = useState<Id | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const here = sectionId ?? null
+  // AI only explains, improves or gets a start: its actions show once a model is ready, never a setup link here.
+  const aiReady = useAiModel().status === 'ready'
   useChatContext(sectionId === undefined ? { courseId } : { courseId, sectionId })
   const data = useWorkspaceData(
     ['courses', 'sections', 'cards', 'sources', 'fiches', { id: sectionId ?? courseId }],
@@ -161,6 +168,8 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
     (ws) => startQueue(ws, Date.now(), sectionId === undefined ? { courseId } : { courseId, sectionId }).queue.length,
   )
   const where = sectionId === undefined ? { courseId } : { courseId, sectionId }
+  // Opens on the cards when there are some, else on the sources to add the first one.
+  const tab: Tab = chosenTab ?? (data !== null && data.cards.length > 0 ? 'cards' : 'sources')
 
   /** Adds a source and opens it; its questions are proposed (per « When I add a document »). */
   const run = async (work: () => Promise<string>) => {
@@ -187,7 +196,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
         navigate(to.source(id))
       }
     },
-    { enabled: data !== null && tab === 'sources' && !settings && !adding && moving === null },
+    { enabled: data !== null && tab === 'sources' && !settings && !adding && !addingSource && moving === null },
   )
 
   if (data === null) return <NotFound />
@@ -256,52 +265,54 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
     else moveItemTo(rt.ws, moving.kind, moving.id, place)
   }
 
-  // The import buttons: above the list, or inside the empty state when there is nothing yet.
+  const pasteText = () => {
+    const open = (text: string) => {
+      const id = addNote(rt, where, t('course.pastedNote'), text)
+      if (text === '') proposeWhenWritten(id)
+      else void proposeFor(rt, id)
+      navigate(to.source(id))
+    }
+    // The clipboard may be refused: the note then opens empty, ready for a long-press paste.
+    navigator.clipboard.readText().then(open, (err: unknown) => {
+      noteError('course.paste', err)
+      open('')
+    })
+  }
+
+  // One « Add » for every kind of source, next to the photo gallery of this place (its subsets' photos included).
   const sourceActions = (
     <div className={styles.actions}>
-      <Button icon={<PenLine size={18} aria-hidden="true" />} onClick={newNote} disabled={busy}>
-        {t('course.writeNote')}
-      </Button>
-      <Button icon={<FileText size={18} aria-hidden="true" />} onClick={() => pdfInput.current?.click()} loading={busy}>
-        {t('course.importPdf')}
-      </Button>
       <Button
-        icon={<Camera size={18} aria-hidden="true" />}
-        onClick={() => photoInput.current?.click()}
-        disabled={busy}
+        variant="primary"
+        icon={<Plus size={18} aria-hidden="true" />}
+        onClick={() => setAddingSource(true)}
+        loading={busy}
       >
-        {t('course.takePhoto')}
+        {t('course.add')}
       </Button>
-      {/* Slides or a structured document (.pptx, .docx, .pdf), read slide by slide or section by section. */}
-      <Link href={withScope(paths.deckImport, scope)} className={buttonClass({})}>
-        <Presentation size={18} aria-hidden="true" />
-        {t('ai.deckImportAction')}
-      </Link>
-      {/* The photo gallery of this place (its subsets' photos included): with the sources, never among the cards. */}
       <Link href={to.photos(courseId, sectionId)} className={buttonClass({ variant: 'plain' })}>
         <Images size={18} aria-hidden="true" />
         {t('photos.title')}
       </Link>
-      <input
-        ref={pdfInput}
-        className="sr-only"
-        type="file"
-        accept="application/pdf,.pdf"
-        aria-label={t('course.importPdf')}
-        tabIndex={-1}
-        onChange={onPdf}
-      />
-      <input
-        ref={photoInput}
-        className="sr-only"
-        type="file"
-        accept="image/*"
-        capture="environment"
-        aria-label={t('course.takePhoto')}
-        tabIndex={-1}
-        onChange={onPhoto}
-      />
     </div>
+  )
+  const cardImports = (
+    <>
+      <Button
+        variant="plain"
+        icon={<FileUp size={18} aria-hidden="true" />}
+        onClick={() => {
+          setMoreCards(false)
+          csvInput.current?.click()
+        }}
+      >
+        {t('common.importCsv')}
+      </Button>
+      <Link href={paths.settingsData} className={buttonClass({ variant: 'plain' })}>
+        <Download size={18} aria-hidden="true" />
+        {t('anki.importTitle')}
+      </Link>
+    </>
   )
 
   const title = section?.name ?? course.title
@@ -364,10 +375,16 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
               {t('common.start')}
             </Button>
           )}
-          {section !== null && (
+          {aiReady && section !== null && (
             <Link href={withScope(paths.understand, scope)} className={buttonClass({ variant: 'secondary' })}>
               <Lightbulb size={18} aria-hidden="true" />
               {t('course.understand')}
+            </Link>
+          )}
+          {aiReady && data.total > 0 && (
+            <Link href={withScope(paths.quiz, scope)} className={buttonClass({ variant: 'secondary' })}>
+              <MessageCircleQuestion size={18} aria-hidden="true" />
+              {t('ai.quiz')}
             </Link>
           )}
           {/* A custom session over this course or subset (descendants included). */}
@@ -419,22 +436,34 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
         value={tab}
         onChange={setTab}
         options={[
-          { value: 'cards', label: t('course.tabCards') },
           { value: 'sources', label: t('course.tabSources') },
+          { value: 'cards', label: t('course.tabCards') },
           { value: 'fiches', label: t('course.tabSheets') },
         ]}
       />
       {tab === 'cards' && (
         <>
+          <input
+            ref={csvInput}
+            className="sr-only"
+            type="file"
+            accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain"
+            aria-label={t('common.importCsv')}
+            tabIndex={-1}
+            onChange={onCsv}
+          />
           {cards.length > 0 && (
             <div className={styles.actions}>
               <Button variant="primary" icon={<Plus size={18} aria-hidden="true" />} onClick={newCard}>
                 {t('course.addCard')}
               </Button>
-              <Link href={withScope(paths.generate, scope)} className={buttonClass({ variant: 'secondary' })}>
-                <Sparkles size={18} aria-hidden="true" />
-                {t('ai.generate')}
-              </Link>
+              {aiReady && (
+                <Link href={withScope(paths.generate, scope)} className={buttonClass({ variant: 'plain' })}>
+                  <Sparkles size={18} aria-hidden="true" />
+                  {t('ai.generate')}
+                </Link>
+              )}
+              <IconButton icon={Ellipsis} label={t('course.moreCardWays')} onClick={() => setMoreCards(true)} />
             </div>
           )}
           {cards.length === 0 ? (
@@ -447,7 +476,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
                   <Button variant="primary" icon={<Plus size={18} aria-hidden="true" />} onClick={newCard}>
                     {t('course.addCard')}
                   </Button>
-                  {sources.length === 0 ? (
+                  {sources.length === 0 || !aiReady ? (
                     <Button icon={<FileText size={18} aria-hidden="true" />} onClick={() => setTab('sources')}>
                       {t('course.addSource')}
                     </Button>
@@ -457,26 +486,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
                       {t('ai.generate')}
                     </Link>
                   )}
-                  <Button
-                    variant="plain"
-                    icon={<FileUp size={18} aria-hidden="true" />}
-                    onClick={() => csvInput.current?.click()}
-                  >
-                    {t('common.importCsv')}
-                  </Button>
-                  <Link href={paths.settingsData} className={buttonClass({ variant: 'plain' })}>
-                    <Download size={18} aria-hidden="true" />
-                    {t('anki.importTitle')}
-                  </Link>
-                  <input
-                    ref={csvInput}
-                    className="sr-only"
-                    type="file"
-                    accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain"
-                    aria-label={t('common.importCsv')}
-                    tabIndex={-1}
-                    onChange={onCsv}
-                  />
+                  {cardImports}
                 </div>
               }
             />
@@ -496,6 +506,25 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
       )}
       {tab === 'sources' && (
         <>
+          <input
+            ref={pdfInput}
+            className="sr-only"
+            type="file"
+            accept="application/pdf,.pdf"
+            aria-label={t('course.importPdf')}
+            tabIndex={-1}
+            onChange={onPdf}
+          />
+          <input
+            ref={photoInput}
+            className="sr-only"
+            type="file"
+            accept="image/*"
+            capture="environment"
+            aria-label={t('course.takePhoto')}
+            tabIndex={-1}
+            onChange={onPhoto}
+          />
           {sources.length > 0 && sourceActions}
           <p className={styles.hint}>{t('course.pasteHint')}</p>
           {sources.length === 0 ? (
@@ -523,6 +552,14 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
           )}
         </>
       )}
+      {aiReady && tab === 'fiches' && fiches.length > 0 && (
+        <div className={styles.actions}>
+          <Link href={withScope(paths.understand, scope)} className={buttonClass({ variant: 'secondary' })}>
+            <Lightbulb size={18} aria-hidden="true" />
+            {t('course.understand')}
+          </Link>
+        </div>
+      )}
       {tab === 'fiches' &&
         (fiches.length === 0 ? (
           <EmptyState
@@ -530,10 +567,12 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
             title={t('course.noSheetsTitle')}
             body={t('course.noSheetsBody')}
             action={
-              <Link href={withScope(paths.understand, scope)} className={buttonClass({})}>
-                <Sparkles size={18} aria-hidden="true" />
-                {t('course.understand')}
-              </Link>
+              aiReady ? (
+                <Link href={withScope(paths.understand, scope)} className={buttonClass({})}>
+                  <Sparkles size={18} aria-hidden="true" />
+                  {t('course.understand')}
+                </Link>
+              ) : undefined
             }
           />
         ) : (
@@ -555,6 +594,18 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
             ))}
           </ListGroup>
         ))}
+      <AddSheet
+        open={addingSource}
+        onClose={() => setAddingSource(false)}
+        onNote={newNote}
+        onPdf={() => pdfInput.current?.click()}
+        onPhoto={() => photoInput.current?.click()}
+        onPaste={pasteText}
+        deckHref={withScope(paths.deckImport, scope)}
+      />
+      <Sheet open={moreCards} title={t('course.moreCardWays')} onClose={() => setMoreCards(false)}>
+        <div className={styles.actions}>{cardImports}</div>
+      </Sheet>
       {reading !== null && (
         <Suspense fallback={null}>
           <LazyFicheSheet ficheId={reading} onClose={() => setReading(null)} />

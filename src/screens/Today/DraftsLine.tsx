@@ -13,7 +13,7 @@ const RESUME_AFTER_MS = 1500
  * Questions proposed on the documents added, as one calm line under the hero (« 12 questions proposed from
  * Physiology · Review »); nothing when there are none. Counts come from the synced drafts, not the AI code.
  */
-export function DraftsLine() {
+export function DraftsLine({ hidden = false }: { hidden?: boolean }) {
   const t = useT()
   const rt = useRuntime()
   const line = useWorkspaceData(['drafts', 'sources', 'courses', 'sections'], (ws) => {
@@ -27,7 +27,8 @@ export function DraftsLine() {
     const timer = setTimeout(() => void resumeAutoQuestions(rt), RESUME_AFTER_MS)
     return () => clearTimeout(timer)
   }, [rt])
-  if (line === null) return null
+  // The hero says it already when nothing is due: the line stays away, the pending proposals still resume.
+  if (line === null || hidden) return null
   return (
     <p className={styles.backup} data-testid="drafts-line">
       {line.courses === 1

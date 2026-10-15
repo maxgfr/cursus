@@ -474,6 +474,7 @@ test('Understand streams a cited explanation, then checks an explanation back', 
   await dialog.getByRole('button', { name: 'Save' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Botany' })).toBeVisible()
   await page.getByRole('radio', { name: 'Sources' }).check()
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
   await page.getByRole('button', { name: 'Write a note' }).click()
   await page.getByRole('textbox', { name: 'Source' }).click()
   await page.keyboard.type('Chlorophyll captures light. The Calvin cycle fixes CO2.')

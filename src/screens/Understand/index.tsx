@@ -1,6 +1,6 @@
-import { Lightbulb, ListChecks, NotebookText, Sparkles } from 'lucide-react'
+import { NotebookText } from 'lucide-react'
 import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from 'react'
-import { paths, withScope } from '../../app/routes.ts'
+import { paths, to } from '../../app/routes.ts'
 import { useRuntime, useWorkspace } from '../../app/workspaceContext.tsx'
 import { readingChunks } from '../../core/ai/features/describePhoto'
 import { explainBack } from '../../core/ai/features/explainBack'
@@ -11,7 +11,6 @@ import { useLocale, useT } from '../../i18n/react.tsx'
 import { useChatContext } from '../../ui/chat/context.tsx'
 import { Button } from '../../ui/components/Button.tsx'
 import { Field } from '../../ui/components/Field.tsx'
-import { ListGroup, ListRow } from '../../ui/components/List.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
 import { usePartial } from '../../ui/data/usePartial.ts'
 import { AskSelection } from '../../ui/ExplainLauncher.tsx'
@@ -39,6 +38,8 @@ export default function Understand() {
   const ai = useAiModel()
   const loadChunks = useChunkLoader()
   const opened = useScopeOnce()
+  // Back to the course or section it was opened from, else to the courses.
+  const back = opened ? to.place(opened.courseId, opened.sectionId) : paths.courses
   const [selection, setSelection] = useState<Selection>(() => selectionFor(opened))
   const [topic, setTopic] = useState('')
   const [level, setLevel] = useState<Level>('standard')
@@ -91,11 +92,10 @@ export default function Understand() {
 
   useEffect(() => () => abort.current?.abort(), [])
 
-  if (ai.status === 'loading') return <Screen title={t('ai.studyTools')} />
+  if (ai.status === 'loading') return <Screen title={t('course.understand')} back={back} />
   if (ai.status === 'missing')
     return (
-      <Screen title={t('ai.studyTools')}>
-        <Tools selection={selection} />
+      <Screen title={t('course.understand')} back={back}>
         <NoModel reason={ai.reason} />
       </Screen>
     )
@@ -134,8 +134,7 @@ export default function Understand() {
       : null
 
   return (
-    <Screen title={t('ai.studyTools')}>
-      <Tools selection={selection} onExplain={() => document.getElementById(topicId)?.focus()} />
+    <Screen title={t('course.understand')} back={back}>
       <form className={styles.stack} onSubmit={submit} aria-labelledby={`${topicId}-h`}>
         <h2 id={`${topicId}-h`} className={styles.heading}>
           {t('ai.understand')}
@@ -204,44 +203,6 @@ export default function Understand() {
 
       {done && <ExplainBack topic={topic.trim()} chunks={grounded} courseLanguage={courseLanguage} />}
     </Screen>
-  )
-}
-
-/**
- * The three study tools, each said in a line: Understand (the form below), Generate cards and Quiz me, with or
- * without a model set up. The chosen course or section carries over.
- */
-function Tools({ selection, onExplain }: { selection: Selection; onExplain?: () => void }) {
-  const t = useT()
-  const scope =
-    selection.courseId === ''
-      ? null
-      : selection.sectionId === ''
-        ? { courseId: selection.courseId }
-        : { courseId: selection.courseId, sectionId: selection.sectionId }
-  return (
-    <ListGroup title={t('ai.studyTools')} hideTitle>
-      {onExplain && (
-        <ListRow
-          onClick={onExplain}
-          leading={<Lightbulb size={20} />}
-          title={t('ai.understand')}
-          subtitle={t('common.understandBody')}
-        />
-      )}
-      <ListRow
-        href={withScope(paths.generate, scope)}
-        leading={<Sparkles size={20} />}
-        title={t('ai.generate')}
-        subtitle={t('common.generateBody')}
-      />
-      <ListRow
-        href={withScope(paths.quiz, scope)}
-        leading={<ListChecks size={20} />}
-        title={t('ai.quiz')}
-        subtitle={t('common.quizBody')}
-      />
-    </ListGroup>
   )
 }
 

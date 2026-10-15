@@ -149,7 +149,7 @@ test('from a course: the chat knows the course, streams a cited answer and its c
   const panel = chatPanel(page, info.project.name)
   await expect(panel).toBeVisible()
   await expect(panel.getByText('About: Biology')).toBeVisible()
-  await expect(panel.getByRole('button', { name: 'Quiz me on this course' })).toBeVisible()
+  await expect(panel.getByRole('link', { name: 'Quiz me' })).toBeVisible()
 
   await ask(panel, 'Where is ATP made?')
   await expect(panel.getByText(/Your notes say the mitochondrion produces ATP/)).toBeVisible()
@@ -192,7 +192,7 @@ test('in review, before the reveal the answer never shows; after it, the same an
   await openChat(page)
   const panel = chatPanel(page, info.project.name)
   await expect(panel.getByText('About: this card')).toBeVisible()
-  await panel.getByRole('button', { name: 'Help me think about this card, without the answer' }).click()
+  await panel.getByRole('button', { name: 'A hint' }).click()
   await expect(panel.getByText('Parts that would give the answer away are hidden until you reveal it.')).toBeVisible()
   await expect(panel).not.toContainText(/mitochondri/i)
   await expect(panel.getByRole('button', { name: 'Make a card' })).toHaveCount(0)
@@ -200,6 +200,7 @@ test('in review, before the reveal the answer never shows; after it, the same an
   await expect(page.getByRole('button', { name: 'Answer in your own words' })).toHaveCount(1)
   expect(prompts.at(-1)).toContain('Flashcard answer (keep hidden): The mitochondrion')
   expect(prompts.at(-1)).toContain('has NOT seen the flashcard answer')
+  expect(prompts.at(-1)).toContain('asks for a hint')
 
   if (isPhone(info.project.name)) await panel.getByRole('button', { name: 'Close' }).click()
   await page.getByRole('button', { name: /Show answer/ }).click()
@@ -208,6 +209,117 @@ test('in review, before the reveal the answer never shows; after it, the same an
   await expect(panel.getByText(/Your notes say the mitochondrion produces ATP/)).toBeVisible()
   await expect(panel.getByRole('button', { name: 'Make a card' })).toBeVisible()
   expect(errors).toEqual([])
+})
+
+async function openNote(page: Page) {
+  await openCourse(page)
+  await page.getByRole('radio', { name: 'Sources' }).check({ force: true })
+  await page
+    .getByRole('main')
+    .getByRole('link', { name: /Cell notes/ })
+    .click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Cell notes' })).toBeVisible()
+}
+
+/** The names of the panel's actions for the screen, in order. */
+async function actionNames(panel: Locator): Promise<string[]> {
+  const row = panel.getByRole('list', { name: 'Actions for this screen' })
+  await expect(row).toBeVisible()
+  return row.getByRole('listitem').allInnerTexts()
+}
+
+test('the panel offers actions suited to the screen: a card before and after the reveal, a source, a course', async ({
+  page,
+}, info) => {
+  const errors = watchErrors(page)
+  await seedCourse(page)
+  await mockProvider(page)
+  await configureAi(page, LLM)
+  const phone = isPhone(info.project.name)
+  const panel = chatPanel(page, info.project.name)
+
+  await page.goto('./#/review')
+  await expect(page.getByTestId('question')).toContainText('Powerhouse of the cell?')
+  await openChat(page)
+  expect(await actionNames(panel)).toEqual(['Explain the question', 'A hint'])
+  if (phone) await panel.getByRole('button', { name: 'Close' }).click()
+  await page.getByRole('button', { name: /Show answer/ }).click()
+  if (phone) await openChat(page)
+  expect(await actionNames(panel)).toEqual(['Why is this the answer?', 'A mnemonic'])
+  if (phone) await panel.getByRole('button', { name: 'Close' }).click()
+
+  await openNote(page)
+  if (phone) await openChat(page)
+  await expect(panel.getByText('About: Cell notes')).toBeVisible()
+  expect(await actionNames(panel)).toEqual(['Summarise this source', 'Generate cards', 'Quiz me'])
+  await expect(panel.getByRole('button', { name: 'Summarise this source' })).toBeEnabled()
+  if (phone) await panel.getByRole('button', { name: 'Close' }).click()
+
+  await openCourse(page)
+  if (phone) await openChat(page)
+  await expect(panel.getByText('About: Biology')).toBeVisible()
+  expect(await actionNames(panel)).toEqual(['Generate cards', 'Explain a topic', 'Quiz me'])
+  await expect(panel.getByRole('link', { name: 'Explain a topic' })).toHaveAttribute('href', /#\/understand\?course=/)
+  await expect(panel.getByRole('link', { name: 'Quiz me' })).toHaveAttribute('href', /#\/quiz\?course=/)
+  expect(errors).toEqual([])
+})
+
+test('« Summarise this source » streams a cited summary of the source open', async ({ page }, info) => {
+  const errors = watchErrors(page)
+  await seedCourse(page)
+  const prompts = await mockProvider(page)
+  await configureAi(page, LLM)
+  await openNote(page)
+  await openChat(page)
+  const panel = chatPanel(page, info.project.name)
+  await panel.getByRole('button', { name: 'Summarise this source' }).click()
+  // The action is the student's turn; the tutor's answer streams in after it.
+  await expect(panel.getByText('Summarise this source', { exact: true }).last()).toBeVisible()
+  await expect(panel.getByText(/Your notes say the mitochondrion produces ATP/)).toBeVisible()
+  const sent = prompts.at(-1) ?? ''
+  expect(sent).toContain('asks for a summary of the source open')
+  expect(sent).toContain('Source open: Cell notes')
+  expect(sent).toContain('<<<SOURCE id=')
+  await expect(panel.getByRole('link', { name: 'Open source: Cell notes' })).toHaveCount(1)
+  await expect(panel).not.toContainText('INVENTED')
+  await expect(panel.getByRole('log')).not.toHaveAttribute('aria-busy', 'true')
+  expect(errors).toEqual([])
+})
+
+test('« Generate cards » opens Generate on the course', async ({ page }, info) => {
+  const errors = watchErrors(page)
+  await seedCourse(page)
+  await mockProvider(page)
+  await configureAi(page, LLM)
+  await openCourse(page)
+  await openChat(page)
+  const panel = chatPanel(page, info.project.name)
+  const generate = panel.getByRole('link', { name: 'Generate cards' })
+  await expect(generate).toHaveAttribute('href', /#\/generate\?course=[^&]+$/)
+  await generate.click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Generate cards' })).toBeVisible()
+  // On a phone the sheet steps aside for the screen.
+  if (isPhone(info.project.name)) await expect(panel).toBeHidden()
+  expect(errors).toEqual([])
+})
+
+test('without a model there are no actions in the panel and no AI buttons in review', async ({ page }, info) => {
+  await seedCourse(page)
+  const panel = chatPanel(page, info.project.name)
+  await page.goto('./#/review')
+  await expect(page.getByTestId('question')).toContainText('Powerhouse of the cell?')
+  await expect(page.getByRole('button', { name: 'Explain the question' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Answer in your own words' })).toHaveCount(0)
+  await openChat(page)
+  await expect(panel.getByText('Set up AI to ask questions')).toBeVisible()
+  await expect(panel.getByRole('list', { name: 'Actions for this screen' })).toHaveCount(0)
+  await expect(panel.getByRole('button', { name: 'A hint' })).toHaveCount(0)
+  if (isPhone(info.project.name)) await panel.getByRole('button', { name: 'Close' }).click()
+
+  await openCourse(page)
+  if (isPhone(info.project.name)) await openChat(page)
+  await expect(panel.getByText('Set up AI to ask questions')).toBeVisible()
+  await expect(panel.getByRole('link', { name: 'Generate cards' })).toHaveCount(0)
 })
 
 test('conversations stay on the device, can be reopened after a reload and deleted', async ({ page }, info) => {

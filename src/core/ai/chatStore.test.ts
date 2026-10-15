@@ -9,6 +9,7 @@ import {
   saveConversation,
   titleOf,
 } from './chatStore'
+import type { ChatMessage } from './features/tutorChat'
 
 const chat = (id: string, updatedAt: number, question = `question ${id}`) => ({
   id,
@@ -76,5 +77,66 @@ describe('chat store', () => {
     expect(title.length).toBe(60)
     expect(title.endsWith('…')).toBe(true)
     expect(titleOf([{ role: 'assistant', text: 'seed' }])).toBe('')
+  })
+
+  test('a structured answer is kept with its text, and old messages without one stay readable', async () => {
+    const store = memoryStore()
+    const card = { front: 'Powerhouse of the cell?', back: 'The mitochondrion' }
+    const why: ChatMessage = {
+      role: 'assistant',
+      text: 'Respiration runs there.',
+      rich: {
+        kind: 'explainCard',
+        card,
+        cost: 0.001,
+        value: { explanation: 'Respiration runs there.', mnemonic: 'Mighty', citations: [{ sourceId: 's1', page: 2 }] },
+      },
+    }
+    const question: ChatMessage = {
+      role: 'assistant',
+      text: 'It asks where energy is made.',
+      rich: {
+        kind: 'explainQuestion',
+        card,
+        value: {
+          restatement: { text: 'It asks where energy is made.', leaked: false },
+          terms: [
+            {
+              term: { text: 'Powerhouse', leaked: false },
+              definition: { text: 'The […]', leaked: true, original: 'The mitochondrion' },
+              sourceRef: { sourceId: 's1' },
+            },
+          ],
+          context: { text: '', leaked: false },
+          citations: [{ sourceId: 's1' }],
+          leaked: true,
+        },
+      },
+    }
+    const messages: ChatMessage[] = [{ role: 'user', text: 'Why?' }, why, { role: 'user', text: 'Explain' }, question]
+    await saveConversation(store, 'c', { id: 'r', updatedAt: 1, messages })
+    await saveConversation(store, 'c', chat('old', 0))
+    const list = await listConversations(store, 'c')
+    expect(list.find((c) => c.id === 'r')?.messages).toEqual(messages)
+    expect(list.find((c) => c.id === 'old')?.messages).toEqual(chat('old', 0).messages)
+  })
+
+  test('a malformed structured answer makes its conversation unreadable', async () => {
+    const store = memoryStore()
+    const bad = { role: 'assistant', text: 'x', rich: { kind: 'explainCard', card: { front: 'q' }, value: {} } }
+    await store.commit([
+      {
+        put: 'kv',
+        key: chatKey('c'),
+        value: {
+          v: 1,
+          chats: [
+            { id: 'bad', title: 't', updatedAt: 1, messages: [bad] },
+            { ...chat('ok', 1), title: 'ok' },
+          ],
+        },
+      },
+    ])
+    expect((await listConversations(store, 'c')).map((c) => c.id)).toEqual(['ok'])
   })
 })
