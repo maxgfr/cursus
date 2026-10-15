@@ -15,7 +15,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.3
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.0.0
       - run: bun install --frozen-lockfile
       - run: docker version
       - run: bun run check
