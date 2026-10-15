@@ -20,6 +20,11 @@
   justify-self: start;
 }
 
+/* The chat button sits on the card's right edge, as × sits on its left one. */
+.end {
+  justify-self: end;
+}
+
 .title {
   font-size: var(--text-body);
   font-weight: 600;

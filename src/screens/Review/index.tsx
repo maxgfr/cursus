@@ -284,7 +284,7 @@ function ReviewRun({ sessionId }: { sessionId: Id | null }) {
           <h1 className={styles.title}>{session === undefined ? t('review.title') : sessionLabel(ws, t, session)}</h1>
           {session?.practice === true && <PracticeChip />}
         </div>
-        <ChatButton />
+        <ChatButton className={styles.end} />
       </header>
       {card && !finished ? (
         <CardStage

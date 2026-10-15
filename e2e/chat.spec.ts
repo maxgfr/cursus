@@ -245,6 +245,29 @@ test('from a course: the chat knows the course, streams a cited answer and its c
   expect(errors).toEqual([])
 })
 
+test('in review, × and the chat button sit at the two ends of the bar, the chat open or closed', async ({
+  page,
+}, info) => {
+  await seedCourse(page)
+  await configureAi(page, LLM)
+  await page.goto('./#/review')
+  await expect(page.getByTestId('question')).toContainText('Powerhouse of the cell?')
+  const close = page.getByRole('button', { name: 'Close' }).first()
+  const bar = page.locator('header').filter({ has: close })
+  const chat = bar.getByRole('button', { name: 'Ask about this' })
+  const edges = async () => {
+    const [b, x, c] = await Promise.all([bar.boundingBox(), close.boundingBox(), chat.boundingBox()])
+    if (!b || !x || !c) throw new Error('bar not laid out')
+    return { left: Math.round(x.x - b.x), right: Math.round(b.x + b.width - (c.x + c.width)) }
+  }
+  expect(await edges()).toEqual({ left: 0, right: 0 })
+  if (!isPhone(info.project.name)) {
+    await chat.click()
+    await expect(chatPanel(page, info.project.name)).toBeVisible()
+    expect(await edges()).toEqual({ left: 0, right: 0 })
+  }
+})
+
 test('in review, before the reveal the answer never shows; after it, the same answer is readable', async ({
   page,
 }, info) => {
