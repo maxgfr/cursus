@@ -2,7 +2,7 @@ import { defaultKeymap, indentWithTab } from '@codemirror/commands'
 import { markdown } from '@codemirror/lang-markdown'
 import { EditorSelection, EditorState } from '@codemirror/state'
 import { EditorView, keymap, placeholder as placeholderExt } from '@codemirror/view'
-import { Bold, Code, Heading, Italic, List, Redo2, Sigma, Undo2 } from 'lucide-react'
+import { Redo2, Undo2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { yCollab, yUndoManagerKeymap } from 'y-codemirror.next'
 import * as Y from 'yjs'
@@ -11,6 +11,7 @@ import { IconButton } from '../components/IconButton.tsx'
 import { Sanitized } from '../render/Sanitized.tsx'
 import styles from './MarkdownEditor.module.css'
 import type { MarkdownEditorProps } from './MarkdownEditor.tsx'
+import { type Format, Toolbar } from './Toolbar.tsx'
 
 /** Wraps the selection (or inserts a pair at the caret) with `before`/`after`. */
 function wrap(view: EditorView, before: string, after = before): boolean {
@@ -49,6 +50,15 @@ function prefixLines(view: EditorView, prefix: string): boolean {
   return true
 }
 
+const FORMAT: Record<Format, (view: EditorView) => boolean> = {
+  bold: (v) => wrap(v, '**'),
+  italic: (v) => wrap(v, '*'),
+  heading: (v) => prefixLines(v, '## '),
+  list: (v) => prefixLines(v, '- '),
+  math: (v) => wrap(v, '$'),
+  code: (v) => wrap(v, '`'),
+}
+
 const theme = EditorView.theme({
   '&': {
     color: 'var(--ink)',
@@ -72,7 +82,6 @@ const theme = EditorView.theme({
 })
 
 export default function MarkdownEditorImpl({ text, label, placeholder, initialMode = 'write' }: MarkdownEditorProps) {
-  const t = useT()
   const host = useRef<HTMLDivElement>(null)
   const view = useRef<EditorView | null>(null)
   const [mode, setMode] = useState(initialMode)
@@ -119,47 +128,14 @@ export default function MarkdownEditorImpl({ text, label, placeholder, initialMo
     }
   }, [text, label, placeholder])
 
-  const run = (fn: (v: EditorView) => boolean) => () => {
-    if (view.current) fn(view.current)
+  const format = (f: Format) => {
+    const v = view.current
+    if (v) FORMAT[f](v)
   }
 
   return (
     <div className={styles.frame}>
-      <div className={styles.toolbar} role="toolbar" aria-label={t('common.edFormatting')}>
-        <div className={styles.group}>
-          <button
-            type="button"
-            className={styles.mode}
-            aria-pressed={mode === 'write'}
-            onClick={() => setMode('write')}
-          >
-            {t('common.edWrite')}
-          </button>
-          <button
-            type="button"
-            className={styles.mode}
-            aria-pressed={mode === 'preview'}
-            onClick={() => setMode('preview')}
-          >
-            {t('common.edPreview')}
-          </button>
-        </div>
-        {mode === 'write' && (
-          <>
-            <span className={styles.divider} aria-hidden="true" />
-            <div className={styles.group}>
-              <IconButton icon={Bold} label={t('common.edBold')} onClick={run((v) => wrap(v, '**'))} />
-              <IconButton icon={Italic} label={t('common.edItalic')} onClick={run((v) => wrap(v, '*'))} />
-              <IconButton icon={Heading} label={t('common.edHeading')} onClick={run((v) => prefixLines(v, '## '))} />
-              <IconButton icon={List} label={t('common.edList')} onClick={run((v) => prefixLines(v, '- '))} />
-              <IconButton icon={Sigma} label={t('common.edMath')} onClick={run((v) => wrap(v, '$'))} />
-              <IconButton icon={Code} label={t('common.edCode')} onClick={run((v) => wrap(v, '`'))} />
-            </div>
-            <span className={styles.spacer} />
-            <UndoButtons undo={undo} />
-          </>
-        )}
-      </div>
+      <Toolbar mode={mode} live={{ onMode: setMode, onFormat: format, history: <UndoButtons undo={undo} /> }} />
       <div ref={host} className={styles.host} hidden={mode !== 'write'} />
       {mode === 'preview' && (
         <div className={styles.preview}>

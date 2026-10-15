@@ -179,23 +179,25 @@ export default function CardEditor() {
     if (next !== base) setBase(next)
   }, [draft, newCourse, base, kind, savedFront, savedBack, savedKind])
 
+  // While Save (or Discard) is writing, the draft is on its way out: a copy still waiting would land after it was
+  // dropped and come back as a draft of a card that already exists, to be saved a second time.
   useEffect(() => {
-    if (!draft) return
+    if (!draft || saving) return
     const timer = setTimeout(() => {
       keepDraft(rt.store, id, current, newCourse !== null ? { ...EMPTY, kind: current.kind } : base).catch(
         (e: unknown) => noteError('card.draft', e),
       )
     }, 250)
     return () => clearTimeout(timer)
-  }, [rt, id, draft, current, newCourse, base])
+  }, [rt, id, draft, saving, current, newCourse, base])
 
   // An update reloads the page: the copy above may still be waiting, so the draft is kept first.
   useEffect(() => {
-    if (!draft || !dirty) return
+    if (!draft || !dirty || saving) return
     return beforeUpdate(() =>
       keepDraft(rt.store, id, current, newCourse !== null ? { ...EMPTY, kind: current.kind } : base),
     )
-  }, [rt, id, draft, dirty, current, newCourse, base])
+  }, [rt, id, draft, dirty, saving, current, newCourse, base])
 
   const leave = useCallback(
     (notice?: CardNotice) => {
@@ -315,6 +317,7 @@ export default function CardEditor() {
 
   const discard = () => {
     setAsking(false)
+    if (!hold()) return
     void dropDraft(rt.store, id)
       .catch((e: unknown) => noteError('card.draft', e))
       .finally(() => leave())
@@ -421,37 +424,41 @@ export default function CardEditor() {
             </section>
           </div>
         )}
-        <div className={styles.actions}>
-          <Button variant="plain" onClick={cancel}>
-            {t('course.cancel')}
-          </Button>
-          {newCourse !== null && (
-            <Button onClick={saveAndNew} disabled={!dirty || saving}>
-              {t('course.saveNew')}
+        {/* The actions come with the form: shown under "Loading…", they would jump down as it arrives, and a tap
+            already on its way would land on the form instead. */}
+        {draft !== null && (
+          <div className={styles.actions}>
+            <Button variant="plain" onClick={cancel}>
+              {t('course.cancel')}
             </Button>
-          )}
-          {newCourse === null && (
-            <>
-              <Button variant="plain" icon={<Share size={18} aria-hidden="true" />} onClick={share}>
-                {t('photos.shareCard')}
+            {newCourse !== null && (
+              <Button onClick={saveAndNew} disabled={!dirty || saving}>
+                {t('course.saveNew')}
               </Button>
-              <Link href={to.history(id)} className={buttonClass({ variant: 'plain' })}>
-                <History size={18} aria-hidden="true" />
-                {t('course.history')}
-              </Link>
-              <Button
-                variant="plain"
-                icon={<FolderInput size={18} aria-hidden="true" />}
-                onClick={() => setMoving(true)}
-              >
-                {t('course.moveTo')}
-              </Button>
-              <Button variant="danger" icon={<Trash2 size={18} aria-hidden="true" />} onClick={remove}>
-                {t('course.moveToTrash')}
-              </Button>
-            </>
-          )}
-        </div>
+            )}
+            {newCourse === null && (
+              <>
+                <Button variant="plain" icon={<Share size={18} aria-hidden="true" />} onClick={share}>
+                  {t('photos.shareCard')}
+                </Button>
+                <Link href={to.history(id)} className={buttonClass({ variant: 'plain' })}>
+                  <History size={18} aria-hidden="true" />
+                  {t('course.history')}
+                </Link>
+                <Button
+                  variant="plain"
+                  icon={<FolderInput size={18} aria-hidden="true" />}
+                  onClick={() => setMoving(true)}
+                >
+                  {t('course.moveTo')}
+                </Button>
+                <Button variant="danger" icon={<Trash2 size={18} aria-hidden="true" />} onClick={remove}>
+                  {t('course.moveToTrash')}
+                </Button>
+              </>
+            )}
+          </div>
+        )}
         <div className={styles.bottom}>{saveButton}</div>
       </Screen>
       {newCourse === null && (

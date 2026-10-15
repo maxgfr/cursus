@@ -105,3 +105,66 @@ test('a double-click on Save, or a held ⌘S, creates exactly one card', async (
   await page.reload()
   await expect(cardRows(page)).toHaveText([/Spores spread by\?/, /Hyphae form a\?/])
 })
+
+/**
+ * Keeps the given IndexedDB stores busy with a write transaction for `ms`: whatever reads or writes them waits
+ * meanwhile, as on a loaded device.
+ */
+async function holdStores(page: Page, stores: string[], ms: number) {
+  await page.evaluate(
+    ({ stores, ms }) =>
+      new Promise<void>((started, failed) => {
+        const open = indexedDB.open('cursus-v1')
+        open.onerror = () => failed(open.error)
+        open.onsuccess = () => {
+          const db = open.result
+          const tx = db.transaction(stores, 'readwrite')
+          const store = tx.objectStore(stores[0] ?? '')
+          const end = performance.now() + ms
+          const spin = () => {
+            if (performance.now() < end) store.get('hold').onsuccess = spin
+          }
+          spin()
+          tx.oncomplete = () => db.close()
+          started()
+        }
+      }),
+    { stores, ms },
+  )
+}
+
+test('a Save still writing when the draft copy comes due leaves no draft: the next new card starts empty', async ({
+  page,
+}) => {
+  await createCourse(page, 'Genetics')
+  await page.getByRole('button', { name: 'New card' }).click()
+  await typeInto(page, 'Front', 'Genes are made of?')
+  // The log is busy: Save waits for its write longer than the draft copy waits after the last keystroke.
+  await holdStores(page, ['segments'], 1_000)
+  await page.keyboard.type(' DNA')
+  await page.keyboard.press('ControlOrMeta+s')
+  await expect(page.getByRole('heading', { level: 1, name: 'Genetics' })).toBeVisible()
+  await expect(cardRows(page)).toHaveText([/Genes are made of\? DNA/])
+
+  await page.getByRole('button', { name: 'New card' }).click()
+  await expect(page.getByRole('textbox', { name: 'Front' })).toHaveText('')
+  await expect(page.getByText('Unsaved draft restored.')).toHaveCount(0)
+  await expect(save(page)).toBeDisabled()
+})
+
+test('the editor offers its actions only where they stay: a tap on Cancel cannot land on the form', async ({
+  page,
+}) => {
+  await createCourse(page, 'Ecology')
+  // The draft read waits: the editor is still loading when it first shows.
+  await holdStores(page, ['kv'], 800)
+  await page.getByRole('button', { name: 'New card' }).click()
+  const cancel = page.getByRole('button', { name: 'Cancel' })
+  await expect(cancel).toBeVisible()
+  const shown = await cancel.boundingBox()
+  await expect(page.getByRole('textbox', { name: 'Front' })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Back' })).toBeVisible()
+  expect(await cancel.boundingBox()).toEqual(shown)
+  await cancel.click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Ecology' })).toBeVisible()
+})

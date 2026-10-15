@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useT } from '../i18n/react.tsx'
+import { applyingUpdate } from '../pwa/index.ts'
 import { consumeLaunchedFiles } from '../pwa/launch.ts'
+import { noteError } from '../screens/settings/Diagnostic/recent.ts'
 import { Toast } from '../ui/components/Toast.tsx'
 import { absorb, DestinationError } from './destinations.ts'
+import { keepEngineFresh } from './engineFresh.ts'
 import { useSync } from './syncContext.tsx'
 import { useRuntime } from './workspaceContext.tsx'
 
@@ -21,11 +24,13 @@ export default function Notices() {
 
   useEffect(() => {
     // After an update, a downloaded model's new engine script is stored before going offline needs it.
-    const keep = () => {
-      import('../screens/settings/Ai/onDeviceStore.ts')
-        .then((m) => m.keepEngineFresh())
-        .catch((e: unknown) => console.error('on-device engine not kept for offline use', e))
-    }
+    const keep = () =>
+      void keepEngineFresh({
+        load: () => import('../screens/settings/Ai/onDeviceStore.ts'),
+        reloading: applyingUpdate,
+        report: noteError,
+        fail: (e) => console.error('on-device engine not kept for offline use', e),
+      })
     if (typeof requestIdleCallback === 'function') {
       const id = requestIdleCallback(keep, { timeout: 10_000 })
       return () => cancelIdleCallback(id)

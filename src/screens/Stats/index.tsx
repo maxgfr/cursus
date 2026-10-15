@@ -191,7 +191,8 @@ export default function Stats() {
             <ListRow
               key={c.id}
               title={c.title}
-              trailing={
+              // Under the title, where the two buttons can wrap: beside it, a phone has no room for them.
+              subtitle={
                 <span className={styles.tools}>
                   <Button
                     icon={<Share size={16} aria-hidden="true" />}

@@ -258,3 +258,34 @@ test('German, dark: the demo course fits every screen and passes axe', async ({ 
   expect(problems).toEqual([])
   expect(errors).toEqual([])
 })
+
+test('German at 375px: the statistics fit, no word in a tile and no button past the screen', async ({ page }) => {
+  const errors = watchErrors(page)
+  await page.setViewportSize({ width: 375, height: 812 })
+  await createDemo(page, '?locale=de', 'Demokurs ausprobieren', 'Demo: Zellbiologie')
+  await go(page, '#/stats', 'Statistik')
+  await expect(page.getByTestId('cramming-tile')).toBeVisible()
+  await settle(page)
+  // Clipped content does not scroll the page: every box is measured, not only the page's scroll width.
+  const spills = await page.evaluate(() => {
+    const out: string[] = []
+    const screen = document.documentElement.clientWidth
+    const name = (el: Element) => `${el.tagName.toLowerCase()} "${(el.textContent ?? '').trim().slice(0, 40)}"`
+    for (const el of Array.from(document.querySelectorAll('main *'))) {
+      const box = el.getBoundingClientRect()
+      if (box.width > 0 && box.right > screen + 0.5) out.push(`${name(el)} ends at ${Math.round(box.right)}px`)
+    }
+    for (const tile of Array.from(document.querySelectorAll('main section[aria-label] > div'))) {
+      const style = getComputedStyle(tile)
+      const inner = tile.clientWidth - Number.parseFloat(style.paddingLeft) - Number.parseFloat(style.paddingRight)
+      for (const part of Array.from(tile.children)) {
+        const width = part.getBoundingClientRect().width
+        if (width > inner + 0.5) out.push(`${name(part)} is ${Math.round(width)}px in a ${Math.round(inner)}px tile`)
+      }
+    }
+    return out
+  })
+  expect(spills).toEqual([])
+  expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
+  expect(errors).toEqual([])
+})

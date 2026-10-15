@@ -26,6 +26,12 @@ let waiting: PwaUpdate | null = null
 const watchers = new Set<() => void>()
 const flushers = new Set<() => Promise<void>>()
 
+/** An update is being applied: the page reloads into the new version as soon as its writes are done. */
+let applying = false
+
+/** True from the moment an update starts applying: work started now would be cut short by the reload. */
+export const applyingUpdate = (): boolean => applying
+
 /** Screens offering the update in place (Settings): the toast steps aside meanwhile. */
 let inPlace = 0
 const notify = () => {
@@ -97,9 +103,16 @@ async function register(opts: PwaOptions): Promise<void> {
       onNeedRefresh() {
         waiting = {
           async apply() {
-            await flushPending()
-            await opts.seal()
-            await updateSW(true)
+            applying = true
+            try {
+              await flushPending()
+              await opts.seal()
+              await updateSW(true)
+            } catch (e) {
+              // No reload is coming: the page goes on as before.
+              applying = false
+              throw e
+            }
           },
         }
         notify()

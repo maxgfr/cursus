@@ -2,7 +2,9 @@ import { Suspense } from 'react'
 import type * as Y from 'yjs'
 import { lazyChunk } from '../../app/lazyChunk.tsx'
 import { useT } from '../../i18n/react.tsx'
+import { cx } from '../cx.ts'
 import styles from './MarkdownEditor.module.css'
+import { Toolbar } from './Toolbar.tsx'
 
 export interface MarkdownEditorProps {
   /** A Y.Text obtained from `workspace.text(...)`. */
@@ -22,8 +24,10 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
   return (
     <Suspense
       fallback={
+        // The editor's own frame, toolbar included: what sits below does not move when the editor arrives.
         <div className={styles.frame} aria-busy="true">
-          <p className={styles.loading}>{t('common.edLoading')}</p>
+          <Toolbar mode={props.initialMode ?? 'write'} />
+          <p className={cx(styles.host, styles.loading)}>{t('common.edLoading')}</p>
         </div>
       }
     >
