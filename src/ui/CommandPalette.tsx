@@ -5,8 +5,10 @@ import {
   CalendarPlus,
   ChartColumn,
   FileText,
+  Inbox,
   Layers,
   Library,
+  MessageCircle,
   Play,
   Search as SearchIcon,
   Settings,
@@ -24,6 +26,7 @@ import type { ModelWorkspace } from '../core/model/workspace'
 import { useT } from '../i18n/react.tsx'
 import { noteError } from '../screens/settings/Diagnostic/recent.ts'
 import styles from './CommandPalette.module.css'
+import { useChat } from './chat/context.tsx'
 import { Sheet } from './components/Sheet.tsx'
 import { Toast } from './components/Toast.tsx'
 import { useStudy } from './data/useStudy.ts'
@@ -99,6 +102,7 @@ export function CommandPalette() {
   const listId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
   const study = useStudy()
+  const chat = useChat()
   useDueBadge(study.due)
   const courses = useWorkspaceData(['courses'], (w) => w.courses.list())
   // Search hits arrive asynchronously (the first search loads the engine), for the query they answer.
@@ -210,12 +214,27 @@ export function CommandPalette() {
       { id: 'today', group: 'go', title: t('common.cmdToday'), icon: Sun, run: () => go(paths.today) },
       { id: 'courses', group: 'go', title: t('common.cmdCourses'), icon: Library, run: () => go(paths.courses) },
       { id: 'stats', group: 'go', title: t('common.cmdStats'), icon: ChartColumn, run: () => go(paths.stats) },
+      { id: 'inbox', group: 'go', title: t('ai.inboxTitle'), icon: Inbox, run: () => go(paths.inbox) },
       { id: 'sessions', group: 'go', title: t('review.sessions'), icon: CalendarClock, run: () => go(paths.sessions) },
       { id: 'newSession', group: 'go', title: t('review.newSession'), icon: Play, run: () => go(paths.sessionNew) },
       { id: 'settings', group: 'go', title: t('common.cmdSettings'), icon: Settings, run: () => go(paths.settings) },
       { id: 'search', group: 'go', title: t('common.cmdSearch'), icon: SearchIcon, run: () => go(paths.search) },
     ]
     const actions: Item[] = [
+      ...(chat
+        ? [
+            {
+              id: 'ask',
+              group: 'actions' as const,
+              title: t('chat.open'),
+              icon: MessageCircle,
+              run: () => {
+                close()
+                if (!chat.open) chat.toggle()
+              },
+            },
+          ]
+        : []),
       {
         id: 'ics',
         group: 'actions',
@@ -238,7 +257,7 @@ export function CommandPalette() {
     ]
     const results = q === '' || found.q !== q ? [] : searchItems(ws, found.hits, t('common.cardTitle'), go)
     return [...nav.filter((i) => match(i.title)), ...actions.filter((i) => match(i.title)), ...results]
-  }, [open, query, captured, courses, ws, t, go, close, addNote, found])
+  }, [open, query, captured, courses, ws, t, go, close, addNote, found, chat])
 
   const current = Math.min(active, Math.max(0, items.length - 1))
   const optionId = (i: number) => `${listId}-${i}`

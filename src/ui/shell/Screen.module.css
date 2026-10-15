@@ -79,3 +79,25 @@
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-8);
 }
+
+/* Above the title: the back link on the left, Search and Ask quiet on the right (as an iOS large title). */
+.bar {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  min-height: 2.75rem;
+  margin-block-start: calc(-1 * var(--space-2));
+}
+
+.tools {
+  display: flex;
+  align-items: center;
+  margin-inline: auto calc(-1 * var(--space-2));
+}
+
+/* The sidebar carries Search from 1000px. */
+@media (min-width: 1000px) {
+  .tools .phoneOnly {
+    display: none;
+  }
+}

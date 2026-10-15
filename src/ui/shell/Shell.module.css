@@ -1,4 +1,5 @@
 .shell {
+  --chat-width: 24rem;
   min-height: 100dvh;
 }
 
@@ -106,6 +107,16 @@
     display: block;
   }
 
+  /* The chat docks on the right: the page narrows beside it, never under it. */
+  .withChat {
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr) var(--chat-width);
+  }
+
+  .focus.withChat {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) var(--chat-width);
+  }
+
   .main {
     padding-bottom: env(safe-area-inset-bottom);
   }
@@ -134,7 +145,8 @@
 
   /* Quiet footer: Search, with its keyboard shortcut. */
   .footer {
-    display: block;
+    display: grid;
+    gap: 2px;
     margin-top: auto;
   }
 
@@ -150,6 +162,20 @@
     font-size: var(--text-footnote);
     text-decoration: none;
     transition: background-color var(--dur-fast) var(--ease-out);
+  }
+
+  button.search {
+    width: 100%;
+    border: 0;
+    font: inherit;
+    font-size: var(--text-footnote);
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .search[aria-pressed="true"] {
+    background: var(--accent-soft);
+    color: var(--accent-ink);
   }
 
   .search:hover {

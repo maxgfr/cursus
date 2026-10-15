@@ -15,6 +15,7 @@ export type AiFeature =
   | 'photoToCards'
   | 'readDeck'
   | 'deckQuestions'
+  | 'tutorChat'
 
 /** One event of the workspace's `aiUsage` array. */
 export interface AiUsageEvent {

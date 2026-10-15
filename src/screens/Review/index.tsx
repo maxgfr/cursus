@@ -7,6 +7,8 @@ import type { Id, NewReview, Rating } from '../../core/contracts/workspace'
 import { relaunchFailed, sessionQueue, sessionReview } from '../../core/model/sessions'
 import { intlTag } from '../../i18n/index.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
+import { ChatButton } from '../../ui/chat/ChatButton.tsx'
+import { useChatContext } from '../../ui/chat/context.tsx'
 import { Button } from '../../ui/components/Button.tsx'
 import { IconButton } from '../../ui/components/IconButton.tsx'
 import { Keycap } from '../../ui/components/Keycap.tsx'
@@ -215,6 +217,13 @@ function ReviewRun({ sessionId }: { sessionId: Id | null }) {
   const total = queue.length
   const done = Math.min(index, total)
   const finished = index >= total
+  useChatContext(
+    card && !finished
+      ? { courseId: card.courseId, card: { front: card.front, back: card.back, revealed } }
+      : session?.scope.courseId
+        ? { courseId: session.scope.courseId }
+        : {},
+  )
 
   // Cards that come back today (graded Again, on a learning step) rejoin the session when due;
   // until then the session waits for them rather than claiming everything is done.
@@ -252,7 +261,7 @@ function ReviewRun({ sessionId }: { sessionId: Id | null }) {
           <h1 className={styles.title}>{session === undefined ? t('review.title') : sessionLabel(ws, t, session)}</h1>
           {session?.practice === true && <PracticeChip />}
         </div>
-        <span className={styles.barSpacer} />
+        <ChatButton />
       </header>
       {card && !finished ? (
         <CardStage

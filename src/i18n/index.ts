@@ -1,5 +1,6 @@
 import type { ai } from './en/ai.ts'
 import type { anki } from './en/anki.ts'
+import type { chat } from './en/chat.ts'
 import type { common } from './en/common.ts'
 import type { course } from './en/course.ts'
 import type { errors } from './en/errors.ts'
@@ -33,6 +34,7 @@ type Source = {
   readonly anki: typeof anki
   readonly errors: typeof errors
   readonly photos: typeof photos
+  readonly chat: typeof chat
 }
 const NAMESPACES: readonly Namespace[] = [
   'common',
@@ -45,6 +47,7 @@ const NAMESPACES: readonly Namespace[] = [
   'anki',
   'errors',
   'photos',
+  'chat',
 ]
 export type Namespace = keyof Source
 export type Catalog = { readonly [N in Namespace]: Shape<Source[N]> }
@@ -61,7 +64,7 @@ const loaded = new Map<Locale, Catalog>()
 
 const loaders: { readonly [L in Locale]: () => Promise<Catalog> } = {
   en: async () => {
-    const [common, today, course, review, ai, settings, sync, anki, errors, photos] = await Promise.all([
+    const [common, today, course, review, ai, settings, sync, anki, errors, photos, chat] = await Promise.all([
       import('./en/common.ts'),
       import('./en/today.ts'),
       import('./en/course.ts'),
@@ -72,6 +75,7 @@ const loaders: { readonly [L in Locale]: () => Promise<Catalog> } = {
       import('./en/anki.ts'),
       import('./en/errors.ts'),
       import('./en/photos.ts'),
+      import('./en/chat.ts'),
     ])
     return {
       common: common.common,
@@ -84,10 +88,11 @@ const loaders: { readonly [L in Locale]: () => Promise<Catalog> } = {
       anki: anki.anki,
       errors: errors.errors,
       photos: photos.photos,
+      chat: chat.chat,
     }
   },
   de: async () => {
-    const [common, today, course, review, ai, settings, sync, anki, errors, photos] = await Promise.all([
+    const [common, today, course, review, ai, settings, sync, anki, errors, photos, chat] = await Promise.all([
       import('./de/common.ts'),
       import('./de/today.ts'),
       import('./de/course.ts'),
@@ -98,6 +103,7 @@ const loaders: { readonly [L in Locale]: () => Promise<Catalog> } = {
       import('./de/anki.ts'),
       import('./de/errors.ts'),
       import('./de/photos.ts'),
+      import('./de/chat.ts'),
     ])
     return {
       common: common.common,
@@ -110,10 +116,11 @@ const loaders: { readonly [L in Locale]: () => Promise<Catalog> } = {
       anki: anki.anki,
       errors: errors.errors,
       photos: photos.photos,
+      chat: chat.chat,
     }
   },
   fr: async () => {
-    const [common, today, course, review, ai, settings, sync, anki, errors, photos] = await Promise.all([
+    const [common, today, course, review, ai, settings, sync, anki, errors, photos, chat] = await Promise.all([
       import('./fr/common.ts'),
       import('./fr/today.ts'),
       import('./fr/course.ts'),
@@ -124,6 +131,7 @@ const loaders: { readonly [L in Locale]: () => Promise<Catalog> } = {
       import('./fr/anki.ts'),
       import('./fr/errors.ts'),
       import('./fr/photos.ts'),
+      import('./fr/chat.ts'),
     ])
     return {
       common: common.common,
@@ -136,6 +144,7 @@ const loaders: { readonly [L in Locale]: () => Promise<Catalog> } = {
       anki: anki.anki,
       errors: errors.errors,
       photos: photos.photos,
+      chat: chat.chat,
     }
   },
   pseudo: async () => {

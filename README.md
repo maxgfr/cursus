@@ -51,14 +51,22 @@ deleted on a destination; the format is specified in [docs/sync-format.md](docs/
 Automatic folder sync is not available in Safari or on iPad (no File System Access API), and nothing syncs
 while the app is closed.
 
-## AI features (bring your own key)
+## AI features (on this device or your own key)
 
-Understanding a source, generating and improving cards, explanations, quizzes and answer grading can use
-a language model. You provide an API key for a provider that can be called from a browser (for example
-OpenAI, Anthropic, Google or OpenRouter); requests go directly from the device to that provider. The key
-stays on the device and is never synchronised. Usage and estimated cost are recorded per month. Local
-servers such as Ollama or LM Studio work from Chrome on the same Mac, not from an iPad (mixed content is
-blocked).
+Understanding a source, generating and improving cards, explanations, quizzes, answer grading and the chat
+can use a language model, in one of two ways:
+
+- **On this device**: a model (Gemma 4 E2B where the device has room for it) downloads once and runs in the browser through
+  WebGPU. It is free, works offline, and nothing leaves the device.
+- **Your own key** for a provider that can be called from a browser (for example OpenAI, Anthropic, Google
+  or OpenRouter); requests go directly from the device to that provider. The key stays on the device and is
+  never synchronised. Usage and estimated cost are recorded per month. Local servers such as Ollama or LM
+  Studio work from Chrome on the same Mac, not from an iPad (mixed content is blocked).
+
+The chat opens beside any screen (its icon, ⌘J / Ctrl+J, or « Ask about this » in the command palette). It
+knows what the screen shows (a course, a section, a source, a card, a quiz question), answers from the
+course's sources with citations, and never gives a card's answer before it is revealed. Conversations are
+kept on the device, per course, and are not synchronised.
 
 ## Anki
 

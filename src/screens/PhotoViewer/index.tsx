@@ -23,6 +23,8 @@ import { renderPhoto, withPhoto } from '../../core/content/photos'
 import { blobStore } from '../../core/log/blobs'
 import { attachableSources, attachPhoto, getPhoto, listPhotos, photoLabel, rotatePhoto } from '../../core/model/photos'
 import { useT } from '../../i18n/react.tsx'
+import { ChatButton } from '../../ui/chat/ChatButton.tsx'
+import { useChatContext } from '../../ui/chat/context.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { Field } from '../../ui/components/Field.tsx'
 import { IconButton } from '../../ui/components/IconButton.tsx'
@@ -81,6 +83,8 @@ export default function PhotoViewer() {
       attachable: attachableSources(w, photo.courseId),
     }
   })
+
+  useChatContext(data ? { courseId: data.photo.courseId, sourceId: data.photo.id } : {})
 
   // A new photo starts fitted.
   const [shownId, setShownId] = useState(id)
@@ -213,6 +217,7 @@ export default function PhotoViewer() {
           onClick={() => void share()}
           disabled={file === null || working !== null}
         />
+        <ChatButton />
       </header>
 
       <div className={styles.main}>

@@ -7,6 +7,7 @@ import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import { PATH_SEPARATOR } from '../../core/model/sections'
 import { useT } from '../../i18n/react.tsx'
 import { beforeUpdate } from '../../pwa/index.ts'
+import { useChatContext } from '../../ui/chat/context.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { Keycap } from '../../ui/components/Keycap.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
@@ -90,6 +91,16 @@ export default function CardEditor() {
   const saved = card?.saved ?? EMPTY
   const savedRef = useRef(saved)
   savedRef.current = saved
+  // The card being written: its answer is in plain view, so the chat may discuss it.
+  useChatContext(
+    card === null
+      ? {}
+      : {
+          courseId: card.courseId,
+          ...(card.sectionId ? { sectionId: card.sectionId } : {}),
+          ...(saved.front.trim() ? { card: { front: saved.front, back: saved.back, revealed: true } } : {}),
+        },
+  )
 
   const [draft, setDraft] = useState<Draft | null>(null)
   /** The card values the draft was seeded from: Save writes only what the draft changed since. */

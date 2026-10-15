@@ -3,6 +3,7 @@ import {
   generateText,
   type LanguageModel,
   type LanguageModelUsage,
+  type ModelMessage,
   NoObjectGeneratedError,
   Output,
   streamText,
@@ -158,6 +159,33 @@ export function streamStructured<T>(ctx: FeatureCtx, req: StructuredRequest<T>):
     return value
   })()
   return { partial: res.partialOutputStream, output }
+}
+
+export interface ChatRequest {
+  feature: AiFeature
+  system: string
+  messages: ModelMessage[]
+}
+
+/**
+ * One free-text conversational turn, streamed: yields the answer's text as it arrives. Usage is reported once
+ * the model finishes; a provider error is thrown from the iteration. Stopped through `ctx.signal`, the stream
+ * just ends.
+ */
+export async function* streamChat(ctx: FeatureCtx, req: ChatRequest): AsyncGenerator<string, void> {
+  const res = streamText({
+    model: ctx.model,
+    system: req.system,
+    messages: req.messages,
+    abortSignal: ctx.signal,
+    // Thrown from the iteration below instead of logged.
+    onError: () => {},
+  })
+  for await (const part of res.fullStream) {
+    if (part.type === 'text-delta') yield part.text
+    else if (part.type === 'error') throw part.error
+    else if (part.type === 'finish') record(ctx, req.feature, tokens(part.totalUsage))
+  }
 }
 
 const LANGUAGE_NAMES: Readonly<Record<string, string>> = { en: 'English', de: 'German', fr: 'French' }

@@ -1,0 +1,313 @@
+/* Docked from 1000px: a column on the right, the page beside it narrows. */
+.docked {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  width: var(--chat-width);
+  height: 100dvh;
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  border-left: var(--hairline-width) solid var(--hairline);
+  background: var(--surface);
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-height: 0;
+}
+
+.docked .body {
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.title {
+  font-size: var(--text-headline);
+  font-weight: 700;
+}
+
+.tools {
+  display: flex;
+  gap: var(--space-1);
+  margin-inline-start: auto;
+}
+
+.context {
+  display: flex;
+  min-width: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  min-height: 2rem;
+  padding: 0 var(--space-1) 0 var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: var(--text-footnote);
+  font-weight: 600;
+}
+
+.chipText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chipRemove,
+.chipAction {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.chipAction {
+  padding: 0 var(--space-2);
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+.chipRemove:hover,
+.chipAction:hover {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.log {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.intro {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.suggestion {
+  min-height: 2.25rem;
+  padding: var(--space-1) var(--space-3);
+  border: var(--hairline-width) solid var(--hairline-strong);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-footnote);
+  text-align: start;
+  cursor: pointer;
+}
+
+.suggestion:hover:not(:disabled) {
+  background: var(--surface-pressed);
+}
+
+.suggestion:disabled {
+  color: var(--ink-3);
+  cursor: default;
+}
+
+.user {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-surface);
+  background: var(--accent-soft);
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.answer {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.answerText {
+  line-height: var(--leading-body);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+/* A citation sits in the sentence it supports. */
+.cite {
+  display: inline-block;
+  margin-inline: 0.15em;
+  vertical-align: baseline;
+  white-space: normal;
+}
+
+.cursor {
+  display: inline-block;
+  width: 0.5em;
+  height: 1em;
+  margin-inline-start: 0.1em;
+  vertical-align: text-bottom;
+  background: var(--ink-3);
+  animation: blink 1s steps(2) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cursor {
+    animation: none;
+  }
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.made {
+  flex-basis: 100%;
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+}
+
+.muted {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+}
+
+.note {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+}
+
+.error {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-1);
+  color: var(--danger);
+  font-size: var(--text-footnote);
+}
+
+.composer {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  background: var(--surface);
+}
+
+.input {
+  flex: 1;
+  min-width: 0;
+  min-height: 2.75rem;
+  max-height: 10rem;
+  padding: var(--space-2) var(--space-3);
+  border: var(--hairline-width) solid var(--hairline-strong);
+  border-radius: var(--radius-control);
+  background: var(--bg);
+  color: var(--ink);
+  font: inherit;
+  resize: vertical;
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.setup {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+}
+
+.setupTitle {
+  font-weight: 600;
+}
+
+.pad {
+  padding-block: var(--space-2);
+}
+
+.history {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  overflow-y: auto;
+}
+
+.historyList {
+  display: grid;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.historyRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  border-bottom: var(--hairline-width) solid var(--hairline);
+}
+
+.historyOpen {
+  flex: 1;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: var(--space-2) 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: start;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.historyOpen[aria-current] {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.docked[hidden] {
+  display: none;
+}

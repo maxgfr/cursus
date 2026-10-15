@@ -6,6 +6,7 @@ import { useSync } from '../../app/syncContext.tsx'
 import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { SourceRecord } from '../../core/model/schema'
 import { useT } from '../../i18n/react.tsx'
+import { useChatContext } from '../../ui/chat/context.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { leftNote } from '../../ui/data/autoQuestions.ts'
 import { ExplainSelection } from '../../ui/ExplainLauncher.tsx'
@@ -131,6 +132,15 @@ export default function Source() {
     const s = w.sources.get(id)
     return s && s.deletedAt === undefined ? { source: s, sectionId: w.sections.tree().sectionOf(s) } : null
   })
+  useChatContext(
+    found === null
+      ? {}
+      : {
+          courseId: found.source.courseId,
+          sourceId: found.source.id,
+          ...(found.sectionId === null ? {} : { sectionId: found.sectionId }),
+        },
+  )
   if (found === null) return <NotFound />
   const { source, sectionId } = found
   const home = to.place(source.courseId, sectionId)

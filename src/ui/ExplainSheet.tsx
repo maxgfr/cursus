@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react'
+import { MessageCircle, Plus } from 'lucide-react'
 import { type FormEvent, type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'wouter'
 import { to } from '../app/routes.ts'
@@ -24,6 +24,7 @@ import { describeFailure } from '../screens/Review/failure.ts'
 import type { AiModelState } from '../screens/Understand/shared/aiConfig.ts'
 import { citationText, useCitedUnit } from '../screens/Understand/shared/citations.ts'
 import { chunksFor, deckReader, estimateCost, PASTED } from '../screens/Understand/shared/sources.ts'
+import { useChat } from './chat/context.tsx'
 import { Button } from './components/Button.tsx'
 import { Field } from './components/Field.tsx'
 import { Segmented } from './components/Segmented.tsx'
@@ -226,6 +227,20 @@ export default function ExplainSheet({
   }
 
   const guard = useAnswerGuard(card, revealed)
+  const chat = useChat()
+  // What was shown, as the chat opens on it: guarded fields as they appear.
+  const shown =
+    target.kind === 'question'
+      ? question.status === 'done'
+        ? [question.value.restatement.text, question.value.context.text]
+        : []
+      : concept.status === 'done'
+        ? [concept.value.term, concept.value.definition.text, concept.value.explanation.text]
+        : []
+  const followUp = () => {
+    chat?.followUp(shown.filter((s) => s.trim() !== '').join('\n\n'))
+    onClose()
+  }
   const cost = estimate === null ? null : `${t('ai.cost', { amount: formatUsd(locale, estimate) })} · ${ai.info.name}`
 
   const title =
@@ -320,6 +335,17 @@ export default function ExplainSheet({
           </div>
         )}
         {target.kind === 'question' && cost && <p className={styles.hint}>{cost}</p>}
+        {chat && shown.length > 0 && (
+          <div className={styles.row}>
+            <Button
+              variant="secondary"
+              icon={<MessageCircle size={18} strokeWidth={1.75} aria-hidden />}
+              onClick={followUp}
+            >
+              {t('chat.followUp')}
+            </Button>
+          </div>
+        )}
       </div>
     </Sheet>
   )

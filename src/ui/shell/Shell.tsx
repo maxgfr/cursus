@@ -1,8 +1,9 @@
-import { BookOpen, CalendarCheck, Lightbulb, type LucideIcon, Search, Settings } from 'lucide-react'
+import { BookOpen, CalendarCheck, Lightbulb, type LucideIcon, MessageCircle, Search, Settings } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Link, useLocation } from 'wouter'
 import { paths, to } from '../../app/routes.ts'
 import { useT } from '../../i18n/react.tsx'
+import { useChat } from '../chat/context.tsx'
 import { CourseDot, type CourseHue } from '../components/Badges.tsx'
 import { cx } from '../cx.ts'
 import styles from './Shell.module.css'
@@ -44,6 +45,8 @@ export interface ShellProps {
   /** Review focus and onboarding hide the navigation chrome. */
   focus: boolean
   courses: readonly ShellCourse[]
+  /** The chat panel: docked beside the page from 1000px while open, a sheet below. */
+  aside?: ReactNode
 }
 
 /** Mac and iPad keyboards show ⌘; everything else Ctrl. */
@@ -52,14 +55,15 @@ function isApple(): boolean {
 }
 
 /** Phone and iPad portrait: content + bottom tab bar. iPad landscape and Mac: sidebar + content. */
-export function Shell({ children, focus, courses }: ShellProps) {
+export function Shell({ children, focus, courses, aside }: ShellProps) {
   const t = useT()
   const [location] = useLocation()
   useKeyboardInset()
   // Only the most specific row is the page: on a course, its sidebar row wins over the Courses tab.
   const courseRowCurrent = courses.some((c) => to.course(c.id) === location)
+  const chat = useChat()
   return (
-    <div className={cx(styles.shell, focus && styles.focus)}>
+    <div className={cx(styles.shell, focus && styles.focus, chat?.open && styles.withChat)}>
       <a className={styles.skip} href="#main">
         {t('common.skipToContent')}
       </a>
@@ -125,12 +129,28 @@ export function Shell({ children, focus, courses }: ShellProps) {
                 <kbd>{isApple() ? '⌘K' : 'Ctrl K'}</kbd>
               </span>
             </Link>
+            {chat && (
+              <button
+                type="button"
+                className={styles.search}
+                aria-pressed={chat.open}
+                aria-keyshortcuts={isApple() ? 'Meta+J' : 'Control+J'}
+                onClick={chat.toggle}
+              >
+                <MessageCircle className={styles.tabIcon} size={18} strokeWidth={1.75} aria-hidden="true" />
+                <span className={styles.searchLabel}>{t('chat.open')}</span>
+                <span className={styles.kbd} aria-hidden="true">
+                  <kbd>{isApple() ? '⌘J' : 'Ctrl J'}</kbd>
+                </span>
+              </button>
+            )}
           </div>
         </nav>
       )}
       <main id="main" className={styles.main} tabIndex={-1}>
         {children}
       </main>
+      {aside}
     </div>
   )
 }

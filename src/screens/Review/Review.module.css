@@ -16,10 +16,6 @@
   padding-block: var(--space-2);
 }
 
-.barSpacer {
-  width: 2.75rem;
-}
-
 .bar > :first-child {
   justify-self: start;
 }

@@ -24,6 +24,7 @@ import type { Id, StudyScope } from '../../core/contracts/workspace'
 import type { SourceRecord } from '../../core/model/schema'
 import { useT } from '../../i18n/react.tsx'
 import { Breadcrumb } from '../../ui/Breadcrumb.tsx'
+import { useChatContext } from '../../ui/chat/context.tsx'
 import { courseHue } from '../../ui/components/Badges.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { EmptyState } from '../../ui/components/EmptyState.tsx'
@@ -98,6 +99,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   const pdfInput = useRef<HTMLInputElement>(null)
   const photoInput = useRef<HTMLInputElement>(null)
   const here = sectionId ?? null
+  useChatContext(sectionId === undefined ? { courseId } : { courseId, sectionId })
   const data = useWorkspaceData(
     ['courses', 'sections', 'cards', 'sources', 'fiches', { id: sectionId ?? courseId }],
     (ws) => {

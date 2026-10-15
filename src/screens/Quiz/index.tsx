@@ -4,6 +4,7 @@ import { useWorkspace } from '../../app/workspaceContext.tsx'
 import { quiz } from '../../core/ai/features/quiz'
 import type { QuizQuestion } from '../../core/ai/schemas'
 import { useT } from '../../i18n/react.tsx'
+import { useChatContext } from '../../ui/chat/context.tsx'
 import { Button } from '../../ui/components/Button.tsx'
 import { Field } from '../../ui/components/Field.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
@@ -39,6 +40,14 @@ export default function Quiz() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const onSelection = useCallback((s: Selection) => setSelection(s), [])
+  // While answering, the chat knows the question at hand (the first one left), never its answer.
+  const pending =
+    questions && !checked ? (questions.find((_, i) => answers[i] === undefined) ?? questions.at(-1)) : undefined
+  useChatContext({
+    ...(selection.courseId ? { courseId: selection.courseId } : {}),
+    ...(selection.sectionId ? { sectionId: selection.sectionId } : {}),
+    ...(pending ? { question: pending.question } : {}),
+  })
 
   if (ai.status === 'loading') return <Screen title={t('ai.quiz')} back={paths.understand} />
   if (ai.status === 'missing')

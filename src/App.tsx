@@ -9,6 +9,8 @@ import { useRuntime, useWorkspaceData, WorkspaceProvider } from './app/workspace
 import { detectFromEnvironment, UI_LOCALE_KEY } from './i18n/index.ts'
 import { I18nProvider, useSetLocale, useT } from './i18n/react.tsx'
 import UpdateToast from './screens/UpdateToast/index.tsx'
+import { ChatSlot } from './ui/chat/ChatButton.tsx'
+import { ChatProvider } from './ui/chat/context.tsx'
 import { Button } from './ui/components/Button.tsx'
 import { EmptyState } from './ui/components/EmptyState.tsx'
 import { useStudy } from './ui/data/useStudy.ts'
@@ -109,7 +111,7 @@ function AppShell() {
   const [location] = useLocation()
   const { courses } = useStudy()
   return (
-    <Shell focus={isFocusRoute(location)} courses={courses}>
+    <Shell focus={isFocusRoute(location)} courses={courses} aside={<ChatSlot />}>
       <Routes />
     </Shell>
   )
@@ -154,9 +156,11 @@ export function App() {
           <LocaleBoot>
             <SyncProvider>
               <ThemeSync />
-              <AppShell />
-              <SaveBanner />
-              <Palette />
+              <ChatProvider>
+                <AppShell />
+                <SaveBanner />
+                <Palette />
+              </ChatProvider>
               {/* Separate boundaries: one chunk loading never holds back another. */}
               {/* Eager: storage persistence is asked for and the service worker registered at launch. */}
               <UpdateToast />

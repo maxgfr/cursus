@@ -8,6 +8,7 @@ import { type Chunk, isValidRef } from '../../core/ai/retrieval'
 import type { ExplainBackReview, SourceRef, Understanding } from '../../core/ai/schemas'
 import { formatUsd } from '../../i18n/format.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
+import { useChatContext } from '../../ui/chat/context.tsx'
 import { Button } from '../../ui/components/Button.tsx'
 import { Field } from '../../ui/components/Field.tsx'
 import { ListGroup, ListRow } from '../../ui/components/List.tsx'
@@ -49,6 +50,10 @@ export default function Understand() {
   const abort = useRef<AbortController | null>(null)
 
   const onSelection = useCallback((s: Selection) => setSelection(s), [])
+  useChatContext({
+    ...(selection.courseId ? { courseId: selection.courseId } : {}),
+    ...(selection.sectionId ? { sectionId: selection.sectionId } : {}),
+  })
   const rt = useRuntime()
   const [photosRead, setPhotosRead] = useState(0)
   // A chosen photo grounds the request (and is cited) through what a vision model read on it, kept on this device.
