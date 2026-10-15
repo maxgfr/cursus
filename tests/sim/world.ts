@@ -6,7 +6,14 @@ import { createKeyring, type DestinationKeyring, type KeyFile } from '../../src/
 import { createSealer } from '../../src/core/crypto/sealer'
 import { blobStore } from '../../src/core/log/blobs'
 import { createLocalLog, type LocalLogImpl } from '../../src/core/log/localLog'
-import { type Capture, CaptureStoppedError, captureUpdates, REPLAY, TAB } from '../../src/core/log/origins'
+import {
+  type Capture,
+  CaptureStoppedError,
+  captureUpdates,
+  REPLAY,
+  shouldCapture,
+  TAB,
+} from '../../src/core/log/origins'
 import { createWorkspace, type ModelWorkspace } from '../../src/core/model/workspace'
 import { virtualClock } from '../../src/core/ports/clock'
 import { memoryLocks } from '../../src/core/ports/locks'
@@ -59,9 +66,8 @@ export class SimTab {
   lastWrite: Promise<void> | null = null
   private chain: Promise<void> = Promise.resolve()
   private readonly onAck = new Map<Promise<void>, () => void>()
-  /** Capture order of updates in flight, and how many were acknowledged (in order) so far. */
-  private readonly order = new Map<Uint8Array, number>()
-  private captured = 0
+  /** Every captured update, in capture order, and how many were acknowledged (in order) so far. */
+  private readonly captured: Uint8Array[] = []
   private acked = 0
 
   constructor(
@@ -70,6 +76,10 @@ export class SimTab {
     deviceId: string,
   ) {
     this.doc.clientID = clientID
+    // Registered first: an update is numbered before the capture starts appending it.
+    this.doc.on('updateV2', (u: Uint8Array, origin: unknown) => {
+      if (shouldCapture(origin)) this.captured.push(u)
+    })
     this.capture = captureUpdates(this.doc, (u) => this.append(u), {
       onError: (e) => dev.world.expected(e),
       onQueued: (p) => {
@@ -92,23 +102,29 @@ export class SimTab {
   }
 
   /**
-   * Appends in capture order, checked: the log may acknowledge update N only once every earlier update
-   * of this tab was acknowledged — otherwise a crash would keep N without the structs it builds on.
+   * Appends in capture order, checked: a write must hold exactly the next updates not yet acknowledged
+   * (one, or several merged), so the log never keeps update N without every earlier one of this tab.
    */
   private async append(u: Uint8Array): Promise<void> {
-    let n = this.order.get(u)
-    if (n === undefined) {
-      n = this.captured++
-      this.order.set(u, n)
-    }
+    const start = this.acked
+    const k = this.nextUpdatesIn(u)
     await this.dev.log.appendLocal(u)
-    this.order.delete(u)
-    if (n !== this.acked) {
+    if (k === 0 || this.acked !== start) {
       this.dev.world.unexpected(
-        new InvariantError('I5', `${this.dev.name}: update ${n} saved while update ${this.acked} is not`),
+        new InvariantError('I5', `${this.dev.name}: a write saved updates out of order (update ${start} is not saved)`),
       )
     }
-    this.acked = Math.max(this.acked, n + 1)
+    this.acked = Math.max(this.acked, start + k)
+  }
+
+  /** How many of the next unacknowledged updates `u` is (merged in order), or 0 if it is not such a prefix. */
+  private nextUpdatesIn(u: Uint8Array): number {
+    const pending = this.captured.slice(this.acked)
+    for (let k = 1; k <= pending.length; k++) {
+      const merged = k === 1 ? (pending[0] as Uint8Array) : Y.mergeUpdatesV2(pending.slice(0, k))
+      if (merged.length === u.length && merged.every((b, i) => b === u[i])) return k
+    }
+    return 0
   }
 
   /** Runs `fn` once the log acknowledged `ack` (maybe much later, after retries); never if it is lost. */

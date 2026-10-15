@@ -482,7 +482,8 @@ describe('origins', () => {
     expect((timers[2]?.ms ?? 0) > (timers[1]?.ms ?? 0)).toBe(true)
     await cap.retry()
     expect(cap.unsaved()).toBe(0)
-    expect(persisted.length).toBe(3)
+    // U1 and U2, retried together, went out as one merged write.
+    expect(persisted.length).toBe(2)
     // Stopping with an unacknowledged update rejects its acknowledgment: it was never saved.
     failures = 1
     doc.getMap('m').set('u4', 4)
@@ -491,6 +492,72 @@ describe('origins', () => {
     cap.stop()
     await expect(last).rejects.toBeInstanceOf(CaptureStoppedError)
     expect(cap.unsaved()).toBe(1)
+  })
+
+  test('updates queued behind an append are merged in order into one write, and all acknowledged by it', async () => {
+    const doc = new Y.Doc()
+    const text = doc.getText('t')
+    const writes: Uint8Array[] = []
+    const acks: Promise<void>[] = []
+    let release = (): void => {}
+    let fail = false
+    const cap = captureUpdates(
+      doc,
+      async (u) => {
+        await new Promise<void>((resolve) => {
+          release = resolve
+        })
+        if (fail) throw new Error('quota')
+        writes.push(u)
+      },
+      { onQueued: (p) => acks.push(p), setTimer: () => () => {} },
+    )
+    const settledAcks = (): Promise<string[]> =>
+      Promise.all(
+        acks.map((a) =>
+          a.then(
+            () => 'ok',
+            () => 'lost',
+          ),
+        ),
+      )
+    text.insert(0, 'N')
+    for (const ch of 'atrium') text.insert(text.length, ch)
+    expect(cap.unsaved()).toBe(7)
+    release()
+    await Bun.sleep(0)
+    // One write in flight (the first keystroke), the six waiting ones merged into the next.
+    expect(writes.length).toBe(1)
+    release()
+    await cap.settled()
+    expect(writes.length).toBe(2)
+    expect(cap.unsaved()).toBe(0)
+    expect(await settledAcks()).toEqual(Array(7).fill('ok'))
+    expect(rebuild(writes).getText('t').toString()).toBe('Natrium')
+    // A failed write acknowledges none of its updates, nor those behind it: they all stay unsaved.
+    fail = true
+    text.insert(text.length, ' und')
+    text.insert(text.length, ' Kalium')
+    text.insert(text.length, '!')
+    release()
+    await cap.settled()
+    expect({ unsaved: cap.unsaved(), blocked: cap.blocked(), writes: writes.length }).toEqual({
+      unsaved: 3,
+      blocked: true,
+      writes: 2,
+    })
+    let early = false
+    for (const p of acks.slice(-3)) void p.then(() => (early = true))
+    await Bun.sleep(0)
+    expect(early).toBe(false)
+    // The retry merges the failed update with the ones behind it: one write acknowledges all three.
+    fail = false
+    const retried = cap.retry()
+    release()
+    await retried
+    expect(await settledAcks()).toEqual(Array(10).fill('ok'))
+    expect(writes.length).toBe(3)
+    expect(rebuild(writes).getText('t').toString()).toBe('Natrium und Kalium!')
   })
 })
 

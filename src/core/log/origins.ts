@@ -1,4 +1,4 @@
-import type * as Y from 'yjs'
+import * as Y from 'yjs'
 
 /** Transaction origins that must NOT be captured into `pending`: they already exist in the log. */
 export const REMOTE = Symbol('cursus:remote') // applied from a destination
@@ -67,7 +67,7 @@ interface Queued {
 /**
  * Captures every local V2 update into the log through ONE ordered queue: an update is appended only
  * after every earlier one was acknowledged, so a later update is never persisted without its
- * predecessor. A failed append keeps that update and all later ones in memory, retries with backoff,
+ * predecessor. Updates queued behind an append are merged and written together by the next one. A failed append keeps that update and all later ones in memory, retries with backoff,
  * and reports `blocked()` / `unsaved()` until the log has acknowledged everything.
  */
 export function captureUpdates(
@@ -80,6 +80,7 @@ export function captureUpdates(
   const setTimer = o.setTimer ?? defaultTimer
   const queue: Queued[] = []
   let running = false
+  let inFlight = 0
   let stopped = false
   let isBlocked = false
   let attempt = 0
@@ -99,16 +100,20 @@ export function captureUpdates(
     running = true
     try {
       while (queue.length > 0 && !stopped) {
-        const item = queue[0] as Queued
+        // Everything waiting is merged into ONE append: a fast typist's backlog stays one write behind,
+        // instead of one write per keystroke that an unload would cut short.
+        const batch = queue.slice()
+        const update = batch.length === 1 ? (batch[0] as Queued).update : Y.mergeUpdatesV2(batch.map((q) => q.update))
+        inFlight = batch.length
         try {
-          await append(item.update)
+          await append(update)
         } catch (e) {
           attempt++
           lastError = e
           isBlocked = true
-          o.onError?.(e, item.update)
+          o.onError?.(e, update)
           changed()
-          if (stopped) item.reject?.(new CaptureStoppedError(queue.length, e))
+          if (stopped) for (const item of batch) item.reject?.(new CaptureStoppedError(queue.length, e))
           else {
             cancelTimer = setTimer(() => {
               cancelTimer = null
@@ -116,11 +121,13 @@ export function captureUpdates(
             }, delay(attempt))
           }
           return
+        } finally {
+          inFlight = 0
         }
-        queue.shift()
+        queue.splice(0, batch.length)
         attempt = 0
         isBlocked = false
-        item.resolve?.()
+        for (const item of batch) item.resolve?.()
         changed()
       }
     } finally {
@@ -156,8 +163,8 @@ export function captureUpdates(
     doc.off('updateV2', handler)
     cancelTimer?.()
     cancelTimer = null
-    // The item being appended right now settles with its own result; the others were never written.
-    const lost = queue.slice(running ? 1 : 0)
+    // The batch being appended right now settles with its own result; the others were never written.
+    const lost = queue.slice(inFlight)
     for (const item of lost) item.reject?.(new CaptureStoppedError(queue.length, lastError))
   }
 
