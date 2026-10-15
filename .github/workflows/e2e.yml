@@ -1,0 +1,34 @@
+name: E2E
+# Playwright on every device class, one job per project in parallel. Not a release gate: a red run is
+# reported here and fixed, but it does not hold back a release or a deploy.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        project: [chromium-desktop, webkit-desktop, webkit-iphone, webkit-ipad]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install --with-deps ${{ startsWith(matrix.project, 'chromium') && 'chromium' || 'webkit' }}
+      - run: docker version
+      - run: bun run build
+      - run: bun run test:e2e --project=${{ matrix.project }}
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-${{ matrix.project }}
+          path: playwright-report/
+          if-no-files-found: ignore

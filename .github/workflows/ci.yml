@@ -4,6 +4,8 @@ on:
   # Pushes to main run this through release.yml, which releases and deploys only when it is green.
   workflow_call:
 jobs:
+  # The blocking gates: types, lint, unit/property/simulation tests, build, size, coverage, S3 and Anki.
+  # The Playwright suite runs in e2e.yml, in parallel and without blocking releases.
   check:
     runs-on: ubuntu-latest
     env:
@@ -15,14 +17,14 @@ jobs:
           bun-version: 1.4.3
       - uses: astral-sh/setup-uv@v6
       - run: bun install --frozen-lockfile
-      - run: bunx playwright install --with-deps chromium webkit
       - run: docker version
-      - run: bun run check:all
+      - run: bun run check
+      - run: bun run test:coverage
+      - run: bun run test:s3
+      - run: bun run test:anki
       - if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: report
-          path: |
-            playwright-report/
-            coverage/
+          name: coverage
+          path: coverage/
           if-no-files-found: ignore

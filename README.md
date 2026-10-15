@@ -94,13 +94,14 @@ bun run preview      # serve the build
 
 ### Releases
 
-Every push to `main` runs CI (`check:all`); only when it is green does
+Every push to `main` runs the blocking gates (`check`, coverage, S3, Anki); only when they are green does
 [semantic-release](https://semantic-release.gitbook.io) read the commits since the last tag
 ([Conventional Commits](https://www.conventionalcommits.org): `fix:` → patch, `feat:` → minor,
 `BREAKING CHANGE:` → major), tag `vX.Y.Z`, publish a GitHub release with its notes, and deploy that
 version to GitHub Pages (`.github/workflows/release.yml`). Nothing is committed back: the build takes its
 version from the tag, and Settings › General shows it with the commit, the build date and the sync data
-format, plus a check for updates.
+format, plus a check for updates. The Playwright suite runs alongside in `e2e.yml`, one job per device
+class: a red run is reported and fixed, but it does not hold back a release.
 
 ### Testing approach
 
