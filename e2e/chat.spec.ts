@@ -191,6 +191,8 @@ test('in review, before the reveal the answer never shows; after it, the same an
   await expect(panel.getByText('Parts that would give the answer away are hidden until you reveal it.')).toBeVisible()
   await expect(panel).not.toContainText(/mitochondri/i)
   await expect(panel.getByRole('button', { name: 'Make a card' })).toHaveCount(0)
+  // The card's own actions stay as they were, once each, whatever the chat did meanwhile.
+  await expect(page.getByRole('button', { name: 'Answer in your own words' })).toHaveCount(1)
   expect(prompts.at(-1)).toContain('Flashcard answer (keep hidden): The mitochondrion')
   expect(prompts.at(-1)).toContain('has NOT seen the flashcard answer')
 

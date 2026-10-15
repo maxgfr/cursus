@@ -142,8 +142,13 @@ function Editor({ initial }: { initial: Loaded }) {
   // On-device models come from llm-models (loaded with the card); the one saved is known from the start.
   const localInfo = (id: string) =>
     local.service?.info(id) ?? (initial.local?.info.id === id ? initial.local.info : undefined)
+  // Nothing chosen yet (a first visit): the provider shown, with its recommended model.
+  const routed: AiConfig =
+    isCustom || isLocal || config.modelId
+      ? config
+      : { ...config, providerId, modelId: recommendedModel(catalog, providerId)?.route.id }
   const selected = resolveRoute(
-    isCustom ? { ...config, modelId: customModel.trim() || undefined, baseUrl } : config,
+    isCustom ? { ...config, modelId: customModel.trim() || undefined, baseUrl } : routed,
     catalog,
     customName,
     localInfo,
@@ -271,7 +276,7 @@ function Editor({ initial }: { initial: Loaded }) {
   const saveConnection = async (e: FormEvent) => {
     e.preventDefault()
     await saveKey(vault, providerId, apiKey)
-    const next: AiConfig = { ...config, providerId, baseUrl: baseUrl.trim() || undefined }
+    const next: AiConfig = { ...routed, providerId, baseUrl: baseUrl.trim() || undefined }
     if (isCustom) next.modelId = customModel.trim() || undefined
     await update(next)
     setStatus({ kind: 'ok', text: t('ai.savedConnection') })

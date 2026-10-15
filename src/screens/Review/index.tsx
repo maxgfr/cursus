@@ -390,7 +390,7 @@ function CardStage({
           </button>
         )}
       </section>
-      {!revealed && <OwnWords key={card.id} card={card} ai={ai} onSuggest={onSuggest} />}
+      {!revealed && <OwnWords key={`own-${card.id}`} card={card} ai={ai} onSuggest={onSuggest} />}
       {revealed && (
         <>
           {suggested !== null && (
@@ -438,7 +438,7 @@ function CardStage({
           <Explain key={card.id} card={card} ai={ai} onToast={onToast} />
         </>
       )}
-      <ExplainActions key={card.id} card={card} revealed={revealed} ai={ai} />
+      <ExplainActions key={`explain-${card.id}`} card={card} revealed={revealed} ai={ai} />
     </div>
   )
 }

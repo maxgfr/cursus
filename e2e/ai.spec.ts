@@ -315,6 +315,21 @@ test('offline, a failed Test records nothing: the route keeps its catalog status
   expect(checks).toBeUndefined()
 })
 
+test('a first visit needs only a key: the provider shown and its recommended model are what Save keeps', async ({
+  page,
+}) => {
+  await page.goto('./#/settings/ai')
+  await expect(providerPicker(page)).toHaveValue('anthropic')
+  await page.getByLabel('API key').fill('sk-ant-test')
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByText('Saved on this device.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Test', exact: true })).toBeEnabled()
+  await page.reload()
+  await expect(page.getByRole('region', { name: 'Model', exact: true })).not.toContainText('Choose a model')
+  await page.goto('./#/understand')
+  await expect(page.getByLabel('What do you want to understand?')).toBeVisible()
+})
+
 test('picking a route without touching the key shows that route’s saved key', async ({ page }) => {
   await page.goto('./#/settings/ai')
   await expect(page.getByRole('heading', { level: 1, name: 'AI' })).toBeVisible()
