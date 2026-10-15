@@ -1,6 +1,7 @@
 import { ChevronLeft, Search } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { Link, useLocation } from 'wouter'
+import { useLocation } from 'wouter'
+import { type BackOptions, goBack, useNavLocation } from '../../app/nav.ts'
 import { isFocusRoute } from '../../app/routes.ts'
 import { useT } from '../../i18n/react.tsx'
 import { ChatButton, isApple } from '../chat/ChatButton.tsx'
@@ -13,8 +14,13 @@ export interface ScreenProps {
   /** Shown above the title (e.g. the date) for context. */
   subtitle?: string
   trailing?: ReactNode
-  /** Route of the parent screen: shows a back link. */
+  /**
+   * Route of the logical parent screen: shows a back link. It returns to the screen this one was opened from (a
+   * history pop, as the browser's back does), or to this parent when opened directly.
+   */
   back?: string
+  /** How Back lands when it pops (e.g. on the item's own place once it moved). */
+  backOptions?: BackOptions
   children?: ReactNode
 }
 
@@ -31,7 +37,7 @@ function openSearch() {
  * Inside the app shell a quiet bar above the title carries « Ask about this » and, on phones (no sidebar),
  * Search; the back link shares it.
  */
-export function Screen({ title, subtitle, trailing, back, children }: ScreenProps) {
+export function Screen({ title, subtitle, trailing, back, backOptions, children }: ScreenProps) {
   const t = useT()
   const [location] = useLocation()
   // In the app's shell, outside the focus views (the welcome has nothing to ask about yet).
@@ -42,10 +48,18 @@ export function Screen({ title, subtitle, trailing, back, children }: ScreenProp
         {(back !== undefined || inShell) && (
           <div className={styles.bar}>
             {back !== undefined && (
-              <Link href={back} className={styles.back}>
+              <a
+                href={useNavLocation.hrefs(back)}
+                className={styles.back}
+                onClick={(e) => {
+                  if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
+                  e.preventDefault()
+                  goBack(back, backOptions)
+                }}
+              >
                 <ChevronLeft size={20} strokeWidth={2} aria-hidden="true" />
                 {t('common.back')}
-              </Link>
+              </a>
             )}
             {inShell && (
               <span className={styles.tools}>

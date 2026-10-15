@@ -1,6 +1,8 @@
 import { Search as SearchIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { useSearch } from 'wouter'
 import { ChunkFailed } from '../../app/lazyChunk.tsx'
+import { replaceQuery } from '../../app/nav.ts'
 import { paths, to } from '../../app/routes.ts'
 import { useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { SearchHit } from '../../core/model/search'
@@ -13,7 +15,9 @@ import { noteError } from '../settings/Diagnostic/recent.ts'
 
 export default function Search() {
   const t = useT()
-  const [query, setQuery] = useState('')
+  // The query lives in this entry's URL (`?q=`): coming back to Search finds it with its results.
+  const search = useSearch()
+  const [query, setQuery] = useState(() => new URLSearchParams(search).get('q') ?? '')
   const q = query.trim()
   const hits = useWorkspaceData(['courses', 'sources', 'fiches', 'cards'], (ws) => ({ ws }))
   // The first search loads the engine: until a query's hits arrive, nothing new is claimed about it.
@@ -68,7 +72,11 @@ export default function Search() {
         hideLabel
         placeholder={t('common.searchPlaceholder')}
         value={query}
-        onChange={(e) => setQuery(e.currentTarget.value)}
+        onChange={(e) => {
+          const next = e.currentTarget.value
+          setQuery(next)
+          replaceQuery(next === '' ? '' : new URLSearchParams({ q: next }).toString())
+        }}
         enterKeyHint="search"
         autoComplete="off"
       />

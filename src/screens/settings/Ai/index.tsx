@@ -2,6 +2,7 @@ import { Check, RefreshCw } from 'lucide-react'
 import { type FormEvent, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useSearch } from 'wouter'
+import { replaceQuery } from '../../../app/nav.ts'
 import { paths } from '../../../app/routes.ts'
 import { useRuntime, useWorkspace } from '../../../app/workspaceContext.tsx'
 import {
@@ -254,7 +255,7 @@ function Editor({ initial }: { initial: Loaded }) {
   )
   const chooseLocal = (modelId: string) => void switchProvider(LOCAL_PROVIDER, modelId)
 
-  // Opened from the welcome on one of its two choices (`?setup=local` or `?setup=key`): that choice, once.
+  // Opened from the welcome on one of its two choices (`#/settings/ai?setup=local` or `?setup=key`): that choice, once.
   const setup = useRef(new URLSearchParams(useSearch()).get('setup'))
   const switchNow = useRef(switchProvider)
   switchNow.current = switchProvider
@@ -263,6 +264,8 @@ function Editor({ initial }: { initial: Loaded }) {
   useEffect(() => {
     const asked = setup.current
     setup.current = null
+    // Used once: the choice leaves the URL, so a return through the history does not apply it again.
+    if (asked !== null) replaceQuery('')
     if (asked === 'local' && !localNow.current) void switchNow.current(LOCAL_PROVIDER)
     else if (asked === 'key' && localNow.current) void switchNow.current(DEFAULT_PROVIDER)
   }, [])

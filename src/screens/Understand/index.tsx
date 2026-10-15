@@ -1,5 +1,6 @@
 import { NotebookText } from 'lucide-react'
 import { type FormEvent, useCallback, useEffect, useId, useRef, useState } from 'react'
+import { readEntry, writeEntry } from '../../app/nav.ts'
 import { paths, to } from '../../app/routes.ts'
 import { useRuntime, useWorkspace } from '../../app/workspaceContext.tsx'
 import { readingChunks } from '../../core/ai/features/describePhoto'
@@ -31,6 +32,10 @@ import { type Level, streamUnderstanding } from './stream.ts'
 
 type Point = { heading?: string; explanation?: string; sourceRef?: Partial<SourceRef> }
 
+/** The last explanation, kept in this screen's history entry. */
+const KEPT = 'cursusUnderstand'
+type Kept = { topic: string; level: Level; done: Understanding; grounded: Chunk[] }
+
 export default function Understand() {
   const t = useT()
   const locale = useLocale()
@@ -41,12 +46,16 @@ export default function Understand() {
   // Back to the course or section it was opened from, else to the courses.
   const back = opened ? to.place(opened.courseId, opened.sectionId) : paths.courses
   const [selection, setSelection] = useState<Selection>(() => selectionFor(opened))
-  const [topic, setTopic] = useState('')
-  const [level, setLevel] = useState<Level>('standard')
+  // The explanation stays with this screen's history entry: back from a cited photo or source, it is still there.
+  const [kept] = useState(() => readEntry<Kept>(KEPT))
+  const [topic, setTopic] = useState(kept?.topic ?? '')
+  const [level, setLevel] = useState<Level>(kept?.level ?? 'standard')
   const [estimate, setEstimate] = useState<number | null>(null)
-  const [fiche, setFiche] = useState<{ title?: string; summary?: string; points?: (Point | undefined)[] } | null>(null)
-  const [done, setDone] = useState<Understanding | null>(null)
-  const [grounded, setGrounded] = useState<Chunk[]>([])
+  const [fiche, setFiche] = useState<{ title?: string; summary?: string; points?: (Point | undefined)[] } | null>(
+    kept?.done ?? null,
+  )
+  const [done, setDone] = useState<Understanding | null>(kept?.done ?? null)
+  const [grounded, setGrounded] = useState<Chunk[]>(kept?.grounded ?? [])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const abort = useRef<AbortController | null>(null)
@@ -121,6 +130,9 @@ export default function Understand() {
       const out = await s.output
       setFiche(out)
       setDone(out)
+      const keep: Kept = { topic: topic.trim(), level, done: out, grounded: s.grounded }
+      // Left meanwhile (aborted): the entry showing now is another screen's.
+      if (!ctl.signal.aborted) writeEntry(KEPT, keep)
     } catch (err) {
       if (!ctl.signal.aborted) setError(t('ai.failed', { reason: err instanceof Error ? err.message : String(err) }))
     } finally {

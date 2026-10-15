@@ -161,11 +161,12 @@ export default function DeckImport() {
             )}
           </div>
           <div className={styles.row}>
-            <Link href={to.deckQuestions(phase.sourceId)} className={buttonClass({ variant: 'primary' })}>
+            {/* The import is done: what it opens takes its place, so Back goes where the import was started from. */}
+            <Link replace href={to.deckQuestions(phase.sourceId)} className={buttonClass({ variant: 'primary' })}>
               <Sparkles size={18} aria-hidden="true" />
               {t('ai.deckCreateQuestions')}
             </Link>
-            <Link href={to.source(phase.sourceId)} className={buttonClass({ variant: 'secondary' })}>
+            <Link replace href={to.source(phase.sourceId)} className={buttonClass({ variant: 'secondary' })}>
               {t('ai.deckOpenSource')}
             </Link>
             <Button variant="plain" onClick={() => setPhase({ step: 'choose' })}>

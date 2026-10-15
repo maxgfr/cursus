@@ -1,7 +1,8 @@
 import { FolderInput, History, Share, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation, useParams } from 'wouter'
+import { Link, useParams } from 'wouter'
 import * as Y from 'yjs'
+import { backHome, goBack, leaveTo } from '../../app/nav.ts'
 import { to } from '../../app/routes.ts'
 import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import { PATH_SEPARATOR } from '../../core/model/sections'
@@ -15,7 +16,6 @@ import { Sheet } from '../../ui/components/Sheet.tsx'
 import { MarkdownEditor } from '../../ui/editor/MarkdownEditor.tsx'
 import { MoveSheet, moveItemTo } from '../../ui/MoveSheet.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
-import { earlierPaths } from '../Course/backTarget.ts'
 import type { CardNotice } from '../Course/index.tsx'
 import { applyForward } from '../History/replay.ts'
 import NotFound from '../NotFound/index.tsx'
@@ -60,7 +60,6 @@ export default function CardEditor() {
   const t = useT()
   const rt = useRuntime()
   const ws = rt.ws
-  const [, navigate] = useLocation()
   const { id = '' } = useParams<{ id: string }>()
   const newCourse = newCardCourse(id)
   const newSection = newCardSection(id)
@@ -210,15 +209,14 @@ export default function CardEditor() {
     )
   }, [rt, id, draft, dirty, saving, current, newCourse, base])
 
+  // Back to the screen the card was opened from (as the header's Back), else its place. Opened from a course place
+  // that is not its own any more (moved, or that place went to the trash), it lands where the card actually is.
   const leave = useCallback(
     (notice?: CardNotice) => {
-      const prev = earlierPaths().at(-1)
-      // The page the card was started from may be in the trash now: go where the card actually is.
       const home = to.place(card?.courseId ?? '', card?.sectionId)
-      const target = prev && !prev.startsWith('/card/') && !card?.relocated ? prev : home
-      navigate(target, notice ? { state: notice } : undefined)
+      goBack(home, { ...(notice ? { state: notice } : {}), ...backHome(home) })
     },
-    [navigate, card?.courseId, card?.sectionId, card?.relocated],
+    [card?.courseId, card?.sectionId],
   )
 
   /** Creates the new card from the draft in one batch, once. */
@@ -344,7 +342,7 @@ export default function CardEditor() {
     ws.cards.trash(id)
     // The course offers Undo for a few moments instead of asking first.
     const state: CardNotice = { trashedCard: id }
-    navigate(home, { state })
+    leaveTo(home, state)
   }
   // Shares what the editor shows (the draft), with its photos as files.
   const share = () => {
@@ -381,7 +379,12 @@ export default function CardEditor() {
 
   return (
     <div ref={pageRef} className={styles.page}>
-      <Screen title={t('common.cardTitle')} back={home} trailing={<div className={styles.top}>{saveButton}</div>}>
+      <Screen
+        title={t('common.cardTitle')}
+        back={home}
+        backOptions={backHome(home)}
+        trailing={<div className={styles.top}>{saveButton}</div>}
+      >
         <p className={styles.status} role="status">
           {card.relocated ? `${t('course.sectionGoneSaveIn', { place: card.relocated })} ` : ''}
           {movedTo !== null ? `${t('course.moved', { place: movedTo })} ` : ''}

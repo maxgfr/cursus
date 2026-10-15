@@ -1,6 +1,7 @@
 import { Undo2, X } from 'lucide-react'
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useLocation, useSearch } from 'wouter'
+import { goBack } from '../../app/nav.ts'
 import { paths, sessionFrom, to } from '../../app/routes.ts'
 import { useWorkspace, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { Id, NewReview, Rating } from '../../core/contracts/workspace'
@@ -100,13 +101,12 @@ function ReviewRun({ sessionId }: { sessionId: Id | null }) {
   const [toast, setToast] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const shownAt = useRef(Date.now())
-  // Back to where the session started from (Today, a course), or Today when opened directly.
+  // Back to where the review started from (Today, a course, a section, Practice, a planned session), popping the
+  // review's entry; Today when opened directly.
   const leave = useCallback(() => {
     if (session !== undefined) ws.sessions.end(session.id)
-    if ((window.history.state as { cursusIndex?: number } | null) !== null && window.history.length > 1)
-      window.history.back()
-    else navigate(paths.today)
-  }, [navigate, session, ws])
+    goBack(paths.today)
+  }, [session, ws])
 
   const currentId = queue[index]?.id
   const revealed = currentId !== undefined && revealedAt === index

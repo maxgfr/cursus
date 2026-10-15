@@ -79,7 +79,7 @@ export default function Stats() {
 
   if (total === 0 && courses.length === 0) {
     return (
-      <Screen title={t('common.statsTitle')} back={paths.settings}>
+      <Screen title={t('common.statsTitle')} back={paths.sessions}>
         <EmptyState
           icon={ChartColumn}
           title={t('common.statsEmptyTitle')}
@@ -95,7 +95,7 @@ export default function Stats() {
   }
 
   return (
-    <Screen title={t('common.statsTitle')} back={paths.settings}>
+    <Screen title={t('common.statsTitle')} back={paths.sessions}>
       <div className={styles.sections}>
         <section aria-label={t('common.statsActivity')} className={styles.summary}>
           <div className={styles.tile}>

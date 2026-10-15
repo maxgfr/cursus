@@ -18,9 +18,10 @@ import {
   Settings2,
   Sparkles,
 } from 'lucide-react'
-import { type ChangeEvent, Suspense, useMemo, useRef, useState } from 'react'
+import { type ChangeEvent, Suspense, useRef, useState } from 'react'
 import { Link, useLocation } from 'wouter'
 import { lazyChunk } from '../../app/lazyChunk.tsx'
+import { clearEntryState, leaveTo } from '../../app/nav.ts'
 import { type Captured, usePasteCapture } from '../../app/paste.ts'
 import { paths, to, withScope } from '../../app/routes.ts'
 import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
@@ -51,7 +52,6 @@ import { noteError } from '../settings/Diagnostic/recent.ts'
 import { ExamCountdown } from '../Today/CourseRows.tsx'
 import { useAiModel } from '../Understand/shared/aiConfig.ts'
 import { AddSheet } from './AddSheet.tsx'
-import { backTarget, earlierPaths } from './backTarget.ts'
 import styles from './Course.module.css'
 import { CourseSettings } from './CourseSettings.tsx'
 import { DraftsLine } from './DraftsLine.tsx'
@@ -112,7 +112,6 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
     stateString(history.state, 'trashedSection'),
   )
   const [saved, setSaved] = useState(() => savedFrom(history.state))
-  const back = useMemo(() => backTarget(earlierPaths()), [])
   const filesInput = useRef<HTMLInputElement>(null)
   const photoInput = useRef<HTMLInputElement>(null)
   const csvInput = useRef<HTMLInputElement>(null)
@@ -239,14 +238,14 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   if (data === null) return <NotFound />
   const { course, section, cards, sources, fiches, children } = data
   const scope: StudyScope = where
-  const parentHref = section === null ? back : to.place(courseId, data.path.at(-1)?.id)
+  const parentHref = section === null ? paths.courses : to.place(courseId, data.path.at(-1)?.id)
 
   // The card is created only when its editor saves: no empty cards in the library.
   const newCard = () => navigate(to.card(newCardId(courseId, sectionId)))
   const dismissTrashed = () => {
     setTrashed(null)
     setTrashedSection(null)
-    history.replaceState(null, '', location.href)
+    clearEntryState()
   }
   const undoTrash = (cardId: string) => {
     rt.ws.cards.restore(cardId)
@@ -294,7 +293,8 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
     rt.ws.sections.trash(section.id)
     setSettings(false)
     const notice: CardNotice = { trashedSection: section.id }
-    navigate(parentHref, { state: notice })
+    // The section is gone: its entry leaves the history, so Back never opens it again.
+    leaveTo(parentHref, notice)
   }
   const move = (place: Place) => {
     if (moving === null) return
@@ -700,7 +700,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
               label: t('common.dismiss'),
               onClick: () => {
                 setSaved(false)
-                history.replaceState(null, '', location.href)
+                clearEntryState()
               },
             },
           ]}

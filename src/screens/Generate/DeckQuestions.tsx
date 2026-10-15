@@ -22,6 +22,7 @@ import { EmptyState } from '../../ui/components/EmptyState.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
 import { Toast } from '../../ui/components/Toast.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
+import { UpLink } from '../../ui/UpLink.tsx'
 import base from '../DeckImport/DeckImport.module.css'
 import { deckErrorMessage, type LoadedDeck, loadDeck, unitCount, unitName } from '../DeckImport/deckSource.ts'
 import { PlacePicker } from '../DeckImport/places.tsx'
@@ -408,7 +409,7 @@ export default function DeckQuestions() {
         {saved !== null && (
           <p className={base.success} role="status">
             {t('ai.saved', { count: saved })}{' '}
-            <Link href={to.place(source.courseId, savedPlace || null)}>{t('ai.openCourse')}</Link>
+            <UpLink href={to.place(source.courseId, savedPlace || null)}>{t('ai.openCourse')}</UpLink>
           </p>
         )}
 

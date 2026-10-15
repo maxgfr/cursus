@@ -1,6 +1,7 @@
 import { BookOpen, ExternalLink, FolderInput, History, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link, useLocation, useParams, useSearch } from 'wouter'
+import { Link, useParams, useSearch } from 'wouter'
+import { backHome, leaveTo } from '../../app/nav.ts'
 import { to } from '../../app/routes.ts'
 import { useSync } from '../../app/syncContext.tsx'
 import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
@@ -170,19 +171,12 @@ function Attachment({ source, page }: { source: SourceRecord; page: number | und
 export default function Source() {
   const t = useT()
   const rt = useRuntime()
-  const [, navigate] = useLocation()
   const { id = '' } = useParams<{ id: string }>()
   const search = useSearch()
-  // The cited page is read once per source, then dropped from the URL so later links don't inherit it.
+  // The cited page is read once per source; it stays in this entry's hash only, so later links don't inherit it.
   const [cited, setCited] = useState(() => ({ id, page: citedPage(search) }))
   if (cited.id !== id) setCited({ id, page: citedPage(search) })
   const page = cited.page
-  useEffect(() => {
-    if (search === '') return
-    const url = new URL(window.location.href)
-    url.search = ''
-    window.history.replaceState(window.history.state, '', url.href)
-  }, [search])
   const [moving, setMoving] = useState(false)
   const [movedTo, setMovedTo] = useState<string | null>(null)
   // A note written here for the first time gets its questions proposed when the student leaves it.
@@ -206,10 +200,10 @@ export default function Source() {
   const notes = rt.ws.text({ id: source.id, field: 'body' })
   const remove = () => {
     rt.ws.sources.trash(source.id)
-    navigate(home)
+    leaveTo(home)
   }
   return (
-    <Screen title={source.title} back={home}>
+    <Screen title={source.title} back={home} backOptions={backHome(home)}>
       {source.support === undefined ? (
         <>
           {source.kind !== 'note' && <Attachment source={source} page={page} />}

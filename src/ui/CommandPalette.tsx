@@ -17,6 +17,8 @@ import {
 import { type KeyboardEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'wouter'
 import { useDueBadge } from '../app/badge.ts'
+import { splitHash } from '../app/hashPath.ts'
+import { navigate } from '../app/nav.ts'
 import { type Captured, usePasteCapture } from '../app/paste.ts'
 import { paths, to } from '../app/routes.ts'
 import { useWorkspace, useWorkspaceData } from '../app/workspaceContext.tsx'
@@ -89,7 +91,7 @@ function noteTitle(text: string, fallback: string): string {
 export function CommandPalette() {
   const t = useT()
   const ws = useWorkspace()
-  const [location, navigate] = useLocation()
+  const [location] = useLocation()
   const [open, setOpen] = useState(false)
   // Each opening is a session: a close event still queued from the previous dialog (Escape, then ⌘K
   // at once) must not shut the new one.
@@ -156,12 +158,13 @@ export function CommandPalette() {
     { enabled: !open && !capturesOwnPaste(location) },
   )
 
+  // Opened from the palette, a screen's Back goes to its logical parent; Search goes back to where it was opened.
   const go = useCallback(
     (href: string) => {
       close()
-      navigate(href)
+      navigate(href, { direct: splitHash(href).path !== paths.search })
     },
-    [close, navigate],
+    [close],
   )
 
   const addNote = useCallback(

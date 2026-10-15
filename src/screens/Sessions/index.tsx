@@ -1,6 +1,7 @@
 import { CalendarPlus, ChartColumn, ListChecks, Play, Plus, RotateCcw } from 'lucide-react'
 import { useState } from 'react'
 import { useLocation } from 'wouter'
+import { clearEntryState } from '../../app/nav.ts'
 import { paths, to } from '../../app/routes.ts'
 import { useWorkspace, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { PlanRecord } from '../../core/model/schema'
@@ -45,7 +46,7 @@ export default function Sessions() {
 
   const clearNotice = () => {
     setNotice({})
-    history.replaceState(null, '', location.href)
+    clearEntryState()
   }
   const describe = (p: PlanRecord) => {
     const kind = t(KIND_LABEL[p.kind])

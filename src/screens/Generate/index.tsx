@@ -1,6 +1,7 @@
 import { Presentation, Trash2 } from 'lucide-react'
 import { type FormEvent, useCallback, useEffect, useId, useState } from 'react'
 import { Link } from 'wouter'
+import { readEntry, writeEntry } from '../../app/nav.ts'
 import { paths, to, withScope } from '../../app/routes.ts'
 import { useWorkspace } from '../../app/workspaceContext.tsx'
 import { generateCards } from '../../core/ai/features/generateCards'
@@ -13,6 +14,7 @@ import { IconButton } from '../../ui/components/IconButton.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
 import { streamedKeys, usePartial } from '../../ui/data/usePartial.ts'
 import { Screen } from '../../ui/shell/Screen.tsx'
+import { UpLink } from '../../ui/UpLink.tsx'
 import { useScopeOnce } from '../Section/scope.ts'
 import styles from '../Understand/shared/ai.module.css'
 import { passagesText, useAiModel } from '../Understand/shared/aiConfig.ts'
@@ -33,6 +35,18 @@ interface Draft extends CardDraft {
 
 const COUNTS = ['5', '10', '20'] as const
 
+/** Drafts kept in this screen's history entry. */
+const KEPT = 'cursusGenerate'
+type Kept = { drafts: Draft[] | null; dropped: number }
+
+/** The course or section chosen, as a study scope (none while no course is chosen). */
+function scopeOf(selection: Selection): { courseId: string; sectionId?: string } | null {
+  if (selection.courseId === '') return null
+  return selection.sectionId === ''
+    ? { courseId: selection.courseId }
+    : { courseId: selection.courseId, sectionId: selection.sectionId }
+}
+
 export default function Generate() {
   const t = useT()
   const locale = useLocale()
@@ -46,8 +60,14 @@ export default function Generate() {
   const [topic, setTopic] = useState('')
   const [count, setCount] = useState<(typeof COUNTS)[number]>('10')
   const [estimate, setEstimate] = useState<number | null>(null)
-  const [drafts, setDrafts] = useState<Draft[] | null>(null)
-  const [dropped, setDropped] = useState(0)
+  // Drafts on screen stay with this history entry: back from « Understand » or an import, they are still there.
+  const [kept] = useState(() => readEntry<Kept>(KEPT))
+  const [drafts, setDrafts] = useState<Draft[] | null>(kept?.drafts ?? null)
+  const [dropped, setDropped] = useState(kept?.dropped ?? 0)
+  useEffect(() => {
+    const keep: Kept = { drafts, dropped }
+    writeEntry(KEPT, keep)
+  }, [drafts, dropped])
   const [saved, setSaved] = useState<{ count: number; courseId: string; sectionId: string } | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -139,17 +159,7 @@ export default function Generate() {
 
   return (
     <Screen title={t('ai.generate')} back={back}>
-      <Link
-        href={withScope(
-          paths.deckImport,
-          selection.courseId === ''
-            ? null
-            : selection.sectionId === ''
-              ? { courseId: selection.courseId }
-              : { courseId: selection.courseId, sectionId: selection.sectionId },
-        )}
-        className={buttonClass({ variant: 'secondary' })}
-      >
+      <Link href={withScope(paths.deckImport, scopeOf(selection))} className={buttonClass({ variant: 'secondary' })}>
         <Presentation size={18} aria-hidden="true" />
         {t('ai.deckFromFile')}
       </Link>
@@ -183,7 +193,7 @@ export default function Generate() {
       {saved && (
         <p className={styles.success} role="status">
           {t('ai.saved', { count: saved.count })}{' '}
-          <Link href={to.place(saved.courseId, saved.sectionId)}>{t('ai.openCourse')}</Link>
+          <UpLink href={to.place(saved.courseId, saved.sectionId)}>{t('ai.openCourse')}</UpLink>
         </p>
       )}
 
@@ -225,7 +235,7 @@ export default function Generate() {
             <Button variant="plain" onClick={() => setDrafts(null)}>
               {t('ai.discard')}
             </Button>
-            <Link href={paths.understand} className={buttonClass({ variant: 'plain' })}>
+            <Link href={withScope(paths.understand, scopeOf(selection))} className={buttonClass({ variant: 'plain' })}>
               {t('ai.understand')}
             </Link>
           </div>

@@ -1,6 +1,7 @@
 import { History } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useLocation } from 'wouter'
+import { leaveTo } from '../../app/nav.ts'
 import { paths, to, withScope } from '../../app/routes.ts'
 import { useWorkspace, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { SessionScope } from '../../core/contracts/workspace'
@@ -33,7 +34,7 @@ export default function SessionSetup() {
   const count = useSessionPreview(draft)
   const limit = draftLimit(draft)
   const from = asStudyScope(asked ?? {})
-  const back = from === null ? paths.today : to.place(from.courseId, from.sectionId)
+  const back = from === null ? paths.sessions : to.place(from.courseId, from.sectionId)
 
   const start = () => {
     if (limit === null || count === null || count === 0) return
@@ -51,7 +52,7 @@ export default function SessionSetup() {
     <Screen
       title={t('review.newSession')}
       back={back}
-      trailing={<IconButton icon={History} label={t('review.sessions')} onClick={() => navigate(paths.sessions)} />}
+      trailing={<IconButton icon={History} label={t('review.sessions')} onClick={() => leaveTo(paths.sessions)} />}
     >
       <form
         className={styles.form}

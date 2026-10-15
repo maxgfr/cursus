@@ -2,6 +2,7 @@ import { CircleCheck, HardDrive, Smartphone, Sparkles, TriangleAlert, Wand2 } fr
 import { Suspense, useCallback, useEffect, useState } from 'react'
 import { Link, useLocation } from 'wouter'
 import { ChunkFailed, lazyChunk } from '../../app/lazyChunk.tsx'
+import { canGoBack } from '../../app/nav.ts'
 import { markOnboarded } from '../../app/onboarding.ts'
 import { paths, to } from '../../app/routes.ts'
 import { useRuntime } from '../../app/workspaceContext.tsx'
@@ -79,7 +80,8 @@ export default function Onboarding() {
     import('./demo.ts')
       .then(({ createDemoCourse }) => createDemoCourse(rt, t, locale === 'pseudo' ? undefined : locale))
       .then(
-        (id) => navigate(to.course(id)),
+        // The welcome is done: the course takes its place, so the course's Back never reopens it.
+        (id) => navigate(to.course(id), { replace: true }),
         (e: unknown) => {
           noteError('onboarding.demo', e)
           setDemoState('failed')
@@ -88,7 +90,8 @@ export default function Onboarding() {
   }
 
   return (
-    <Screen title={t('common.welcomeTitle')}>
+    // Opened from the app (Settings › Welcome): a Back returns there. On first launch it stands alone.
+    <Screen title={t('common.welcomeTitle')} back={canGoBack() ? paths.settings : undefined}>
       <p className={styles.lead}>{t('common.welcomeBody')}</p>
 
       <section className={styles.loop} aria-labelledby="ob-loop">
@@ -241,7 +244,7 @@ export default function Onboarding() {
         <Button variant="primary" size="large" full onClick={() => setAdding(true)}>
           {t('today.obCreate')}
         </Button>
-        <Link href={paths.today} className={buttonClass({ variant: 'plain' })}>
+        <Link replace href={paths.today} className={buttonClass({ variant: 'plain' })}>
           {t('today.obSkip')}
         </Link>
       </div>

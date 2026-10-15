@@ -1,7 +1,7 @@
 import { FileUp } from 'lucide-react'
 import { type ChangeEvent, type FormEvent, useRef, useState } from 'react'
 import { useLocation } from 'wouter'
-import { to } from '../../app/routes.ts'
+import { paths, to } from '../../app/routes.ts'
 import { useRuntime } from '../../app/workspaceContext.tsx'
 import type { Id } from '../../core/contracts/workspace'
 import { useT } from '../../i18n/react.tsx'
@@ -21,7 +21,7 @@ import styles from './Today.module.css'
 export function NewCourseSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const t = useT()
   const rt = useRuntime()
-  const [, navigate] = useLocation()
+  const [location, navigate] = useLocation()
   const [title, setTitle] = useState('')
   const [files, setFiles] = useState<readonly File[]>([])
   const [busy, setBusy] = useState(false)
@@ -41,7 +41,8 @@ export function NewCourseSheet({ open, onClose }: { open: boolean; onClose: () =
   const openCourse = (id: Id) => {
     reset()
     onClose()
-    navigate(to.course(id))
+    // From the welcome, the new course takes its place: the course's Back never reopens the welcome.
+    navigate(to.course(id), { replace: location === paths.onboarding })
   }
 
   const onPick = (e: ChangeEvent<HTMLInputElement>) => {

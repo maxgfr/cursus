@@ -1,8 +1,8 @@
 import { type ComponentType, type ReactNode, Suspense } from 'react'
 import { Route, Router, Switch } from 'wouter'
-import { useHashLocation } from 'wouter/use-hash-location'
 import Today from '../screens/Today/index.tsx'
 import { lazyChunk } from './lazyChunk.tsx'
+import { useNavLocation, useNavSearch } from './nav.ts'
 import { paths, type RouteName } from './routes.ts'
 
 type Screen = ComponentType
@@ -51,9 +51,13 @@ const NotFound = lazyChunk('notFound', () => import('../screens/NotFound/index.t
 
 const entries = Object.entries(screens) as [keyof typeof screens, Screen][]
 
-/** Hash routing: GitHub Pages serves one file and has no SPA rewrite. */
+/** Hash routing (path and query in the hash): GitHub Pages serves one file and has no SPA rewrite. */
 export function HashRouter({ children }: { children: ReactNode }) {
-  return <Router hook={useHashLocation}>{children}</Router>
+  return (
+    <Router hook={useNavLocation} searchHook={useNavSearch}>
+      {children}
+    </Router>
+  )
 }
 
 export function Routes() {

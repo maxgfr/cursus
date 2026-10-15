@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useState } from 'react'
-import { useLocation } from 'wouter'
+import { leaveTo } from '../../app/nav.ts'
 import { paths } from '../../app/routes.ts'
 import { useWorkspace } from '../../app/workspaceContext.tsx'
 import type { CourseRecord } from '../../core/model/schema'
@@ -22,7 +22,6 @@ export function CourseSettings({
 }) {
   const t = useT()
   const ws = useWorkspace()
-  const [, navigate] = useLocation()
   const [title, setTitle] = useState(course.title)
   const [exam, setExam] = useState(course.examDate ?? '')
   const [confirming, setConfirming] = useState(false)
@@ -44,7 +43,7 @@ export function CourseSettings({
   const remove = () => {
     ws.courses.trash(course.id)
     onClose()
-    navigate(paths.courses)
+    leaveTo(paths.courses)
   }
 
   return (

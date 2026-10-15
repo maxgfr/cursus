@@ -1,6 +1,7 @@
 import { CalendarPlus, Play, Trash2 } from 'lucide-react'
 import { useId, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
+import { goBack } from '../../app/nav.ts'
 import { paths, to } from '../../app/routes.ts'
 import { useWorkspace, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { Id, Weekday } from '../../core/contracts/workspace'
@@ -83,7 +84,7 @@ function PlanForm({ planId }: { planId: Id | null }) {
       if (plan) ws.plans.update(plan.id, fields)
       else ws.plans.create(fields)
       const notice: PlanNotice = { planSaved: true }
-      navigate(paths.sessions, { replace: true, state: notice })
+      goBack(paths.sessions, { state: notice })
     } catch (e) {
       noteError('session.plan', e)
       setMessage(t('errors.generic'))
@@ -187,7 +188,7 @@ function PlanForm({ planId }: { planId: Id | null }) {
             onClick={() => {
               ws.plans.trash(plan.id)
               const notice: PlanNotice = { trashedPlan: plan.id }
-              navigate(paths.sessions, { replace: true, state: notice })
+              goBack(paths.sessions, { state: notice })
             }}
           >
             {t('review.deletePlan')}

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useParams } from 'wouter'
+import { goBack, leaveTo } from '../../app/nav.ts'
 import { to } from '../../app/routes.ts'
 import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import { renderPhoto, withPhoto } from '../../core/content/photos'
@@ -33,7 +34,6 @@ import { Sheet } from '../../ui/components/Sheet.tsx'
 import { Toast } from '../../ui/components/Toast.tsx'
 import { MoveSheet, moveItemTo } from '../../ui/MoveSheet.tsx'
 import { EMPTY, keepDraft, newCardId, readDraft } from '../CardEditor/draft.ts'
-import { earlierPaths } from '../Course/backTarget.ts'
 import NotFound from '../NotFound/index.tsx'
 import type { PhotoNotice } from '../Photos/index.tsx'
 import { sharePhoto } from '../Photos/share.ts'
@@ -97,12 +97,7 @@ export default function PhotoViewer() {
 
   const gallery = data ? to.photos(data.photo.courseId, data.sectionId) : null
   // Back to where the photo was opened from (a gallery, a card, a source), else its own gallery.
-  const close = useCallback(() => {
-    const opener = earlierPaths()
-      .filter((p) => !p.startsWith('/photo/'))
-      .at(-1)
-    navigate(opener ?? gallery ?? '/')
-  }, [navigate, gallery])
+  const close = useCallback(() => goBack(gallery ?? '/'), [gallery])
 
   const index = data ? data.siblings.indexOf(id) : -1
   const prevId = data && index > 0 ? data.siblings[index - 1] : undefined
@@ -198,7 +193,7 @@ export default function PhotoViewer() {
   const trash = () => {
     ws.sources.trash(id)
     const notice: PhotoNotice = { trashedPhoto: id }
-    navigate(gallery, { state: notice })
+    leaveTo(gallery, notice)
   }
 
   return (

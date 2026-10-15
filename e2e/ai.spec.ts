@@ -510,8 +510,16 @@ test('Understand streams a cited explanation, then checks an explanation back', 
   await expect(page.getByRole('heading', { level: 1, name: 'sample' })).toBeVisible()
   await expect(page.getByText('Cited: Slide 2')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Open the original' })).toHaveAttribute('href', /^blob:.+#page=2$/)
+  // Back returns to the explanation that cited it, still on screen.
+  await page.getByRole('link', { name: 'Back' }).click()
+  await expect(fiche.getByRole('heading', { name: 'Calvin cycle' })).toBeVisible()
   // The page belongs to that citation only: opening the source again starts from the top.
   await page.getByRole('link', { name: 'Back' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Courses' })).toBeVisible()
+  await page
+    .getByRole('main')
+    .getByRole('link', { name: /^Botany/ })
+    .click()
   await page.getByRole('radio', { name: 'Sources' }).check()
   await page
     .getByRole('main')

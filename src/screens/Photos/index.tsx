@@ -1,6 +1,7 @@
 import { Images } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useParams } from 'wouter'
+import { clearEntryState } from '../../app/nav.ts'
 import { type Captured, usePasteCapture } from '../../app/paste.ts'
 import { to } from '../../app/routes.ts'
 import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
@@ -102,7 +103,7 @@ export default function Photos() {
   }))
   const dismissTrashed = () => {
     setTrashed(null)
-    history.replaceState(null, '', location.href)
+    clearEntryState()
   }
   const picker = <PhotoPicker onFiles={add} busy={busy !== null} variant="primary" />
 

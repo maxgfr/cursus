@@ -71,7 +71,7 @@ export function sessionFrom(search: string): string | null {
   return new URLSearchParams(search).get('session') || null
 }
 
-/** A study scope carried in the query (`?course=…&section=…`): read once by the screen, then dropped. */
+/** A study scope carried in the hash query (`?course=…&section=…`), kept by that history entry only. */
 export function withScope(path: string, scope: { courseId: string; sectionId?: string } | null): string {
   if (scope === null) return path
   const q = new URLSearchParams({ course: scope.courseId })
