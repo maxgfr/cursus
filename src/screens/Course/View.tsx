@@ -73,6 +73,8 @@ export interface CardNotice {
   trashedCard?: string
   trashedSection?: string
   cardSaved?: boolean
+  /** The saved card was a new one: the notice offers the next one. */
+  cardAdded?: boolean
   tab?: 'fiches'
 }
 
@@ -84,6 +86,9 @@ const stateString = (state: unknown, key: 'trashedCard' | 'trashedSection'): str
 
 const savedFrom = (state: unknown): boolean =>
   typeof state === 'object' && state !== null && 'cardSaved' in state && state.cardSaved === true
+
+const addedFrom = (state: unknown): boolean =>
+  typeof state === 'object' && state !== null && 'cardAdded' in state && state.cardAdded === true
 
 const tabFrom = (state: unknown): 'fiches' | null =>
   typeof state === 'object' && state !== null && 'tab' in state && state.tab === 'fiches' ? 'fiches' : null
@@ -121,6 +126,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
     stateString(history.state, 'trashedSection'),
   )
   const [saved, setSaved] = useState(() => savedFrom(history.state))
+  const [added] = useState(() => addedFrom(history.state))
   const filesInput = useRef<HTMLInputElement>(null)
   const photoInput = useRef<HTMLInputElement>(null)
   const csvInput = useRef<HTMLInputElement>(null)
@@ -695,6 +701,18 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
         <Toast
           message={t('course.cardSaved')}
           actions={[
+            ...(added
+              ? [
+                  {
+                    label: t('course.addAnother'),
+                    onClick: () => {
+                      setSaved(false)
+                      clearEntryState()
+                      newCard()
+                    },
+                  },
+                ]
+              : []),
             {
               label: t('common.dismiss'),
               onClick: () => {

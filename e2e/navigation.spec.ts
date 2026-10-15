@@ -71,7 +71,7 @@ async function openCard(page: Page) {
   await at(page, 'Card', /#\/card\//)
 }
 
-/** The editor's Save (not « Save & new »). */
+/** The editor's Save. */
 const save = (page: Page) => page.getByRole('button', { name: /^Save( ⌘S| Ctrl\+S)?$/ }).first()
 
 async function openPalette(page: Page) {

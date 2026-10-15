@@ -20,7 +20,9 @@ async function typeInto(page: Page, label: string, text: string) {
 const save = (page: Page) => page.getByRole('button', { name: /^Save( ⌘S| Ctrl\+S)?$/ })
 const cardRows = (page: Page) => page.getByRole('main').getByRole('list').getByRole('link')
 
-test('a new card exists only once saved; Save & new keeps going; Cancel leaves no empty card', async ({ page }) => {
+test('a new card exists only once saved; « New card » after saving keeps going; Cancel leaves no empty card', async ({
+  page,
+}) => {
   await createCourse(page, 'Botany')
   await page.getByRole('radio', { name: 'Cards' }).check()
   await page.getByRole('button', { name: 'New card' }).click()
@@ -35,8 +37,12 @@ test('a new card exists only once saved; Save & new keeps going; Cancel leaves n
   await page.getByRole('button', { name: 'New card' }).click()
   await typeInto(page, 'Front', 'Xylem carries?')
   await expect(page.getByRole('status').filter({ hasText: 'Unsaved changes' })).toBeVisible()
-  await page.getByRole('button', { name: 'Save & new' }).click()
-  await expect(page.getByRole('status').filter({ hasText: 'Saved' })).toBeVisible()
+  // One Save: back on the course, the notice offers the next card straight away.
+  await save(page).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Botany' })).toBeVisible()
+  await expect(page.getByText('Card saved.')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Save & new' })).toHaveCount(0)
+  await page.getByRole('status').getByRole('button', { name: 'Add another' }).click()
   await expect(page.getByRole('textbox', { name: 'Front' })).toBeFocused()
   await typeInto(page, 'Front', 'Phloem carries?')
   await save(page).click()

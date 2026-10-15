@@ -115,7 +115,6 @@ export default function CardEditor() {
   const [restored, setRestored] = useState(false)
   const [justSaved, setJustSaved] = useState(false)
   const [asking, setAsking] = useState(false)
-  const [round, setRound] = useState(0)
   const [moving, setMoving] = useState(false)
   const [movedTo, setMovedTo] = useState<string | null>(null)
   const [shareStatus, setShareStatus] = useState<string | null>(null)
@@ -272,28 +271,14 @@ export default function CardEditor() {
     // Saved means on disk before leaving, not at the next idle seal.
     void Promise.all([rt.seal(), dropDraft(rt.store, id)])
       .catch((e: unknown) => noteError('card.save', e))
-      .finally(() => leave({ cardSaved: true }))
+      .finally(() => leave(newCourse !== null ? { cardSaved: true, cardAdded: true } : { cardSaved: true }))
   }, [dirty, card, draft, hold, release, newCourse, create, current, ws, id, base, rt, leave])
 
-  const saveAndNew = () => {
-    if (!dirty || newCourse === null || !hold()) return
-    create(current, newCourse)
-    void Promise.all([rt.seal(), dropDraft(rt.store, id)])
-      .catch((e: unknown) => noteError('card.save', e))
-      .finally(release)
-    const next: CardFields = { ...EMPTY, kind }
-    setFields(next)
-    setDraft(scratch(next))
-    setRestored(false)
-    setJustSaved(true)
-    setRound((r) => r + 1)
-  }
-
-  // A fresh form after "Save & new": the cursor waits in the front.
+  // A new card: the cursor waits in the front, ready to type (the next card after « New card » too).
   useEffect(() => {
-    if (round === 0) return
+    if (newCourse === null || draft === null) return
     formRef.current?.querySelector<HTMLElement>('[contenteditable="true"], textarea')?.focus()
-  }, [round])
+  }, [newCourse, draft])
 
   // Back with unsaved changes asks once instead of leaving (the header's Back stays a plain link).
   useEffect(() => {
@@ -396,7 +381,7 @@ export default function CardEditor() {
         {draft === null ? (
           <p className={styles.status}>{t('common.loading')}</p>
         ) : (
-          <div ref={formRef} key={round} className={styles.form}>
+          <div ref={formRef} className={styles.form}>
             <Segmented<Kind>
               label={t('course.cardKind')}
               value={kind}
@@ -445,11 +430,6 @@ export default function CardEditor() {
             <Button variant="plain" onClick={cancel}>
               {t('course.cancel')}
             </Button>
-            {newCourse !== null && (
-              <Button onClick={saveAndNew} disabled={!dirty || saving}>
-                {t('course.saveNew')}
-              </Button>
-            )}
             {newCourse === null && (
               <>
                 <Button variant="plain" icon={<Share size={18} aria-hidden="true" />} onClick={share}>
