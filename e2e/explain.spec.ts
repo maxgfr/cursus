@@ -84,6 +84,12 @@ async function mockProvider(page: Page): Promise<string[]> {
     prompts.push(text)
     let content = 'OK'
     if (text.includes('asks what the question means')) content = JSON.stringify(questionExplanation(text))
+    else if (text.includes('asks why it is the answer'))
+      content = JSON.stringify({
+        explanation: 'Respiration runs in the mitochondrion, which is why it **makes the ATP**.',
+        mnemonic: 'Mighty mitochondria',
+        citations: [{ sourceId: noteId(text) }],
+      })
     else if (text.includes('study tutor')) content = tutorAnswer(text)
     // Streamed, as the screens ask for it: the explanation and the chat are read as they are written.
     return route.fulfill(completionReply(req, content, CORS))
@@ -185,6 +191,28 @@ test('before the reveal the question is explained without its answer; after it, 
   await expect(sheet.getByText('Hidden: it gives the answer away.')).toHaveCount(0)
   await expect(sheet.getByRole('blockquote')).toContainText(PASSAGE)
   expect(prompts.length).toBe(asked)
+  expect(errors).toEqual([])
+})
+
+test('after the reveal, « Why? » explains the answer from the course, cited with its passage', async ({ page }) => {
+  const errors = watchErrors(page)
+  await seedCourse(page)
+  const prompts = await mockProvider(page)
+  await configureAi(page, LLM)
+  await openReview(page)
+  // Before the reveal there is nothing to explain the answer of.
+  await expect(page.getByRole('button', { name: 'Why?' })).toHaveCount(0)
+  await page.getByRole('button', { name: /Show answer/ }).click()
+  await page.getByRole('button', { name: 'Why?' }).click()
+  const why = page.getByRole('dialog', { name: 'Why this is the answer' })
+  await expect(why.locator('strong', { hasText: 'makes the ATP' })).toBeVisible()
+  await expect(why.getByText('Mighty mitochondria')).toBeVisible()
+  // Grounded in the course like « Explain the question »: the card as data, the note sent and cited.
+  expect(prompts.at(-1)).toContain('Course: Biology')
+  expect(prompts.at(-1)).toContain('<<<SOURCE id=')
+  await expect(why.getByRole('link', { name: 'Open source: Cell notes' })).toBeVisible()
+  await expect(why.getByRole('blockquote')).toContainText(PASSAGE)
+  await expect(why.getByRole('button', { name: 'Ask a follow-up' })).toBeVisible()
   expect(errors).toEqual([])
 })
 

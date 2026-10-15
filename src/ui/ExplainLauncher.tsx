@@ -6,7 +6,7 @@ import type { AiModelState } from '../screens/Understand/shared/aiConfig.ts'
 import { useChat } from './chat/context.tsx'
 import { Button } from './components/Button.tsx'
 import styles from './ExplainLauncher.module.css'
-import type { ExplainSheetProps, ExplainTarget } from './ExplainSheet.tsx'
+import type { ExplainKind, ExplainSheetProps, ExplainTarget } from './ExplainSheet.tsx'
 
 /** The explanation sheet, loaded the first time something asks for an explanation. */
 export const LazyExplainSheet = lazyChunk<ExplainSheetProps>('explainSheet', () => import('./ExplainSheet.tsx'))
@@ -106,19 +106,19 @@ export const keepSelection = (e: { button: number; preventDefault: () => void })
   if (e.button === 0) e.preventDefault()
 }
 
-/** Launches of « Explain the question »: each gets a new `seq`, so the sheet knows it was asked again. */
+/** Launches of « Explain the question » or « Why? »: each gets a new `seq`, so the sheet knows it was asked again. */
 export function useExplainTarget(): {
   target: ExplainTarget | null
   open: boolean
-  launch: () => void
+  launch: (kind: ExplainKind) => void
   close: () => void
 } {
   const [target, setTarget] = useState<ExplainTarget | null>(null)
   const [open, setOpen] = useState(false)
   const seq = useRef(0)
-  const launch = useCallback(() => {
+  const launch = useCallback((kind: ExplainKind) => {
     seq.current += 1
-    setTarget({ seq: seq.current })
+    setTarget({ kind, seq: seq.current })
     setOpen(true)
   }, [])
   const close = useCallback(() => setOpen(false), [])

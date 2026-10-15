@@ -65,7 +65,7 @@ export default function Sessions() {
   const shown = showAll ? past : past.slice(0, RECENT)
 
   return (
-    <Screen title={t('review.sessions')} subtitle={t('review.sessionsHint')} back={paths.today}>
+    <Screen title={t('review.sessions')} subtitle={t('review.sessionsHint')}>
       <div className={styles.actions}>
         <Button
           variant="primary"

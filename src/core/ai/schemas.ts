@@ -33,6 +33,7 @@ export const explainCardSchema = z.object({
   example: z.string().optional(),
   mnemonic: z.string().optional(),
   sourceRef: sourceRefSchema.optional(),
+  citations: z.array(sourceRefSchema).optional(),
 })
 export type CardExplanation = z.infer<typeof explainCardSchema>
 

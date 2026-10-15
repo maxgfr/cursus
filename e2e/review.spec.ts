@@ -157,7 +157,7 @@ async function fakeProvider(page: Page): Promise<string[]> {
     if (body.includes('Grade a student answer')) {
       features.push('gradeAnswer')
       content = { suggestedRating: 4, correct: true, feedback: 'Spot on: that is the powerhouse of the cell.' }
-    } else if (body.includes('wants to understand the answer')) {
+    } else if (body.includes('asks why it is the answer')) {
       features.push('explainCard')
       content = { explanation: 'Mitochondria turn nutrients into ATP.', mnemonic: 'Mighty mitochondria' }
     } else if (body.includes('Improve a spaced-repetition flashcard')) {
@@ -342,12 +342,15 @@ test('own words: the AI suggests a grade to confirm; Why? explains and makes a c
   // Suggested, not preselected: focus is on the grades group.
   if (!phone) await expect(page.getByTestId('grades')).toBeFocused()
 
+  // « Why? » opens the same kind of sheet as « Explain the question », grounded and streamed.
   await page.getByRole('button', { name: 'Why?' }).click()
-  await expect(page.getByText('Mitochondria turn nutrients into ATP.')).toBeVisible()
-  await expect(page.getByText('Mighty mitochondria')).toBeVisible()
-  await page.getByRole('button', { name: 'Create a card on this point' }).click()
-  await expect(page.getByText('Card added to Biology')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Create a card on this point' })).toBeDisabled()
+  const why = page.getByRole('dialog', { name: 'Why this is the answer' })
+  await expect(why.getByText('Mitochondria turn nutrients into ATP.')).toBeVisible()
+  await expect(why.getByText('Mighty mitochondria')).toBeVisible()
+  await why.getByRole('button', { name: 'Create a card on this point' }).click()
+  await expect(why.getByText('Card added to Biology')).toBeVisible()
+  await expect(why.getByRole('button', { name: 'Create a card on this point' })).toBeDisabled()
+  await why.getByRole('button', { name: 'Close' }).click()
 
   await easy.click()
   await expect(page.getByTestId('remaining')).toHaveText('1 left')

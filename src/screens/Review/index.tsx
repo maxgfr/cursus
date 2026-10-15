@@ -21,7 +21,7 @@ import { useScopeOnce } from '../Section/scope.ts'
 import { sessionLabel } from '../Sessions/describe.ts'
 import { PracticeChip } from '../Sessions/PracticeChip.tsx'
 import { useAiModel } from '../Understand/shared/aiConfig.ts'
-import { Explain, Improve, OwnWords } from './Assist.tsx'
+import { Improve, OwnWords } from './Assist.tsx'
 import { ExplainActions } from './ExplainActions.tsx'
 import { describeFailure } from './failure.ts'
 import styles from './Review.module.css'
@@ -435,7 +435,6 @@ function CardStage({
               )
             })}
           </fieldset>
-          <Explain key={card.id} card={card} ai={ai} onToast={onToast} />
         </>
       )}
       <ExplainActions key={`explain-${card.id}`} card={card} revealed={revealed} ai={ai} />

@@ -1,4 +1,4 @@
-import { CircleHelp, MessageCircle } from 'lucide-react'
+import { CircleHelp, Lightbulb, MessageCircle } from 'lucide-react'
 import { useCallback, useId } from 'react'
 import { useT } from '../../i18n/react.tsx'
 import { useChat } from '../../ui/chat/context.tsx'
@@ -18,7 +18,8 @@ import type { CardView } from './session.ts'
 const FACES = '[data-testid="question"], [data-testid="answer"]'
 
 /**
- * « Explain the question », before and after the reveal (before it, the sheet never shows the answer), and,
+ * « Explain the question », before and after the reveal (before it, the sheet never shows the answer), « Why? »
+ * once the answer shows (the same sheet, on why it is the answer), and,
  * while a term of the card is selected, « Ask about “term” » in the chat, which knows the card and keeps its
  * answer hidden as long as the card does. Only offered once a model is set up: the focus view carries no setup
  * path. Offline, both are disabled, saying why, unless the model runs on this device.
@@ -49,10 +50,21 @@ export function ExplainActions({ card, revealed, ai }: { card: CardView; reveale
           icon={<CircleHelp size={18} strokeWidth={1.75} aria-hidden />}
           disabled={!online}
           aria-describedby={online ? undefined : offlineId}
-          onClick={launch}
+          onClick={() => launch('question')}
         >
           {t('ai.explainQuestion')}
         </Button>
+        {revealed && (
+          <Button
+            variant="plain"
+            icon={<Lightbulb size={18} strokeWidth={1.75} aria-hidden />}
+            disabled={!online}
+            aria-describedby={online ? undefined : offlineId}
+            onClick={() => launch('answer')}
+          >
+            {t('review.why')}
+          </Button>
+        )}
         {selected && chat && (
           <Button
             variant="plain"

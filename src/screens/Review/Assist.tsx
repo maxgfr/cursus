@@ -1,11 +1,11 @@
 import type { DeepPartial } from 'ai'
-import { Lightbulb, Plus, Sparkles, Wand2 } from 'lucide-react'
+import { Sparkles, Wand2 } from 'lucide-react'
 import { type FormEvent, useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'wouter'
 import { paths } from '../../app/routes.ts'
 import { useWorkspace } from '../../app/workspaceContext.tsx'
 import type { FeatureCtx } from '../../core/ai/client'
-import type { CardExplanation, CardImprovement } from '../../core/ai/schemas'
+import type { CardImprovement } from '../../core/ai/schemas'
 import type { Rating } from '../../core/contracts/workspace'
 import { useT } from '../../i18n/react.tsx'
 import { Button } from '../../ui/components/Button.tsx'
@@ -151,105 +151,6 @@ export function OwnWords({
         {call.status === 'busy' ? t('review.checking') : t('review.check')}
       </Button>
     </form>
-  )
-}
-
-/** "Why?": an explanation of the answer, then a card on that point. */
-export function Explain({
-  card,
-  ai,
-  onToast,
-}: {
-  card: CardView
-  ai: AiModelState
-  onToast: (message: string) => void
-}) {
-  const t = useT()
-  const ws = useWorkspace()
-  const headingId = useId()
-  const [created, setCreated] = useState(false)
-  const { call, partial, run } = useAiCall<CardExplanation>(ai, card.language)
-
-  if (ai.status === 'loading') return null
-  if (ai.status === 'missing') {
-    return (
-      <div className={styles.assist}>
-        <SetupLink label={t('review.why')} />
-      </div>
-    )
-  }
-  const ask = () =>
-    run(async (ctx) => {
-      const { explainCard } = await import('../../core/ai/features/explainCard')
-      return explainCard(ctx, { front: card.front, back: card.back })
-    })
-
-  if (call.status === 'busy' && partial?.explanation) {
-    return (
-      <section className={styles.panel} aria-labelledby={headingId} aria-busy="true">
-        <h2 id={headingId} className={styles.label}>
-          {t('review.whyTitle')}
-        </h2>
-        <Sanitized markdown={writing(partial.explanation)} />
-        {partial.example && (
-          <p className={styles.aside}>
-            <strong>{t('review.example')}</strong> {partial.example}
-          </p>
-        )}
-      </section>
-    )
-  }
-  if (call.status !== 'done') {
-    return (
-      <div className={styles.assist}>
-        {call.status === 'failed' && <Failed message={call.message} />}
-        <Button
-          variant="plain"
-          icon={<Lightbulb size={18} strokeWidth={1.75} aria-hidden />}
-          loading={call.status === 'busy'}
-          onClick={() => void ask()}
-        >
-          {call.status === 'busy' ? t('review.explaining') : t('review.why')}
-        </Button>
-      </div>
-    )
-  }
-  const { explanation, example, mnemonic } = call.value
-  const createCard = () => {
-    const back = [explanation, example ? `${t('review.example')}: ${example}` : ''].filter(Boolean).join('\n\n')
-    ws.batch(() => {
-      const id = ws.cards.create({ courseId: card.courseId, kind: 'basic', origin: 'ai' })
-      ws.text({ id, field: 'front' }).insert(0, `${t('review.why')} ${card.front}`)
-      ws.text({ id, field: 'back' }).insert(0, back)
-    })
-    setCreated(true)
-    onToast(t('review.cardCreated', { course: card.courseTitle }))
-  }
-  return (
-    <section className={styles.panel} aria-labelledby={headingId}>
-      <h2 id={headingId} className={styles.label}>
-        {t('review.whyTitle')}
-      </h2>
-      <Sanitized markdown={explanation} />
-      {example && (
-        <p className={styles.aside}>
-          <strong>{t('review.example')}</strong> {example}
-        </p>
-      )}
-      {mnemonic && (
-        <p className={styles.aside}>
-          <strong>{t('review.mnemonic')}</strong> {mnemonic}
-        </p>
-      )}
-      <Button
-        variant="secondary"
-        icon={<Plus size={18} strokeWidth={1.75} aria-hidden />}
-        disabled={created}
-        onClick={createCard}
-      >
-        {t('review.createCard')}
-      </Button>
-    </section>
   )
 }
 

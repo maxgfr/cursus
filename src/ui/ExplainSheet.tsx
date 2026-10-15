@@ -1,8 +1,9 @@
-import { MessageCircle } from 'lucide-react'
+import { MessageCircle, Plus } from 'lucide-react'
 import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Link } from 'wouter'
 import { to } from '../app/routes.ts'
 import { useRuntime, useWorkspace, useWorkspaceData } from '../app/workspaceContext.tsx'
+import { type AnswerExplanation, explainCard } from '../core/ai/features/explainCard'
 import {
   type AnswerTerms,
   answerTerms,
@@ -14,7 +15,7 @@ import {
   type QuestionExplanation,
 } from '../core/ai/features/explainQuestion'
 import type { Chunk } from '../core/ai/retrieval'
-import type { QuestionExplanationDraft, SourceRef } from '../core/ai/schemas'
+import type { CardExplanation, QuestionExplanationDraft, SourceRef } from '../core/ai/schemas'
 import { blobStore } from '../core/log/blobs'
 import { formatUsd } from '../i18n/format.ts'
 import { useLocale, useT } from '../i18n/react.tsx'
@@ -28,9 +29,14 @@ import { Sheet } from './components/Sheet.tsx'
 import { usePartial } from './data/usePartial.ts'
 import { useCanCallAi } from './ExplainLauncher.tsx'
 import styles from './ExplainSheet.module.css'
+import { Sanitized } from './render/Sanitized.tsx'
 
-/** A launch of « Explain the question »; a new `seq` is a new launch. */
+/** What the sheet explains: the card's question, or (once it shows) why the answer is what it is. */
+export type ExplainKind = 'question' | 'answer'
+
+/** A launch of the sheet; a new `seq` is a new launch. */
 export interface ExplainTarget {
+  kind: ExplainKind
   seq: number
 }
 
@@ -39,7 +45,7 @@ export interface ExplainSheetProps {
   onClose: () => void
   ai: Extract<AiModelState, { status: 'ready' }>
   target: ExplainTarget
-  /** Course whose sources ground the explanation. */
+  /** Course whose sources ground the explanation, and where a card on it goes. */
   courseId?: string
   /**
    * The card on screen. Until `revealed`, nothing the sheet shows may give its answer away: guarded fields
@@ -59,9 +65,10 @@ const IDLE = { status: 'idle' } as const
 const shownText = (g: GuardedText, open: boolean) => (open ? (g.original ?? g.text) : g.text)
 
 /**
- * « Explain the question » in review: what is asked, its terms and its context in the course, written as it
- * comes and never giving the answer away before the reveal. Anything broader goes to the chat (« Ask a
- * follow-up »). Loaded on demand.
+ * The two explanations of review, alike: « Explain the question » (what is asked, its terms, its context in the
+ * course, never giving the answer away before the reveal) and « Why? » once the answer shows (why it is the
+ * answer, an example or a mnemonic, a card on it). Both are grounded in and cited from the course's sources,
+ * written as they come; anything broader goes to the chat (« Ask a follow-up »). Loaded on demand.
  */
 export default function ExplainSheet({
   open,
@@ -85,7 +92,10 @@ export default function ExplainSheet({
   const [grounding, setGrounding] = useState<Chunk[]>([])
   const [estimate, setEstimate] = useState<number | null>(null)
   const [question, setQuestion] = useState<Call<QuestionExplanation>>(IDLE)
-  const stream = usePartial<QuestionExplanationDraft>()
+  const [answer, setAnswer] = useState<Call<AnswerExplanation>>(IDLE)
+  const questionStream = usePartial<QuestionExplanationDraft>()
+  const answerStream = usePartial<CardExplanation>()
+  const kind = target.kind
 
   useEffect(() => () => abort.current?.abort(), [])
 
@@ -121,66 +131,96 @@ export default function ExplainSheet({
     }
   }, [open, loadChunks, ai])
 
-  const runQuestion = useCallback(async () => {
-    // One request at a time: a new one replaces whatever was running.
-    abort.current?.abort()
-    const controller = new AbortController()
-    abort.current = controller
-    stream.reset()
-    setQuestion({ status: 'busy' })
-    try {
-      const loaded = await loadChunks()
-      const course = courseId ? ws.courses.get(courseId) : undefined
-      const ctx = await ai.context(controller.signal, course?.language)
-      const value = await explainQuestion(
-        { ...ctx, onPartial: stream.onPartial },
-        { card, revealed, chunks: loaded, courseTitle: course?.title },
-      )
-      if (controller.signal.aborted) return
+  const run = useCallback(
+    async (which: ExplainKind) => {
+      // One request at a time: a new one replaces whatever was running.
+      abort.current?.abort()
+      const controller = new AbortController()
+      abort.current = controller
+      const stream = which === 'question' ? questionStream : answerStream
+      const set = which === 'question' ? setQuestion : setAnswer
       stream.reset()
-      setQuestion({ status: 'done', value })
-    } catch (error) {
-      // Cancelled: `cancel` already settled the state.
-      if (controller.signal.aborted) return
-      stream.reset()
-      console.warn('Explanation request failed', error)
-      setQuestion({ status: 'failed', message: describeFailure(error, t) })
-    }
-  }, [loadChunks, courseId, ws, ai, card, revealed, t, stream])
+      set({ status: 'busy' })
+      try {
+        const loaded = await loadChunks()
+        const course = courseId ? ws.courses.get(courseId) : undefined
+        const ctx = { ...(await ai.context(controller.signal, course?.language)), onPartial: stream.onPartial }
+        const input = { chunks: loaded, courseTitle: course?.title }
+        if (which === 'question') {
+          const value = await explainQuestion(ctx, { card, revealed, ...input })
+          if (controller.signal.aborted) return
+          setQuestion({ status: 'done', value })
+        } else {
+          const value = await explainCard(ctx, { front: card.front, back: card.back, ...input })
+          if (controller.signal.aborted) return
+          setAnswer({ status: 'done', value })
+        }
+        stream.reset()
+      } catch (error) {
+        // Cancelled: `cancel` already settled the state.
+        if (controller.signal.aborted) return
+        stream.reset()
+        console.warn('Explanation request failed', error)
+        set({ status: 'failed', message: describeFailure(error, t) })
+      }
+    },
+    [loadChunks, courseId, ws, ai, card, revealed, t, questionStream, answerStream],
+  )
 
-  // Each launch runs once, when the sheet is open and online; a question already explained is shown again.
+  // Each launch runs once, when the sheet is open and online; an explanation already given is shown again.
+  const current = kind === 'question' ? question : answer
   useEffect(() => {
     if (!open || ran.current === target.seq) return
     ran.current = target.seq
     if (!online) return
-    if (question.status === 'idle' || question.status === 'failed') void runQuestion()
-  }, [open, target, online, question.status, runQuestion])
+    if (current.status === 'idle' || current.status === 'failed') void run(target.kind)
+  }, [open, target, online, current.status, run])
 
   const cancel = () => {
     abort.current?.abort()
-    stream.reset()
-    setQuestion(IDLE)
+    questionStream.reset()
+    answerStream.reset()
+    if (kind === 'question') setQuestion(IDLE)
+    else setAnswer(IDLE)
   }
 
   const guard = useAnswerGuard(card, revealed)
   const chat = useChat()
   // What was shown, as the chat opens on it: guarded fields as they appear.
-  const shown = question.status === 'done' ? [question.value.restatement.text, question.value.context.text] : []
+  const shown =
+    kind === 'question'
+      ? question.status === 'done'
+        ? [question.value.restatement.text, question.value.context.text]
+        : []
+      : answer.status === 'done'
+        ? [answer.value.explanation, answer.value.example ?? '']
+        : []
   const followUp = () => {
     chat?.followUp(shown.filter((s) => s.trim() !== '').join('\n\n'))
     onClose()
   }
   const cost = estimate === null ? null : `${t('ai.cost', { amount: formatUsd(locale, estimate) })} · ${ai.info.name}`
-  const busy = question.status === 'busy'
+  const busy = current.status === 'busy'
+  const partial = kind === 'question' ? questionStream.partial : answerStream.partial
+  const label = kind === 'question' ? t('ai.explainQuestion') : t('review.why')
 
   return (
-    <Sheet open={open} title={t('ai.explainQuestion')} onClose={onClose} initialFocus={region}>
+    <Sheet
+      open={open}
+      title={kind === 'question' ? t('ai.explainQuestion') : t('review.whyTitle')}
+      onClose={onClose}
+      initialFocus={region}
+    >
       <div ref={region} tabIndex={-1} className={styles.region} aria-busy={busy || undefined}>
         {!online && <p className={styles.note}>{t('ai.explainOffline')}</p>}
         {busy ? (
-          stream.partial ? (
+          partial ? (
             <>
-              <PartialQuestion partial={stream.partial} card={card} revealed={revealed} />
+              {kind === 'question' && questionStream.partial ? (
+                <PartialQuestion partial={questionStream.partial} card={card} revealed={revealed} />
+              ) : (
+                answerStream.partial && <PartialAnswer partial={answerStream.partial} />
+              )}
               <div className={styles.row}>
                 <Button variant="plain" onClick={cancel}>
                   {t('common.cancel')}
@@ -196,11 +236,11 @@ export default function ExplainSheet({
               </Button>
             </div>
           )
-        ) : question.status === 'failed' ? (
+        ) : current.status === 'failed' ? (
           <p className={styles.error} role="alert">
-            {question.message}
+            {current.message}
           </p>
-        ) : question.status === 'done' ? (
+        ) : kind === 'question' && question.status === 'done' ? (
           <QuestionView
             value={question.value}
             revealed={revealed}
@@ -208,11 +248,13 @@ export default function ExplainSheet({
             query={card.front}
             guard={guard}
           />
+        ) : kind === 'answer' && answer.status === 'done' ? (
+          <AnswerView value={answer.value} chunks={grounding} card={card} courseId={courseId} guard={guard} />
         ) : null}
-        {question.status !== 'busy' && question.status !== 'done' && (
+        {current.status !== 'busy' && current.status !== 'done' && (
           <div className={styles.row}>
-            <Button variant="primary" disabled={!online} onClick={() => void runQuestion()}>
-              {question.status === 'failed' ? t('common.retry') : t('ai.explainQuestion')}
+            <Button variant="primary" disabled={!online} onClick={() => void run(kind)}>
+              {current.status === 'failed' ? t('common.retry') : label}
             </Button>
           </div>
         )}
@@ -230,6 +272,106 @@ export default function ExplainSheet({
         )}
       </div>
     </Sheet>
+  )
+}
+
+/** « Why? » as it is written: the explanation, then the example and the mnemonic in their places. */
+function PartialAnswer({
+  partial,
+}: {
+  partial: NonNullable<ReturnType<typeof usePartial<CardExplanation>>['partial']>
+}) {
+  const t = useT()
+  const writing = partial.mnemonic ? 'mnemonic' : partial.example ? 'example' : 'explanation'
+  const text = (field: 'explanation' | 'example' | 'mnemonic') =>
+    field === writing ? `${partial[field] ?? ''} ▍` : (partial[field] ?? '')
+  return (
+    <>
+      {partial.explanation && (
+        <div className={styles.body}>
+          <Sanitized markdown={text('explanation')} />
+        </div>
+      )}
+      {partial.example && (
+        <Section title={t('review.example')}>
+          <p className={styles.body}>{text('example')}</p>
+        </Section>
+      )}
+      {partial.mnemonic && (
+        <Section title={t('review.mnemonic')}>
+          <p className={styles.body}>{text('mnemonic')}</p>
+        </Section>
+      )}
+    </>
+  )
+}
+
+/** « Why? » complete: the explanation, an example, a mnemonic, the cited passages and a card on this point. */
+function AnswerView({
+  value,
+  chunks,
+  card,
+  courseId,
+  guard,
+}: {
+  value: AnswerExplanation
+  chunks: readonly Chunk[]
+  card: { front: string; back: string }
+  courseId: string | undefined
+  guard: (text: string) => string
+}) {
+  const t = useT()
+  const ws = useWorkspace()
+  const [created, setCreated] = useState(false)
+  const courseTitle = useWorkspaceData(['courses', { id: courseId ?? '' }], (w) =>
+    courseId ? (w.courses.get(courseId)?.title ?? '') : '',
+  )
+  const createCard = () => {
+    if (!courseId) return
+    const back = [value.explanation, value.example ? `${t('review.example')}: ${value.example}` : '']
+      .filter(Boolean)
+      .join('\n\n')
+    ws.batch(() => {
+      const id = ws.cards.create({ courseId, kind: 'basic', origin: 'ai' })
+      ws.text({ id, field: 'front' }).insert(0, `${t('review.why')} ${card.front}`)
+      ws.text({ id, field: 'back' }).insert(0, back)
+    })
+    setCreated(true)
+  }
+  return (
+    <>
+      <div className={styles.body}>
+        <Sanitized markdown={value.explanation} />
+      </div>
+      {value.example && (
+        <Section title={t('review.example')}>
+          <p className={styles.body}>{value.example}</p>
+        </Section>
+      )}
+      {value.mnemonic && (
+        <Section title={t('review.mnemonic')}>
+          <p className={styles.body}>{value.mnemonic}</p>
+        </Section>
+      )}
+      <Citations refs={value.citations} revealed chunks={chunks} query={`${card.front} ${card.back}`} guard={guard} />
+      {courseId && (
+        <div className={styles.create}>
+          <Button
+            variant="secondary"
+            icon={<Plus size={18} strokeWidth={1.75} aria-hidden />}
+            disabled={created}
+            onClick={createCard}
+          >
+            {t('review.createCard')}
+          </Button>
+          {created && (
+            <p className={styles.success} role="status">
+              {t('review.cardCreated', { course: courseTitle })}
+            </p>
+          )}
+        </div>
+      )}
+    </>
   )
 }
 

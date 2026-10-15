@@ -1,4 +1,4 @@
-import { BookOpen, ChartColumn, ListChecks, Play, Plus } from 'lucide-react'
+import { BookOpen, ChartColumn, ListChecks, Plus } from 'lucide-react'
 import { Suspense, useEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Link, useLocation } from 'wouter'
@@ -262,7 +262,6 @@ export default function Today() {
           </ListGroup>
           {hasData && (
             <ListGroup title={t('today.practice')}>
-              <ListRow href={paths.sessions} leading={<Play size={20} />} title={t('review.sessions')} />
               <ListRow href={paths.quiz} leading={<ListChecks size={20} />} title={t('ai.quiz')} />
               <ListRow href={paths.stats} leading={<ChartColumn size={20} />} title={t('common.cmdStats')} />
             </ListGroup>
