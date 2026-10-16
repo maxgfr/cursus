@@ -5,6 +5,7 @@ import type { ExplainBackReview } from '../../core/ai/schemas'
 import { useT } from '../../i18n/react.tsx'
 import shared from '../../screens/Understand/shared/ai.module.css'
 import { Button } from '../components/Button.tsx'
+import { Sanitized, SanitizedInline } from '../render/Sanitized.tsx'
 import { keyedChoices } from './keyed.ts'
 
 /**
@@ -84,13 +85,13 @@ export function ExplainBack({
             {typeof writing.score === 'number' && (
               <p className={shared.score}>{t('ai.explainScore', { score: Math.round(writing.score) })}</p>
             )}
-            <p className={shared.body}>{writing.feedback} ▍</p>
+            <Sanitized markdown={`${writing.feedback} ▍`} />
           </div>
         )}
         {review && !busy && (
           <div className={shared.tight} role="status">
             <p className={shared.score}>{t('ai.explainScore', { score: Math.round(review.score) })}</p>
-            <p className={shared.body}>{review.feedback}</p>
+            <Sanitized markdown={review.feedback} />
             <ReviewList title={t('ai.strengths')} items={review.strengths} />
             <ReviewList title={t('ai.gaps')} items={review.gaps} />
             <ReviewList title={t('ai.misconceptions')} items={review.misconceptions} />
@@ -108,7 +109,9 @@ function ReviewList({ title, items }: { title: string; items: string[] }) {
       <h3 className={shared.label}>{title}</h3>
       <ul className={shared.bullets}>
         {keyedChoices(items).map(({ item, key }) => (
-          <li key={key}>{item}</li>
+          <li key={key}>
+            <SanitizedInline markdown={item} />
+          </li>
         ))}
       </ul>
     </div>

@@ -32,6 +32,12 @@ export function Sanitized({
   return <div className={styles.prose} dangerouslySetInnerHTML={{ __html: html }} />
 }
 
+/** Rendered Markdown inside a line (a list item, say): emphasis, code, links and formulas, no blocks. */
+export function SanitizedInline({ markdown }: { markdown: string }) {
+  const html = useMemo(() => renderMarkdownInline(markdown), [markdown])
+  return <span dangerouslySetInnerHTML={{ __html: html }} />
+}
+
 /**
  * The same pipeline for a node built outside React (the live editor's formulas and tables): Markdown rendered then
  * sanitized by DOMPurify, its photos resolved as in `Sanitized`.

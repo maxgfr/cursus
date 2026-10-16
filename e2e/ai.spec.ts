@@ -48,7 +48,7 @@ const REVIEW = {
   strengths: ['You named chlorophyll.'],
   gaps: ['The Calvin cycle is missing.'],
   misconceptions: [],
-  feedback: 'Good start.',
+  feedback: 'Good start: **chlorophyll** is right.',
 }
 const CARDS = {
   cards: [
@@ -536,6 +536,8 @@ test('a new study sheet is written by AI into its text, cited; one Undo takes it
   await panel.getByRole('button', { name: 'Check my explanation' }).click()
   await expect(panel.getByText('72 / 100')).toBeVisible()
   await expect(panel.getByText('The Calvin cycle is missing.')).toBeVisible()
+  // The feedback is Markdown, rendered.
+  await expect(panel.locator('strong', { hasText: 'chlorophyll' })).toBeVisible()
 
   // A term selected in the sheet can be asked about, as on a source: in the chat beside it.
   await editor.getByRole('heading', { name: 'Calvin cycle' }).evaluate((h) => {
