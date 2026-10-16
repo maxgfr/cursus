@@ -442,18 +442,16 @@ test('Onboarding: install first, Safari tab warning, storage health and an expli
   expect(await seriousViolations(page)).toEqual([])
   await page.getByRole('button', { name: 'Try a demo course' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Demo: Cell biology' })).toBeVisible()
-  // The demo shows every feature at the course's root: the back link, its two subsets, the suggested cards'
-  // line and the two cards that live at the root (the rest sit in the subsets).
+  // The demo shows every feature at the course's root: the back link, its two subsets and the two cards that live
+  // at the root (the rest sit in the subsets). Nothing is suggested: suggestions are made only when asked for.
   const main = page.getByRole('main')
   await expect(main.getByRole('link', { name: 'Back' })).toBeVisible()
   await expect(main.getByRole('link', { name: /^Membranes\b/ })).toBeVisible()
   await expect(main.getByRole('link', { name: /^Organelles\b/ })).toBeVisible()
-  const drafts = page.getByTestId('course-drafts')
-  await expect(drafts).toContainText('7 suggested cards')
-  await expect(drafts.getByRole('link', { name: 'Accept or edit' })).toBeVisible()
+  await expect(page.getByTestId('course-drafts')).toHaveCount(0)
   await expect(main.getByRole('link', { name: /What is the smallest unit of life\?/ })).toBeVisible()
   await expect(main.getByRole('link', { name: /Why can’t a spherical cell keep growing\?/ })).toBeVisible()
-  await expect(main.getByRole('link')).toHaveCount(6)
+  await expect(main.getByRole('link')).toHaveCount(5)
   await page.goto('./#/')
   await expect(page.getByRole('heading', { name: /due today$/ })).toBeVisible()
   await expect(page.getByRole('main').getByRole('link', { name: /Demo: Cell biology/ })).toContainText('3 due')

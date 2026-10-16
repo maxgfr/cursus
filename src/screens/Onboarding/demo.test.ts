@@ -221,7 +221,7 @@ function structureOf(ws: ModelWorkspace, courseId: Id): unknown {
 }
 
 describe('the demo course', () => {
-  test('shows every feature: subsets, exams, notes, files, photos, study sheets, cards, drafts, sessions, plans', async () => {
+  test('shows every feature: subsets, exams, notes, files, photos, study sheets, cards, sessions, plans', async () => {
     const { ws, store, clock } = make(1)
     const courseId = await createDemoCourse({ ws, store, clock }, t, 'en')
 
@@ -372,7 +372,7 @@ describe('the demo course', () => {
       expect(new Set(cited)).toEqual(new Set(titles))
     }
 
-    // Cards of every kind: basic, cloze (one with a hint), maths, a table, citing a slide, accepted from a draft.
+    // Cards of every kind: basic, cloze (one with a hint), maths, a table, citing a slide, two written by AI.
     const cards = ws.cards.list({ courseId })
     expect(cards.length).toBe(16)
     const clozes = fronts.filter(({ c }) => c.kind === 'cloze')
@@ -383,33 +383,16 @@ describe('the demo course', () => {
     expect(backs.filter((b) => b.includes('$')).length).toBe(4)
     expect(backs.filter((b) => b.includes('\n| --- | --- |\n')).length).toBe(1)
     expect(cards.filter((c) => c.sourceId === deck?.id && c.unit !== undefined).length).toBeGreaterThanOrEqual(4)
-    const fromDrafts = cards.filter((c) => c.draftId !== undefined)
-    expect(fromDrafts.map((c) => ws.drafts.get(c.draftId ?? '')?.type).sort()).toEqual(['explain', 'qa'])
-
-    // Questions proposed on the slides, on a section of the handout and on the sketch; one rejected for good.
-    expect(ws.drafts.summary().total).toBe(7)
-    const unitsOf = (sourceId: Id | undefined) =>
-      ws.drafts
-        .groups()
-        .find((g) => g.sourceId === sourceId)
-        ?.units.map((u) => [u.unit, u.unitKind, u.unitLabel, u.drafts.length])
-    expect(unitsOf(deck?.id)).toEqual([
-      [2, 'slide', '2', 1],
-      [3, 'slide', '3', 2],
-      [4, 'slide', '4', 2],
+    // Written by AI from the slides and kept: ordinary cards citing their slide, from no suggestion.
+    const byAi = cards.filter((c) => c.origin === 'ai').sort((a, b) => (a.unit ?? 0) - (b.unit ?? 0))
+    expect(byAi.map((c) => [c.sourceId, c.unit, c.draftId])).toEqual([
+      [deck?.id, 2, undefined],
+      [deck?.id, 4, undefined],
     ])
-    expect(unitsOf(doc?.id)).toEqual([[5, 'section', '3', 1]])
-    expect(unitsOf(sketch?.id)).toEqual([[1, undefined, undefined, 1]])
-    expect(new Set(ws.drafts.list({ status: 'proposed' }).map((d) => d.type))).toEqual(
-      new Set(['qa', 'cloze', 'explain']),
-    )
-    expect(ws.drafts.list({ status: 'rejected' }).length).toBe(1)
-    expect(ws.drafts.list({ status: 'accepted' }).length).toBe(2)
-    // A quote is a passage of its unit as it is, never a table row's Markdown.
-    const quotes = ws.drafts.all().flatMap((d) => (d.quote === undefined ? [] : [d.quote]))
-    expect(quotes.length).toBe(7)
-    for (const q of quotes) expect(q).not.toContain('|')
-    expect(quotes).toContain('Glucose through GLUT')
+
+    // Nothing waits in « Suggested cards », not even a rejected one: suggestions are made only when asked for.
+    expect(ws.drafts.all()).toEqual([])
+    expect(ws.drafts.summary().total).toBe(0)
 
     // Two weeks of reviews: a counted session started from the weekly plan, a cramming one, and the relaunch of the
     // card it missed; two plans, one a practice of the midterm's subset.
@@ -507,7 +490,7 @@ describe('the demo course', () => {
     expect(a.ws.sources.list({ courseId: second }).length).toBe(a.ws.sources.list({ courseId: first }).length)
     expect(a.ws.fiches.list({ courseId: second }).length).toBe(2)
     expect(a.ws.sections.tree().children(second, null).length).toBe(2)
-    expect(a.ws.drafts.summary().total).toBe(14)
+    expect(a.ws.drafts.all()).toEqual([])
     checkInvariants(a.ws)
   })
 
@@ -535,11 +518,11 @@ describe('the demo course', () => {
 
     ws.courses.trash(demo)
     expect(ws.courses.list().map((c) => c.id)).toEqual([mine])
-    expect(ws.drafts.summary().total).toBe(0)
+    expect(ws.drafts.all()).toEqual([])
     // Only the student's own card, learning since yesterday, is left today.
     expect(today(ws, NOON).queue.map((q) => q.cardId)).toEqual([card])
     ws.courses.restore(demo)
-    expect(ws.drafts.summary().total).toBe(7)
+    expect(ws.drafts.all()).toEqual([])
     expect(today(ws, NOON).queue.length).toBe(3 + 1)
   })
 
@@ -659,7 +642,7 @@ describe('the demo course', () => {
     expect(ws.courses.get(id)?.title).toBe('Demo: Cell biology')
     expect(ws.courses.get(id)?.language).toBeUndefined()
     expect(ws.cards.list({ courseId: id }).length).toBe(16)
-    expect(ws.drafts.summary().total).toBe(7)
+    expect(ws.drafts.all()).toEqual([])
     expect((await demoTranslator('de'))('today.demoCourse')).toBe('Demo: Zellbiologie')
   })
 })

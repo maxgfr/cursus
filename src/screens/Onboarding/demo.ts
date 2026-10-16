@@ -1,11 +1,10 @@
-import { type DeckUnit, importDeck } from '../../core/content/deck'
+import { importDeck } from '../../core/content/deck'
 import { photoMarkdown } from '../../core/content/photos'
 import type { Clock, LocalStore } from '../../core/contracts/ports'
 import type { Id, NewReview, NewSession, Rating, Weekday } from '../../core/contracts/workspace'
 import { blobRef, blobStore } from '../../core/log/blobs'
-import type { NewDraft } from '../../core/model/drafts'
 import { addPhoto, attachPhoto } from '../../core/model/photos'
-import type { CardOrigin, DraftUnitKind } from '../../core/model/schema'
+import type { CardOrigin } from '../../core/model/schema'
 import type { ModelWorkspace } from '../../core/model/workspace'
 import { createTranslator, type Locale, loadCatalog, type Translate } from '../../i18n/index.ts'
 import { storeDeckFiles } from '../DeckImport/deckSource.ts'
@@ -18,8 +17,9 @@ import { bilayerDiagram, cellSketch, deckPptx, documentDocx, microscopePhoto, te
  * picture; a Word lab handout read by section; a past paper read page by page and a syllabus kept as a plain
  * PDF; two photos (one attached to a note, one on a card, with its own notes); a study sheet in two subsets;
  * cards of every kind; two weeks of reviews (some due today, one being relearned); a planned counted session, a
- * cramming one and its relaunch over the missed card; two planned sessions (one a practice over a subset); and
- * cards the student asked AI to suggest on the slides, the handout and a photo, waiting in « Suggested cards ».
+ * cramming one and its relaunch over the missed card; and two planned sessions (one a practice over a subset).
+ * Two of its cards were written by AI from the slides; nothing waits in « Suggested cards »: suggestions are only
+ * ever made when the student asks for them.
  *
  * Its files (deck, document, PDFs, pictures, photos) are made here and stored first; then everything else is
  * written in one atomic write, so another device never sees half a demo, and a failure leaves nothing behind. It
@@ -99,8 +99,6 @@ const PLAN_TIME = { hour: 18, minute: 0 }
 /** The cramming session, four days ago in the evening: practice reviews of the transport subset. */
 const CRAM_DAY = 4
 const CRAM_TIME = { hour: 20, minute: 30 }
-/** A photo is read as a single unit (as `PHOTO_UNIT` of the photo question generator). */
-const PHOTO_UNIT = 1
 
 interface CardSpec {
   at: Place
@@ -113,16 +111,8 @@ interface CardSpec {
   history: History
   /** Graded in the cramming session (1 = missed). */
   cram?: Rating
-}
-
-/** A proposed question, and what became of it (an accepted one is a card with a history). */
-interface DraftSpec extends Omit<NewDraft, 'sourceId' | 'courseId' | 'sectionId' | 'unit' | 'unitKind' | 'unitLabel'> {
-  at: Place
-  /** The source it was proposed on: a slide of the deck, a section of the handout, or the sketch. */
-  on: { source: 'deck'; slide: number } | { source: 'doc'; unit: DeckUnit } | { source: 'sketch' }
-  fate: 'proposed' | 'accepted' | 'rejected'
-  history?: History
-  cram?: Rating
+  /** Who wrote it, when not the student (by hand, or as a fill-in-the-blanks). */
+  origin?: CardOrigin
 }
 
 /** How long an answer took, made up but steady: 4 to 13 seconds. */
@@ -152,16 +142,6 @@ const weekdayOf = (at: number): Weekday => ISO_WEEKDAY[new Date(at).getDay()] ??
 const lines = (s: string): string[] => s.split('\n').filter((l) => l.trim() !== '')
 /** Rows of a catalog table (`a | b | c` per line). */
 const rows = (s: string): string[][] => lines(s).map((row) => row.split('|').map((c) => c.trim()))
-
-/** A title as a read document gives it back: its white space (no-break spaces too) as single spaces. */
-const asRead = (title: string): string => title.replace(/\s+/g, ' ')
-
-/** The unit of a read document with this title (made here: it is there). */
-function unitTitled(units: readonly DeckUnit[], title: string): DeckUnit {
-  const unit = units.find((u) => u.title === asRead(title))
-  if (unit === undefined) throw new Error(`the demo document has no section « ${title} »`)
-  return unit
-}
 
 /**
  * Makes the demo course and returns its id. `t` writes its content (see `demoTranslator`); `language` is the
@@ -202,7 +182,6 @@ export async function createDemoCourse(deps: DemoDeps, t: Translate, language?: 
   ])
   const doc = await importDeck(docBytes, { name: `${docTitle}.docx` })
   const docFields = await storeDeckFiles(store, { deck: doc, bytes: docBytes })
-  const resultsUnit = unitTitled(doc.units, t('today.demoDocResultsTitle'))
 
   // A past paper read page by page (a PDF of pages is a document); a syllabus kept as a file, to read in the app
   // on request. pdf.js reads them when they are opened, never here.
@@ -297,122 +276,28 @@ export async function createDemoCourse(deps: DemoDeps, t: Translate, language?: 
       history: 'hard',
     },
     { at: 'mito', kind: 'cloze', front: t('today.demoQ16'), source: 'note2', history: 'long' },
-  ]
-  /**
-   * Suggested when asked (as the AI would have, written here) on the slides, a section of the handout and the sketch: two
-   * accepted, one rejected, the rest to review.
-   */
-  const drafts: DraftSpec[] = [
+    // Written by AI from the slides when the student asked, and kept: ordinary cards citing their slide. Last, so
+    // every other card keeps its place (and its review times).
     {
       at: 'structure',
-      on: { source: 'deck', slide: 2 },
       kind: 'basic',
-      type: 'explain',
-      difficulty: 'hard',
       front: t('today.demoQ05'),
       back: t('today.demoA05'),
-      quote: slide2[1],
-      fate: 'accepted',
+      source: 'deck',
+      unit: 2,
       history: 'hard',
+      origin: 'ai',
     },
     {
       at: 'transport',
-      on: { source: 'deck', slide: 4 },
       kind: 'basic',
-      type: 'qa',
-      difficulty: 'easy',
       front: t('today.demoQ09'),
       back: t('today.demoA09'),
-      quote: slide4[1],
-      fate: 'accepted',
+      source: 'deck',
+      unit: 4,
       history: 'easy',
       cram: 3,
-    },
-    {
-      at: 'structure',
-      on: { source: 'deck', slide: 2 },
-      kind: 'basic',
-      type: 'qa',
-      difficulty: 'easy',
-      front: t('today.demoD1Q'),
-      back: t('today.demoD1A'),
-      quote: slide2[0],
-      fate: 'proposed',
-    },
-    {
-      at: 'transport',
-      on: { source: 'deck', slide: 3 },
-      kind: 'cloze',
-      type: 'cloze',
-      difficulty: 'medium',
-      front: t('today.demoD2Q'),
-      back: '',
-      fate: 'proposed',
-    },
-    {
-      at: 'transport',
-      on: { source: 'deck', slide: 3 },
-      kind: 'basic',
-      type: 'qa',
-      difficulty: 'medium',
-      front: t('today.demoD3Q'),
-      back: t('today.demoD3A'),
-      // A quote is a passage copied as is: the table's cell that answers, not its row's Markdown.
-      quote: slide3[2]?.[2],
-      fate: 'proposed',
-    },
-    {
-      at: 'transport',
-      on: { source: 'deck', slide: 4 },
-      kind: 'basic',
-      type: 'explain',
-      difficulty: 'hard',
-      front: t('today.demoD4Q'),
-      back: t('today.demoD4A'),
-      quote: slide4[2],
-      fate: 'proposed',
-    },
-    {
-      at: 'transport',
-      on: { source: 'deck', slide: 4 },
-      kind: 'basic',
-      type: 'qa',
-      difficulty: 'easy',
-      front: t('today.demoD5Q'),
-      back: t('today.demoD5A'),
-      quote: slide4[0],
-      fate: 'proposed',
-    },
-    {
-      at: 'transport',
-      on: { source: 'doc', unit: resultsUnit },
-      kind: 'basic',
-      type: 'qa',
-      difficulty: 'medium',
-      front: t('today.demoD6Q'),
-      back: t('today.demoD6A'),
-      quote: results[3]?.[2],
-      fate: 'proposed',
-    },
-    {
-      at: 'organelles',
-      on: { source: 'sketch' },
-      kind: 'basic',
-      type: 'qa',
-      difficulty: 'medium',
-      front: t('today.demoD7Q'),
-      back: t('today.demoD7A'),
-      fate: 'proposed',
-    },
-    {
-      at: 'membranes',
-      on: { source: 'deck', slide: 1 },
-      kind: 'basic',
-      type: 'qa',
-      difficulty: 'easy',
-      front: t('today.demoR1Q'),
-      back: t('today.demoR1A'),
-      fate: 'rejected',
+      origin: 'ai',
     },
   ]
   const texts = {
@@ -523,7 +408,7 @@ export async function createDemoCourse(deps: DemoDeps, t: Translate, language?: 
 
     const made: { id: Id; history: History; cram?: Rating }[] = []
     for (const c of cards) {
-      const origin: CardOrigin = c.kind === 'cloze' ? 'cloze' : 'manual'
+      const origin: CardOrigin = c.origin ?? (c.kind === 'cloze' ? 'cloze' : 'manual')
       const id = ws.cards.create({
         ...where(c.at),
         kind: c.kind,
@@ -535,39 +420,6 @@ export async function createDemoCourse(deps: DemoDeps, t: Translate, language?: 
       if (c.back !== undefined) ws.text({ id, field: 'back' }).insert(0, c.back)
       made.push({ id, history: c.history, ...(c.cram === undefined ? {} : { cram: c.cram }) })
     }
-
-    const unitOf = (on: DraftSpec['on']): { unit: number; unitKind?: DraftUnitKind; unitLabel?: string } => {
-      if (on.source === 'deck') return { unit: on.slide, unitKind: 'slide', unitLabel: String(on.slide) }
-      if (on.source === 'doc') return { unit: on.unit.index, unitKind: 'section', unitLabel: on.unit.label }
-      return { unit: PHOTO_UNIT }
-    }
-    const ids = ws.drafts.propose(
-      drafts.map(
-        (d): NewDraft => ({
-          ...where(d.at),
-          sourceId: sources[d.on.source],
-          ...unitOf(d.on),
-          kind: d.kind,
-          type: d.type,
-          front: d.front,
-          back: d.back,
-          ...(d.difficulty === undefined ? {} : { difficulty: d.difficulty }),
-          ...(d.quote === undefined ? {} : { quote: d.quote }),
-        }),
-      ),
-    )
-    for (const [i, d] of drafts.entries()) {
-      const id = ids[i]
-      if (id === undefined) continue
-      if (d.fate === 'rejected') ws.drafts.reject(id)
-      if (d.fate !== 'accepted') continue
-      made.push({
-        id: ws.drafts.accept(id),
-        history: d.history ?? 'new',
-        ...(d.cram === undefined ? {} : { cram: d.cram }),
-      })
-    }
-
     // Planned sessions: the weekly review (two days ago was one of its days), and a practice over the midterm's
     // subset, later in the week.
     const countedAt = studyDayAt(now, -SESSION_DAY, PLAN_TIME)

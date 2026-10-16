@@ -76,20 +76,20 @@ async function cutOff(page: Page): Promise<string[]> {
   })
 }
 
-test('Demo: Today comes alive (due cards, exam, next session, proposed questions); subsets two levels deep', async ({
+test('Demo: Today comes alive (due cards, exam, next session, nothing suggested); subsets two levels deep', async ({
   page,
 }) => {
   const errors = watchErrors(page)
   await createDemo(page)
   const course = route(page)
-  // The course root: its two subsets (the first with its own midterm), the questions waiting, an exam in three weeks.
+  // The course root: its two subsets (the first with its own midterm), an exam in three weeks, nothing suggested.
   const main = page.getByRole('main')
   await expect(page.getByTestId('place-meta')).toContainText('16 cards')
   await expect(page.getByTestId('place-meta')).toContainText('21 days left')
   await expect(main.getByRole('link', { name: /^Membranes/ })).toContainText('8 cards')
   await expect(main.getByRole('link', { name: /^Membranes/ })).toContainText('10 days left')
   await expect(main.getByRole('link', { name: /^Organelles/ })).toContainText('6 cards')
-  await expect(page.getByTestId('course-drafts')).toContainText('7 suggested cards')
+  await expect(page.getByTestId('course-drafts')).toHaveCount(0)
   expect(await seriousViolations(page)).toEqual([])
 
   // A subset, then one of its own.
@@ -107,21 +107,23 @@ test('Demo: Today comes alive (due cards, exam, next session, proposed questions
   await expect(page.getByRole('heading', { level: 2, name: '3 cards due today' })).toBeVisible()
   await expect(page.getByTestId('exam-lead')).toHaveText('incl. 2 in Membranes · 10 days left')
   await expect(page.getByTestId('session-line')).toHaveText(/^Next session: Weekly review, .+ · Sessions$/)
-  await expect(page.getByTestId('drafts-line')).toContainText(`7 cards suggested from ${COURSE}`)
+  await expect(page.getByTestId('drafts-line')).toHaveCount(0)
   await expect(main.getByRole('link', { name: new RegExp(COURSE) })).toContainText('3 due')
   expect(await seriousViolations(page)).toEqual([])
 
-  // « Suggested cards »: the cards suggested when asked, grouped by slide, by section of the handout, and on the
-  // sketch; a slide opens in the deck.
-  await page.getByTestId('drafts-line').getByRole('link').click()
-  await expect(page.getByRole('heading', { level: 1, name: 'Suggested cards' })).toBeVisible()
-  const unit = (name: string) => main.getByRole('region', { name: new RegExp(`^${name} \\(\\d+\\)$`) })
-  for (const name of ['Slide 2', 'Slide 3', 'Slide 4', 'Section 3']) await expect(unit(name)).toBeVisible()
-  await expect(main.getByText('What happens to a red blood cell in 3 % NaCl?')).toBeVisible()
-  await expect(main.getByText('Which organelle is labelled B on the sketch?')).toBeVisible()
-  await expect(main.getByText('How thick is the plasma membrane?')).toBeVisible()
+  // « Suggested cards » is empty: suggestions are made only when asked for.
+  await go(page, '#/inbox', 'Suggested cards')
+  await expect(main.getByRole('heading', { name: 'No suggested cards' })).toBeVisible()
   expect(await seriousViolations(page)).toEqual([])
-  await unit('Slide 2').getByRole('link', { name: 'Open in the source' }).click()
+
+  // A card written by AI from a slide cites it; the citation opens the slide in the deck.
+  await go(page, course, COURSE)
+  await main.getByRole('link', { name: /^Membranes/ }).click()
+  await main.getByRole('link', { name: /^Structure/ }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Structure' })).toBeVisible()
+  await main.getByRole('link', { name: /^In your own words: why do O₂ and CO₂ cross the membrane easily/ }).click()
+  await expect(page.getByTestId('card-from')).toHaveText('From Lecture 3: Membranes and transport, Slide 2')
+  await page.getByTestId('card-from').getByRole('link').click()
   await expect(page.getByRole('heading', { level: 1, name: 'Lecture 3: Membranes and transport' })).toBeVisible()
   await expect(page.getByText('Cited: Slide 2')).toBeVisible()
   await expect(page.locator('li[aria-current="location"]')).toContainText('The plasma membrane')
@@ -475,17 +477,9 @@ for (const locale of ['en', 'de', 'fr'] as const) {
     await expect(page.getByText(t('ai.deckPages', { count: 2 }))).toBeVisible()
     await expect(main.locator('ol > li[id^="unit-"]')).toHaveCount(2)
 
-    // « Suggested cards »: cards on the slides, on a section of the handout and on a photo.
+    // « Suggested cards »: empty, in the language.
     await go(page, '#/inbox', t('ai.inboxTitle'))
-    const unitNamed = (name: string) => main.getByRole('region', { name: new RegExp(`^${literal(name)} \\(\\d+\\)$`) })
-    for (const n of [2, 3, 4]) await expect(unitNamed(t('ai.deckSlide', { n }))).toBeVisible()
-    await expect(unitNamed(t('ai.deckSection', { n: '3' }))).toBeVisible()
-    await expect(unitNamed(t('ai.inboxPhoto'))).toBeVisible()
-    // Each question and answer shows in full, on a phone too (the answers unfolded); its quote is a passage, not a
-    // table row's Markdown.
-    for (const summary of await main.locator('summary').all()) await summary.click()
-    await settle(page)
-    await expect(main).not.toContainText(' | ')
+    await expect(main.getByRole('heading', { name: t('ai.inboxEmptyTitle') })).toBeVisible()
     expect(await cutOff(page)).toEqual([])
 
     // Practice: the planned sessions (one a practice of the midterm's subset), a past one started from a plan, and
