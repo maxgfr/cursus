@@ -154,7 +154,10 @@ test('French: the app speaks French and fits the screen', async ({ page }) => {
   await openScreen(page, query, '#/')
   await expect(page.locator('html')).toHaveAttribute('lang', 'fr-FR')
   await expect(page.getByRole('heading', { level: 1, name: 'Aujourd’hui' })).toBeVisible()
-  await expect(page.getByRole('main').getByRole('link', { name: /Biologie cellulaire/ })).toBeVisible()
+  // The course's share of today, in French.
+  await expect(page.getByRole('main').getByRole('button', { name: /^Biologie cellulaire/ })).toContainText(
+    '2 cartes · Réviser ce cours',
+  )
   const problems: string[] = []
   for (const hash of ['#/', '#/courses', '#/review', '#/settings', '#/settings/sync', '#/stats']) {
     await openScreen(page, query, hash)

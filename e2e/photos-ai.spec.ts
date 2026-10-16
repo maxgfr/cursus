@@ -337,7 +337,7 @@ test('without a model nothing of the AI shows; with one that reads no images, th
   await page.goto('./#/settings/ai')
   await openModels(page)
   await aiSearch(page).fill('302 deepseek v3.2')
-  const row = providerGroup(page, '302.AI').getByRole('button', { name: /^DeepSeek V3\.2 deepseek-v3\.2/ })
+  const row = providerGroup(page, '302.AI').getByRole('button', { name: /^deepseek-v3\.2 deepseek-v3\.2/ })
   await row.click()
   await page.getByLabel('API key').fill('sk-test-123')
   await expect(row).toHaveAttribute('aria-pressed', 'true')
@@ -350,7 +350,7 @@ test('without a model nothing of the AI shows; with one that reads no images, th
   const reading = readingOf(page)
   await expect(
     reading.getByText(
-      'DeepSeek V3.2 reads text only. To explain photos, choose a model that reads images in the AI settings.',
+      'deepseek-v3.2 reads text only. To explain photos, choose a model that reads images in the AI settings.',
     ),
   ).toBeVisible()
   await reading.getByRole('link', { name: 'Open AI settings' }).click()

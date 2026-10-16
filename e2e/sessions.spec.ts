@@ -112,7 +112,8 @@ test('Cramming from Practice: all cards outside the schedule, a summary, the mis
   await page.getByRole('button', { name: 'Done' }).click()
 
   // Back where it was set up from, and the schedule is untouched: the three new cards are still due.
-  await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Practice' })).toBeVisible()
+  await openToday(page)
   await expect(page.getByRole('heading', { level: 2, name: '3 cards due today' })).toBeVisible()
 
   // The history keeps both runs, newest first, each with its results.
@@ -478,9 +479,14 @@ test('German, dark: sessions screens neither overflow nor fail axe', async ({ pa
     for (const v of await seriousViolations(page)) problems.push(`${where} ${v}`)
   }
 
-  await openToday(page, query)
+  // « Neue Lerneinheit » lives on the Practice tab.
+  await page.goto(`./${query}#/sessions`)
+  await expect(page.getByRole('heading', { level: 1, name: 'Üben' })).toBeVisible()
   await expect(page.locator('html')).toHaveAttribute('lang', 'de-DE')
-  await page.getByRole('main').getByRole('button', { name: 'Neue Lerneinheit', exact: true }).click()
+  await page
+    .getByRole('main')
+    .getByRole('button', { name: /^Neue Lerneinheit/ })
+    .click()
   await page
     .getByRole('dialog', { name: 'Neue Lerneinheit' })
     .getByRole('button', { name: /^Eigene Sitzung…/ })

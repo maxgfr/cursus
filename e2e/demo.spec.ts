@@ -529,7 +529,7 @@ for (const locale of ['en', 'de', 'fr'] as const) {
     // Today's review: the three cards due, a fill-in-the-blank among them, asking one blank.
     await go(page, '#/', t('today.title'))
     await expect(page.getByRole('heading', { level: 2, name: t('today.heroDue', { count: 3 }) })).toBeVisible()
-    await page.getByRole('button', { name: new RegExp(`^${literal(t('common.start'))}`) }).click()
+    await page.getByRole('button', { name: new RegExp(`^${literal(t('today.review'))}`) }).click()
     let blanks = 0
     for (let i = 0; i < 3; i++) {
       const question = page.getByTestId('question')

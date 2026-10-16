@@ -1,5 +1,5 @@
 import { BookOpen, Play, Plus } from 'lucide-react'
-import { Suspense, useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { Link, useLocation } from 'wouter'
 import { noteLoadFailure } from '../../app/chunkGuard.ts'
@@ -88,7 +88,8 @@ function useStartReview(): () => void {
 function useStartKey(enabled: boolean, start: () => void): void {
   const ref = useRef(start)
   ref.current = start
-  useEffect(() => {
+  // Listening from the commit, before the count paints: an S pressed as soon as it shows is never lost.
+  useLayoutEffect(() => {
     if (!enabled) return
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey || document.querySelector('dialog[open]')) return

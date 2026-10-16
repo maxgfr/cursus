@@ -22,7 +22,6 @@ import {
 } from 'lucide-react'
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { useT } from '../../i18n/react.tsx'
-import { isApple } from '../chat/ChatButton.tsx'
 import { Button as TextButton } from '../components/Button.tsx'
 import { IconButton } from '../components/IconButton.tsx'
 import type { Format } from './format.ts'
@@ -70,6 +69,17 @@ const GROUPS: readonly (readonly Button[])[] = [
   [['table', Table, 'common.edTable']],
 ]
 
+/**
+ * Whether the editor's `Mod` is Meta, by CodeMirror's own test: a Mac, or Safari on an iPhone or an iPad (known by
+ * its user agent, whatever the platform reports), so the shortcut announced is the one the editor binds.
+ */
+function modIsMeta(): boolean {
+  if (typeof navigator === 'undefined') return false
+  const ios =
+    /Apple Computer/.test(navigator.vendor) && (/Mobile\/\w+/.test(navigator.userAgent) || navigator.maxTouchPoints > 2)
+  return ios || /Mac/.test(navigator.platform)
+}
+
 /** A CodeMirror key name as ARIA writes it (`Mod` is Meta on Apple devices, Control elsewhere; `+` between keys). */
 function ariaKeys(key: string, apple: boolean): string {
   return key.replace('Mod', apple ? 'Meta' : 'Control').replaceAll('-', '+')
@@ -101,7 +111,7 @@ export interface ToolbarProps {
 export function Toolbar({ source, photo = false, cloze = false, live }: ToolbarProps) {
   const t = useT()
   const idle = live === undefined
-  const apple = isApple()
+  const apple = modIsMeta()
   return (
     <div
       className={styles.toolbar}

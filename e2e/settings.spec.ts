@@ -715,13 +715,14 @@ test('Course: empty states teach and offer the next action; Back returns to Toda
   await expect(main.getByRole('link', { name: /Basement membrane/ })).toBeVisible()
   await expect(page.getByText('Card moved to the trash.')).toBeHidden()
 
-  // Opened from Today, the course goes back to Today.
+  // Today lists the course by its share of the day; a course opened from Today (added with its « + ») goes back there.
   await open(page, '#/', 'Today')
-  await main
-    .getByRole('link', { name: /Histology/ })
-    .first()
-    .click()
-  await expect(page.getByRole('heading', { level: 1, name: 'Histology' })).toBeVisible()
+  await expect(main.getByRole('button', { name: /^Histology/ })).toContainText('1 card · Review this course')
+  await page.getByRole('button', { name: 'New course' }).first().click()
+  const sheet = page.getByRole('dialog', { name: 'New course' })
+  await sheet.getByLabel('Course name').fill('Cytology')
+  await sheet.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Cytology' })).toBeVisible()
   await page.getByRole('link', { name: 'Back' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible()
 })
