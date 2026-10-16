@@ -117,8 +117,21 @@
     grid-template-columns: minmax(0, 1fr) var(--chat-width);
   }
 
+  /* Expanded, the chat takes the page's room; the page stays mounted, out of sight (below). */
+  .withChat.chatExpanded {
+    grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  }
+
+  .focus.withChat.chatExpanded {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .main {
     padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .chatExpanded .main {
+    display: none;
   }
 
   .nav {

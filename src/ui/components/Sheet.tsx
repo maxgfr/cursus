@@ -18,13 +18,15 @@ export interface SheetProps {
    * names the sheet.
    */
   fill?: boolean
+  /** With `fill`: the whole screen at every width, never a side panel. */
+  fullscreen?: boolean
 }
 
 const FIELD = 'input:not([type="hidden"]):not([disabled]), textarea:not([disabled]), select:not([disabled])'
 const CONTROL = 'button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
 
 /** Native modal <dialog>: bottom sheet on phones, centred panel elsewhere (see `fill`). Escape closes it. */
-export function Sheet({ open, title, onClose, children, initialFocus, fill = false }: SheetProps) {
+export function Sheet({ open, title, onClose, children, initialFocus, fill = false, fullscreen = false }: SheetProps) {
   const ref = useRef<HTMLDialogElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const id = useId()
@@ -47,7 +49,12 @@ export function Sheet({ open, title, onClose, children, initialFocus, fill = fal
   }, [open, initialFocus])
 
   return (
-    <dialog ref={ref} className={cx(styles.sheet, fill && styles.fill)} aria-labelledby={id} onClose={onClose}>
+    <dialog
+      ref={ref}
+      className={cx(styles.sheet, fill && styles.fill, fill && fullscreen && styles.fullscreen)}
+      aria-labelledby={id}
+      onClose={onClose}
+    >
       {fill ? (
         <h2 id={id} className="sr-only">
           {title}

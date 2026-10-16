@@ -1,4 +1,4 @@
-import { Check, Copy, History, Plus, SquarePen, Trash2, X } from 'lucide-react'
+import { Check, Copy, History, Maximize2, Minimize2, Plus, SquarePen, Trash2, X } from 'lucide-react'
 import {
   type FormEvent,
   type KeyboardEvent,
@@ -65,8 +65,8 @@ function useDocked(): boolean {
 }
 
 /**
- * The chat beside the screens, to talk about what is on them: docked on the right from 1000px, below it a sheet over
- * the page (the whole screen on phones, a full-height panel on the right from 600px). It only converses, cited, with
+ * The chat beside the screens, to talk about what is on them: docked on the right from 1000px (or across the page's
+ * whole room, expanded), below it the whole screen over the page. It only converses, cited, with
  * « Copy » and « Make a card » (a suggested card); each AI feature has its own place on its screen. Earlier threads
  * keep their structured answers, read only. Loaded on first opening.
  */
@@ -78,15 +78,18 @@ export default function ChatPanel() {
   if (docked) {
     // Closed, it stays mounted (hidden): the conversation is still there when it opens again.
     return (
-      <aside className={styles.docked} aria-label={t('chat.title')} hidden={!chat.open}>
-        <ResizeHandle />
+      <aside
+        className={cx(styles.docked, chat.expanded && styles.expanded)}
+        aria-label={t('chat.title')}
+        hidden={!chat.open}
+      >
+        {!chat.expanded && <ResizeHandle />}
         <ChatBody docked onClose={chat.close} />
       </aside>
     )
   }
   return (
-    <Sheet open={chat.open} title={t('chat.title')} onClose={chat.close} fill>
-      <ResizeHandle />
+    <Sheet open={chat.open} title={t('chat.title')} onClose={chat.close} fill fullscreen>
       <ChatBody docked={false} onClose={chat.close} />
     </Sheet>
   )
@@ -345,13 +348,16 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
     if (history.at(-1)?.role === 'user') void ask(history)
   }
 
-  // Below 1000px the sheet covers the page: following a citation or a link closes it.
+  // Below 1000px the sheet covers the page: following a citation or a link closes it. Docked and expanded, the
+  // page is out of sight: the link gives it back its room.
   const body = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const el = body.current
-    if (!el || docked) return
+    if (!el || (docked && !chat?.expanded)) return
     const onClick = (e: Event) => {
-      if (e.target instanceof Element && e.target.closest('a')) onClose()
+      if (!(e.target instanceof Element && e.target.closest('a'))) return
+      if (docked) chat?.toggleExpanded()
+      else onClose()
     }
     el.addEventListener('click', onClick)
     return () => el.removeEventListener('click', onClick)
@@ -420,13 +426,18 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
       <IconButton icon={SquarePen} label={t('chat.newChat')} onClick={startNew} />
     </>
   )
-  // Docked, the panel carries its own title. Full screen or as a side panel, one compact row: close, the context
+  // Docked, the panel carries its own title. Full screen, one compact row: close, the context
   // (or the list's name), then the tools.
   const toolbar = docked ? (
     <div className={styles.toolbar}>
       <h2 className={styles.title}>{t('chat.title')}</h2>
       <div className={styles.tools}>
         {tools}
+        <IconButton
+          icon={chat?.expanded ? Minimize2 : Maximize2}
+          label={t(chat?.expanded ? 'chat.restore' : 'chat.expand')}
+          onClick={chat?.toggleExpanded}
+        />
         <IconButton icon={X} label={t('chat.closePanel')} onClick={onClose} />
       </div>
     </div>

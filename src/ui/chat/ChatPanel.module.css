@@ -13,6 +13,11 @@
   background: var(--surface);
 }
 
+/* Expanded: across the page's room, the page itself set aside (the shell's `.chatExpanded`). */
+.docked.expanded {
+  width: auto;
+}
+
 .body {
   /* The side padding around the panel's content: the thread's rules run edge to edge across it. */
   --chat-pad: var(--space-4);

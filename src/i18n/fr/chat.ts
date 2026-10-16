@@ -6,6 +6,8 @@ export const chat = {
   resize: 'Largeur du chat',
   open: 'Poser une question',
   closePanel: 'Fermer la discussion',
+  expand: 'Agrandir la discussion',
+  restore: 'Rétablir la largeur de la discussion',
   about: 'Sur : {what}',
   aboutCard: 'cette carte',
   aboutQuestion: 'cette question',

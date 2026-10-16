@@ -3,6 +3,8 @@ export const chat = {
   resize: 'Chat width',
   open: 'Ask about this',
   closePanel: 'Close chat',
+  expand: 'Expand chat',
+  restore: 'Restore chat width',
   about: 'About: {what}',
   aboutCard: 'this card',
   aboutQuestion: 'this question',

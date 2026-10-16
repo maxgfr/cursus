@@ -82,7 +82,12 @@ export function Shell({ children, focus, courses, aside }: ShellProps) {
   const chatPx = useFittedChatWidth()
   return (
     <div
-      className={cx(styles.shell, focus && styles.focus, chat?.open && styles.withChat)}
+      className={cx(
+        styles.shell,
+        focus && styles.focus,
+        chat?.open && styles.withChat,
+        chat?.open && chat.expanded && styles.chatExpanded,
+      )}
       style={chatPx === null ? undefined : ({ '--chat-width': `${chatPx}px` } as CSSProperties)}
     >
       <a className={styles.skip} href="#main">

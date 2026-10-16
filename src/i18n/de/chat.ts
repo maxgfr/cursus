@@ -6,6 +6,8 @@ export const chat = {
   resize: 'Breite des Chats',
   open: 'Dazu fragen',
   closePanel: 'Chat schließen',
+  expand: 'Chat vergrößern',
+  restore: 'Chatbreite wiederherstellen',
   about: 'Zu: {what}',
   aboutCard: 'dieser Karte',
   aboutQuestion: 'dieser Frage',

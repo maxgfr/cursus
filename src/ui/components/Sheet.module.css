@@ -98,9 +98,9 @@
   padding: 0;
 }
 
-/* From 600px: a full-height panel on the right, the page dimmed beside it. */
+/* From 600px: a full-height panel on the right, the page dimmed beside it (unless `fullscreen`). */
 @media (min-width: 600px) {
-  .sheet.fill {
+  .sheet.fill:not(.fullscreen) {
     width: min(var(--chat-width, 24rem), 100%);
     margin: 0 0 0 auto;
     padding-left: 0;
@@ -108,7 +108,7 @@
     box-shadow: var(--lift);
   }
 
-  .fill[open] {
+  .fill:not(.fullscreen)[open] {
     animation-name: slide;
   }
 }

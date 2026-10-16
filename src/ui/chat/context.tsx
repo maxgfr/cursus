@@ -35,6 +35,8 @@ export interface ChatSnapshot {
   /** The most specific context the screens on display publish. */
   context: ScreenContext
   asked: ChatAsk | null
+  /** Docked, the chat takes the page's whole room instead of its column. */
+  expanded: boolean
 }
 
 /** How specific a context is: a card or question beats a source, a section, then a course. */
@@ -50,7 +52,7 @@ class ChatHub {
   private readonly entries = new Map<string, ScreenContext>()
   private readonly listeners = new Set<() => void>()
   private seq = 0
-  snapshot: ChatSnapshot = { open: false, context: {}, asked: null }
+  snapshot: ChatSnapshot = { open: false, context: {}, asked: null, expanded: false }
 
   subscribe = (l: () => void) => {
     this.listeners.add(l)
@@ -78,6 +80,10 @@ class ChatHub {
     if (open !== this.snapshot.open) this.emit({ open })
   }
 
+  setExpanded(expanded: boolean) {
+    if (expanded !== this.snapshot.expanded) this.emit({ expanded })
+  }
+
   ask(text: string, excerpt?: string) {
     this.seq += 1
     this.emit({ open: true, asked: { text, ...(excerpt ? { excerpt } : {}), seq: this.seq } })
@@ -102,6 +108,8 @@ const Hub = createContext<ChatHub | null>(null)
 export interface ChatApi extends ChatSnapshot {
   toggle(): void
   close(): void
+  /** Docked, takes the page's whole room, or gives it back (the column at its chosen width). */
+  toggleExpanded(): void
   /**
    * Opens the chat and asks `text` there, `excerpt` going along as context: a term selected on screen (with the
    * passage it was read in), or what a feature answered, to go on about it (« Continue in the chat »).
@@ -111,7 +119,7 @@ export interface ChatApi extends ChatSnapshot {
   settle(seq: number): void
 }
 
-const NO_SNAPSHOT: ChatSnapshot = { open: false, context: {}, asked: null }
+const NO_SNAPSHOT: ChatSnapshot = { open: false, context: {}, asked: null, expanded: false }
 const noop = () => () => {}
 
 /** The chat beside the screens; null outside the app's shell (boot failure). */
@@ -124,6 +132,7 @@ export function useChat(): ChatApi | null {
         ...snap,
         toggle: () => hub.setOpen(!hub.snapshot.open),
         close: () => hub.setOpen(false),
+        toggleExpanded: () => hub.setExpanded(!hub.snapshot.expanded),
         ask: (text: string, excerpt?: string) => hub.ask(text, excerpt),
         settle: (seq: number) => hub.settle(seq),
       },
