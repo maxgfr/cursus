@@ -187,29 +187,6 @@
   display: none;
 }
 
-/* The card's question while the student answers it in their own words, kept above the answer box. */
-.answering {
-  display: grid;
-  flex-shrink: 0;
-  gap: var(--space-1);
-  max-height: 30dvh;
-  overflow-y: auto;
-}
-
-.answeringLabel {
-  color: var(--ink-2);
-  font-size: var(--text-footnote);
-  font-weight: 600;
-}
-
-.answeringQuestion {
-  padding: var(--space-2) var(--space-3);
-  border-radius: var(--radius-small);
-  background: var(--surface-raised);
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
 .suggestion {
   display: inline-flex;
   align-items: center;
@@ -477,4 +454,21 @@ a.suggestion {
   .resize {
     display: none;
   }
+}
+
+/* An earlier thread's structured answer, read only: its text, and where that feature lives now. */
+.legacy {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.legacyText {
+  margin: 0;
+  white-space: pre-line;
+}
+
+.legacyLink {
+  justify-self: start;
+  color: var(--accent);
+  font-size: var(--text-footnote);
 }

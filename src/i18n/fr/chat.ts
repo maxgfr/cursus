@@ -95,4 +95,6 @@ export const chat = {
   nothingToRead:
     'Rien à lire ici pour l’instant : choisissez des sources ou collez un texte dans les options ci-dessous, puis relancez.',
   cardSuggested: 'Ajoutée aux cartes suggérées.',
+  legacyOpenSheet: 'Ouvrir la fiche',
+  legacyOpenPhoto: 'Ouvrir la photo',
 } as const satisfies Shape<typeof en>

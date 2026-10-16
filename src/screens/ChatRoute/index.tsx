@@ -4,30 +4,26 @@ import { paths, to } from '../../app/routes.ts'
 import { useRuntime, useWorkspace } from '../../app/workspaceContext.tsx'
 import { useT } from '../../i18n/react.tsx'
 import { aiReadiness, useAiReadiness } from '../../ui/ai/ready.ts'
-import type { StudyKind } from '../../ui/chat/actions.ts'
-import { useChat } from '../../ui/chat/context.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { useScopeOnce } from '../Section/scope.ts'
 import { useAiModel } from '../Understand/shared/aiConfig.ts'
 import { NoModel } from '../Understand/shared/SourcePicker.tsx'
 
 /**
- * The former Generate, Quiz and New study sheet screens, kept as links (`#/generate?course=…`): with a model
- * ready they open the course or section asked for (else the first course) and run their action in the chat, or for
- * a study sheet open its study sheets; without one they say what is missing.
+ * The former New study sheet screen, kept as a link (`#/understand?course=…`): with a model ready it opens the
+ * course or section asked for (else the first course) on its study sheets, where a new one starts; without one it
+ * says what is missing.
  */
-function ChatRoute({ kind }: { kind: StudyKind }) {
+export function Understand() {
   const t = useT()
   const ws = useWorkspace()
   const rt = useRuntime()
-  const chat = useChat()
   // The app's one readiness decides; the model's own state only says why one is missing.
   const readiness = useAiReadiness()
   const ai = useAiModel()
   const asked = useScopeOnce()
   const [, navigate] = useLocation()
   const done = useRef(false)
-  const title = kind === 'generate' ? t('ai.generate') : kind === 'quiz' ? t('ai.quiz') : t('course.newSheet')
   const mounted = useRef(true)
   useEffect(() => {
     mounted.current = true
@@ -36,10 +32,10 @@ function ChatRoute({ kind }: { kind: StudyKind }) {
     }
   }, [])
   useEffect(() => {
-    if (readiness !== 'ready' || !chat || done.current) return
+    if (readiness !== 'ready' || done.current) return
     done.current = true
     // The latest reading decides (one may be under way, the AI settings just left): a model removed a moment ago
-    // is not run, and the screen says what is missing instead.
+    // leaves the screen saying what is missing instead.
     void aiReadiness(rt).then((now) => {
       if (!mounted.current) return
       if (now !== 'ready') {
@@ -48,28 +44,18 @@ function ChatRoute({ kind }: { kind: StudyKind }) {
       }
       const first = ws.courses.list()[0]
       const scope = asked && ws.courses.get(asked.courseId) ? asked : first ? { courseId: first.id } : null
-      // This entry becomes the place the action runs in: Back leaves it as it would leave the course.
-      const place = scope ? to.place(scope.courseId, scope.sectionId) : kind === 'quiz' ? paths.sessions : paths.courses
-      // A study sheet is written on its own screen: the place opens on its study sheets, where a new one starts.
-      if (kind === 'understand') {
-        navigate(place, { replace: true, state: scope ? { tab: 'fiches' } : undefined })
-        return
-      }
-      navigate(place, { replace: true })
-      chat.run(kind, scope ?? undefined)
+      // This entry becomes the place: Back leaves it as it would leave the course.
+      const place = scope ? to.place(scope.courseId, scope.sectionId) : paths.courses
+      navigate(place, { replace: true, state: scope ? { tab: 'fiches' } : undefined })
     })
-  }, [readiness, chat, ws, rt, asked, kind, navigate])
-  const back = asked ? to.place(asked.courseId, asked.sectionId) : kind === 'quiz' ? paths.sessions : paths.courses
+  }, [readiness, ws, rt, asked, navigate])
+  const back = asked ? to.place(asked.courseId, asked.sectionId) : paths.courses
   if (readiness === 'missing') {
     return (
-      <Screen title={title} back={back}>
+      <Screen title={t('course.newSheet')} back={back}>
         <NoModel reason={ai.status === 'missing' ? ai.reason : undefined} />
       </Screen>
     )
   }
-  return <Screen title={title} back={back} />
-}
-
-export function Understand() {
-  return <ChatRoute kind="understand" />
+  return <Screen title={t('course.newSheet')} back={back} />
 }

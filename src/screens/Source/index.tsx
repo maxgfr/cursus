@@ -225,7 +225,6 @@ export default function Source() {
       : {
           courseId: found.source.courseId,
           sourceId: found.source.id,
-          sourceReadable: readable,
           ...(found.sectionId === null ? {} : { sectionId: found.sectionId }),
         },
   )

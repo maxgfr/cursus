@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page, type Route, test } from '@playwright/test'
 import { configureAi } from './support/ai'
 import { createHarness } from './support/harness.ts'
-import { isPhone, seriousViolations } from './support/page.ts'
+import { isPhone, putKv, seriousViolations } from './support/page.ts'
 
 // The chat beside every screen, against an intercepted provider that streams its answers: it knows what is on
 // screen (a course, a source, a card), cites the course's sources, never gives a hidden answer away, keeps its
@@ -210,7 +210,8 @@ test('from a course: the chat knows the course, streams a cited answer and its c
   const panel = chatPanel(page, info.project.name)
   await expect(panel).toBeVisible()
   await expect(panel.getByText('About: Biology')).toBeVisible()
-  await expect(panel.getByRole('button', { name: 'Quiz me' })).toBeVisible()
+  // The chat converses: the course's AI features are on its screen, not here.
+  await expect(panel.getByRole('list', { name: 'Actions for this screen' })).toHaveCount(0)
 
   await ask(panel, 'Where is ATP made?')
   await expect(panel.getByText(/Your notes say the mitochondrion produces ATP/)).toBeVisible()
@@ -276,7 +277,7 @@ test('in review, before the reveal the answer never shows; after it, the same an
   await openChat(page)
   const panel = chatPanel(page, info.project.name)
   await expect(panel.getByText('About: this card')).toBeVisible()
-  await panel.getByRole('button', { name: 'A hint' }).click()
+  await ask(panel, 'Can you give me a hint?')
   await expect(panel.getByText('Parts that would give the answer away are hidden until you reveal it.')).toBeVisible()
   await expect(panel).not.toContainText(/mitochondri/i)
   await expect(panel.getByRole('button', { name: 'Make a card' })).toHaveCount(0)
@@ -284,7 +285,7 @@ test('in review, before the reveal the answer never shows; after it, the same an
   await expect(page.getByRole('button', { name: 'Answer in your own words' })).toHaveCount(1)
   expect(prompts.at(-1)).toContain('Flashcard answer (keep hidden): The mitochondrion')
   expect(prompts.at(-1)).toContain('has NOT seen the flashcard answer')
-  expect(prompts.at(-1)).toContain('asks for a hint')
+  expect(prompts.at(-1)).toContain('Can you give me a hint?')
 
   if (isPhone(info.project.name)) await panel.getByRole('button', { name: 'Close' }).click()
   await page.getByRole('button', { name: /Show answer/ }).click()
@@ -334,6 +335,14 @@ async function openNote(page: Page) {
   await expect(page.getByRole('heading', { level: 1, name: 'Cell notes' })).toBeVisible()
 }
 
+/** A quiz on Biology, on its own screen, its first question asked. */
+async function openQuizQuestion(page: Page) {
+  await openCourse(page)
+  await page.getByRole('main').getByRole('button', { name: 'Quiz me' }).click()
+  await page.getByRole('dialog', { name: 'Quiz me' }).getByRole('button', { name: 'Start the quiz' }).click()
+  await expect(page.getByRole('main').getByText('Question 1 of 2')).toBeVisible()
+}
+
 /** The names of the panel's actions for the screen, in order. */
 async function actionNames(panel: Locator): Promise<string[]> {
   const row = panel.getByRole('list', { name: 'Actions for this screen' })
@@ -341,55 +350,59 @@ async function actionNames(panel: Locator): Promise<string[]> {
   return row.getByRole('listitem').allInnerTexts()
 }
 
-test('the panel offers actions suited to the screen: a card before and after the reveal, a source, a course', async ({
-  page,
-}, info) => {
-  const errors = watchErrors(page)
-  await seedCourse(page)
-  await mockProvider(page)
-  await configureAi(page, LLM)
-  const phone = isPhone(info.project.name)
-  const panel = chatPanel(page, info.project.name)
-
-  await page.goto('./#/review')
-  await expect(page.getByTestId('question')).toContainText('Powerhouse of the cell?')
-  await openChat(page)
-  expect(await actionNames(panel)).toEqual(['Explain the question', 'A hint'])
-  if (phone) await panel.getByRole('button', { name: 'Close' }).click()
-  await page.getByRole('button', { name: /Show answer/ }).click()
-  if (phone) await openChat(page)
-  expect(await actionNames(panel)).toEqual(['Why is this the answer?', 'A mnemonic'])
-  if (phone) await panel.getByRole('button', { name: 'Close' }).click()
-
-  await openNote(page)
-  if (phone) await openChat(page)
-  await expect(panel.getByText('About: Cell notes')).toBeVisible()
-  expect(await actionNames(panel)).toEqual(['Summarise this source', 'Quiz me'])
-  await expect(panel.getByRole('button', { name: 'Summarise this source' })).toBeEnabled()
-  if (phone) await panel.getByRole('button', { name: 'Close' }).click()
-
-  await openCourse(page)
-  if (phone) await openChat(page)
-  await expect(panel.getByText('About: Biology')).toBeVisible()
-  expect(await actionNames(panel)).toEqual(['Write a study sheet', 'Quiz me'])
-  // Each one is a button that runs on the course, not a link away.
-  for (const name of ['Write a study sheet', 'Quiz me']) {
-    await expect(panel.getByRole('button', { name, exact: true })).toBeEnabled()
-    await expect(panel.getByRole('link', { name, exact: true })).toHaveCount(0)
-  }
-  expect(errors).toEqual([])
-})
-
-test('« Summarise this source » writes a study sheet of the source, cited, on its own screen', async ({
+test('the panel only converses: no action on a card, a source or a course; on a quiz question, help to approach it', async ({
   page,
 }, info) => {
   const errors = watchErrors(page)
   await seedCourse(page)
   const prompts = await mockProvider(page)
   await configureAi(page, LLM)
-  await openNote(page)
+  const phone = isPhone(info.project.name)
+  const panel = chatPanel(page, info.project.name)
+  const row = panel.getByRole('list', { name: 'Actions for this screen' })
+
+  await page.goto('./#/review')
+  await expect(page.getByTestId('question')).toContainText('Powerhouse of the cell?')
   await openChat(page)
-  await chatPanel(page, info.project.name).getByRole('button', { name: 'Summarise this source' }).click()
+  await expect(panel.getByText('About: this card')).toBeVisible()
+  await expect(row).toHaveCount(0)
+  if (phone) await panel.getByRole('button', { name: 'Close' }).click()
+  await page.getByRole('button', { name: /Show answer/ }).click()
+  if (phone) await openChat(page)
+  await expect(row).toHaveCount(0)
+  if (phone) await panel.getByRole('button', { name: 'Close' }).click()
+
+  await openNote(page)
+  if (phone) await openChat(page)
+  await expect(panel.getByText('About: Cell notes')).toBeVisible()
+  await expect(row).toHaveCount(0)
+  if (phone) await panel.getByRole('button', { name: 'Close' }).click()
+
+  await openCourse(page)
+  if (phone) await openChat(page)
+  await expect(panel.getByText('About: Biology')).toBeVisible()
+  await expect(row).toHaveCount(0)
+  if (phone) await panel.getByRole('button', { name: 'Close' }).click()
+
+  // A quiz question: one guided turn, never its answer.
+  await openQuizQuestion(page)
+  if (!(await panel.isVisible())) await openChat(page)
+  expect(await actionNames(panel)).toEqual(['Help me approach this question'])
+  await panel.getByRole('button', { name: 'Help me approach this question' }).click()
+  await expect.poll(() => prompts.at(-1) ?? '').toContain('Help me approach this question')
+  expect(prompts.at(-1)).toContain('Which organelle makes ATP?')
+  expect(errors).toEqual([])
+})
+
+test('« Summarise this source » writes a study sheet of the source, cited, on its own screen', async ({
+  page,
+}, _info) => {
+  const errors = watchErrors(page)
+  await seedCourse(page)
+  const prompts = await mockProvider(page)
+  await configureAi(page, LLM)
+  await openNote(page)
+  await page.getByRole('main').getByRole('button', { name: 'Summarise this source' }).click()
   await expect(page).toHaveURL(/#\/fiche\//)
   const sheet = page.getByRole('textbox', { name: 'Study sheet' })
   await expect(sheet.getByRole('heading', { name: 'Energy' })).toBeVisible()
@@ -541,6 +554,88 @@ test('without a model there is no chat, no actions and no AI buttons in review',
   await expect(panel).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Generate cards' })).toHaveCount(0)
   await expect(page.getByRole('link', { name: 'Set up AI' })).toHaveCount(0)
+})
+
+test('an earlier conversation where the chat ran the AI features reads back: each answer, and where it lives now', async ({
+  page,
+}, info) => {
+  const errors = watchErrors(page)
+  await seedCourse(page)
+  await mockProvider(page)
+  await configureAi(page, LLM)
+  await openCourse(page)
+  const courseId = decodeURIComponent(/#\/course\/([^/?]+)/.exec(page.url())?.[1] ?? '')
+  const options = { courseId, sourceIds: [], pasted: '', topic: 'Cells', count: 10, detail: 'standard' }
+  const rich = [
+    {
+      kind: 'cards',
+      options,
+      drafts: [{ kind: 'basic', front: 'Old drafted question?', back: 'A', duplicate: false }],
+    },
+    {
+      kind: 'quiz',
+      options,
+      questions: [{ question: 'Old quiz question?', choices: ['a', 'b'], answerIndex: 1, explanation: 'b' }],
+      answers: [],
+      step: 0,
+    },
+    {
+      kind: 'sheet',
+      options,
+      value: { title: 'Old sheet', summary: 'Small.', points: [{ heading: 'Walls', explanation: 'Rigid.' }] },
+      savedId: 'f1',
+    },
+    { kind: 'grade', card: { front: 'Q?', back: 'A' }, answer: 'a', rating: 3, feedback: 'Old grade feedback.' },
+    {
+      kind: 'photo',
+      photoId: 'p1',
+      courseId,
+      description: { kind: 'table', title: 'Old photo', transcription: '', explanation: 'E', keyPoints: ['k'] },
+    },
+    {
+      kind: 'improve',
+      cardId: 'card1',
+      card: { front: 'Q?', back: 'A' },
+      value: { front: 'Old rewrite?', back: 'A2', rationale: 'Clearer.' },
+    },
+    { kind: 'job', sourceId: 'n1' },
+  ]
+  const messages = [
+    { role: 'user', text: 'Everything' },
+    ...rich.map((r) => ({ role: 'assistant', text: 'x', rich: r })),
+  ]
+  await putKv(page, `ai:chat:${courseId}`, {
+    v: 1,
+    chats: [{ id: 'old', title: 'Everything', updatedAt: Date.now(), messages }],
+  })
+  await page.reload()
+  await openChat(page)
+  const panel = chatPanel(page, info.project.name)
+  await panel.getByRole('button', { name: 'Earlier chats' }).click()
+  await panel.getByRole('button', { name: 'Open “Everything”' }).click()
+  for (const text of [
+    'Old drafted question?',
+    'Old quiz question?',
+    'Old sheet',
+    'Old grade feedback.',
+    'Old photo',
+    'Old rewrite?',
+  ]) {
+    await expect(panel.getByText(text, { exact: false }).first()).toBeVisible()
+  }
+  for (const link of [
+    'Create cards',
+    'Quiz me',
+    'Open the study sheet',
+    'Open the photo',
+    'Edit card',
+    'Open Suggested cards',
+  ]) {
+    await expect(panel.getByRole('link', { name: link })).toBeVisible()
+  }
+  // Nothing of it runs again: the thread is read only, the chat answers questions.
+  await expect(panel.getByRole('textbox', { name: 'Your question' })).toBeEnabled()
+  expect(errors).toEqual([])
 })
 
 test('conversations stay on the device, can be reopened after a reload and deleted', async ({ page }, info) => {
@@ -695,19 +790,12 @@ test('on a 375 px phone in German the chat fills the screen: one header row, onl
     expect(after.x).toBeGreaterThanOrEqual(before.x + before.width)
     return after
   })
-  // The screen's actions on one line, scrolled sideways when they do not fit (faded at the edge where more is
-  // hidden), right above the composer, within a thumb's reach.
-  const row = chat.getByRole('list', { name: 'Aktionen für diesen Bildschirm' })
-  const actions = row.getByRole('listitem')
-  const tops = await actions.evaluateAll((items) => items.map((i) => Math.round(i.getBoundingClientRect().top)))
-  expect(new Set(tops).size).toBe(1)
-  if (await row.evaluate((r) => r.scrollWidth > r.clientWidth)) await expect(row).toHaveAttribute('data-more', 'end')
-  const rowBox = await row.boundingBox()
+  // On a course the chat only converses: no actions row, the thread ends above the composer.
+  await expect(chat.getByRole('list', { name: 'Aktionen für diesen Bildschirm' })).toHaveCount(0)
   const logBox = await chat.getByRole('log').boundingBox()
   const composerBox = await chat.getByRole('textbox', { name: 'Deine Frage' }).boundingBox()
-  if (!rowBox || !logBox || !composerBox) throw new Error('missing box')
-  expect(rowBox.y).toBeGreaterThanOrEqual(logBox.y + logBox.height - 1)
-  expect(rowBox.y + rowBox.height).toBeLessThanOrEqual(composerBox.y + 1)
+  if (!logBox || !composerBox) throw new Error('missing box')
+  expect(logBox.y + logBox.height).toBeLessThanOrEqual(composerBox.y + 1)
 
   const box = chat.getByRole('textbox', { name: 'Deine Frage' })
   for (const n of [1, 2, 3, 4]) {
@@ -771,10 +859,12 @@ test('a chat action runs once: the model removed, then set up again, sends nothi
   await configureAi(page, LLM)
   await page.goto('./#/review')
   await expect(page.getByTestId('question')).toContainText('Powerhouse of the cell?')
-  await openChat(page)
+  // A hint below the card, then continued in the chat: the chat asks it there, once.
+  await page.getByRole('main').getByRole('button', { name: 'A hint' }).click()
+  const hint = page.getByRole('main').getByRole('region', { name: 'A hint' })
+  await hint.getByRole('button', { name: 'Continue in the chat' }).click()
   const panel = chatPanel(page, info.project.name)
-  await panel.getByRole('button', { name: 'Explain the question' }).click()
-  await expect.poll(() => prompts.length).toBeGreaterThan(0)
+  await expect.poll(() => prompts.length).toBe(2)
   await page.waitForLoadState('networkidle')
   const asked = prompts.length
   const generated = () => prompts.length
@@ -798,7 +888,7 @@ test('a chat action runs once: the model removed, then set up again, sends nothi
   await expect(page.getByRole('heading', { level: 1, name: 'Biology' })).toBeVisible()
   await expect(page.getByRole('main').getByRole('button', { name: 'Ask about this' })).toHaveCount(0)
 
-  // The key back: the chat comes back, and « Explain the question » is not asked again on its own.
+  // The key back: the chat comes back, and the question continued there is not asked again on its own.
   await hop('/settings/ai')
   await expect(page.getByRole('heading', { level: 1, name: 'AI' })).toBeVisible()
   await page.getByLabel('API key').fill('sk-test-123')
@@ -824,7 +914,7 @@ test('with the keyboard up the chat stays above it: over the page the thread tak
   await seedCourse(page)
   await mockProvider(page)
   await configureAi(page, LLM)
-  await openCourse(page)
+  await openQuizQuestion(page)
   await openChat(page)
   const panel = chatPanel(page, info.project.name)
   await ask(panel, 'Where is ATP made?')
@@ -870,6 +960,9 @@ test('on a panel wider than a phone, every action shows whole: none is cut at th
     .getByRole('main')
     .getByRole('link', { name: /Biology/ })
     .click()
+  await page.getByRole('main').getByRole('button', { name: 'Frag mich ab' }).click()
+  await page.getByRole('dialog', { name: 'Frag mich ab' }).getByRole('button', { name: 'Quiz starten' }).click()
+  await expect(page.getByRole('main').getByText('Frage 1 von 2')).toBeVisible()
   await page.getByRole('main').getByRole('button', { name: 'Dazu fragen' }).first().click()
   const panel = isPhone(info.project.name)
     ? page.getByRole('dialog', { name: 'Fragen' })

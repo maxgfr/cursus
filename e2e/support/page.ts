@@ -71,3 +71,24 @@ export function returningDevice(baseURL: string) {
     origins: [{ origin: new URL(baseURL).origin, localStorage: [{ name: 'cursus:onboarded', value: '1' }] }],
   }
 }
+
+/** Puts `value` under `key` in this device's store (`kv`), as the app keeps it. */
+export async function putKv(page: Page, key: string, value: unknown) {
+  await page.evaluate(
+    ([k, v]) =>
+      new Promise<void>((resolve, reject) => {
+        const open = indexedDB.open('cursus-v1')
+        open.onerror = () => reject(open.error)
+        open.onsuccess = () => {
+          const tx = open.result.transaction('kv', 'readwrite')
+          tx.objectStore('kv').put(v, k as string)
+          tx.oncomplete = () => {
+            open.result.close()
+            resolve()
+          }
+          tx.onerror = () => reject(tx.error)
+        }
+      }),
+    [key, value] as const,
+  )
+}

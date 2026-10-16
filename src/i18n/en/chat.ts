@@ -84,4 +84,6 @@ export const chat = {
   pickUnits: 'Choose the slides or sections',
   nothingToRead: 'Nothing to read here yet: choose sources or paste text in the options below, then run it again.',
   cardSuggested: 'Added to Suggested cards.',
+  legacyOpenSheet: 'Open the study sheet',
+  legacyOpenPhoto: 'Open the photo',
 } as const

@@ -245,7 +245,7 @@ test('a photo with nothing written about it has nothing to summarise; once it ha
   const main = page.getByRole('main')
   const chat = chatPanel(page, info.project.name)
   await main.getByRole('button', { name: 'Ask about this' }).first().click()
-  await expect(chat.getByRole('button', { name: 'Quiz me' })).toBeVisible()
+  await expect(chat.getByRole('textbox', { name: 'Your question' })).toBeVisible()
   await expect(chat.getByRole('button', { name: 'Summarise this source' })).toHaveCount(0)
   if (isPhone(info.project.name)) await chat.getByRole('button', { name: 'Close chat' }).click()
   await expect(main.getByRole('button', { name: 'Summarise this source' })).toHaveCount(0)

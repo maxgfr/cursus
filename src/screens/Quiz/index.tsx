@@ -7,7 +7,7 @@ import { useT } from '../../i18n/react.tsx'
 import { QuizStep } from '../../ui/ai/QuizStep.tsx'
 import { useAiReadiness } from '../../ui/ai/ready.ts'
 import { useChat, useChatContext } from '../../ui/chat/context.tsx'
-import { chunkLoader, runStudy } from '../../ui/chat/studyRun.ts'
+import { chunkLoader, runQuiz } from '../../ui/chat/studyRun.ts'
 import { Button } from '../../ui/components/Button.tsx'
 import { useCanCallAi } from '../../ui/ExplainLauncher.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
@@ -80,16 +80,14 @@ export default function Quiz() {
       if (!now || now.options !== started.options) return
       setRun({ ...now, questions, writing: !done })
     }
-    runStudy({ ws: rt.ws, rt, ai: ready, t, load }, 'quiz', started.options, {
+    runQuiz({ ws: rt.ws, rt, ai: ready, t, load }, started.options, {
       signal: ctl.signal,
       onPartial: (p) => {
         const written = ((p as { questions?: Partial<QuizQuestion>[] }).questions ?? []).slice(0, -1).filter(complete)
         if (written.length > (current.current?.questions.length ?? 0)) keep(written, false)
       },
     })
-      .then((rich) => {
-        if (rich.kind === 'quiz') keep(rich.questions, true)
-      })
+      .then((questions) => keep(questions, true))
       .catch((e: unknown) => {
         if (ctl.signal.aborted) return
         console.warn('quiz not written', e)

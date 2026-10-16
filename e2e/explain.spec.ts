@@ -1,7 +1,7 @@
 import { expect, type Page, type Route, test } from '@playwright/test'
 import { completionReply, configureAi } from './support/ai'
 import { createHarness } from './support/harness.ts'
-import { isPhone } from './support/page.ts'
+import { isPhone, putKv } from './support/page.ts'
 
 // « Explain the question » and « Why? » against an intercepted provider, streamed into the chat's thread: before
 // the reveal nothing shown gives the answer away (redacted fields, citations as bare links, « Show anyway »); after
@@ -352,25 +352,55 @@ test('offline the explanations are disabled, saying why', async ({ page, context
   await expect(reviewButton(page, 'Explain the question')).toBeEnabled()
 })
 
-test('a « Why? » kept in the thread is guarded again when the card comes back unrevealed', async ({ page }, info) => {
+/** Stores, on this device, a conversation of Biology where the chat explained the card (« Why? »), citing the note. */
+async function keepEarlierWhy(page: Page) {
+  await openNote(page)
+  const noteId = decodeURIComponent(/#\/source\/([^/?]+)/.exec(page.url())?.[1] ?? '')
+  await page.goBack()
+  await expect(page.getByRole('heading', { level: 1, name: 'Biology' })).toBeVisible()
+  const courseId = decodeURIComponent(/#\/course\/([^/?]+)/.exec(page.url())?.[1] ?? '')
+  expect(noteId).not.toBe('')
+  expect(courseId).not.toBe('')
+  const card = { front: 'Powerhouse of the cell?', back: 'The mitochondrion' }
+  const why = {
+    role: 'assistant',
+    text: 'Respiration runs in the mitochondrion.',
+    rich: {
+      kind: 'explainCard',
+      card,
+      value: {
+        explanation: 'Respiration runs in the mitochondrion, which is why it **makes the ATP**.',
+        mnemonic: 'Mighty mitochondria',
+        citations: [{ sourceId: noteId }],
+      },
+    },
+  }
+  const chat = {
+    id: 'earlier',
+    title: 'Why is this the answer?',
+    updatedAt: Date.now(),
+    messages: [{ role: 'user', text: 'Why is this the answer?' }, why],
+  }
+  await putKv(page, `ai:chat:${courseId}`, { v: 1, chats: [chat] })
+  await openReview(page)
+}
+
+test('a « Why? » kept in an earlier thread is guarded again when the card comes back unrevealed', async ({
+  page,
+}, info) => {
   const errors = watchErrors(page)
   await seedCourse(page)
   await mockProvider(page)
   await configureAi(page, LLM)
-  await openReview(page)
-  await page.getByRole('button', { name: /Show answer/ }).click()
-  // Asked in the chat beside the card, from its own actions.
-  await page.getByRole('main').getByRole('button', { name: 'Ask about this' }).first().click()
-  const panel = chatPanel(page, info.project.name)
-  await panel.getByRole('button', { name: 'Why is this the answer?' }).click()
-  await expect(panel.getByText('Mighty mitochondria')).toBeVisible()
-  await expect(panel.getByRole('blockquote')).toContainText(PASSAGE)
+  // A thread kept from when the chat explained cards itself.
+  await keepEarlierWhy(page)
 
   // Later, the same card on screen unrevealed, and that conversation reopened.
   await page.reload()
   await expect(page.getByTestId('question')).toContainText('Powerhouse of the cell?')
   await expect(page.getByRole('button', { name: /Show answer/ })).toBeVisible()
   await page.getByRole('main').getByRole('button', { name: 'Ask about this' }).first().click()
+  const panel = chatPanel(page, info.project.name)
   await panel.getByRole('button', { name: 'Earlier chats' }).click()
   await panel.getByRole('button', { name: 'Open “Why is this the answer?”' }).click()
   // The stored explanation names the answer: redacted, with « Show anyway »; citations without their passage.

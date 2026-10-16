@@ -11,7 +11,7 @@ import { intlTag } from '../../i18n/index.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
 import { useAiReady } from '../../ui/ai/ready.ts'
 import { ChatButton } from '../../ui/chat/ChatButton.tsx'
-import { useChat, useChatContext } from '../../ui/chat/context.tsx'
+import { useChatContext } from '../../ui/chat/context.tsx'
 import { Button } from '../../ui/components/Button.tsx'
 import { IconButton } from '../../ui/components/IconButton.tsx'
 import { Keycap } from '../../ui/components/Keycap.tsx'
@@ -245,33 +245,11 @@ function ReviewRun({ sessionId }: { sessionId: Id | null }) {
   const finished = index >= total
   useChatContext(
     card && !finished
-      ? { courseId: card.courseId, card: { front: card.front, back: card.back, revealed, id: card.id } }
+      ? { courseId: card.courseId, card: { front: card.front, back: card.back, revealed } }
       : session?.scope.courseId
         ? { courseId: session.scope.courseId }
         : {},
   )
-
-  // A grade suggested in the chat for this card (answered there in the student's own words): the answer shows, the
-  // grade is offered, the student confirms it.
-  const graded = useChat()?.graded
-  const seenGrade = useRef(graded?.seq ?? 0)
-  useEffect(() => {
-    if (!graded || graded.seq === seenGrade.current) return
-    seenGrade.current = graded.seq
-    if (!card || graded.card.front !== card.front || graded.card.back !== card.back) return
-    setSuggestion({ at: index, rating: graded.rating, feedback: graded.feedback })
-    setRevealedAt(index)
-  }, [graded, card, index])
-
-  // A grade given in the chat to this card (confirming the suggested one, or another): recorded as on the card.
-  const rated = useChat()?.rated
-  const seenRating = useRef(rated?.seq ?? 0)
-  useEffect(() => {
-    if (!rated || rated.seq === seenRating.current) return
-    seenRating.current = rated.seq
-    if (!card || rated.card.front !== card.front || rated.card.back !== card.back) return
-    rate(rated.rating)
-  }, [rated, card, rate])
 
   // Cards that come back today (graded Again, on a learning step) rejoin the session when due;
   // until then the session waits for them rather than claiming everything is done.
