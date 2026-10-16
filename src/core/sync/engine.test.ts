@@ -115,6 +115,36 @@ describe('round: download, apply, upload, confirm', () => {
     expect((await a.engine.round(id)).up).toBeGreaterThan(0)
   })
 
+  test('a pause during a round stays: the round ending does not mark the destination ok again', async () => {
+    const w = world()
+    const a = await device(1, w.clock)
+    const inner = w.remote()
+    let listed = () => {}
+    const listing = new Promise<void>((r) => (listed = r))
+    let release = () => {}
+    const gate = new Promise<void>((r) => (release = r))
+    const remote: RemoteStore = {
+      id: inner.id,
+      async *list(prefix, o) {
+        listed()
+        await gate
+        yield* inner.list(prefix, o)
+      },
+      get: (e) => inner.get(e),
+      put: (k, body) => inner.put(k, body),
+    }
+    const id = a.engine.addDest({ remote })
+    a.ws.courses.create({ title: 'x' })
+    await a.commit()
+    const round = a.engine.round(id)
+    await listing
+    a.engine.setPaused(id, true)
+    release()
+    await round
+    expect(a.engine.status().dests[0]?.state).toBe('paused')
+    expect(await a.engine.round(id)).toEqual({ down: 0, up: 0, deferred: 0 })
+  })
+
   test('abort signal stops the round', async () => {
     const w = world()
     const a = await device(1, w.clock)

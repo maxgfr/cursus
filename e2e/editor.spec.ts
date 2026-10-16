@@ -34,8 +34,11 @@ test('a heading, bold, a list item and a link: no Markdown on screen, wherever t
   // Enter continues the list; Enter on the empty item leaves it.
   await page.keyboard.press('Enter')
   await page.keyboard.press('Enter')
-  // A link from the keyboard: its text and address in its card.
-  await page.keyboard.press('ControlOrMeta+k')
+  // A link from the keyboard, with the shortcut its button announces (⌘K on an iPhone or an iPad, whatever the
+  // machine running the test): its text and address in its card.
+  const shortcut = await page.getByRole('button', { name: 'Link', exact: true }).getAttribute('aria-keyshortcuts')
+  expect(shortcut).toMatch(/^(Meta|Control)\+K$/)
+  await page.keyboard.press(`${shortcut?.split('+')[0]}+k`)
   const card = page.getByRole('dialog', { name: 'Link' })
   await card.getByRole('textbox', { name: 'Text' }).fill('x')
   await card.getByRole('textbox', { name: 'Address' }).fill('https://example.com/page')

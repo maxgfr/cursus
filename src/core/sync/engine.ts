@@ -973,6 +973,8 @@ function build(o: SyncEngineOptions): { engine: SyncEngineImpl; drillRound(id: s
       }
       throw e
     } finally {
+      // Paused while it ran: the pause stands, whatever the round ended on.
+      if (d.cfg.paused) d.rt.state = 'paused'
       await saveMeta(m)
       await refresh()
     }

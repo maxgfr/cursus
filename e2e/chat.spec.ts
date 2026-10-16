@@ -674,7 +674,8 @@ test('a chat answer becomes a card in the course', async ({ page }, info) => {
   // Suggested, not added: the course has no such card until it is added from « Suggested cards ».
   await expect(page.getByRole('main').getByRole('link', { name: 'Where is ATP made?' })).toHaveCount(0)
   await panel.getByRole('link', { name: 'Open Suggested cards' }).click()
-  if (isPhone(info.project.name)) await panel.getByRole('button', { name: 'Close' }).click()
+  // On a phone the chat covers the page: following its link closes it.
+  if (isPhone(info.project.name)) await expect(panel).toBeHidden()
   const main = page.getByRole('main')
   await expect(main.getByRole('heading', { name: 'From the chat', exact: true })).toBeVisible()
   await main.getByRole('button', { name: 'Add card 1, From the chat' }).click()

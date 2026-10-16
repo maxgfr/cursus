@@ -68,9 +68,9 @@ const GROUPS: readonly (readonly Button[])[] = [
   [['table', Table, 'common.edTable']],
 ]
 
-/** A CodeMirror key name as ARIA writes it (`Mod` is Meta on Apple devices, Control elsewhere). */
+/** A CodeMirror key name as ARIA writes it (`Mod` is Meta on Apple devices, Control elsewhere; `+` between keys). */
 function ariaKeys(key: string, apple: boolean): string {
-  return key.replace('Mod', apple ? 'Meta' : 'Control')
+  return key.replace('Mod', apple ? 'Meta' : 'Control').replaceAll('-', '+')
 }
 
 export interface ToolbarProps {
