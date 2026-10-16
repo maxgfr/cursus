@@ -416,4 +416,9 @@ export const ai = {
   howKeyBody: 'Anthropic, OpenAI et d’autres. Facturé par eux, demande une connexion.',
   advancedModels: 'Avancé : tous les fournisseurs et modèles',
   advancedConnection: 'Avancé : adresse et accès depuis le navigateur',
+  generatePerUnit: 'Cartes par diapo, page ou section',
+  generateAuto: 'Selon le contenu',
+  generateNoSource: 'Aucune source ici pour l’instant : ajoutez d’abord une note ou un document.',
+  inboxFromChat: 'Depuis le chat',
+  inboxFromChatIn: 'Depuis le chat · {course}',
 } as const satisfies Shape<typeof en>

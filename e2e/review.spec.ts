@@ -353,7 +353,7 @@ test('own words: the AI suggests a grade to confirm; Why? explains and makes a c
   await expect(why.getByText('Mitochondria turn nutrients into ATP.')).toBeVisible()
   await expect(why.getByText('Mighty mitochondria')).toBeVisible()
   await why.getByRole('button', { name: 'Create a card on this point' }).click()
-  await expect(why.getByText('Card added to Biology')).toBeVisible()
+  await expect(why.getByText('Added to Suggested cards')).toBeVisible()
   await expect(why.getByRole('button', { name: 'Create a card on this point' })).toBeDisabled()
   if (phone) await why.getByRole('button', { name: 'Close' }).click()
 

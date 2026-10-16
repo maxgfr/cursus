@@ -64,10 +64,10 @@ export function actionsFor(t: T, c: ScreenContext): ChatAction[] {
       c.sourceReadable === false
         ? []
         : [{ id: 'summarise', kind: 'guided', label: t('chat.actionSummarise'), intent: 'summarise' }]
-    return [...summarise, study(t, 'generate'), study(t, 'quiz')]
+    return [...summarise, study(t, 'quiz')]
   }
   // A study sheet on a topic, written from the sources: generic questions stay in this chat.
-  return [study(t, 'generate'), study(t, 'understand'), study(t, 'quiz')]
+  return [study(t, 'understand'), study(t, 'quiz')]
 }
 
 /**

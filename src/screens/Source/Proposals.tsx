@@ -5,10 +5,10 @@ import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { Id } from '../../core/contracts/workspace'
 import { useT } from '../../i18n/react.tsx'
 import { useAiReady, useDraftsShown } from '../../ui/ai/ready.ts'
-import { useChat } from '../../ui/chat/context.tsx'
 import { Button } from '../../ui/components/Button.tsx'
 import { isActiveJob, jobOf, liveQueue, useAutoJobs } from '../../ui/data/autoQuestions.ts'
 import { createFiche, WRITE_QUERY } from '../Fiche/create.ts'
+import { GENERATE_QUERY } from '../Generate/open.tsx'
 import inbox from '../Inbox/Inbox.module.css'
 import { type JobActions, JobLine } from '../Inbox/JobLine.tsx'
 import { noteError } from '../settings/Diagnostic/recent.ts'
@@ -30,7 +30,6 @@ export function Proposals({ sourceId, readable }: { sourceId: Id; readable: bool
     ['drafts', 'sources', 'courses', 'sections'],
     (ws) => ws.drafts.list({ sourceId }).length,
   )
-  const chat = useChat()
   const [, navigate] = useLocation()
   const summarise = () => {
     const source = rt.ws.sources.get(sourceId)
@@ -59,12 +58,12 @@ export function Proposals({ sourceId, readable }: { sourceId: Id; readable: bool
   return (
     <div className={styles.proposals}>
       <div className={styles.proposalsRow}>
-        {ready && chat && !deck && (
-          // Proposed by the background queue, followed in the chat beside the source.
+        {ready && !deck && (
+          // Chosen in « Create cards », written by the background queue into « Suggested cards ».
           <Button
             icon={<Sparkles size={18} aria-hidden="true" />}
             disabled={active}
-            onClick={() => chat.run('suggestCards')}
+            onClick={() => navigate(`${to.source(sourceId)}?${GENERATE_QUERY}`, { replace: true })}
           >
             {t('ai.sourcePropose')}
           </Button>

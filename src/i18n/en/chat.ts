@@ -83,4 +83,5 @@ export const chat = {
   openSuggested: 'Open Suggested cards',
   pickUnits: 'Choose the slides or sections',
   nothingToRead: 'Nothing to read here yet: choose sources or paste text in the options below, then run it again.',
+  cardSuggested: 'Added to Suggested cards.',
 } as const

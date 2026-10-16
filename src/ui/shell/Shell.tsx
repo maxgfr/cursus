@@ -38,12 +38,7 @@ const TABS: readonly Tab[] = [
     href: paths.sessions,
     label: 'common.navPractice',
     icon: CalendarClock,
-    match: (l) =>
-      l.startsWith(paths.sessions) ||
-      l === paths.quiz ||
-      l === paths.stats ||
-      l === paths.understand ||
-      l === paths.generate,
+    match: (l) => l.startsWith(paths.sessions) || l === paths.quiz || l === paths.stats || l === paths.understand,
   },
   { href: paths.settings, label: 'common.settings', icon: Settings, match: (l) => l.startsWith(paths.settings) },
 ]

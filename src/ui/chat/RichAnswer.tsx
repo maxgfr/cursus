@@ -165,24 +165,20 @@ function AnswerView({
   const t = useT()
   const ws = useWorkspace()
   const [created, setCreated] = useState(false)
-  const courseTitle = useWorkspaceData(['courses', { id: courseId ?? '' }], (w) =>
-    courseId ? (w.courses.get(courseId)?.title ?? '') : '',
-  )
   const terms = useMemo(() => answerTerms(card.front, card.back), [card.front, card.back])
   const [explanation, example, mnemonic] = useMemo(
     () => guardAnswer([value.explanation, value.example ?? '', value.mnemonic ?? ''], terms),
     [value.explanation, value.example, value.mnemonic, terms],
   )
+  // Suggested, never added on its own: it waits in « Suggested cards » with the others.
   const createCard = () => {
     if (!courseId) return
     const back = [value.explanation, value.example ? `${t('review.example')}: ${value.example}` : '']
       .filter(Boolean)
       .join('\n\n')
-    ws.batch(() => {
-      const id = ws.cards.create({ courseId, kind: 'basic', origin: 'ai' })
-      ws.text({ id, field: 'front' }).insert(0, `${t('review.why')} ${card.front}`)
-      ws.text({ id, field: 'back' }).insert(0, back)
-    })
+    ws.drafts.propose([
+      { courseId, unit: 0, kind: 'basic', type: 'qa', front: `${t('review.why')} ${card.front}`, back },
+    ])
     setCreated(true)
   }
   return (
@@ -231,7 +227,7 @@ function AnswerView({
           </Button>
           {created && (
             <p className={styles.success} role="status">
-              {t('review.cardCreated', { course: courseTitle })}
+              {t('review.cardSuggested')}
             </p>
           )}
         </div>

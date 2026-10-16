@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import type { Runtime } from '../../app/workspaceContext.tsx'
+import { migrateDeckRuns } from '../../core/ai/deckRuns'
 import type { AiJob, AiJobs, JobsState } from '../../core/ai/jobs'
 import type { Id } from '../../core/contracts/workspace'
 import { noteError } from '../../screens/settings/Diagnostic/recent.ts'
@@ -86,6 +87,7 @@ export async function readStoredJobs(rt: Runtime): Promise<AiJob[]> {
  * (the app was closed), or waiting for a connection or a model.
  */
 export async function resumeAutoQuestions(rt: Runtime): Promise<void> {
+  await keepDeckRuns(rt)
   try {
     if (queue) {
       await queue.kick()
@@ -100,6 +102,15 @@ export async function resumeAutoQuestions(rt: Runtime): Promise<void> {
     if (pending) await autoQuestions(rt)
   } catch (e) {
     noteError('autoQuestions.resume', e)
+  }
+}
+
+/** Questions left on the former « Create cards » screen join « Suggested cards » (once; a failure tries again later). */
+export async function keepDeckRuns(rt: Runtime): Promise<void> {
+  try {
+    await migrateDeckRuns(rt.ws, rt.store)
+  } catch (e) {
+    noteError('autoQuestions.deckRuns', e)
   }
 }
 

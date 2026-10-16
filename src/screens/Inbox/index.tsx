@@ -1,6 +1,6 @@
 import { Check, ChevronDown, Inbox as InboxIcon, Sparkles, X } from 'lucide-react'
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { Link } from 'wouter'
+import { Link, useSearch } from 'wouter'
 import { paths, to } from '../../app/routes.ts'
 import { type Runtime, useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { AiJob } from '../../core/ai/jobs'
@@ -9,12 +9,13 @@ import type { Draft, DraftSourceGroup, DraftUnitGroup } from '../../core/model/d
 import type { SourceRecord } from '../../core/model/schema'
 import { useT } from '../../i18n/react.tsx'
 import { useAiReady, useDraftsShown } from '../../ui/ai/ready.ts'
-import { useChat } from '../../ui/chat/context.tsx'
 import { Button } from '../../ui/components/Button.tsx'
 import { EmptyState } from '../../ui/components/EmptyState.tsx'
 import { Toast } from '../../ui/components/Toast.tsx'
-import { jobOf, liveQueue, useAutoJobs } from '../../ui/data/autoQuestions.ts'
+import { jobOf, keepDeckRuns, liveQueue, useAutoJobs } from '../../ui/data/autoQuestions.ts'
 import { Screen } from '../../ui/shell/Screen.tsx'
+import { Generate } from '../Generate/open.tsx'
+import { useScopeOnce } from '../Section/scope.ts'
 import { type ScopeOption, scopeOptions, scopeValue } from '../SessionSetup/draft.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 import { DraftCard } from './DraftCard.tsx'
@@ -26,8 +27,13 @@ type T = ReturnType<typeof useT>
 /** How long an action can be undone before it is written. */
 export const UNDO_MS = 6000
 
-/** « Slide 3 », « Page 2 », « Section 4 », « Photo »: how a draft's unit is cited. */
-function unitName(t: T, source: SourceRecord, u: Pick<DraftUnitGroup, 'unit' | 'unitKind' | 'unitLabel'>): string {
+/** « Slide 3 », « Page 2 », « Section 4 », « Photo »: how a draft's unit is cited (« From the chat » without a source). */
+function unitName(
+  t: T,
+  source: SourceRecord | undefined,
+  u: Pick<DraftUnitGroup, 'unit' | 'unitKind' | 'unitLabel'>,
+): string {
+  if (!source) return t('ai.inboxFromChat')
   if (source.kind === 'image') return t('ai.inboxPhoto')
   if (u.unit === 0) return t('ai.inboxWhole')
   const n = u.unitLabel ?? String(u.unit)
@@ -121,7 +127,10 @@ function usePending(rt: Runtime, onError: (e: unknown) => void) {
 }
 
 interface Entry {
-  source: SourceRecord
+  /** The source's id, or `chat:<course>` for the cards suggested from the chat. */
+  key: string
+  source?: SourceRecord
+  courseId: Id
   course: string
   group?: DraftSourceGroup
   job?: AiJob
@@ -139,7 +148,10 @@ export default function Inbox() {
   const rt = useRuntime()
   const ready = useAiReady()
   const shown = useDraftsShown()
-  const chat = useChat()
+  // « Create cards » (the empty state, `?generate=1` from an old « Generate » link), with a model only.
+  const asked = useScopeOnce()
+  const search = useSearch()
+  const [generating, setGenerating] = useState(() => new URLSearchParams(search).get('generate') === '1')
   // Without a model the queue's code is never loaded: nothing could run.
   const queue = useAutoJobs(rt, { start: ready })
   const all = useWorkspaceData(['drafts', 'sources', 'courses', 'sections'], (ws) => ws.drafts.groups())
@@ -150,8 +162,8 @@ export default function Inbox() {
   const { pending, act, undo, flush } = usePending(rt, (e) =>
     setError(t('ai.failed', { reason: e instanceof Error ? e.message : String(e) })),
   )
-  const [filter, setFilter] = useState<Id | ''>('')
-  const [destinations, setDestinations] = useState<ReadonlyMap<Id, StudyScope>>(new Map())
+  const [filter, setFilter] = useState<string>('')
+  const [destinations, setDestinations] = useState<ReadonlyMap<string, StudyScope>>(new Map())
   const [editing, setEditing] = useState<Id | null>(null)
   const [focused, setFocused] = useState<Id | null>(null)
   const [refocus, setRefocus] = useState<Id | null>(null)
@@ -162,16 +174,24 @@ export default function Inbox() {
   }, [refocus])
   const [folded, setFolded] = useState<ReadonlySet<string>>(new Set())
   const filterId = useId()
+  useEffect(() => {
+    void keepDeckRuns(rt)
+  }, [rt])
 
   const now = Date.now()
   const hidden = new Set(pending?.ids ?? [])
-  const latest = new Map(summary.sources.map((s) => [s.sourceId, s.latestAt]))
+  const keyOf = (g: { sourceId?: Id; courseId: Id }) => g.sourceId ?? `chat:${g.courseId}`
+  const latest = new Map(summary.sources.map((s) => [keyOf(s), s.latestAt]))
   const courseTitle = (id: Id) => rt.ws.courses.get(id)?.title ?? ''
-  const entries = new Map<Id, Entry>()
+  const entries = new Map<string, Entry>()
   for (const g of groups) {
-    const source = rt.ws.sources.get(g.sourceId)
-    if (!source) continue
-    entries.set(g.sourceId, { source, course: courseTitle(source.courseId), group: g, at: latest.get(g.sourceId) ?? 0 })
+    const key = keyOf(g)
+    const source = g.sourceId === undefined ? undefined : rt.ws.sources.get(g.sourceId)
+    if (g.sourceId !== undefined && !source) continue
+    const courseId = source?.courseId ?? g.courseId
+    const entry: Entry = { key, courseId, course: courseTitle(courseId), group: g, at: latest.get(key) ?? 0 }
+    if (source) entry.source = source
+    entries.set(key, entry)
   }
   const jobs: { job: AiJob; source: SourceRecord }[] = []
   for (const sourceId of new Set(ready ? queue.jobs.map((j) => j.sourceId) : [])) {
@@ -193,10 +213,8 @@ export default function Inbox() {
     }))
     .filter((e) => e.units.length > 0)
     .sort((a, b) => b.at - a.at)
-  const shownList = list.filter((e) => filter === '' || e.source.id === filter)
-  const order = shownList.flatMap((e) =>
-    e.units.flatMap((u) => (folded.has(`${e.source.id}:${u.unit}`) ? [] : u.drafts)),
-  )
+  const shownList = list.filter((e) => filter === '' || e.key === filter)
+  const order = shownList.flatMap((e) => e.units.flatMap((u) => (folded.has(`${e.key}:${u.unit}`) ? [] : u.drafts)))
   const total = list.reduce((n, e) => n + e.units.reduce((m, u) => m + u.drafts.length, 0), 0)
   const current = order.find((d) => d.id === focused)?.id ?? order[0]?.id ?? null
 
@@ -211,11 +229,14 @@ export default function Inbox() {
     ? { cancel: (id) => run('cancel', () => q.cancel(id)), retry: (id) => run('retry', () => q.retry(id)) }
     : undefined
 
-  const destinationOf = (source: SourceRecord): StudyScope =>
-    destinations.get(source.id) ??
-    (source.sectionId === undefined
-      ? { courseId: source.courseId }
-      : { courseId: source.courseId, sectionId: source.sectionId })
+  // The place chosen for a group, else its source's own, else (from the chat) where its first card was meant to go.
+  const destinationOf = (e: Entry): StudyScope => {
+    const chosen = destinations.get(e.key)
+    if (chosen) return chosen
+    const own = e.source ?? e.group?.units[0]?.drafts[0]
+    const courseId = own?.courseId ?? e.courseId
+    return own?.sectionId === undefined ? { courseId } : { courseId, sectionId: own.sectionId }
+  }
   const placeName = (scope: StudyScope) =>
     places.find((p) => p.value === scopeValue(scope))?.label ?? courseTitle(scope.courseId)
 
@@ -227,9 +248,9 @@ export default function Inbox() {
     // Only when the card leaving had the focus (a key, or its own button): moved once the list is drawn again.
     if (next && document.activeElement?.closest('[data-draft]')) setRefocus(next.id)
   }
-  const add = (source: SourceRecord, ids: readonly Id[], edit?: { id: Id; front: string; back: string }) => {
+  const add = (entry: Entry, ids: readonly Id[], edit?: { id: Id; front: string; back: string }) => {
     setError(null)
-    const to = destinationOf(source)
+    const to = destinationOf(entry)
     const p: Pending = {
       kind: 'add',
       ids,
@@ -271,7 +292,7 @@ export default function Inbox() {
       }
     } else if ((e.key === 'a' || e.key === 'A') && entry) {
       e.preventDefault()
-      add(entry.source, [id])
+      add(entry, [id])
     } else if (e.key === 'e' || e.key === 'E') {
       e.preventDefault()
       setEditing(id)
@@ -308,11 +329,11 @@ export default function Inbox() {
           body={ready ? t('ai.inboxEmptyBody') : t('ai.inboxEmptyNoAi')}
           action={
             <div className={styles.emptyActions}>
-              {ready && chat && (
+              {ready && (
                 <Button
                   variant="primary"
                   icon={<Sparkles size={18} aria-hidden="true" />}
-                  onClick={() => chat.run('generate')}
+                  onClick={() => setGenerating(true)}
                 >
                   {t('chat.actionGenerate')}
                 </Button>
@@ -334,13 +355,13 @@ export default function Inbox() {
                 id={filterId}
                 className={styles.select}
                 value={filter}
-                onChange={(e) => setFilter(e.target.value as Id | '')}
+                onChange={(e) => setFilter(e.target.value)}
               >
                 <option value="">{t('ai.inboxAllSources', { count: total })}</option>
                 {list.map((e) => (
-                  <option key={e.source.id} value={e.source.id}>
+                  <option key={e.key} value={e.key}>
                     {t('ai.inboxSourceOption', {
-                      title: e.source.title,
+                      title: e.source?.title ?? t('ai.inboxFromChatIn', { course: e.course }),
                       count: e.units.reduce((n, u) => n + u.drafts.length, 0),
                     })}
                   </option>
@@ -351,12 +372,12 @@ export default function Inbox() {
             <div className={styles.list} ref={listRef}>
               {shownList.map((e) => (
                 <SourceBlock
-                  key={e.source.id}
+                  key={e.key}
                   entry={e}
                   units={e.units}
                   places={places}
-                  destination={destinationOf(e.source)}
-                  onDestination={(scope) => setDestinations((m) => new Map(m).set(e.source.id, scope))}
+                  destination={destinationOf(e)}
+                  onDestination={(scope) => setDestinations((m) => new Map(m).set(e.key, scope))}
                   folded={folded}
                   onFold={(key) =>
                     setFolded((s) => {
@@ -369,7 +390,7 @@ export default function Inbox() {
                   editing={editing}
                   onFocus={setFocused}
                   onEdit={(id, on) => setEditing(on ? id : null)}
-                  onAdd={(ids, edit) => add(e.source, ids, edit)}
+                  onAdd={(ids, edit) => add(e, ids, edit)}
                   onReject={reject}
                 />
               ))}
@@ -382,6 +403,7 @@ export default function Inbox() {
           {error}
         </p>
       )}
+      <Generate at={ready && generating ? (asked ?? {}) : null} onClose={() => setGenerating(false)} />
       {pending && (
         <Toast
           message={pending.message}
@@ -430,15 +452,19 @@ function SourceBlock({
 }) {
   const t = useT()
   const { source } = entry
-  const headingId = `inbox-${source.id}`
+  const headingId = `inbox-${entry.key.replace(':', '-')}`
   const destinationId = useId()
   return (
     <section className={styles.source} aria-labelledby={headingId}>
       <div className={styles.sourceHead}>
         <h2 id={headingId} className={styles.sourceTitle}>
-          <Link href={to.source(source.id)} className={styles.sourceLink}>
-            {source.title}
-          </Link>
+          {source ? (
+            <Link href={to.source(source.id)} className={styles.sourceLink}>
+              {source.title}
+            </Link>
+          ) : (
+            t('ai.inboxFromChat')
+          )}
         </h2>
         <p className={styles.meta}>{t('ai.inboxInCourse', { course: entry.course })}</p>
       </div>
@@ -469,11 +495,11 @@ function SourceBlock({
         </select>
       </div>
       {units.map((u) => {
-        const key = `${source.id}:${u.unit}`
+        const key = `${entry.key}:${u.unit}`
         const name = unitName(t, source, u)
         const open = !folded.has(key)
         const ids = u.drafts.map((d) => d.id)
-        const unitId = `inbox-unit-${key}`
+        const unitId = `inbox-unit-${key.replace(':', '-')}`
         return (
           <section key={key} className={styles.unit} aria-labelledby={unitId}>
             <div className={styles.unitHead}>
@@ -489,7 +515,7 @@ function SourceBlock({
                   {t('ai.inboxUnit', { name, count: u.drafts.length })}
                 </button>
               </h3>
-              {isDeck(source) && u.unit > 0 && (
+              {source && isDeck(source) && u.unit > 0 && (
                 <Link href={`${to.source(source.id)}?page=${u.unit}`} className={styles.link}>
                   {t('ai.inboxOpenUnit')}
                 </Link>

@@ -122,8 +122,8 @@ test('hash navigation between routes', async ({ page }) => {
   await nav.getByRole('link', { name: 'Practice' }).click()
   await expect(page).toHaveURL(/#\/sessions$/)
   await expect(page.getByRole('heading', { level: 1, name: 'Practice' })).toBeVisible()
-  await page.goto('./#/generate')
-  await expect(page).toHaveURL(/#\/generate$/)
+  await page.goto('./#/quiz')
+  await expect(page).toHaveURL(/#\/quiz$/)
   await expect(nav.getByRole('link', { name: 'Practice' })).toHaveAttribute('aria-current', 'page')
 
   await nav.getByRole('link', { name: 'Settings' }).click()

@@ -1,5 +1,5 @@
 import type { Runtime } from '../../app/workspaceContext.tsx'
-import { noteUnits, type SourceContent } from '../../core/ai/autoQuestions'
+import { type JobOptions, noteUnits, type SourceContent } from '../../core/ai/autoQuestions'
 import { createModel } from '../../core/ai/client'
 import { routeStatus } from '../../core/ai/deviceCheck'
 import { readingChunks } from '../../core/ai/features/describePhoto'
@@ -55,13 +55,22 @@ export function createRunner(rt: Runtime): AiJobs {
 
   // A deck read for the estimate is read again for the run: the last ones stay (pages rendered included).
   const decks = new Map<string, Promise<SourceContent>>()
-  const readDeck = (source: SourceRecord, vision: boolean, signal: AbortSignal): Promise<SourceContent> => {
-    const key = `${source.id}:${source.blobId ?? ''}:${vision ? 'images' : 'text'}`
+  const readDeck = (
+    source: SourceRecord,
+    vision: boolean,
+    signal: AbortSignal,
+    options?: JobOptions,
+  ): Promise<SourceContent> => {
+    const asked = options?.units === undefined ? null : new Set(options.units)
+    const key = `${source.id}:${source.blobId ?? ''}:${vision ? 'images' : 'text'}:${[...(asked ?? [])].join(',')}:${options?.hidden === true}`
     const hit = decks.get(key)
     if (hit) return hit
     const read = (async () => {
       const loaded = await loadDeck(rt, source)
-      const indexes = loaded.deck.units.filter((u) => u.hidden !== true).map((u) => u.index)
+      // The units asked for (every one by default), hidden slides only when asked for.
+      const indexes = loaded.deck.units
+        .filter((u) => (asked === null || asked.has(u.index)) && (options?.hidden === true || u.hidden !== true))
+        .map((u) => u.index)
       const { units } = await runInputs(loaded, indexes, vision, signal)
       return { title: loaded.deck.title.trim() || source.title, units }
     })()
@@ -76,7 +85,11 @@ export function createRunner(rt: Runtime): AiJobs {
     return read
   }
 
-  const content = async (source: SourceRecord, signal: AbortSignal): Promise<SourceContent | null> => {
+  const content = async (
+    source: SourceRecord,
+    signal: AbortSignal,
+    options?: JobOptions,
+  ): Promise<SourceContent | null> => {
     if (source.kind === 'image') {
       // What is written about it (caption, notes) and what a model read on it, kept on this device.
       const notes = rt.ws.text({ id: source.id, field: 'body' }).toString()
@@ -88,7 +101,7 @@ export function createRunner(rt: Runtime): AiJobs {
       }
     }
     if (source.kind === 'pdf' || source.support !== undefined) {
-      return readDeck(source, last !== null && supportsImages(last.info), signal)
+      return readDeck(source, last !== null && supportsImages(last.info), signal, options)
     }
     const body = rt.ws.text({ id: source.id, field: 'body' }).toString()
     return { title: source.title, units: noteUnits(source.title, body) }

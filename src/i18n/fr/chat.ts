@@ -94,4 +94,5 @@ export const chat = {
   pickUnits: 'Choisir les diapos ou les sections',
   nothingToRead:
     'Rien à lire ici pour l’instant : choisissez des sources ou collez un texte dans les options ci-dessous, puis relancez.',
+  cardSuggested: 'Ajoutée aux cartes suggérées.',
 } as const satisfies Shape<typeof en>

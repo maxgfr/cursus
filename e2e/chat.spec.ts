@@ -76,41 +76,49 @@ async function mockProvider(page: Page): Promise<string[]> {
     const body = req.postDataJSON() as Body
     const text = textOf(body)
     prompts.push(text)
-    // The study actions answer in structure: cards drafted from the sources (one already in the course), a quiz.
-    const structured = text.includes('patient tutor')
+    // The study actions answer in structure: cards suggested on a source (one already in the course), a quiz.
+    const structured = text.includes('spaced-repetition questions on course material')
       ? JSON.stringify({
-          title: 'Cells',
-          summary: 'The mitochondrion makes the cell’s energy.',
-          points: [
-            { heading: 'Energy', explanation: 'ATP comes from respiration.', sourceRef: { sourceId: noteId(text) } },
+          questions: [
+            { unit: 1, type: 'qa', difficulty: 'easy', front: 'Which organelle makes ATP?', back: 'The mitochondrion' },
+            { unit: 1, type: 'qa', difficulty: 'easy', front: 'Powerhouse of the cell?', back: 'The mitochondrion' },
+            { unit: 1, type: 'qa', difficulty: 'easy', front: 'What do ribosomes build?', back: 'Proteins' },
           ],
         })
-      : text.includes('flashcards')
+      : text.includes('patient tutor')
         ? JSON.stringify({
-            cards: [
-              { kind: 'basic', front: 'Which organelle makes ATP?', back: 'The mitochondrion' },
-              { kind: 'basic', front: 'Powerhouse of the cell?', back: 'The mitochondrion' },
-              { kind: 'basic', front: 'What do ribosomes build?', back: 'Proteins' },
+            title: 'Cells',
+            summary: 'The mitochondrion makes the cell’s energy.',
+            points: [
+              { heading: 'Energy', explanation: 'ATP comes from respiration.', sourceRef: { sourceId: noteId(text) } },
             ],
           })
-        : text.includes('multiple-choice')
+        : text.includes('flashcards')
           ? JSON.stringify({
-              questions: [
-                {
-                  question: 'Which organelle makes ATP?',
-                  choices: ['The mitochondrion', 'The ribosome'],
-                  answerIndex: 0,
-                  explanation: 'Respiration runs there.',
-                },
-                {
-                  question: 'What do ribosomes build?',
-                  choices: ['Lipids', 'Proteins'],
-                  answerIndex: 1,
-                  explanation: 'Proteins.',
-                },
+              cards: [
+                { kind: 'basic', front: 'Which organelle makes ATP?', back: 'The mitochondrion' },
+                { kind: 'basic', front: 'Powerhouse of the cell?', back: 'The mitochondrion' },
+                { kind: 'basic', front: 'What do ribosomes build?', back: 'Proteins' },
               ],
             })
-          : null
+          : text.includes('multiple-choice')
+            ? JSON.stringify({
+                questions: [
+                  {
+                    question: 'Which organelle makes ATP?',
+                    choices: ['The mitochondrion', 'The ribosome'],
+                    answerIndex: 0,
+                    explanation: 'Respiration runs there.',
+                  },
+                  {
+                    question: 'What do ribosomes build?',
+                    choices: ['Lipids', 'Proteins'],
+                    answerIndex: 1,
+                    explanation: 'Proteins.',
+                  },
+                ],
+              })
+            : null
     if (structured !== null) {
       if (body.stream === true) {
         return route.fulfill({ status: 200, headers: CORS, contentType: 'text/event-stream', body: sse([structured]) })
@@ -158,27 +166,6 @@ async function mockProvider(page: Page): Promise<string[]> {
     })
   })
   return prompts
-}
-
-/** How many drafts the conversations kept on this device (the `kv` store) mark as saved. */
-function savedDrafts(page: Page): Promise<number> {
-  return page.evaluate(
-    () =>
-      new Promise<number>((resolve, reject) => {
-        const open = indexedDB.open('cursus-v1')
-        open.onerror = () => reject(open.error)
-        open.onsuccess = () => {
-          const all = open.result.transaction('kv').objectStore('kv').getAll()
-          all.onerror = () => reject(all.error)
-          all.onsuccess = () => {
-            type Kept = { chats?: { messages?: { rich?: { drafts?: { savedId?: string }[] } }[] }[] }
-            const kept = (all.result as (Kept | null)[]).flatMap((v) => v?.chats ?? [])
-            const drafts = kept.flatMap((c) => c.messages ?? []).flatMap((m) => m.rich?.drafts ?? [])
-            resolve(drafts.filter((d) => d.savedId !== undefined).length)
-          }
-        }
-      }),
-  )
 }
 
 function watchErrors(page: Page): string[] {
@@ -378,16 +365,16 @@ test('the panel offers actions suited to the screen: a card before and after the
   await openNote(page)
   if (phone) await openChat(page)
   await expect(panel.getByText('About: Cell notes')).toBeVisible()
-  expect(await actionNames(panel)).toEqual(['Summarise this source', 'Generate cards', 'Quiz me'])
+  expect(await actionNames(panel)).toEqual(['Summarise this source', 'Quiz me'])
   await expect(panel.getByRole('button', { name: 'Summarise this source' })).toBeEnabled()
   if (phone) await panel.getByRole('button', { name: 'Close' }).click()
 
   await openCourse(page)
   if (phone) await openChat(page)
   await expect(panel.getByText('About: Biology')).toBeVisible()
-  expect(await actionNames(panel)).toEqual(['Generate cards', 'Write a study sheet', 'Quiz me'])
-  // Each one answers in this thread, on the course: none leaves for a screen of its own.
-  for (const name of ['Generate cards', 'Write a study sheet', 'Quiz me']) {
+  expect(await actionNames(panel)).toEqual(['Write a study sheet', 'Quiz me'])
+  // Each one is a button that runs on the course, not a link away.
+  for (const name of ['Write a study sheet', 'Quiz me']) {
     await expect(panel.getByRole('button', { name, exact: true })).toBeEnabled()
     await expect(panel.getByRole('link', { name, exact: true })).toHaveCount(0)
   }
@@ -460,48 +447,27 @@ test('in auto, the chat writes in the language of the source open, not the inter
   expect(errors).toEqual([])
 })
 
-test('« Generate cards » drafts cards from the course in the thread: one saved alone, the rest at once, duplicates left out', async ({
+test('« Generate cards » on a course: chosen in « Create cards », they wait in « Suggested cards », the card already there left out', async ({
   page,
-}, info) => {
+}) => {
   const errors = watchErrors(page)
   await seedCourse(page)
   const prompts = await mockProvider(page)
   await configureAi(page, LLM)
   await openCourse(page)
-  await openChat(page)
-  const panel = chatPanel(page, info.project.name)
-  await panel.getByRole('button', { name: 'Generate cards' }).click()
-  // The action is the student's turn; the drafts answer it, from the course's own sources. The answer opens on its
-  // start, not scrolled to its end.
-  await expect(panel.getByText('2 cards generated')).toBeVisible()
-  await expect(panel.getByText('2 cards generated')).toBeInViewport()
-  expect(prompts.at(-1)).toContain('ATP through cellular respiration')
-  // The card the course has already is flagged, and left out of « Save all ».
-  await expect(panel.getByText('1 duplicate flagged: Save all leaves it out')).toBeVisible()
-  await expect(panel.getByText('Already there')).toHaveCount(1)
-  await expect(panel.getByRole('button', { name: 'Save 2 cards' })).toBeVisible()
-  // The compact options say what it ran with.
-  await expect(panel.getByText('10 cards · Sources: all of Biology')).toBeVisible()
-
-  await panel.getByRole('button', { name: 'Save card 3' }).click()
-  await expect(panel.getByRole('button', { name: 'Save card 3' })).toHaveCount(0)
-  await expect(panel.getByRole('button', { name: 'Save 1 card' })).toBeVisible()
-  await panel.getByRole('button', { name: 'Save 1 card' }).click()
-  await expect(panel.getByText('1 card saved.')).toBeVisible()
-  if (isPhone(info.project.name)) await panel.getByRole('button', { name: 'Close chat' }).click()
+  await page.getByRole('main').getByRole('button', { name: 'Generate cards' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Create cards' })
+  await expect(sheet.getByLabel('Course or section')).toHaveValue(/./)
+  await sheet.getByRole('button', { name: 'Create cards' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Suggested cards' })).toBeVisible()
   const main = page.getByRole('main')
-  await expect(main.getByRole('link', { name: /Which organelle makes ATP\?/ })).toBeVisible()
-  await expect(main.getByRole('link', { name: /What do ribosomes build\?/ })).toBeVisible()
-  await expect(main.getByRole('link', { name: /Powerhouse of the cell\?/ })).toHaveCount(1)
-
-  // Saved in the thread: kept on the device, then reopened after a reload, the drafts still say so.
-  await expect.poll(() => savedDrafts(page)).toBe(2)
-  await page.reload()
-  await expect(page.getByRole('heading', { level: 1, name: 'Biology' })).toBeVisible()
-  await openChat(page)
-  await panel.getByRole('button', { name: 'Earlier chats' }).click()
-  await panel.getByRole('button', { name: 'Open “Generate cards”' }).click()
-  await expect(panel.getByText('Saved', { exact: true })).toHaveCount(2)
+  await expect(main.getByText('Which organelle makes ATP?')).toBeVisible()
+  await expect(main.getByText('What do ribosomes build?')).toBeVisible()
+  await expect(main.getByText('Powerhouse of the cell?')).toHaveCount(0)
+  expect(prompts.some((p) => p.includes('ATP through cellular respiration'))).toBe(true)
+  // Nothing is a card yet: the course keeps its one card.
+  await openCourse(page)
+  await expect(main.getByRole('link', { name: /Which organelle makes ATP\?/ })).toHaveCount(0)
   expect(errors).toEqual([])
 })
 
@@ -609,9 +575,17 @@ test('a chat answer becomes a card in the course', async ({ page }, info) => {
   const panel = chatPanel(page, info.project.name)
   await ask(panel, 'Where is ATP made?')
   await panel.getByRole('button', { name: 'Make a card' }).click()
-  await expect(panel.getByText('Card added to Biology.')).toBeVisible()
+  await expect(panel.getByText('Added to Suggested cards.')).toBeVisible()
   await expect(panel.getByRole('button', { name: 'Make a card' })).toBeDisabled()
+  // Suggested, not added: the course has no such card until it is added from « Suggested cards ».
+  await expect(page.getByRole('main').getByRole('link', { name: 'Where is ATP made?' })).toHaveCount(0)
+  await panel.getByRole('link', { name: 'Open Suggested cards' }).click()
   if (isPhone(info.project.name)) await panel.getByRole('button', { name: 'Close' }).click()
+  const main = page.getByRole('main')
+  await expect(main.getByRole('heading', { name: 'From the chat', exact: true })).toBeVisible()
+  await main.getByRole('button', { name: 'Add card 1, From the chat' }).click()
+  await page.getByRole('button', { name: 'Dismiss' }).click()
+  await openCourse(page)
   await expect(page.getByRole('main').getByRole('link', { name: 'Where is ATP made?' })).toBeVisible()
 })
 
@@ -796,12 +770,14 @@ test('a chat action runs once: the model removed, then set up again, sends nothi
   await seedCourse(page)
   const prompts = await mockProvider(page)
   await configureAi(page, LLM)
-  await openCourse(page)
-  await page.getByRole('main').getByRole('button', { name: 'Generate cards' }).click()
+  await page.goto('./#/review')
+  await expect(page.getByTestId('question')).toContainText('Powerhouse of the cell?')
+  await page.getByRole('button', { name: 'Explain the question' }).click()
   const panel = chatPanel(page, info.project.name)
-  await expect(panel.getByText('2 cards generated')).toBeVisible()
-  const generated = () => prompts.filter((p) => p.includes('flashcards')).length
-  expect(generated()).toBe(1)
+  await expect.poll(() => prompts.length).toBeGreaterThan(0)
+  await page.waitForLoadState('networkidle')
+  const asked = prompts.length
+  const generated = () => prompts.length
   await panel.getByRole('button', { name: 'Close chat' }).click()
   await expect(panel).toBeHidden()
 
@@ -822,7 +798,7 @@ test('a chat action runs once: the model removed, then set up again, sends nothi
   await expect(page.getByRole('heading', { level: 1, name: 'Biology' })).toBeVisible()
   await expect(page.getByRole('main').getByRole('button', { name: 'Ask about this' })).toHaveCount(0)
 
-  // The key back: the chat comes back, and « Generate cards » is not asked again on its own.
+  // The key back: the chat comes back, and « Explain the question » is not asked again on its own.
   await hop('/settings/ai')
   await expect(page.getByRole('heading', { level: 1, name: 'AI' })).toBeVisible()
   await page.getByLabel('API key').fill('sk-test-123')
@@ -832,12 +808,13 @@ test('a chat action runs once: the model removed, then set up again, sends nothi
   await expect(page.getByRole('main').getByRole('button', { name: 'Ask about this' }).first()).toBeVisible()
   await page.waitForLoadState('networkidle')
   await page.waitForTimeout(500)
-  expect(generated()).toBe(1)
+  expect(generated()).toBe(asked)
   await expect(panel).toBeHidden()
-  // Opened by hand, it is the chat it was: one answer, not a second one.
+  // Opened by hand, nothing is sent on its own.
   await page.getByRole('main').getByRole('button', { name: 'Ask about this' }).first().click()
-  await expect(panel.getByText('2 cards generated')).toHaveCount(0)
-  expect(generated()).toBe(1)
+  await expect(panel).toBeVisible()
+  await page.waitForTimeout(300)
+  expect(generated()).toBe(asked)
   expect(errors).toEqual([])
 })
 
@@ -850,8 +827,8 @@ test('with the keyboard up the chat stays above it: over the page the thread tak
   await openCourse(page)
   await openChat(page)
   const panel = chatPanel(page, info.project.name)
-  await panel.getByRole('button', { name: 'Generate cards' }).click()
-  await expect(panel.getByText('2 cards generated')).toBeVisible()
+  await ask(panel, 'Where is ATP made?')
+  await expect(panel.getByText(/Your notes say the mitochondrion/)).toBeVisible()
   const actions = panel.getByRole('list', { name: 'Actions for this screen' })
   await expect(actions).toBeVisible()
 
@@ -861,7 +838,7 @@ test('with the keyboard up the chat stays above it: over the page the thread tak
     document.documentElement.style.setProperty('--kb-inset', `${inset}px`)
     document.documentElement.dataset.keyboard = 'open'
   }, KEYBOARD)
-  await panel.getByLabel('Front of card 1').focus()
+  await panel.getByRole('textbox', { name: 'Your question' }).focus()
   const viewport = page.viewportSize()
   if (!viewport) throw new Error('no viewport')
   const composer = await panel.getByRole('textbox', { name: 'Your question' }).boundingBox()
@@ -869,7 +846,7 @@ test('with the keyboard up the chat stays above it: over the page the thread tak
   // Whatever the layout, the composer stays above the keyboard.
   expect(composer.y + composer.height).toBeLessThanOrEqual(viewport.height - KEYBOARD + 1)
   if (await page.getByRole('dialog', { name: 'Ask' }).isVisible()) {
-    // Over the page, the actions step aside: the thread keeps the draft being edited and its Save in view.
+    // Over the page, the actions step aside: the thread keeps the room.
     await expect(actions).toBeHidden()
     const thread = await panel.getByRole('log').evaluate((l) => l.clientHeight)
     expect(thread).toBeGreaterThanOrEqual(180)

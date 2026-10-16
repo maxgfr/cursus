@@ -397,4 +397,9 @@ export const ai = {
   howKeyBody: 'Anthropic, OpenAI and others. Billed by them, needs a connection.',
   advancedModels: 'Advanced: every provider and model',
   advancedConnection: 'Advanced: address and browser access',
+  generatePerUnit: 'Cards per slide, page or section',
+  generateAuto: 'As needed',
+  generateNoSource: 'No source here yet: add a note or a document first.',
+  inboxFromChat: 'From the chat',
+  inboxFromChatIn: 'From the chat · {course}',
 } as const

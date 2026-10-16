@@ -22,8 +22,13 @@ import {
   CardTextIndex,
   type DeckQuestion,
   type DeckQuestionsInput,
+  type DifficultyMix,
   deckQuestions,
   estimateDeckQuestionsCost,
+  MAX_QUESTIONS_PER_UNIT,
+  QUESTION_TYPES,
+  type QuestionCount,
+  type QuestionType,
 } from './features/deckQuestions'
 import type { DeckUnitInput } from './features/readDeck'
 
@@ -158,6 +163,55 @@ export function destinationOf(source: SourceRecord): StudyScope {
     : { courseId: source.courseId, sectionId: source.sectionId }
 }
 
+/**
+ * What the student chose for a run (« Generate cards »); anything absent takes the default: every unit but hidden
+ * slides, `auto` cards per unit, questions and cloze, mixed difficulty, the course's language, the source's place.
+ */
+export interface JobOptions {
+  /** Units to read (slide, page or section numbers). */
+  units?: number[]
+  /** Hidden slides read too. */
+  hidden?: boolean
+  perUnit?: QuestionCount
+  types?: QuestionType[]
+  difficulty?: DifficultyMix
+  /** Language code of the cards. */
+  language?: string
+  /** A subset of the source's course the cards go to. */
+  sectionId?: Id
+}
+
+const DIFFICULTY_MIXES: readonly DifficultyMix[] = ['easy', 'mixed', 'hard']
+const isUnit = (u: unknown): u is number => Number.isInteger(u) && (u as number) >= 0
+
+/** Stored options as this version reads them: what it cannot read is left to the default; null when nothing is left. */
+export function parseJobOptions(raw: unknown): JobOptions | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const o = raw as Record<string, unknown>
+  const out: JobOptions = {}
+  if (Array.isArray(o.units) && o.units.every(isUnit)) out.units = [...new Set(o.units)].sort((a, b) => a - b)
+  if (o.hidden === true) out.hidden = true
+  if (o.perUnit === 'auto') out.perUnit = 'auto'
+  else if (Number.isInteger(o.perUnit) && (o.perUnit as number) >= 1) {
+    out.perUnit = Math.min(MAX_QUESTIONS_PER_UNIT, o.perUnit as number)
+  }
+  if (Array.isArray(o.types)) {
+    const asked: unknown[] = o.types
+    const types = QUESTION_TYPES.filter((q) => asked.includes(q))
+    if (types.length > 0) out.types = types
+  }
+  if (DIFFICULTY_MIXES.includes(o.difficulty as DifficultyMix)) out.difficulty = o.difficulty as DifficultyMix
+  if (typeof o.language === 'string' && /^[a-z]{2,3}(-[A-Za-z0-9]+)?$/.test(o.language)) out.language = o.language
+  if (typeof o.sectionId === 'string' && o.sectionId !== '') out.sectionId = o.sectionId
+  return Object.keys(out).length > 0 ? out : null
+}
+
+/** One text per set of options: two runs asked with the same choices are the same run. */
+export function optionsKey(o: unknown): string {
+  const p = parseJobOptions(o) ?? {}
+  return JSON.stringify([p.units, p.hidden, p.perUnit, p.types, p.difficulty, p.language, p.sectionId])
+}
+
 export interface RunPlan {
   source: SourceRecord
   destination: StudyScope
@@ -180,23 +234,28 @@ export function unitsLanguage(units: readonly DeckUnitInput[], uiLocale: string)
   return code === undefined ? undefined : outputLanguage(code, uiLocale)
 }
 
-/** One run over one source: what to ask the model, and where its questions are bound. */
-export function planRun(ws: ModelWorkspace, sourceId: Id): PlanOutcome {
+/** One run over one source with the student's choices: what to ask the model, and where its questions are bound. */
+export function planRun(ws: ModelWorkspace, sourceId: Id, options?: JobOptions | null): PlanOutcome {
   const source = ws.sources.get(sourceId)
   if (!source || source.deletedAt !== undefined || ws.sources.list().every((s) => s.id !== sourceId)) {
     return 'source-gone'
   }
   const course = liveCourse(ws, source.courseId)
   if (!course) return 'source-gone'
-  const destination = destinationOf(source)
-  const named = course.language?.trim() || undefined
+  const tree = ws.sections.tree()
+  const asked = options?.sectionId === undefined ? undefined : tree.get(options.sectionId)
+  const destination =
+    asked !== undefined && asked.courseId === course.id && !tree.hidden(asked.id)
+      ? { courseId: course.id, sectionId: asked.id }
+      : destinationOf(source)
+  const named = options?.language ?? (course.language?.trim() || undefined)
   const language = outputLanguage(named, ws.prefs.get('locale'))
   const d = AUTO_QUESTION_DEFAULTS
   const input: RunPlan['input'] = {
     sourceId,
-    perUnit: d.perUnit,
-    types: d.types,
-    difficulty: d.difficulty,
+    perUnit: options?.perUnit ?? d.perUnit,
+    types: options?.types ?? [...d.types],
+    difficulty: options?.difficulty ?? d.difficulty,
     courseTitle: course.title,
     deckTitle: source.title,
     isDuplicate: draftDuplicates(ws, sourceId),

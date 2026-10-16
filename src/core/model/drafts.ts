@@ -33,9 +33,9 @@ export interface Draft extends DraftRecord {
   status: DraftStatus
 }
 
-/** What a run proposes; the model's text is kept as `proposed`. */
+/** What a run proposes; the model's text is kept as `proposed`. Without a source it comes from the chat. */
 export interface NewDraft {
-  sourceId: Id
+  sourceId?: Id
   courseId: Id
   sectionId?: Id
   unit: number
@@ -59,7 +59,9 @@ export interface DraftUnitGroup {
   drafts: readonly Draft[]
 }
 export interface DraftSourceGroup {
-  sourceId: Id
+  /** Absent: the cards suggested from the chat for `courseId`. */
+  sourceId?: Id
+  courseId: Id
   /** Proposed drafts of the source. */
   count: number
   units: readonly DraftUnitGroup[]
@@ -68,7 +70,7 @@ export interface DraftSourceGroup {
 /** Proposed drafts per source, newest activity first: what the Today line says. */
 export interface DraftSummary {
   total: number
-  sources: readonly { sourceId: Id; courseId: Id; count: number; latestAt: number }[]
+  sources: readonly { sourceId?: Id; courseId: Id; count: number; latestAt: number }[]
 }
 
 export class DraftInputError extends RangeError {
@@ -133,7 +135,10 @@ function checkCloze(kind: 'basic' | 'cloze', front: string): void {
 }
 
 const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
-const byUnit = (a: Draft, b: Draft): number => cmp(a.sourceId, b.sourceId) || a.unit - b.unit || cmp(a.id, b.id)
+/** A draft's group: its source, or the chat's suggestions for its course. */
+const groupKey = (d: Pick<DraftFields, 'sourceId' | 'courseId'>): string =>
+  d.sourceId === undefined ? `chat:${d.courseId}` : d.sourceId
+const byUnit = (a: Draft, b: Draft): number => cmp(groupKey(a), groupKey(b)) || a.unit - b.unit || cmp(a.id, b.id)
 
 // ---------------------------------------------------------------------------------------------------------
 // Settings
@@ -333,9 +338,9 @@ export class DraftRepo {
     return c !== undefined && c.deletedAt === undefined
   }
 
-  /** Shown to the student: its source is live and its course is not in the trash. */
+  /** Shown to the student: its source (if any) is live and its course is not in the trash. */
   visible(d: Pick<DraftFields, 'sourceId' | 'courseId'>): boolean {
-    return this.sourceLive(d.sourceId) && this.courseLive(d.courseId)
+    return (d.sourceId === undefined || this.sourceLive(d.sourceId)) && this.courseLive(d.courseId)
   }
 
   /** Visible drafts (proposed only unless `status` says otherwise), by source, unit, then id. */
@@ -355,38 +360,51 @@ export class DraftRepo {
 
   /** Proposed drafts grouped by source, then unit (slide, page, section): the review screen. */
   groups(f?: { sourceId?: Id; courseId?: Id }): DraftSourceGroup[] {
-    const bySource = new Map<Id, Map<number, Draft[]>>()
+    const bySource = new Map<string, { head: Draft; units: Map<number, Draft[]> }>()
     for (const d of this.list(f)) {
-      const units = bySource.get(d.sourceId) ?? new Map<number, Draft[]>()
-      bySource.set(d.sourceId, units)
-      const list = units.get(d.unit)
+      const key = groupKey(d)
+      const g = bySource.get(key) ?? { head: d, units: new Map<number, Draft[]>() }
+      bySource.set(key, g)
+      const list = g.units.get(d.unit)
       if (list) list.push(d)
-      else units.set(d.unit, [d])
+      else g.units.set(d.unit, [d])
     }
-    return [...bySource].map(([sourceId, units]) => ({
-      sourceId,
-      count: [...units.values()].reduce((n, l) => n + l.length, 0),
-      units: [...units].map(([unit, drafts]) => {
-        const first = drafts[0]
-        const g: DraftUnitGroup = { unit, drafts }
-        if (first?.unitKind !== undefined) g.unitKind = first.unitKind
-        if (first?.unitLabel !== undefined) g.unitLabel = first.unitLabel
-        return g
-      }),
-    }))
+    return [...bySource.values()].map(({ head, units }) => {
+      const group: DraftSourceGroup = {
+        courseId: head.courseId,
+        count: [...units.values()].reduce((n, l) => n + l.length, 0),
+        units: [...units].map(([unit, drafts]) => {
+          const first = drafts[0]
+          const g: DraftUnitGroup = { unit, drafts }
+          if (first?.unitKind !== undefined) g.unitKind = first.unitKind
+          if (first?.unitLabel !== undefined) g.unitLabel = first.unitLabel
+          return g
+        }),
+      }
+      if (head.sourceId !== undefined) group.sourceId = head.sourceId
+      return group
+    })
   }
 
   /** Proposed drafts per source: « 12 questions proposées depuis Physiologie ». */
   summary(): DraftSummary {
-    const bySource = new Map<Id, { sourceId: Id; courseId: Id; count: number; latestAt: number }>()
+    type Line = DraftSummary['sources'][number] & { key: string }
+    const bySource = new Map<string, Line>()
     for (const d of this.list()) {
-      const s = bySource.get(d.sourceId)
+      const key = groupKey(d)
+      const s = bySource.get(key)
       if (s) {
         s.count++
         s.latestAt = Math.max(s.latestAt, d.createdAt)
-      } else bySource.set(d.sourceId, { sourceId: d.sourceId, courseId: d.courseId, count: 1, latestAt: d.createdAt })
+      } else {
+        const line: Line = { key, courseId: d.courseId, count: 1, latestAt: d.createdAt }
+        if (d.sourceId !== undefined) line.sourceId = d.sourceId
+        bySource.set(key, line)
+      }
     }
-    const sources = [...bySource.values()].sort((a, b) => b.latestAt - a.latestAt || cmp(a.sourceId, b.sourceId))
+    const sources = [...bySource.values()]
+      .sort((a, b) => b.latestAt - a.latestAt || cmp(a.key, b.key))
+      .map(({ key: _, ...line }) => line)
     return { total: sources.reduce((n, s) => n + s.count, 0), sources }
   }
 
@@ -415,6 +433,7 @@ export class DraftRepo {
     for (const d of drafts) {
       checkShape(d)
       if (d.sourceId === '') throw new DraftInputError('a draft needs a source')
+      if (d.sourceId === undefined && d.unit !== 0) throw new DraftInputError('a draft without a source has no unit')
       checkCloze(d.kind, d.front)
     }
     if (drafts.length === 0) return []
@@ -422,7 +441,6 @@ export class DraftRepo {
     this.deps.doc.transact(() => {
       for (const d of drafts) {
         const fields: DraftFields = {
-          sourceId: d.sourceId,
           courseId: d.courseId,
           unit: d.unit,
           kind: d.kind,
@@ -431,6 +449,8 @@ export class DraftRepo {
           back: d.back.trim(),
           proposed: d.front.trim(),
         }
+        if (d.sourceId !== undefined) fields.sourceId = d.sourceId
+        else fields.origin = 'chat'
         if (d.sectionId !== undefined) fields.sectionId = d.sectionId
         if (d.unitKind !== undefined) fields.unitKind = d.unitKind
         if (d.unitLabel !== undefined) fields.unitLabel = d.unitLabel
@@ -491,13 +511,10 @@ export class DraftRepo {
   private acceptOne(id: Id, to?: StudyScope): Id {
     const d = this.proposed(id)
     const scope = this.destination(d, to)
-    const card: CardFields = {
-      courseId: scope.courseId,
-      kind: d.kind,
-      sourceId: d.sourceId,
-      origin: 'ai',
-      draftId: d.id,
-      unit: d.unit,
+    const card: CardFields = { courseId: scope.courseId, kind: d.kind, origin: 'ai', draftId: d.id }
+    if (d.sourceId !== undefined) {
+      card.sourceId = d.sourceId
+      card.unit = d.unit
     }
     if (scope.sectionId !== undefined) card.sectionId = scope.sectionId
     const cardId = this.host.cards.create(card)

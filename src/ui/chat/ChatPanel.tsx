@@ -1356,15 +1356,21 @@ function AnswerActions({
   // Before the reveal an answer is not copied or turned into a card: that would show it.
   if (text === '' || (card && !card.revealed)) return null
 
+  // Suggested, never added on its own: it waits in « Suggested cards » with the others.
   const makeCard = () => {
     if (!courseId) return
-    const id = ws.batch(() => {
-      const id = ws.cards.create({ courseId, ...(sectionId ? { sectionId } : {}), kind: 'basic', origin: 'ai' })
-      ws.text({ id, field: 'front' }).insert(0, question?.trim() || text.split('\n')[0] || text)
-      ws.text({ id, field: 'back' }).insert(0, text)
-      return id
-    })
-    setMade(id)
+    const [id] = ws.drafts.propose([
+      {
+        courseId,
+        ...(sectionId ? { sectionId } : {}),
+        unit: 0,
+        kind: 'basic',
+        type: 'qa',
+        front: question?.trim() || text.split('\n')[0] || text,
+        back: text,
+      },
+    ])
+    setMade(id ?? null)
   }
 
   const copy = () => {
@@ -1402,8 +1408,7 @@ function AnswerActions({
       </Button>
       {made && courseId && (
         <p id={status} className={styles.made} role="status">
-          {t('chat.cardMade', { course: ws.courses.get(courseId)?.title ?? '' })}{' '}
-          <Link href={to.card(made)}>{t('chat.editCard')}</Link>
+          {t('chat.cardSuggested')} <Link href={paths.inbox}>{t('chat.openSuggested')}</Link>
         </p>
       )}
     </div>

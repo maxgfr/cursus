@@ -89,4 +89,5 @@ export const chat = {
   openSuggested: 'Vorgeschlagene Karten öffnen',
   pickUnits: 'Folien oder Abschnitte auswählen',
   nothingToRead: 'Hier gibt es noch nichts zu lesen: Wähle unten Quellen oder füge Text ein und starte dann neu.',
+  cardSuggested: 'Zu den vorgeschlagenen Karten hinzugefügt.',
 } as const satisfies Shape<typeof en>

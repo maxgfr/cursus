@@ -141,4 +141,5 @@ export const review = {
   statsCrammingNone: 'None yet · outside your schedule',
   statsCrammingShare: { one: 'incl. {count} practice only', other: 'incl. {count} practice only' },
   sessionFailed: 'The session couldn’t start. Try again.',
+  cardSuggested: 'Added to Suggested cards',
 } as const

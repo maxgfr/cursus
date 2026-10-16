@@ -31,7 +31,7 @@ import type { SourceRecord } from '../../core/model/schema'
 import { useT } from '../../i18n/react.tsx'
 import { useAiReady } from '../../ui/ai/ready.ts'
 import { Breadcrumb } from '../../ui/Breadcrumb.tsx'
-import { useChat, useChatContext } from '../../ui/chat/context.tsx'
+import { useChatContext } from '../../ui/chat/context.tsx'
 import { courseHue } from '../../ui/components/Badges.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { EmptyState } from '../../ui/components/EmptyState.tsx'
@@ -45,6 +45,7 @@ import { Screen } from '../../ui/shell/Screen.tsx'
 import { newCardId } from '../CardEditor/draft.ts'
 import { deckErrorMessage } from '../DeckImport/deckSource.ts'
 import { createFiche } from '../Fiche/create.ts'
+import { Generate } from '../Generate/open.tsx'
 import NotFound from '../NotFound/index.tsx'
 import { startQueue } from '../Review/session.ts'
 import { NewSectionSheet, SectionSettings } from '../Section/SectionSheets.tsx'
@@ -132,9 +133,9 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   const here = sectionId ?? null
   // AI only explains, improves or gets a start: its actions show once a model is ready, never a setup link here.
   const aiReady = useAiReady()
-  const chat = useChat()
-  // Each AI action opens the chat beside the course and starts there at once.
-  const ask = (id: 'generate' | 'quiz') => chat?.run(id)
+  // « Create cards » on this place: the cards come to « Suggested cards ».
+  const [generating, setGenerating] = useState(false)
+  const generate = () => setGenerating(true)
   useChatContext(sectionId === undefined ? { courseId } : { courseId, sectionId })
   const data = useWorkspaceData(
     ['courses', 'sections', 'cards', 'sources', 'fiches', { id: sectionId ?? courseId }],
@@ -514,11 +515,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
                 {t('course.addCard')}
               </Button>
               {aiReady && (
-                <Button
-                  variant="plain"
-                  icon={<Sparkles size={18} aria-hidden="true" />}
-                  onClick={() => ask('generate')}
-                >
+                <Button variant="plain" icon={<Sparkles size={18} aria-hidden="true" />} onClick={generate}>
                   {t('ai.generate')}
                 </Button>
               )}
@@ -540,11 +537,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
                       {t('course.addSource')}
                     </Button>
                   ) : (
-                    <Button
-                      variant="secondary"
-                      icon={<Sparkles size={18} aria-hidden="true" />}
-                      onClick={() => ask('generate')}
-                    >
+                    <Button variant="secondary" icon={<Sparkles size={18} aria-hidden="true" />} onClick={generate}>
                       {t('ai.generate')}
                     </Button>
                   )}
@@ -745,6 +738,10 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
       {error !== null && (
         <Toast message={error} actions={[{ label: t('common.dismiss'), onClick: () => setError(null) }]} />
       )}
+      <Generate
+        at={generating ? (sectionId === undefined ? { courseId } : { courseId, sectionId }) : null}
+        onClose={() => setGenerating(false)}
+      />
     </Screen>
   )
 }

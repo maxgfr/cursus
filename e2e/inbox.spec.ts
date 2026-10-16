@@ -1,8 +1,8 @@
 import { join } from 'node:path'
 import { expect, type Page, type Route, test } from '@playwright/test'
-import { chatPanel, configureAi } from './support/ai'
+import { configureAi } from './support/ai'
 import { createHarness } from './support/harness.ts'
-import { createCourse, isPhone, seriousViolations, watchErrors } from './support/page.ts'
+import { createCourse, seriousViolations, watchErrors } from './support/page.ts'
 
 // Cards are suggested only when the student asks; « Suggested cards » adds, edits or rejects each one at once, with a
 // moment to undo.
@@ -91,8 +91,8 @@ async function storedJobs(page: Page): Promise<number> {
   )
 }
 
-/** Asks for cards on the note « Cells » of Biology, then opens « Suggested cards » once they are there. */
-async function suggest(page: Page, project: string) {
+/** Asks for cards on the note « Cells » of Biology (« Create cards »), which opens « Suggested cards » as they come. */
+async function suggest(page: Page) {
   await harness.seed(page, {
     courses: [
       {
@@ -112,18 +112,13 @@ async function suggest(page: Page, project: string) {
   await page.getByRole('radio', { name: 'Sources' }).check({ force: true })
   await page.getByRole('main').getByRole('link', { name: /Cells/ }).click()
   await page.getByRole('main').getByRole('button', { name: 'Suggest cards' }).click()
-  const chat = chatPanel(page, project)
-  await expect(chat.getByText(/cards? wait in Suggested cards\./)).toBeVisible()
-  // On a phone the chat covers the screen: closed, to see the inbox.
-  if (isPhone(project)) {
-    await page.keyboard.press('Escape')
-    await expect(chat).toBeHidden()
-  }
-  expect(asked).toHaveLength(1)
-  await page.goto('./#/inbox')
+  const sheet = page.getByRole('dialog', { name: 'Create cards' })
+  await expect(sheet.getByLabel('Course or section')).toHaveValue(/./)
+  await sheet.getByRole('button', { name: 'Create cards' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Suggested cards' })).toBeVisible()
   await expect(page.getByText('What is Membranes?')).toBeVisible()
   await expect(page.getByText('Why does Transport matter?')).toBeVisible()
+  expect(asked).toHaveLength(1)
 }
 
 test('adding a PDF or a photo asks no model and queues nothing', async ({ page }) => {
@@ -147,9 +142,9 @@ test('adding a PDF or a photo asks no model and queues nothing', async ({ page }
 
 test('« Suggest cards » fills the inbox; Add (then Undo), Add all to another course, Reject', async ({
   page,
-}, info) => {
+}, _info) => {
   const errors = watchErrors(page)
-  await suggest(page, info.project.name)
+  await suggest(page)
   const main = page.getByRole('main')
   const membranes = main.getByRole('region', { name: /^Section 1 \(2\)$/ })
   const transport = main.getByRole('region', { name: /^Section 2 \(2\)$/ })
@@ -201,7 +196,7 @@ test('« Suggest cards » fills the inbox; Add (then Undo), Add all to another c
 test('keys on a focused card: A adds, R rejects, E edits in the editor, ↓ moves on', async ({ page }, info) => {
   test.skip(info.project.name === 'webkit-iphone', 'no keyboard')
   const errors = watchErrors(page)
-  await suggest(page, info.project.name)
+  await suggest(page)
   const main = page.getByRole('main')
   const section = (n: number) => main.getByRole('region', { name: new RegExp(`^Section ${n} \\(\\d\\)$`) })
   const focused = main.locator('[data-draft]:focus')
@@ -243,8 +238,8 @@ test('keys on a focused card: A adds, R rejects, E edits in the editor, ↓ move
   expect(errors).toEqual([])
 })
 
-test('the inbox in dark mode and in German on a phone: readable, nothing cut off', async ({ page }, info) => {
-  await suggest(page, info.project.name)
+test('the inbox in dark mode and in German on a phone: readable, nothing cut off', async ({ page }, _info) => {
+  await suggest(page)
   await page.emulateMedia({ colorScheme: 'dark' })
   expect(await seriousViolations(page)).toEqual([])
   await page.setViewportSize({ width: 375, height: 800 })

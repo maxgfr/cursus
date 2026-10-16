@@ -253,6 +253,39 @@ describe('auto-question jobs', () => {
     expect(ids.map((id) => job(h, id).status)).toEqual(['done', 'done', 'done'])
   })
 
+  test('what the student chose: only the units asked for, in the language and place asked for; same choices, same job', async () => {
+    const h = harness()
+    const s = source(h, 'Heart', 4)
+    const sectionId = h.ws.sections.create({ courseId: h.courseId, name: 'Cardio' })
+    const options = {
+      units: [3, 2],
+      perUnit: 1,
+      types: ['qa' as const],
+      difficulty: 'hard' as const,
+      language: 'fr',
+      sectionId,
+    }
+    const id = await h.jobs.enqueue(s, options)
+    expect(await h.jobs.enqueue(s, { ...options, units: [2, 3] })).toBe(id)
+    const other = await h.jobs.enqueue(s)
+    expect(other).not.toBe(id)
+    expect((await stored(h.store))[0]?.options).toEqual({ ...options, units: [2, 3] })
+    const estimate = await h.jobs.estimate(s, options)
+    expect(estimate).toMatchObject({ kind: 'ok', estimate: { units: 2 } })
+    await h.jobs.cancel(other)
+    await h.jobs.start()
+    await h.jobs.idle()
+    expect(h.calls.map((c) => c.units.map((u) => u.n))).toEqual([[2, 3]])
+    expect(job(h, id)).toMatchObject({ status: 'done', progress: { done: [2, 3], total: 2 } })
+    const prompt = JSON.stringify(h.model.doGenerateCalls[0]?.prompt)
+    expect(prompt).toContain('in French')
+    expect(new Set(h.ws.drafts.list().map((d) => d.sectionId))).toEqual(new Set([sectionId]))
+    // Options this version cannot read fall back to the defaults.
+    expect(
+      parseJobs({ jobs: [{ ...job(h, id), options: { units: 'x', perUnit: 0, types: ['nope'], language: 1 } }] })[0],
+    ).not.toHaveProperty('options')
+  })
+
   test('resumes after the app is closed mid-run, without reading a unit twice', async () => {
     const h = harness()
     const s = source(h, 'Heart', 8)

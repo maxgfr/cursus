@@ -147,7 +147,10 @@ export type DraftUnitKind = 'slide' | 'page' | 'section'
  * Older clients ignore the collection.
  */
 export interface DraftFields {
-  sourceId: Id
+  /** The source it was written on; absent for a card suggested from the chat (`origin: 'chat'`). */
+  sourceId?: Id
+  /** Where it comes from when not a run over a source. Older clients hide a draft without a source. */
+  origin?: 'chat'
   /** Where the card goes once accepted (a course, or one of its subsets). */
   courseId: Id
   sectionId?: Id

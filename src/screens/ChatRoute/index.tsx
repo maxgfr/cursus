@@ -70,10 +70,6 @@ function ChatRoute({ kind }: { kind: StudyKind }) {
   return <Screen title={title} back={back} />
 }
 
-export function Generate() {
-  return <ChatRoute kind="generate" />
-}
-
 export function Understand() {
   return <ChatRoute kind="understand" />
 }

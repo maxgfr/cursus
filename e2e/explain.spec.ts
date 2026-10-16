@@ -266,11 +266,13 @@ test('a term selected in the question is asked about in the chat, without the an
   if (isPhone(info.project.name)) await page.getByRole('main').getByRole('button', { name: 'Ask about this' }).click()
   await expect(panel.getByText(/where the mitochondrion comes in/)).toBeVisible()
   await panel.getByRole('button', { name: 'Make a card' }).click()
-  await expect(panel.getByText('Card added to Biology.')).toBeVisible()
+  await expect(panel.getByText('Added to Suggested cards.')).toBeVisible()
   expect(errors).toEqual([])
 })
 
-test('a term selected in a source is asked about in the chat, cited, and becomes a card', async ({ page }, info) => {
+test('a term selected in a source is asked about in the chat, cited, and becomes a suggested card', async ({
+  page,
+}, info) => {
   const errors = watchErrors(page)
   await seedCourse(page)
   const prompts = await mockProvider(page)
@@ -290,14 +292,10 @@ test('a term selected in a source is asked about in the chat, cited, and becomes
   await expect(panel.getByRole('link', { name: 'Open source: Cell notes' })).toBeVisible()
 
   await panel.getByRole('button', { name: 'Make a card' }).click()
-  await expect(panel.getByText('Card added to Biology.')).toBeVisible()
+  await expect(panel.getByText('Added to Suggested cards.')).toBeVisible()
   if (isPhone(info.project.name)) await panel.getByRole('button', { name: 'Close' }).click()
-  await page.goto('./#/courses')
-  await page
-    .getByRole('main')
-    .getByRole('link', { name: /Biology/ })
-    .click()
-  await expect(page.getByRole('main').getByRole('link', { name: 'What does “ATP” mean here?' })).toBeVisible()
+  await page.goto('./#/inbox')
+  await expect(page.getByRole('main').getByText('What does “ATP” mean here?')).toBeVisible()
   expect(errors).toEqual([])
 })
 

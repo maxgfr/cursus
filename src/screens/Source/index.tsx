@@ -1,6 +1,6 @@
 import { BookOpen, ExternalLink, FolderInput, History, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link, useParams, useSearch } from 'wouter'
+import { Link, useLocation, useParams, useSearch } from 'wouter'
 import { backHome, leaveTo } from '../../app/nav.ts'
 import { to } from '../../app/routes.ts'
 import { useSync } from '../../app/syncContext.tsx'
@@ -15,6 +15,7 @@ import { MarkdownEditor } from '../../ui/editor/MarkdownEditor.tsx'
 import { MoveSheet, moveItemTo } from '../../ui/MoveSheet.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { deckErrorMessage } from '../DeckImport/deckSource.ts'
+import { Generate } from '../Generate/open.tsx'
 import NotFound from '../NotFound/index.tsx'
 import AttachedPhotos from '../Photos/Attached.tsx'
 import { loadFile } from '../Photos/files.ts'
@@ -214,6 +215,10 @@ export default function Source() {
     return s && s.deletedAt === undefined ? { source: s, sectionId: w.sections.tree().sectionOf(s) } : null
   })
   const readable = useReadable(found?.source)
+  // « Create cards » on this source (`?generate=1`: its buttons, an import, an old link), with a model only.
+  const aiReady = useAiReady()
+  const [, navigate] = useLocation()
+  const generating = aiReady && new URLSearchParams(search).get('generate') === '1'
   useChatContext(
     found === null
       ? {}
@@ -282,6 +287,10 @@ export default function Source() {
           {t('course.moved', { place: movedTo })}
         </p>
       )}
+      <Generate
+        at={generating ? { sourceIds: [source.id] } : null}
+        onClose={() => navigate(to.source(id), { replace: true })}
+      />
       <MoveSheet
         open={moving}
         title={t('course.moveTitle')}

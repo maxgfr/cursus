@@ -148,4 +148,5 @@ export const review = {
   statsCrammingNone: 'Aucune pour l’instant · hors de votre planning',
   statsCrammingShare: { one: 'dont {count} en entraînement libre', other: 'dont {count} en entraînement libre' },
   sessionFailed: 'La séance n’a pas pu démarrer. Réessayez.',
+  cardSuggested: 'Ajoutée aux cartes suggérées',
 } as const satisfies Shape<typeof en>

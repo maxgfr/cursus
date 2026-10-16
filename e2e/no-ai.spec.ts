@@ -232,7 +232,7 @@ test('without a model: a whole journey with no trace of AI, ⌘J does nothing, n
   expect(deckId).not.toBe('')
   await page.goto(`./#/source/${deckId}/questions`)
   await expect(page.getByRole('heading', { level: 1, name: 'Cell Biology slides' })).toBeVisible()
-  await expect(page).toHaveURL(new RegExp(`#/source/${deckId}$`))
+  await expect(page).toHaveURL(new RegExp(`#/source/${deckId}(\\?generate=1)?$`))
   await noAi(page)
 
   // A photo: a card can be made from it, nothing explains it.

@@ -1,16 +1,17 @@
 import { FileUp, Presentation, Sparkles } from 'lucide-react'
 import { type ChangeEvent, useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'wouter'
+import { Link, useLocation } from 'wouter'
 import { paths, to } from '../../app/routes.ts'
 import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import { importDeck, titleFromName } from '../../core/content/deck'
 import { useT } from '../../i18n/react.tsx'
 import { useAiReady } from '../../ui/ai/ready.ts'
-import { useChat, useChatContext } from '../../ui/chat/context.tsx'
+import { useChatContext } from '../../ui/chat/context.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { EmptyState } from '../../ui/components/EmptyState.tsx'
 import { ListGroup, ListRow } from '../../ui/components/List.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
+import { GENERATE_QUERY } from '../Generate/open.tsx'
 import { useScopeOnce } from '../Section/scope.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 import styles from './DeckImport.module.css'
@@ -39,7 +40,7 @@ export default function DeckImport() {
   const t = useT()
   const rt = useRuntime()
   const aiReady = useAiReady()
-  const chat = useChat()
+  const [, navigate] = useLocation()
   const opened = useScopeOnce()
   const courses = useWorkspaceData(['courses'], (ws) => ws.courses.list())
   const [place, setPlace] = useState<Place>(() => ({
@@ -180,7 +181,7 @@ export default function DeckImport() {
               <Button
                 variant="primary"
                 icon={<Sparkles size={18} aria-hidden="true" />}
-                onClick={() => chat?.run('suggestCards')}
+                onClick={() => navigate(`${to.source(phase.sourceId)}?${GENERATE_QUERY}`, { replace: true })}
               >
                 {t('ai.deckCreateQuestions')}
               </Button>

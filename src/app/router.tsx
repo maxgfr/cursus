@@ -16,7 +16,10 @@ const screens: Record<Exclude<RouteName, 'today'>, Screen> = {
   course: lazyChunk('course', () => import('../screens/Course/index.tsx')),
   section: lazyChunk('section', () => import('../screens/Section/index.tsx')),
   source: lazyChunk('source', () => import('../screens/Source/index.tsx')),
-  deckQuestions: lazyChunk('deckQuestions', () => import('../screens/Generate/DeckQuestions.tsx')),
+  // The former « Create cards » screen: its source, with « Create cards » open.
+  deckQuestions: lazyChunk('deckQuestions', () =>
+    import('../screens/Generate/redirects.tsx').then((m) => ({ default: m.DeckQuestionsRedirect })),
+  ),
   deckImport: lazyChunk('deckImport', () => import('../screens/DeckImport/index.tsx')),
   photos: lazyChunk('photos', () => import('../screens/Photos/index.tsx')),
   sectionPhotos: lazyChunk('photos', () => import('../screens/Photos/index.tsx')),
@@ -33,7 +36,7 @@ const screens: Record<Exclude<RouteName, 'today'>, Screen> = {
     import('../screens/ChatRoute/index.tsx').then((m) => ({ default: m.Understand })),
   ),
   generate: lazyChunk('generate', () =>
-    import('../screens/ChatRoute/index.tsx').then((m) => ({ default: m.Generate })),
+    import('../screens/Generate/redirects.tsx').then((m) => ({ default: m.GenerateRedirect })),
   ),
   quiz: lazyChunk('quiz', () => import('../screens/Quiz/index.tsx')),
   stats: lazyChunk('stats', () => import('../screens/Stats/index.tsx')),

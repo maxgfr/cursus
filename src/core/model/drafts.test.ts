@@ -230,6 +230,51 @@ describe('drafts', () => {
     expect(w.drafts.list()).toEqual([])
   })
 
+  test('a card suggested from the chat has no source: grouped by course, shown while its course lives, added without provenance', () => {
+    const { w, clock } = ws(9)
+    const { courseId, sourceId } = setup(w)
+    const other = w.courses.create({ title: 'Anatomy' })
+    expect(() => w.drafts.propose([{ ...q('', courseId, 'x'), sourceId: '' }])).toThrow(DraftInputError)
+    const { sourceId: _s, ...chat } = q(sourceId, courseId, 'Why does the heart beat?', 0)
+    expect(() => w.drafts.propose([{ ...chat, unit: 2 }])).toThrow(DraftInputError)
+    w.drafts.propose([chat, { ...chat, front: 'What is a ventricle?' }])
+    clock.advance(1000)
+    w.drafts.propose([{ ...chat, courseId: other, front: 'Name a bone.' }, q(sourceId, courseId, 'What is systole?')])
+    const all = w.drafts.list()
+    expect(all.filter((d) => d.sourceId === undefined).map((d) => d.origin)).toEqual(['chat', 'chat', 'chat'])
+    const groups = w.drafts.groups()
+    // Groups come by key (the source, else the course): compared as a set.
+    const set = (rows: unknown[][]) => rows.map((r) => JSON.stringify(r)).sort()
+    expect(set(groups.map((g) => [g.sourceId ?? null, g.courseId, g.count]))).toEqual(
+      set([
+        [null, other, 1],
+        [null, courseId, 2],
+        [sourceId, courseId, 1],
+      ]),
+    )
+    expect(
+      w.drafts
+        .groups({ courseId })
+        .map((g) => g.count)
+        .sort(),
+    ).toEqual([1, 2])
+    expect(w.drafts.summary().total).toBe(4)
+    expect(w.drafts.summary().sources.map((s) => [s.sourceId, s.courseId, s.count])).toEqual([
+      [sourceId, courseId, 1],
+      [undefined, other, 1],
+      [undefined, courseId, 2],
+    ])
+    const id = all.find((d) => d.front === 'Why does the heart beat?')?.id ?? ''
+    const cardId = w.drafts.accept(id)
+    const card = w.cards.get(cardId)
+    expect(card?.sourceId).toBeUndefined()
+    expect(card?.unit).toBeUndefined()
+    expect(card?.draftId).toBe(id)
+    // Its course in the trash: hidden; the source's own drafts do not depend on it.
+    w.courses.trash(other)
+    expect(w.drafts.summary().total).toBe(2)
+  })
+
   test('questionKey folds case, accents, punctuation and cloze markup', () => {
     expect(questionKey('  Qu’est-ce que la SYSTOLE ?')).toBe('qu est ce que la systole')
     expect(questionKey('Le {{c1::cœur::organe}} bat')).toBe('le cœur bat')

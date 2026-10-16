@@ -148,4 +148,5 @@ export const review = {
   statsCrammingNone: 'Noch keine · außerhalb deines Lernplans',
   statsCrammingShare: { one: 'davon {count} gepaukt', other: 'davon {count} gepaukt' },
   sessionFailed: 'Die Lerneinheit konnte nicht starten. Versuch es noch einmal.',
+  cardSuggested: 'Zu den vorgeschlagenen Karten hinzugefügt',
 } as const satisfies Shape<typeof en>

@@ -319,7 +319,7 @@ test('offline, a failed Test records nothing: the route keeps its catalog status
 
 test('a first visit needs only a key: the provider shown and its recommended model are what Save keeps', async ({
   page,
-}, info) => {
+}, _info) => {
   await page.goto('./#/settings/ai')
   await expect(providerPicker(page)).toHaveValue('anthropic')
   await page.getByLabel('API key').fill('sk-ant-test')
@@ -328,11 +328,12 @@ test('a first visit needs only a key: the provider shown and its recommended mod
   await expect(page.getByRole('button', { name: 'Test', exact: true })).toBeEnabled()
   await page.reload()
   await expect(page.getByRole('region', { name: 'Model', exact: true })).not.toContainText('Choose a model')
-  // The model is ready: the cards' link opens the chat on it (no course yet, so it asks for one).
+  // The model is ready: the cards' link opens « Create cards » in « Suggested cards » (no course yet: it says so).
   await page.goto('./#/generate')
-  const chat = chatPanel(page, info.project.name)
-  await expect(chat.getByRole('textbox', { name: 'Your question' })).toBeVisible()
-  await expect(chat.getByText('Create a course first: cards are saved into a course.')).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Suggested cards' })).toBeVisible()
+  await expect(
+    page.getByRole('dialog', { name: 'Create cards' }).getByText(/^No course has a source yet/),
+  ).toBeVisible()
 })
 
 test('picking a route without touching the key shows that route’s saved key', async ({ page }) => {
@@ -623,7 +624,9 @@ test('Stop leaves the study sheet as it is, editable; asked again, the AI writes
   await expect(editor).toContainText('My own line.')
 })
 
-test('cards generated in the chat flag duplicates, can be edited, then are saved as cards', async ({ page }, info) => {
+test('the former Generate link opens « Create cards » on the course asked for; without a source nothing can run', async ({
+  page,
+}) => {
   const prompts = await mockProvider(page)
   await configure(page)
   await page.goto('./#/')
@@ -632,24 +635,14 @@ test('cards generated in the chat flag duplicates, can be edited, then are saved
   await dialog.getByLabel('Course name').fill('Biology')
   await dialog.getByRole('button', { name: 'Save' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Biology' })).toBeVisible()
+  const courseId = /#\/course\/([^/?]+)/.exec(page.url())?.[1] ?? ''
 
-  // The former screen's link opens the chat on the course; it has nothing to read yet, so nothing is asked.
-  await page.goto('./#/generate')
-  const chat = chatPanel(page, info.project.name)
-  await expect(chat.getByText(/^Nothing to read here yet/)).toBeVisible()
-  expect(prompts.filter((p) => p.includes('flashcards'))).toHaveLength(0)
-  await chat.getByText('Sources: none yet in Biology').click()
-  await chat.getByLabel('Paste text (optional)').fill('Light reactions happen in the thylakoids.')
-  await chat.getByRole('button', { name: 'Run again', exact: true }).click()
-  await expect(chat.getByText('2 cards generated')).toBeVisible()
-  await expect(chat.getByText('1 duplicate flagged: Save all leaves it out')).toBeVisible()
-  expect(prompts.at(-1)).toContain('Light reactions happen in the thylakoids.')
-
-  await chat.getByLabel('Front of card 1').fill('Where do light reactions take place?')
-  await chat.getByRole('button', { name: 'Save 2 cards' }).click()
-  await expect(chat.getByText('2 cards saved.')).toBeVisible()
-  await chat.getByRole('link', { name: 'Open course' }).click()
-  await expect(page.getByRole('main').getByText('Where do light reactions take place?')).toBeVisible()
+  await page.goto(`./#/generate?course=${courseId}`)
+  const sheet = page.getByRole('dialog', { name: 'Create cards' })
+  await expect(sheet.getByLabel('Course or section')).toHaveValue(new RegExp(courseId))
+  await expect(sheet.getByText(/^No source here yet/)).toBeVisible()
+  await expect(sheet.getByRole('button', { name: 'Create cards' })).toBeDisabled()
+  expect(prompts).toHaveLength(0)
 })
 
 /** A course with a note, then the quiz set up on it. */

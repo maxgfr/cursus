@@ -21,8 +21,11 @@ import type { SourceRecord } from '../model/schema'
 import type { ModelWorkspace } from '../model/workspace'
 import {
   deckGenerator,
+  type JobOptions,
   type JobReason,
+  optionsKey,
   type PlanOutcome,
+  parseJobOptions,
   planRun,
   type QuestionGenerator,
   type RunPlan,
@@ -55,6 +58,8 @@ export interface AiJob {
   id: string
   sourceId: Id
   reason: JobReason
+  /** What the student chose (« Generate cards »); absent = the defaults. */
+  options?: JobOptions
   status: JobStatus
   createdAt: number
   updatedAt: number
@@ -102,8 +107,8 @@ export interface JobsDeps {
   network: { online(): boolean; subscribe?(fn: () => void): () => void }
   /** The configured model, or null when none is set up (or not usable on this device). */
   model(): Promise<JobModel | null>
-  /** The source's units (decks, documents, PDFs, notes, a photo); null when it cannot be read here. */
-  content(source: SourceRecord, signal: AbortSignal): Promise<SourceContent | null>
+  /** The source's units (decks, documents, PDFs, notes, a photo) the options cover; null when it cannot be read here. */
+  content(source: SourceRecord, signal: AbortSignal, options?: JobOptions): Promise<SourceContent | null>
   /** Generators by source kind (e.g. `image`: a `photoToCards` adapter); `deckQuestions` otherwise. */
   generators?: Partial<Record<SourceRecord['kind'], QuestionGenerator>>
 }
@@ -120,8 +125,11 @@ export interface AiJobs {
   start(): Promise<void>
   /** Interrupts the running job (it resumes on the next start) and stops the queue. */
   stop(): void
-  /** Queues a source the student asked about. A source already queued or waiting keeps its job, whose id is returned. */
-  enqueue(sourceId: Id): Promise<string>
+  /**
+   * Queues a source the student asked about, with what they chose. A source already queued or waiting with the same
+   * choices keeps its job, whose id is returned.
+   */
+  enqueue(sourceId: Id, options?: JobOptions): Promise<string>
   state(): JobsState
   subscribe(fn: (s: JobsState) => void): () => void
   cancel(id: string): Promise<void>
@@ -131,7 +139,7 @@ export interface AiJobs {
   kick(): Promise<void>
   /** Re-reads the stored queue (another tab may have changed it). */
   refresh(): Promise<void>
-  estimate(sourceId: Id): Promise<SourceEstimate>
+  estimate(sourceId: Id, options?: JobOptions): Promise<SourceEstimate>
   /** Resolves once the queue has nothing more to run now. */
   idle(): Promise<void>
 }
@@ -190,11 +198,19 @@ function current(j: AiJob, now: number): AiJob {
   return out as unknown as AiJob
 }
 
+/** Options this version reads; none left, the field goes. */
+function withOptions(j: AiJob): AiJob {
+  if (!('options' in j)) return j
+  const options = parseJobOptions(j.options)
+  const { options: _, ...rest } = j
+  return options ? { ...rest, options } : rest
+}
+
 /** The stored queue; entries this version cannot read are left out. */
 export function parseJobs(raw: unknown, now = 0): AiJob[] {
   if (typeof raw !== 'object' || raw === null) return []
   const jobs = (raw as { jobs?: unknown }).jobs
-  return Array.isArray(jobs) ? jobs.filter(isJob).map((j) => current(j, now)) : []
+  return Array.isArray(jobs) ? jobs.filter(isJob).map((j) => withOptions(current(j, now))) : []
 }
 
 /** Oldest first; jobs queued in the same millisecond keep their order (the sorts are stable). */
@@ -366,11 +382,13 @@ class JobQueue implements AiJobs {
 
   // ---- commands ----
 
-  async enqueue(sourceId: Id): Promise<string> {
+  async enqueue(sourceId: Id, options?: JobOptions): Promise<string> {
     let id = ''
     const now = this.deps.clock.now()
+    const chosen = parseJobOptions(options)
+    const key = optionsKey(chosen)
     await this.mutate((jobs) => {
-      const active = jobs.find((j) => j.sourceId === sourceId && ACTIVE.has(j.status))
+      const active = jobs.find((j) => j.sourceId === sourceId && ACTIVE.has(j.status) && optionsKey(j.options) === key)
       if (active) {
         id = active.id
         return jobs
@@ -388,6 +406,7 @@ class JobQueue implements AiJobs {
         added: 0,
         duplicates: 0,
       }
+      if (chosen) job.options = chosen
       id = job.id
       return [...jobs, job]
     })
@@ -433,12 +452,13 @@ class JobQueue implements AiJobs {
     void this.pump()
   }
 
-  async estimate(sourceId: Id): Promise<SourceEstimate> {
-    const plan = planRun(this.deps.ws, sourceId)
+  async estimate(sourceId: Id, options?: JobOptions): Promise<SourceEstimate> {
+    const chosen = parseJobOptions(options) ?? undefined
+    const plan = planRun(this.deps.ws, sourceId, chosen)
     if (plan === 'source-gone') return { kind: 'source-gone' }
     const model = await this.deps.model()
     if (!model) return { kind: 'needs-model' }
-    const prepared = await this.prepare(plan, model, [], new AbortController().signal)
+    const prepared = await this.prepare(plan, model, [], new AbortController().signal, chosen)
     if (!prepared) return { kind: 'empty' }
     return { kind: 'ok', estimate: prepared.estimate, local: model.local }
   }
@@ -450,8 +470,12 @@ class JobQueue implements AiJobs {
     model: JobModel,
     done: readonly number[],
     signal: AbortSignal,
+    options?: JobOptions,
   ): Promise<Prepared | null> {
-    const content = await this.deps.content(plan.source, signal)
+    const read = await this.deps.content(plan.source, signal, options)
+    // Only the units asked for, whatever the reader gave.
+    const asked = options?.units === undefined ? null : new Set(options.units)
+    const content = read && asked ? { ...read, units: read.units.filter((u) => asked.has(u.index)) } : read
     if (!content || content.units.length === 0) return null
     const generator = this.deps.generators?.[plan.source.kind] ?? deckGenerator
     const resume = { done: Object.fromEntries(done.map((u) => [u, [] as DeckQuestion[]])) }
@@ -467,7 +491,7 @@ class JobQueue implements AiJobs {
     const id = job.id
     // Every write keeps a cancellation made meanwhile (maybe from another tab).
     const set = (p: Partial<AiJob>): Promise<void> => this.patch(id, p, { keepCancelled: true })
-    const plan: PlanOutcome = planRun(ws, job.sourceId)
+    const plan: PlanOutcome = planRun(ws, job.sourceId, job.options)
     if (plan === 'source-gone') {
       await set({ status: 'done', outcome: plan })
       return
@@ -490,7 +514,7 @@ class JobQueue implements AiJobs {
     let total = job.progress.total
     try {
       await set({ status: 'running', model: modelName(model.info), error: undefined })
-      const prepared = await this.prepare(plan, model, [...done], controller.signal)
+      const prepared = await this.prepare(plan, model, [...done], controller.signal, job.options)
       if (!prepared) {
         await set({ status: 'done', outcome: 'empty' })
         return
@@ -498,7 +522,7 @@ class JobQueue implements AiJobs {
       const { content, generator, input, estimate } = prepared
       total = content.units.length
       await set({ estimate, progress: { done: [...done].sort((a, b) => a - b), total } })
-      // In the language of the document itself unless the course names one.
+      // In the language asked for, else the course's, else the document's own.
       const language = plan.languageFromContent
         ? (unitsLanguage(content.units, this.deps.ws.prefs.get('locale')) ?? plan.language)
         : plan.language
