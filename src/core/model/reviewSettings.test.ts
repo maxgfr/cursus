@@ -5,7 +5,7 @@ import { seededRng } from '../ports/rng'
 import { createScheduler } from '../srs/fsrs'
 import { REVIEW_DEFAULTS, REVIEW_SETTING_KEYS } from '../srs/settings'
 import { canonicalJson } from '../sync/verify'
-import { queueLimitsFor, ReviewSettingsError, reviewKey, schedulerOf } from './reviewSettings'
+import { queueLimitsFor, ReviewSettingsError, reviewKey, schedulerOf, schedulersOf } from './reviewSettings'
 import { ROOT } from './schema'
 import { createWorkspace } from './workspace'
 
@@ -127,5 +127,83 @@ describe('the review settings', () => {
 
   test('every setting has a key of its own', () => {
     expect(new Set(REVIEW_SETTING_KEYS.map(reviewKey)).size).toBe(REVIEW_SETTING_KEYS.length)
+  })
+})
+
+describe("a course's own review settings", () => {
+  function courses() {
+    const m = make()
+    const law = m.ws.courses.create({ title: 'Law' })
+    const art = m.ws.courses.create({ title: 'Art' })
+    return { ...m, law, art }
+  }
+
+  test('a course follows all cards until it has settings of its own; its valid fields win', () => {
+    const { ws, law, art } = courses()
+    ws.reviewSettings.set({ dailyNewCards: 30, desiredRetention: 0.85 })
+    expect(ws.reviewSettings.forCourse(law)).toEqual(ws.reviewSettings.get())
+    ws.reviewSettings.setForCourse(law, { desiredRetention: 0.8, learningSteps: ['5m'], leechAction: 'suspend' })
+    expect(ws.courses.get(law)).toMatchObject({
+      reviewRetention: 0.8,
+      reviewLearningSteps: '5m',
+      reviewLeechAction: 'suspend',
+    })
+    expect(ws.reviewSettings.forCourse(law)).toEqual({
+      ...ws.reviewSettings.get(),
+      desiredRetention: 0.8,
+      learningSteps: ['5m'],
+      leechAction: 'suspend',
+    })
+    expect(ws.reviewSettings.overrides(law)).toEqual({
+      desiredRetention: 0.8,
+      learningSteps: ['5m'],
+      leechAction: 'suspend',
+    })
+    expect(ws.reviewSettings.forCourse(art)).toEqual(ws.reviewSettings.get())
+    expect(ws.reviewSettings.forCourse(undefined)).toEqual(ws.reviewSettings.get())
+    // A field a newer version wrote, unread here, follows all cards.
+    ws.courses.update(art, { reviewRetention: 2, reviewNewMix: 'sometimes', reviewLearningSteps: 'soon' })
+    expect(ws.reviewSettings.forCourse(art)).toEqual(ws.reviewSettings.get())
+  })
+
+  test('a value typed as all cards’ follows all cards again; clearing gives every field up', () => {
+    const { ws, law } = courses()
+    ws.reviewSettings.setForCourse(law, { dailyNewCards: 5, maxReviewsPerDay: 50, newOrder: 'random' })
+    ws.reviewSettings.setForCourse(law, { dailyNewCards: 20, maxReviewsPerDay: null })
+    expect(ws.reviewSettings.overrides(law)).toEqual({ newOrder: 'random' })
+    ws.reviewSettings.clearCourse(law)
+    expect(ws.reviewSettings.overrides(law)).toEqual({})
+    const fields = Object.keys(ws.courses.get(law) ?? {}).filter((k) => k.startsWith('review'))
+    expect(fields).toEqual([])
+    expect(() => ws.reviewSettings.setForCourse(law, { leechThreshold: 0 })).toThrow(ReviewSettingsError)
+  })
+
+  test('each course is scheduled with its settings; the same settings share one scheduler', () => {
+    const { ws, law, art } = courses()
+    ws.reviewSettings.setForCourse(law, { desiredRetention: 0.8 })
+    const of = schedulersOf(ws)
+    expect(of(law)).toBe(createScheduler({ desiredRetention: 0.8 }))
+    expect(of(art)).toBe(schedulerOf(ws))
+    expect(of(law)).toBe(of(law))
+    expect(schedulerOf(ws, law)).toBe(of(law))
+  })
+
+  test("the queue: all cards' limits, the order of the place studied, the limits of courses that have their own", () => {
+    const { ws, law, art } = courses()
+    ws.reviewSettings.set({ dailyNewCards: 30, maxReviewsPerDay: 200 })
+    ws.reviewSettings.setForCourse(law, { dailyNewCards: 5, newMix: 'before', newOrder: 'random' })
+    expect(queueLimitsFor(ws, undefined, [law, art, law])).toEqual({
+      newPerDay: 30,
+      maxReviews: 200,
+      courseLimits: new Map([[law, { newPerDay: 5, maxReviews: 200 }]]),
+    })
+    expect(queueLimitsFor(ws, { courseId: law }, [law])).toEqual({
+      newPerDay: 30,
+      maxReviews: 200,
+      newOrder: 'random',
+      newMix: 'before',
+      courseLimits: new Map([[law, { newPerDay: 5, maxReviews: 200 }]]),
+    })
+    expect(queueLimitsFor(ws, { courseId: art }, [art])).toEqual({ newPerDay: 30, maxReviews: 200 })
   })
 })

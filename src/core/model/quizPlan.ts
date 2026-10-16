@@ -31,7 +31,7 @@ export interface WeakCard {
  * are left out.
  */
 export function weakCards(ws: ModelWorkspace, scope: StudyScope, now: number, limit = WEAK_MAX): WeakCard[] {
-  const scheduler = schedulerOf(ws)
+  const scheduler = schedulerOf(ws, scope.courseId)
   const out: WeakCard[] = []
   for (const card of ws.scoped('cards', scope)) {
     if (card.suspended === true) continue

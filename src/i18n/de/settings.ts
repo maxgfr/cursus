@@ -83,6 +83,13 @@ export const settings = {
   previewReview: 'Eine fällige Karte',
   restoreRecommended: 'Empfohlene Einstellungen wiederherstellen',
   restored: 'Empfohlene Einstellungen eingetragen. Speichere, um sie anzuwenden.',
+  reviewFor: 'Einstellungen für',
+  reviewAllCards: 'Alle Karten',
+  reviewCourseBody:
+    'Diese Einstellungen gelten für die Karten von {course}, auf allen Geräten; die übrigen folgen Alle Karten.',
+  sameAsAll: 'Wie Alle Karten',
+  useAllCards: 'Einstellungen von Alle Karten verwenden',
+  inherited: 'Die Einstellungen von Alle Karten sind eingetragen. Speichere, um sie für diesen Kurs anzuwenden.',
   saved: 'Gespeichert. Gilt nach der nächsten Synchronisierung auf allen Geräten.',
   storageTitle: 'Speicher auf diesem Gerät',
   persistOn: 'Geschützter Speicher ist aktiv: Der Browser löscht Cursus nicht, um Platz zu schaffen.',

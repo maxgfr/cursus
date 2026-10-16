@@ -12,7 +12,7 @@ import { buildSession } from '../srs/custom'
 import { type CardState, localOffset } from '../srs/fsrs'
 import type { QueueEntry } from '../srs/queue'
 import { EntityNotFoundError } from './repos'
-import { schedulerOf } from './reviewSettings'
+import { schedulersOf } from './reviewSettings'
 import type { ReviewEvent } from './reviews'
 import type { PlanRecord } from './schema'
 import { cleanScope, cmp, parseTime } from './sessionLog'
@@ -205,12 +205,13 @@ export function sessionQueue(ws: ModelWorkspace, r: SessionQueueRequest): QueueE
     .list()
     .filter((c) => live.has(c.courseId) && c.suspended !== true)
     .map((c) => ({ id: c.id, courseId: c.courseId, sections: tree.locate(c) }))
-  const settings = ws.reviewSettings.get()
-  const scheduler = schedulerOf(ws)
+  // New cards come in the order of the place studied: a course's own, or all cards'.
+  const settings = ws.reviewSettings.forCourse(r.scope?.courseId)
+  const schedulerFor = schedulersOf(ws)
   const states = new Map<Id, CardState>()
   for (const c of cards) {
     const events = ws.reviews.forCard(c.id)
-    if (events.length > 0) states.set(c.id, scheduler.replay(c.id, events))
+    if (events.length > 0) states.set(c.id, schedulerFor(c.courseId).replay(c.id, events))
   }
   return buildSession({
     cards,
@@ -218,7 +219,7 @@ export function sessionQueue(ws: ModelWorkspace, r: SessionQueueRequest): QueueE
     reviews: ws.reviews.all(),
     now: r.now,
     tzOffsetMin: r.tzOffsetMin ?? localOffset(r.now),
-    newPerDay: settings.dailyNewCards,
+    newPerDay: ws.reviewSettings.get().dailyNewCards,
     ...(settings.newOrder === 'created' ? {} : { newOrder: settings.newOrder }),
     kind: r.kind,
     ...(r.scope ? { scope: r.scope } : {}),

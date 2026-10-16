@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useRuntime, useWorkspace, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { LocalStore } from '../../core/contracts/ports'
 import type { Id } from '../../core/contracts/workspace'
-import { queueLimitsFor, schedulerOf } from '../../core/model/reviewSettings'
+import { queueLimitsFor, schedulerOf, schedulersOf } from '../../core/model/reviewSettings'
 import type { ModelWorkspace } from '../../core/model/workspace'
 import {
   type CardState,
@@ -109,18 +109,25 @@ export function computeStudy(ws: ModelWorkspace, now: number, saved: ReplaySnaps
   const courses = ws.courses.list()
   const live = new Set(courses.map((c) => c.id))
   const cards = ws.cards.list().filter((c) => live.has(c.courseId) && !c.suspended)
+  // The replays an earlier launch saved are all cards' scheduler's: a course with settings of its own replays cold.
   const scheduler = schedulerOf(ws)
   seedOnce(scheduler, saved)
   saveScheduler = scheduler
+  const schedulerFor = schedulersOf(ws)
   const states = new Map<Id, CardState>()
   const times: number[] = []
   for (const c of cards) {
     const events = ws.reviews.forCard(c.id)
     if (events.length === 0) continue
-    states.set(c.id, scheduler.replay(c.id, events))
+    states.set(c.id, schedulerFor(c.courseId).replay(c.id, events))
     for (const e of events) if ('ms' in e && e.ms > 0) times.push(e.ms)
   }
-  const input = { cards: cards.map((c) => ({ id: c.id })), states, tzOffsetMin: tz, ...queueLimitsFor(ws) }
+  const input = {
+    cards: cards.map((c) => ({ id: c.id, courseId: c.courseId })),
+    states,
+    tzOffsetMin: tz,
+    ...queueLimitsFor(ws, undefined, live),
+  }
   const queue = buildQueue({ ...input, now })
   const tomorrow = buildQueue({ ...input, now: dayStart(studyDay(now, tz) + 1, tz) })
 

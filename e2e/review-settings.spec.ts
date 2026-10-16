@@ -115,3 +115,72 @@ test('a card forgotten once too often is suspended with its grade when asked; Un
   await expect(page.getByRole('heading', { level: 2, name: '1 card due today' })).toHaveCount(0)
   expect(errors).toEqual([])
 })
+
+test('a course with a retention of its own schedules its cards with it; the other course keeps All cards', async ({
+  page,
+}) => {
+  const errors = watchErrors(page)
+  const now = Date.now()
+  const due = (front: string, back: string) => ({ front, back, reviews: lapsed(now, 0) })
+  await harness.seed(page, {
+    courses: [
+      { title: 'Law', cards: [due('Offer?', 'A proposal')] },
+      { title: 'Art', cards: [due('Fresco?', 'Wet plaster')] },
+    ],
+  })
+  const goodWait = async (courseId: string, front: string) => {
+    // Through Today: the review screen opens afresh on the course.
+    await page.goto('./#/')
+    await page.goto(`./#/review?course=${encodeURIComponent(courseId)}`)
+    await expect(page.getByTestId('question')).toContainText(front)
+    await page.getByRole('button', { name: /Show answer/ }).click()
+    return (await page.getByRole('button', { name: /^Good, next review in/ }).getAttribute('aria-label')) ?? ''
+  }
+
+  await openSchedule(page)
+  const place = page.getByLabel('Settings for')
+  const lawId = (await place.locator('option', { hasText: 'Law' }).getAttribute('value')) ?? ''
+  const artId = (await place.locator('option', { hasText: 'Art' }).getAttribute('value')) ?? ''
+  const lawBefore = await goodWait(lawId, 'Offer?')
+  const artBefore = await goodWait(artId, 'Fresco?')
+  await openSchedule(page)
+  await expect(place).toHaveValue('')
+  await place.selectOption({ label: 'Law' })
+  await expect(page).toHaveURL(new RegExp(`course=${lawId}`))
+  await expect(page.getByText('These settings apply to the cards of Law, on every device;')).toBeVisible()
+  // Every setting follows All cards until it is changed.
+  await expect(page.getByText('Same as All cards')).toHaveCount(11)
+  await page.getByLabel('Target retention (%)').fill('80')
+  await expect(page.getByText('Same as All cards')).toHaveCount(10)
+  await page.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByText(/^Saved\./)).toBeVisible()
+
+  // The buttons differ: Law's follow its own retention, Art's are as they were.
+  expect(await goodWait(lawId, 'Offer?')).not.toBe(lawBefore)
+  expect(await goodWait(artId, 'Fresco?')).toBe(artBefore)
+
+  // All cards' settings are untouched; the course follows them again with one button, then Save.
+  await openSchedule(page)
+  await expect(page.getByLabel('Target retention (%)')).toHaveValue('90')
+  await page.getByLabel('Settings for').selectOption({ label: 'Law' })
+  await expect(page.getByLabel('Target retention (%)')).toHaveValue('80')
+  await page.getByRole('button', { name: 'Use the settings of All cards' }).click()
+  await expect(page.getByLabel('Target retention (%)')).toHaveValue('90')
+  await page.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByText(/^Saved\./)).toBeVisible()
+  expect(await goodWait(lawId, 'Offer?')).toBe(lawBefore)
+  expect(errors).toEqual([])
+})
+
+test('the course settings lead to its own schedule', async ({ page }) => {
+  await harness.seed(page, { courses: [{ title: 'Law', cards: [{ front: 'Offer?', back: 'A proposal' }] }] })
+  await page.goto('./#/courses')
+  await page.getByRole('main').getByRole('link', { name: /^Law/ }).click()
+  await page.getByRole('button', { name: 'Course settings' }).click()
+  await page
+    .getByRole('dialog', { name: 'Course settings' })
+    .getByRole('link', { name: 'Schedule of this course' })
+    .click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Schedule' })).toBeVisible()
+  await expect(page.getByLabel('Settings for').locator('option:checked')).toHaveText('Law')
+})

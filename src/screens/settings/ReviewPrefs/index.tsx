@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
+import { useLocation, useSearch } from 'wouter'
 import { paths } from '../../../app/routes.ts'
 import { useWorkspace, useWorkspaceData } from '../../../app/workspaceContext.tsx'
-import type { Rating } from '../../../core/contracts/workspace'
+import type { Id, Rating } from '../../../core/contracts/workspace'
 import {
   type ButtonWaits,
   formatSteps,
@@ -13,6 +14,7 @@ import {
   REVIEW_DEFAULTS,
   REVIEW_RANGES,
   REVIEW_SETTING_KEYS,
+  type ReviewSettingKey,
   type ReviewSettings,
   sameSetting,
   srsParamsOf,
@@ -25,6 +27,7 @@ import { Segmented } from '../../../ui/components/Segmented.tsx'
 import { SwitchRow } from '../../../ui/components/Switch.tsx'
 import { Screen } from '../../../ui/shell/Screen.tsx'
 import { formatInterval } from '../../Review/interval.ts'
+import shared from '../../Understand/shared/ai.module.css'
 import styles from '../Sync/settings.module.css'
 
 /** The form as typed: numbers and steps as text until they are read. */
@@ -92,18 +95,63 @@ const RATINGS: readonly Rating[] = [1, 2, 3, 4]
 const GRADE_KEY = { 1: 'review.again', 2: 'review.hard', 3: 'review.good', 4: 'review.easy' } as const
 
 /**
- * « Schedule »: how reviews are scheduled and queued, for all the cards, Anki-style (FSRS): daily limits, the
- * memory target, the learning steps, new cards, hard cards, and the rest under Advanced. The buttons' waits on two
- * sample cards follow what is typed. The recommended settings are the defaults: nothing is written until Save, and
- * then only what changed (a setting put back to its recommended value gives its key up).
+ * « Schedule »: how reviews are scheduled and queued, Anki-style (FSRS): daily limits, the memory target, the
+ * learning steps, new cards, hard cards, and the rest under Advanced, for all the cards or, as an Anki deck's
+ * options, for one course (`?course=`) over them. The buttons' waits on two sample cards follow what is typed.
+ * The recommended settings are the defaults: nothing is written until Save, and then only what changed (a setting
+ * put back to its recommended value, or for a course to all cards' value, gives its key up).
  */
 export default function ReviewPrefsSettings() {
   const t = useT()
+  const [, navigate] = useLocation()
+  const pickId = useId()
+  const asked = new URLSearchParams(useSearch()).get('course')
+  const courses = useWorkspaceData(['courses'], (w) => w.courses.list().map((c) => ({ id: c.id, title: c.title })))
+  const course = courses.find((c) => c.id === asked)
+  return (
+    <Screen title={t('common.setReview')} back={paths.settings}>
+      {courses.length > 0 && (
+        <div className={shared.field}>
+          <label className={shared.label} htmlFor={pickId}>
+            {t('settings.reviewFor')}
+          </label>
+          <select
+            id={pickId}
+            className={shared.select}
+            value={course?.id ?? ''}
+            onChange={(e) =>
+              navigate(
+                e.target.value === ''
+                  ? paths.settingsReview
+                  : `${paths.settingsReview}?course=${encodeURIComponent(e.target.value)}`,
+                { replace: true },
+              )
+            }
+          >
+            <option value="">{t('settings.reviewAllCards')}</option>
+            {courses.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.title}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      <ScheduleForm key={course?.id ?? ''} course={course} />
+    </Screen>
+  )
+}
+
+/** The settings of all cards, or of one course over them; built anew for each. */
+function ScheduleForm({ course }: { course: { id: Id; title: string } | undefined }) {
+  const t = useT()
   const locale = useLocale()
   const ws = useWorkspace()
-  const current = useWorkspaceData(['prefs'], (w) => w.reviewSettings.get())
+  const courseId = course?.id
+  const all = useWorkspaceData(['prefs'], (w) => w.reviewSettings.get())
+  const current = useWorkspaceData(['prefs', 'courses'], (w) => w.reviewSettings.forCourse(courseId))
   const [form, setForm] = useState<Form>(() => formOf(current))
-  const [note, setNote] = useState<'saved' | 'restored' | null>(null)
+  const [note, setNote] = useState<'saved' | 'restored' | 'inherited' | null>(null)
   const change = (patch: Partial<Form>) => {
     setForm((f) => ({ ...f, ...patch }))
     setNote(null)
@@ -118,6 +166,12 @@ export default function ReviewPrefsSettings() {
   }
   const changed = Object.keys(patch).length > 0
   const recommended = REVIEW_SETTING_KEYS.every((k) => sameSetting(k, typed[k], REVIEW_DEFAULTS[k]))
+  // For a course: a setting typed as all cards' value follows all cards (no limit of its own: all cards' limit).
+  const inherits = (k: ReviewSettingKey) =>
+    k === 'maxReviewsPerDay' && typed.maxReviewsPerDay === null ? true : sameSetting(k, typed[k], all[k])
+  const followsAll = REVIEW_SETTING_KEYS.every(inherits)
+  const same = (k: ReviewSettingKey) =>
+    courseId !== undefined && inherits(k) ? <p className={styles.note}>{t('settings.sameAsAll')}</p> : null
 
   // The waits on the sample cards, with what is typed where it is valid, the saved settings elsewhere.
   const preview = previewSamples(
@@ -135,197 +189,219 @@ export default function ReviewPrefsSettings() {
 
   const stepsError = t('settings.stepsError')
   return (
-    <Screen title={t('common.setReview')} back={paths.settings}>
-      <form
-        className={styles.stack}
-        onSubmit={(e) => {
-          e.preventDefault()
-          if (!valid || !changed) return
-          ws.reviewSettings.set(patch)
-          setNote('saved')
-        }}
-      >
-        <p className={styles.prose}>{t('common.reviewPrefsBody')}</p>
+    <form
+      className={styles.stack}
+      onSubmit={(e) => {
+        e.preventDefault()
+        if (!valid || !changed) return
+        if (courseId === undefined) ws.reviewSettings.set(patch)
+        else {
+          // Every setting given: those typed as all cards' value follow all cards again.
+          const full = Object.fromEntries(REVIEW_SETTING_KEYS.map((k) => [k, typed[k]]))
+          ws.reviewSettings.setForCourse(courseId, full as Partial<ReviewSettings>)
+        }
+        setNote('saved')
+      }}
+    >
+      <p className={styles.prose}>
+        {course === undefined ? t('common.reviewPrefsBody') : t('settings.reviewCourseBody', { course: course.title })}
+      </p>
 
-        <section className={styles.card} aria-labelledby="review-preview">
-          <h2 id="review-preview" className={styles.sectionTitle}>
-            {t('settings.reviewPreview')}
-          </h2>
-          <dl className={styles.facts} data-testid="review-preview">
-            <dt>{t('settings.previewNew')}</dt>
-            <dd>{waits(preview.fresh)}</dd>
-            <dt>{t('settings.previewReview')}</dt>
-            <dd>{waits(preview.review)}</dd>
-          </dl>
-        </section>
+      <section className={styles.card} aria-labelledby="review-preview">
+        <h2 id="review-preview" className={styles.sectionTitle}>
+          {t('settings.reviewPreview')}
+        </h2>
+        <dl className={styles.facts} data-testid="review-preview">
+          <dt>{t('settings.previewNew')}</dt>
+          <dd>{waits(preview.fresh)}</dd>
+          <dt>{t('settings.previewReview')}</dt>
+          <dd>{waits(preview.review)}</dd>
+        </dl>
+      </section>
 
-        <section className={styles.card} aria-labelledby="review-limits">
-          <h2 id="review-limits" className={styles.sectionTitle}>
-            {t('settings.reviewLimits')}
-          </h2>
+      <section className={styles.card} aria-labelledby="review-limits">
+        <h2 id="review-limits" className={styles.sectionTitle}>
+          {t('settings.reviewLimits')}
+        </h2>
+        <Field
+          label={t('settings.dailyNew')}
+          hint={t('settings.dailyNewHint')}
+          type="number"
+          inputMode="numeric"
+          min={REVIEW_RANGES.dailyNewCards.min}
+          max={REVIEW_RANGES.dailyNewCards.max}
+          step={1}
+          value={form.dailyNewCards}
+          onChange={(e) => change({ dailyNewCards: e.target.value })}
+          error={typed.dailyNewCards === null ? t('settings.dailyNewError') : undefined}
+        />
+        {same('dailyNewCards')}
+        <Field
+          label={t('settings.dailyMax')}
+          hint={t('settings.dailyMaxHint')}
+          type="number"
+          inputMode="numeric"
+          min={REVIEW_RANGES.maxReviewsPerDay.min}
+          max={REVIEW_RANGES.maxReviewsPerDay.max}
+          step={1}
+          placeholder={t('settings.noLimit')}
+          value={form.maxReviewsPerDay}
+          onChange={(e) => change({ maxReviewsPerDay: e.target.value })}
+          error={typed.maxReviewsOk ? undefined : t('settings.dailyMaxError')}
+        />
+        {same('maxReviewsPerDay')}
+      </section>
+
+      <section className={styles.card} aria-labelledby="review-memory">
+        <h2 id="review-memory" className={styles.sectionTitle}>
+          {t('settings.reviewMemory')}
+        </h2>
+        <Field
+          label={t('settings.retentionPercent')}
+          hint={t('settings.retentionHint')}
+          type="number"
+          inputMode="numeric"
+          min={REVIEW_RANGES.desiredRetention.min * 100}
+          max={REVIEW_RANGES.desiredRetention.max * 100}
+          step={1}
+          value={form.retention}
+          onChange={(e) => change({ retention: e.target.value })}
+          error={
+            typed.desiredRetention === null
+              ? t('settings.retentionError', {
+                  min: REVIEW_RANGES.desiredRetention.min * 100,
+                  max: REVIEW_RANGES.desiredRetention.max * 100,
+                })
+              : undefined
+          }
+        />
+        {same('desiredRetention')}
+      </section>
+
+      <section className={styles.card} aria-labelledby="review-steps">
+        <h2 id="review-steps" className={styles.sectionTitle}>
+          {t('settings.reviewSteps')}
+        </h2>
+        <Field
+          label={t('settings.learningSteps')}
+          hint={t('settings.learningStepsHint')}
+          autoCapitalize="off"
+          autoComplete="off"
+          spellCheck={false}
+          value={form.learningSteps}
+          onChange={(e) => change({ learningSteps: e.target.value })}
+          error={typed.learningSteps === null ? stepsError : undefined}
+        />
+        {same('learningSteps')}
+        <Field
+          label={t('settings.relearningSteps')}
+          hint={t('settings.relearningStepsHint')}
+          autoCapitalize="off"
+          autoComplete="off"
+          spellCheck={false}
+          value={form.relearningSteps}
+          onChange={(e) => change({ relearningSteps: e.target.value })}
+          error={typed.relearningSteps === null ? stepsError : undefined}
+        />
+        {same('relearningSteps')}
+      </section>
+
+      <section className={styles.card} aria-labelledby="review-new">
+        <h2 id="review-new" className={styles.sectionTitle}>
+          {t('settings.reviewNewCards')}
+        </h2>
+        <Segmented<NewOrder>
+          label={t('settings.newOrder')}
+          value={form.newOrder}
+          onChange={(newOrder) => change({ newOrder })}
+          options={[
+            { value: 'created', label: t('settings.newOrderCreated') },
+            { value: 'random', label: t('settings.newOrderRandom') },
+          ]}
+        />
+        {same('newOrder')}
+        <Segmented<NewMix>
+          label={t('settings.newMix')}
+          value={form.newMix}
+          onChange={(newMix) => change({ newMix })}
+          options={[
+            { value: 'after', label: t('settings.newMixAfter') },
+            { value: 'mixed', label: t('settings.newMixMixed') },
+            { value: 'before', label: t('settings.newMixBefore') },
+          ]}
+        />
+        {same('newMix')}
+      </section>
+
+      <section className={styles.card} aria-labelledby="review-leeches">
+        <h2 id="review-leeches" className={styles.sectionTitle}>
+          {t('settings.reviewLeeches')}
+        </h2>
+        <Field
+          label={t('settings.leechThreshold')}
+          hint={t('settings.leechThresholdHint')}
+          type="number"
+          inputMode="numeric"
+          min={REVIEW_RANGES.leechThreshold.min}
+          max={REVIEW_RANGES.leechThreshold.max}
+          step={1}
+          value={form.leechThreshold}
+          onChange={(e) => change({ leechThreshold: e.target.value })}
+          error={typed.leechThreshold === null ? t('settings.leechThresholdError') : undefined}
+        />
+        {same('leechThreshold')}
+        <Segmented<LeechAction>
+          label={t('settings.leechAction')}
+          value={form.leechAction}
+          onChange={(leechAction) => change({ leechAction })}
+          options={[
+            { value: 'flag', label: t('settings.leechFlag') },
+            { value: 'suspend', label: t('settings.leechSuspend') },
+          ]}
+        />
+        {same('leechAction')}
+      </section>
+
+      <details className={styles.advanced}>
+        <summary>{t('sync.advanced')}</summary>
+        <div className={styles.card}>
           <Field
-            label={t('settings.dailyNew')}
-            hint={t('settings.dailyNewHint')}
+            label={t('settings.maximumInterval')}
+            hint={t('settings.maximumIntervalHint')}
             type="number"
             inputMode="numeric"
-            min={REVIEW_RANGES.dailyNewCards.min}
-            max={REVIEW_RANGES.dailyNewCards.max}
+            min={REVIEW_RANGES.maximumInterval.min}
+            max={REVIEW_RANGES.maximumInterval.max}
             step={1}
-            value={form.dailyNewCards}
-            onChange={(e) => change({ dailyNewCards: e.target.value })}
-            error={typed.dailyNewCards === null ? t('settings.dailyNewError') : undefined}
+            value={form.maximumInterval}
+            onChange={(e) => change({ maximumInterval: e.target.value })}
+            error={typed.maximumInterval === null ? t('settings.maximumIntervalError') : undefined}
           />
-          <Field
-            label={t('settings.dailyMax')}
-            hint={t('settings.dailyMaxHint')}
-            type="number"
-            inputMode="numeric"
-            min={REVIEW_RANGES.maxReviewsPerDay.min}
-            max={REVIEW_RANGES.maxReviewsPerDay.max}
-            step={1}
-            placeholder={t('settings.noLimit')}
-            value={form.maxReviewsPerDay}
-            onChange={(e) => change({ maxReviewsPerDay: e.target.value })}
-            error={typed.maxReviewsOk ? undefined : t('settings.dailyMaxError')}
+          {same('maximumInterval')}
+          <SwitchRow
+            label={t('settings.enableFuzz')}
+            hint={t('settings.enableFuzzHint')}
+            checked={form.enableFuzz}
+            onChange={(enableFuzz) => change({ enableFuzz })}
           />
-        </section>
+          {same('enableFuzz')}
+        </div>
+      </details>
 
-        <section className={styles.card} aria-labelledby="review-memory">
-          <h2 id="review-memory" className={styles.sectionTitle}>
-            {t('settings.reviewMemory')}
-          </h2>
-          <Field
-            label={t('settings.retentionPercent')}
-            hint={t('settings.retentionHint')}
-            type="number"
-            inputMode="numeric"
-            min={REVIEW_RANGES.desiredRetention.min * 100}
-            max={REVIEW_RANGES.desiredRetention.max * 100}
-            step={1}
-            value={form.retention}
-            onChange={(e) => change({ retention: e.target.value })}
-            error={
-              typed.desiredRetention === null
-                ? t('settings.retentionError', {
-                    min: REVIEW_RANGES.desiredRetention.min * 100,
-                    max: REVIEW_RANGES.desiredRetention.max * 100,
-                  })
-                : undefined
-            }
-          />
-        </section>
-
-        <section className={styles.card} aria-labelledby="review-steps">
-          <h2 id="review-steps" className={styles.sectionTitle}>
-            {t('settings.reviewSteps')}
-          </h2>
-          <Field
-            label={t('settings.learningSteps')}
-            hint={t('settings.learningStepsHint')}
-            autoCapitalize="off"
-            autoComplete="off"
-            spellCheck={false}
-            value={form.learningSteps}
-            onChange={(e) => change({ learningSteps: e.target.value })}
-            error={typed.learningSteps === null ? stepsError : undefined}
-          />
-          <Field
-            label={t('settings.relearningSteps')}
-            hint={t('settings.relearningStepsHint')}
-            autoCapitalize="off"
-            autoComplete="off"
-            spellCheck={false}
-            value={form.relearningSteps}
-            onChange={(e) => change({ relearningSteps: e.target.value })}
-            error={typed.relearningSteps === null ? stepsError : undefined}
-          />
-        </section>
-
-        <section className={styles.card} aria-labelledby="review-new">
-          <h2 id="review-new" className={styles.sectionTitle}>
-            {t('settings.reviewNewCards')}
-          </h2>
-          <Segmented<NewOrder>
-            label={t('settings.newOrder')}
-            value={form.newOrder}
-            onChange={(newOrder) => change({ newOrder })}
-            options={[
-              { value: 'created', label: t('settings.newOrderCreated') },
-              { value: 'random', label: t('settings.newOrderRandom') },
-            ]}
-          />
-          <Segmented<NewMix>
-            label={t('settings.newMix')}
-            value={form.newMix}
-            onChange={(newMix) => change({ newMix })}
-            options={[
-              { value: 'after', label: t('settings.newMixAfter') },
-              { value: 'mixed', label: t('settings.newMixMixed') },
-              { value: 'before', label: t('settings.newMixBefore') },
-            ]}
-          />
-        </section>
-
-        <section className={styles.card} aria-labelledby="review-leeches">
-          <h2 id="review-leeches" className={styles.sectionTitle}>
-            {t('settings.reviewLeeches')}
-          </h2>
-          <Field
-            label={t('settings.leechThreshold')}
-            hint={t('settings.leechThresholdHint')}
-            type="number"
-            inputMode="numeric"
-            min={REVIEW_RANGES.leechThreshold.min}
-            max={REVIEW_RANGES.leechThreshold.max}
-            step={1}
-            value={form.leechThreshold}
-            onChange={(e) => change({ leechThreshold: e.target.value })}
-            error={typed.leechThreshold === null ? t('settings.leechThresholdError') : undefined}
-          />
-          <Segmented<LeechAction>
-            label={t('settings.leechAction')}
-            value={form.leechAction}
-            onChange={(leechAction) => change({ leechAction })}
-            options={[
-              { value: 'flag', label: t('settings.leechFlag') },
-              { value: 'suspend', label: t('settings.leechSuspend') },
-            ]}
-          />
-        </section>
-
-        <details className={styles.advanced}>
-          <summary>{t('sync.advanced')}</summary>
-          <div className={styles.card}>
-            <Field
-              label={t('settings.maximumInterval')}
-              hint={t('settings.maximumIntervalHint')}
-              type="number"
-              inputMode="numeric"
-              min={REVIEW_RANGES.maximumInterval.min}
-              max={REVIEW_RANGES.maximumInterval.max}
-              step={1}
-              value={form.maximumInterval}
-              onChange={(e) => change({ maximumInterval: e.target.value })}
-              error={typed.maximumInterval === null ? t('settings.maximumIntervalError') : undefined}
-            />
-            <SwitchRow
-              label={t('settings.enableFuzz')}
-              hint={t('settings.enableFuzzHint')}
-              checked={form.enableFuzz}
-              onChange={(enableFuzz) => change({ enableFuzz })}
-            />
-          </div>
-        </details>
-
-        {note !== null && (
-          <p className={styles.ok} role="status">
-            {note === 'saved' ? t('settings.saved') : t('settings.restored')}
-          </p>
-        )}
-        <div className={styles.actions}>
-          <Button type="submit" variant="primary" disabled={!changed || !valid}>
-            {t('common.save')}
-          </Button>
+      {note !== null && (
+        <p className={styles.ok} role="status">
+          {note === 'saved'
+            ? t('settings.saved')
+            : note === 'restored'
+              ? t('settings.restored')
+              : t('settings.inherited')}
+        </p>
+      )}
+      <div className={styles.actions}>
+        <Button type="submit" variant="primary" disabled={!changed || !valid}>
+          {t('common.save')}
+        </Button>
+        {courseId === undefined ? (
           <Button
             disabled={recommended}
             onClick={() => {
@@ -335,8 +411,18 @@ export default function ReviewPrefsSettings() {
           >
             {t('settings.restoreRecommended')}
           </Button>
-        </div>
-      </form>
-    </Screen>
+        ) : (
+          <Button
+            disabled={followsAll}
+            onClick={() => {
+              setForm(formOf(all))
+              setNote('inherited')
+            }}
+          >
+            {t('settings.useAllCards')}
+          </Button>
+        )}
+      </div>
+    </form>
   )
 }

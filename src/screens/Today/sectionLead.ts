@@ -1,5 +1,5 @@
 import type { StudyScope } from '../../core/contracts/workspace'
-import { queueLimitsFor, schedulerOf } from '../../core/model/reviewSettings'
+import { queueLimitsFor, schedulersOf } from '../../core/model/reviewSettings'
 import type { ModelWorkspace } from '../../core/model/workspace'
 import { type CardState, localOffset } from '../../core/srs/fsrs'
 import { nearestScopedExam, type ScopedExam } from '../../core/srs/planner'
@@ -34,18 +34,18 @@ export function sectionExamLead(ws: ModelWorkspace, now: number): { title: strin
   // The very input of Today's total (computeStudy): every unsuspended card of a live course.
   const live = new Set(ws.courses.list().map((c) => c.id))
   const cards = ws.cards.list().filter((c) => live.has(c.courseId) && !c.suspended)
-  const scheduler = schedulerOf(ws)
+  const schedulerFor = schedulersOf(ws)
   const states = new Map<string, CardState>()
   for (const c of cards) {
     const events = ws.reviews.forCard(c.id)
-    if (events.length > 0) states.set(c.id, scheduler.replay(c.id, events))
+    if (events.length > 0) states.set(c.id, schedulerFor(c.courseId).replay(c.id, events))
   }
   const queue = buildQueue({
-    cards: cards.map((c) => ({ id: c.id })),
+    cards: cards.map((c) => ({ id: c.id, courseId: c.courseId })),
     states,
     now,
     tzOffsetMin: localOffset(now),
-    ...queueLimitsFor(ws),
+    ...queueLimitsFor(ws, undefined, live),
   })
   const inSubset = new Set(ws.scoped('cards', exam.scope).map((c) => c.id))
   const due = queue.filter((q) => inSubset.has(q.cardId)).length

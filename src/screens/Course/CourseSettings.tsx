@@ -1,16 +1,18 @@
+import { CalendarCheck } from 'lucide-react'
 import { type FormEvent, useEffect, useState } from 'react'
+import { Link } from 'wouter'
 import { leaveTo } from '../../app/nav.ts'
 import { paths } from '../../app/routes.ts'
 import { useWorkspace } from '../../app/workspaceContext.tsx'
 import type { CourseRecord } from '../../core/model/schema'
 import { useT } from '../../i18n/react.tsx'
-import { Button } from '../../ui/components/Button.tsx'
+import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { Field } from '../../ui/components/Field.tsx'
 import { Sheet } from '../../ui/components/Sheet.tsx'
 import { isoDay } from '../Today/exam.ts'
 import styles from './Course.module.css'
 
-/** Name, exam date and deletion (to the trash) of one course. */
+/** Name, exam date, the way to its own review settings, and deletion (to the trash) of one course. */
 export function CourseSettings({
   course,
   open,
@@ -70,6 +72,13 @@ export function CourseSettings({
           {t('common.save')}
         </Button>
       </form>
+      <Link
+        href={`${paths.settingsReview}?course=${encodeURIComponent(course.id)}`}
+        className={buttonClass({ variant: 'plain', full: true })}
+      >
+        <CalendarCheck size={18} aria-hidden="true" />
+        {t('course.reviewSettings')}
+      </Link>
       <div className={styles.danger}>
         {confirming ? (
           <>

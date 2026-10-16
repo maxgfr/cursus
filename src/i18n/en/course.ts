@@ -34,6 +34,7 @@ export const course = {
   untitledNote: 'Untitled note',
   untitledPdf: 'PDF',
   settings: 'Course settings',
+  reviewSettings: 'Schedule of this course',
   emptyCard: 'Empty card',
   kindCloze: 'Fill in the blank',
   kindBasic: 'Question and answer',

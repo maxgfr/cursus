@@ -142,14 +142,14 @@ function ReviewRun({ sessionId }: { sessionId: Id | null }) {
       const now = Date.now()
       try {
         const given: NewReview = { cardId: card.id, rating, at: now, ms: now - shownAt.current }
-        const settings = ws.reviewSettings.get()
+        const settings = ws.reviewSettings.forCourse(card.courseId)
         let leech = false
         // In a session, the review carries it, and stays out of the schedule when the session is cramming. A card
         // the grade makes a leech is suspended with it when the settings say so: one write, one undo for both.
         const reviewId = ws.batch(() => {
           const id = ws.reviews.record(session === undefined ? given : sessionReview(session, given))
           if (settings.leechAction === 'suspend') {
-            const after = schedulerFor(ws).replay(card.id, ws.reviews.forCard(card.id))
+            const after = schedulerFor(ws, card.courseId).replay(card.id, ws.reviews.forCard(card.id))
             leech = becameLeech(card.state, after, settings.leechThreshold)
             if (leech) ws.cards.update(card.id, { suspended: true })
           }

@@ -1,5 +1,5 @@
 import type { Id } from '../../core/contracts/workspace'
-import { schedulerOf } from '../../core/model/reviewSettings'
+import { schedulersOf } from '../../core/model/reviewSettings'
 import type { ModelWorkspace } from '../../core/model/workspace'
 import { type CardState, dayStart, effectiveReviews, localOffset, newCardState, studyDay } from '../../core/srs/fsrs'
 import { type DailyGoal, dailyGoal, daysUntil, type ExamPlan } from '../../core/srs/planner'
@@ -54,7 +54,7 @@ export function computeStats(ws: ModelWorkspace, now: number): StatsData {
   const courses = ws.courses.list()
   const live = new Set(courses.map((c) => c.id))
   const cards = ws.cards.list().filter((c) => live.has(c.courseId) && !c.suspended)
-  const scheduler = schedulerOf(ws)
+  const schedulerFor = schedulersOf(ws)
   const states = new Map<Id, CardState>()
   const events: { at: number; ms: number; rating: number; p?: true }[] = []
   for (const c of cards) {
@@ -63,7 +63,7 @@ export function computeStats(ws: ModelWorkspace, now: number): StatsData {
       states.set(c.id, newCardState(c.id))
       continue
     }
-    states.set(c.id, scheduler.replay(c.id, log))
+    states.set(c.id, schedulerFor(c.courseId).replay(c.id, log))
     for (const r of effectiveReviews(log)) events.push(r.p === true ? { ...pick(r), p: true } : pick(r))
   }
 

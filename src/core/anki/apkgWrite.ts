@@ -4,7 +4,7 @@ import type { BlobStore } from '../contracts/log'
 import type { Id } from '../contracts/workspace'
 import type { CardRecord } from '../model/schema'
 import type { ModelWorkspace } from '../model/workspace'
-import { type CardState, createScheduler, DAY_MS, type Phase, scheduledReviews } from '../srs/fsrs'
+import { type CardState, createScheduler, DAY_MS, type Phase, type Scheduler, scheduledReviews } from '../srs/fsrs'
 import { srsParamsOf } from '../srs/settings'
 import { blobRefs, markdownToAnki } from './mdToAnki'
 import { loadSql, SCHEMA11_DDL } from './schema11'
@@ -109,11 +109,19 @@ function interval(s: CardState, at: number): number {
 export async function exportApkg(ws: ModelWorkspace, blobs: BlobStore, opts: ExportOptions): Promise<Uint8Array> {
   const now = opts.now
   const nowSecs = Math.floor(now / 1000)
-  // The workspace's review settings, the retention given to the export taking the place of its own.
-  const params = srsParamsOf(ws.reviewSettings.get())
-  const sched = createScheduler(
-    opts.desiredRetention === undefined ? params : { ...params, desiredRetention: opts.desiredRetention },
-  )
+  // Each course's review settings, the retention given to the export taking the place of its own.
+  const schedulers = new Map<Id, Scheduler>()
+  const schedulerOf = (courseId: Id): Scheduler => {
+    let s = schedulers.get(courseId)
+    if (!s) {
+      const params = srsParamsOf(ws.reviewSettings.forCourse(courseId))
+      s = createScheduler(
+        opts.desiredRetention === undefined ? params : { ...params, desiredRetention: opts.desiredRetention },
+      )
+      schedulers.set(courseId, s)
+    }
+    return s
+  }
   const wanted = opts.courseIds ? new Set(opts.courseIds) : null
   const courses = ws.courses.list().filter((c) => !wanted || wanted.has(c.id))
   // Collection creation: midnight UTC of the export day minus a margin covering every review.
@@ -208,6 +216,7 @@ export async function exportApkg(ws: ModelWorkspace, blobs: BlobStore, opts: Exp
       ])
 
       const events = ws.reviews.forCard(c.id)
+      const sched = schedulerOf(c.courseId)
       const state = sched.replay(c.id, events)
       let type = 0
       let queue = 0

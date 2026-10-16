@@ -213,3 +213,88 @@ describe('the settings of the day', () => {
     expect(mixNew([1], [7, 8, 9], 'mixed')).toEqual([7, 1, 8, 9])
   })
 })
+
+describe("a course's own limits", () => {
+  /** Two courses: A with reviews a1…a3 due and new cards an1…an3, B the same (b1…b3, bn1…bn3). */
+  function two() {
+    const log: Review[] = []
+    for (const c of ['a', 'b'])
+      for (let i = 1; i <= 3; i++) log.push(rv(`${c}${i}`, `${c}${i}`, 4, DAY0 - 30 * DAY_MS + i * MIN))
+    const cards: QueueCard[] = []
+    for (const c of ['a', 'b']) {
+      for (let i = 1; i <= 3; i++) cards.push({ id: `${c}${i}`, courseId: c.toUpperCase() })
+      for (let i = 1; i <= 3; i++) cards.push({ id: `${c}n${i}`, courseId: c.toUpperCase() })
+    }
+    return { cards, states: states(log), now: DAY0 + 2 * 60 * MIN, tzOffsetMin: TZ }
+  }
+  const ids = (q: { cardId: string }[]) => q.map((e) => e.cardId)
+
+  test('a course counts its own cards within the limits of all cards; the others have those only', () => {
+    const d = two()
+    const own = new Map([['A', { newPerDay: 1, maxReviews: 2 }]])
+    // A: 2 reviews at most, new cards included, so its new card waits; B: everything, within 10 new a day.
+    expect(ids(buildQueue({ ...d, newPerDay: 10, courseLimits: own }))).toEqual([
+      'a1',
+      'b1',
+      'a2',
+      'b2',
+      'b3',
+      'bn1',
+      'bn2',
+      'bn3',
+    ])
+    const fresh = new Map([['A', { newPerDay: 1 }]])
+    expect(ids(buildQueue({ ...d, newPerDay: 10, courseLimits: fresh }))).toEqual([
+      'a1',
+      'b1',
+      'a2',
+      'b2',
+      'a3',
+      'b3',
+      'an1',
+      'bn1',
+      'bn2',
+      'bn3',
+    ])
+    // All cards' limits still bind: 2 new a day in all, whatever a course allows itself.
+    const generous = new Map([['A', { newPerDay: 50 }]])
+    expect(ids(buildQueue({ ...d, newPerDay: 2, courseLimits: generous })).filter((id) => id.includes('n'))).toEqual([
+      'an1',
+      'an2',
+    ])
+    expect(buildQueue({ ...d, newPerDay: 10, courseLimits: new Map() })).toEqual(buildQueue({ ...d, newPerDay: 10 }))
+  })
+
+  test('what a course did today counts toward its own limits only', () => {
+    const log: Review[] = [
+      rv('x', 'a1', 4, DAY0 - 30 * DAY_MS),
+      rv('y', 'a2', 4, DAY0 - 30 * DAY_MS),
+      rv('z', 'a1', 3, DAY0 + MIN),
+      rv('w', 'bn0', 1, DAY0 + MIN),
+    ]
+    const cards: QueueCard[] = [
+      { id: 'a1', courseId: 'A' },
+      { id: 'a2', courseId: 'A' },
+      { id: 'an1', courseId: 'A' },
+      { id: 'bn0', courseId: 'B' },
+      { id: 'bn1', courseId: 'B' },
+    ]
+    const s = states(log)
+    const ctx = studyDayContext(cards, s, DAY0 + 2 * MIN, TZ)
+    expect([...ctx.reviewsDoneBy]).toEqual([['A', 1]])
+    expect([...ctx.newDoneBy]).toEqual([['B', 1]])
+    const q = buildQueue({
+      cards,
+      states: s,
+      now: DAY0 + 2 * MIN,
+      tzOffsetMin: TZ,
+      newPerDay: 10,
+      courseLimits: new Map([
+        ['A', { newPerDay: 5, maxReviews: 2 }],
+        ['B', { newPerDay: 1 }],
+      ]),
+    })
+    // A: one review done, one left (a2); its new card waits. B: its new card of the day is done.
+    expect(ids(q)).toEqual(['bn0', 'a2'])
+  })
+})

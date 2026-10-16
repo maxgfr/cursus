@@ -38,6 +38,7 @@ export const course = {
   untitledNote: 'Unbenannte Notiz',
   untitledPdf: 'PDF',
   settings: 'Kurseinstellungen',
+  reviewSettings: 'Planung dieses Kurses',
   emptyCard: 'Leere Karte',
   kindCloze: 'Lückentext',
   kindBasic: 'Frage und Antwort',

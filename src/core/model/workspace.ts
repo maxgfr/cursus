@@ -127,7 +127,7 @@ export function createWorkspace(doc: Y.Doc, deps: WorkspaceDeps): ModelWorkspace
     atomic: (fn) => api.atomic(fn),
   })
   const prefsMap = doc.getMap<unknown>(ROOT.prefs)
-  const reviewSettings = new ReviewSettingsStore(doc, prefsMap)
+  const reviewSettings = new ReviewSettingsStore(doc, prefsMap, courses)
   const texts = doc.getMap<Y.Text>(ROOT.texts)
   const search = new SearchIndex(doc, () => sections.tree())
   const repos: Record<RepoCollection, { readonly yRoot: Y.Map<Y.Map<unknown>> }> = {

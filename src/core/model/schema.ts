@@ -66,6 +66,21 @@ export interface CourseFields extends CourseInput {
   emoji?: string
   language?: string
   examDate?: string
+  /**
+   * The course's own review settings, over those of all cards, one scalar each (`COURSE_REVIEW_FIELDS` in
+   * reviewSettings.ts), validated when read. Absent: the course follows all cards. Older clients ignore them.
+   */
+  reviewNewPerDay?: number
+  reviewMaxPerDay?: number
+  reviewRetention?: number
+  reviewLearningSteps?: string
+  reviewRelearningSteps?: string
+  reviewMaxInterval?: number
+  reviewFuzz?: boolean
+  reviewNewOrder?: string
+  reviewNewMix?: string
+  reviewLeechThreshold?: number
+  reviewLeechAction?: string
 }
 export interface CourseRecord extends Course, CourseFields {}
 

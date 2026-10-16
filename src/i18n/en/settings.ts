@@ -79,6 +79,13 @@ export const settings = {
   previewReview: 'A card due for review',
   restoreRecommended: 'Restore recommended settings',
   restored: 'Recommended settings filled in. Save to apply them.',
+  reviewFor: 'Settings for',
+  reviewAllCards: 'All cards',
+  reviewCourseBody:
+    'These settings apply to the cards of {course}, on every device; its other settings follow All cards.',
+  sameAsAll: 'Same as All cards',
+  useAllCards: 'Use the settings of All cards',
+  inherited: 'The settings of All cards are filled in. Save to apply them to this course.',
   saved: 'Saved. It applies on all your devices after the next sync.',
   storageTitle: 'Storage on this device',
   persistOn: 'Protected storage is on: the browser won’t clear Cursus to free space.',

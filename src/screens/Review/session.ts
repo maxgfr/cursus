@@ -1,6 +1,6 @@
 import type { Id, Rating, StudyScope } from '../../core/contracts/workspace'
 import { clozeFaces, makeClozeCards } from '../../core/model/cloze'
-import { queueLimitsFor, schedulerOf } from '../../core/model/reviewSettings'
+import { queueLimitsFor, schedulerOf, schedulersOf } from '../../core/model/reviewSettings'
 import type { ModelWorkspace } from '../../core/model/workspace'
 import { type CardState, dayStart, localOffset, type Scheduler, studyDay } from '../../core/srs/fsrs'
 import { isLeech } from '../../core/srs/leech'
@@ -9,9 +9,9 @@ import { nearestExamScope } from '../Today/sectionLead.ts'
 
 export const RATINGS: readonly Rating[] = [1, 2, 3, 4]
 
-/** The scheduler of the workspace's review settings. */
-export function schedulerFor(ws: ModelWorkspace): Scheduler {
-  return schedulerOf(ws)
+/** The scheduler of a course's review settings (all cards' when the course has none of its own). */
+export function schedulerFor(ws: ModelWorkspace, courseId?: Id): Scheduler {
+  return schedulerOf(ws, courseId)
 }
 
 /** Live, unsuspended cards with what a scoped queue needs: their course and the sections they are filed under. */
@@ -31,18 +31,22 @@ export function queueCards(ws: ModelWorkspace): (QueueCard & { courseId: Id })[]
  */
 export function startQueue(ws: ModelWorkspace, now: number, scope?: StudyScope): { queue: Id[]; learning: Id[] } {
   const cards = queueCards(ws)
-  const scheduler = schedulerFor(ws)
+  const schedulerOfCourse = schedulersOf(ws)
   const states = new Map<Id, CardState>()
   for (const c of cards) {
     const events = ws.reviews.forCard(c.id)
-    if (events.length > 0) states.set(c.id, scheduler.replay(c.id, events))
+    if (events.length > 0) states.set(c.id, schedulerOfCourse(c.courseId).replay(c.id, events))
   }
   const ids = buildQueue({
     cards,
     states,
     now,
     tzOffsetMin: localOffset(now),
-    ...queueLimitsFor(ws),
+    ...queueLimitsFor(
+      ws,
+      scope,
+      cards.map((c) => c.courseId),
+    ),
     scope,
   }).map((q) => q.cardId)
   // Cards in (re)learning: those not due yet may come back later in the session.
@@ -67,12 +71,12 @@ export function startQueue(ws: ModelWorkspace, now: number, scope?: StudyScope):
 export function returning(ws: ModelWorkspace, candidates: Iterable<Id>, now: number): { id: Id; due: number }[] {
   const tz = localOffset(now)
   const endOfDay = dayStart(studyDay(now, tz) + 1, tz)
-  const scheduler = schedulerFor(ws)
+  const schedulerOfCourse = schedulersOf(ws)
   const out: { id: Id; due: number }[] = []
   for (const id of new Set(candidates)) {
     const card = ws.cards.get(id)
     if (!card || card.deletedAt !== undefined || card.suspended) continue
-    const s = scheduler.replay(id, ws.reviews.forCard(id))
+    const s = schedulerOfCourse(card.courseId).replay(id, ws.reviews.forCard(id))
     if ((s.phase === 'learning' || s.phase === 'relearning') && s.due < endOfDay) out.push({ id, due: s.due })
   }
   return out.sort((a, b) => a.due - b.due || (a.id < b.id ? -1 : 1))
@@ -136,7 +140,7 @@ export function readCard(ws: ModelWorkspace, id: Id, now: number): CardView | nu
       shown = { front: faces.front, back: extra(faces.back) }
     }
   }
-  const scheduler = schedulerFor(ws)
+  const scheduler = schedulerFor(ws, card.courseId)
   const state = scheduler.replay(id, events)
   return {
     id,
@@ -150,7 +154,7 @@ export function readCard(ws: ModelWorkspace, id: Id, now: number): CardView | nu
     back,
     shown,
     state,
-    leech: isLeech(state, ws.reviewSettings.get().leechThreshold),
+    leech: isLeech(state, ws.reviewSettings.forCourse(card.courseId).leechThreshold),
     preview: scheduler.previewIntervals(state, now),
   }
 }

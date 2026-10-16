@@ -83,6 +83,13 @@ export const settings = {
   previewReview: 'Une carte à réviser',
   restoreRecommended: 'Rétablir les réglages recommandés',
   restored: 'Réglages recommandés remplis. Enregistrez pour les appliquer.',
+  reviewFor: 'Réglages pour',
+  reviewAllCards: 'Toutes les cartes',
+  reviewCourseBody:
+    'Ces réglages s’appliquent aux cartes de {course}, sur tous vos appareils ; les autres suivent Toutes les cartes.',
+  sameAsAll: 'Comme Toutes les cartes',
+  useAllCards: 'Utiliser les réglages de Toutes les cartes',
+  inherited: 'Les réglages de Toutes les cartes sont remplis. Enregistrez pour les appliquer à ce cours.',
   saved: 'Enregistré. S’applique sur tous vos appareils après la prochaine synchronisation.',
   storageTitle: 'Stockage sur cet appareil',
   persistOn: 'Le stockage protégé est actif : le navigateur ne videra pas Cursus pour libérer de la place.',

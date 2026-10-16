@@ -33,6 +33,17 @@ export interface QueueInput {
   newOrder?: NewOrder
   /** Where the new cards go among the reviews: after them (by default), spread among them, or before them. */
   newMix?: NewMix
+  /**
+   * A course's own daily limits (its settings), counted on its cards only and within the limits above, as Anki
+   * limits a deck within its parent's: the cards need their `courseId`. A course not listed has the limits above.
+   */
+  courseLimits?: ReadonlyMap<Id, CourseLimits>
+}
+
+/** A course's own daily limits. */
+export interface CourseLimits {
+  newPerDay: number
+  maxReviews?: number
 }
 
 /**
@@ -56,6 +67,9 @@ export interface StudyDayContext {
   newDoneToday: number
   /** Answers given today to cards that were reviews (not new, not in learning), every course included. */
   reviewsDoneToday: number
+  /** The same two, course by course (for cards that give their course). */
+  newDoneBy: ReadonlyMap<Id, number>
+  reviewsDoneBy: ReadonlyMap<Id, number>
 }
 
 export function studyDayContext(
@@ -69,19 +83,38 @@ export function studyDayContext(
   const buried = new Set<string>()
   let newDoneToday = 0
   let reviewsDoneToday = 0
+  const newDoneBy = new Map<Id, number>()
+  const reviewsDoneBy = new Map<Id, number>()
+  const count = (by: Map<Id, number>, courseId: Id | undefined, n: number) => {
+    if (courseId !== undefined && n > 0) by.set(courseId, (by.get(courseId) ?? 0) + n)
+  }
   for (const c of cards) {
     const s = states.get(c.id)
     if (!s || !isToday(s.lastReview)) continue
     if (c.sibling !== undefined) buried.add(c.sibling)
     const first = s.history[0]
-    if (first && isToday(first.at)) newDoneToday++
+    if (first && isToday(first.at)) {
+      newDoneToday++
+      count(newDoneBy, c.courseId, 1)
+    }
+    let reviewed = 0
     for (let i = s.history.length - 1; i >= 0; i--) {
       const h = s.history[i]
       if (!h || !isToday(h.at)) break
-      if (h.phaseBefore === 'review') reviewsDoneToday++
+      if (h.phaseBefore === 'review') reviewed++
     }
+    reviewsDoneToday += reviewed
+    count(reviewsDoneBy, c.courseId, reviewed)
   }
-  return { endOfDay: dayStart(today + 1, tzOffsetMin), isToday, buried, newDoneToday, reviewsDoneToday }
+  return {
+    endOfDay: dayStart(today + 1, tzOffsetMin),
+    isToday,
+    buried,
+    newDoneToday,
+    reviewsDoneToday,
+    newDoneBy,
+    reviewsDoneBy,
+  }
 }
 
 /** A rank that shuffles cards once and for all: the same on every device, every day (FNV-1a of the id). */
@@ -133,19 +166,23 @@ const byDueThenId = (a: CardState, b: CardState): number =>
  * of the study day, then new cards up to the remaining daily limit. A sibling
  * group reviewed today, or already represented in the queue, is buried. With a scope, only that course
  * or subset is queued. The review limit, the order of new cards and where they go among the reviews come from
- * the settings (`maxReviews`, `newOrder`, `newMix`); without them, the defaults above.
+ * the settings (`maxReviews`, `newOrder`, `newMix`), a course's own limits within them (`courseLimits`); without
+ * them, the defaults above.
  */
 export function buildQueue(input: QueueInput): QueueEntry[] {
   const { cards, states, now, tzOffsetMin } = input
-  const { endOfDay, isToday, buried, newDoneToday, reviewsDoneToday } = studyDayContext(cards, states, now, tzOffsetMin)
+  const ctx = studyDayContext(cards, states, now, tzOffsetMin)
+  const { endOfDay, isToday, buried, newDoneToday, reviewsDoneToday } = ctx
 
   const learning: CardState[] = []
   const reviews: CardState[] = []
   const fresh: CardState[] = []
   const siblingOf = new Map<Id, string | undefined>()
+  const courseOf = new Map<Id, Id | undefined>()
   for (const c of cards) {
     if (!inScope(c, input.scope)) continue
     siblingOf.set(c.id, c.sibling)
+    courseOf.set(c.id, c.courseId)
     const s = states.get(c.id) ?? newCardState(c.id)
     if (s.phase === 'new') fresh.push(s)
     else if (s.phase === 'learning' || s.phase === 'relearning') {
@@ -175,14 +212,42 @@ export function buildQueue(input: QueueInput): QueueEntry[] {
     input.maxReviews === undefined
       ? Number.POSITIVE_INFINITY
       : Math.max(0, input.maxReviews - reviewsDoneToday - newDoneToday)
+  // What each course with limits of its own has left today: reviews (new cards included), and new cards.
+  const leftBy = new Map<Id, { reviews: number; fresh: number }>()
+  for (const [courseId, l] of input.courseLimits ?? []) {
+    const newDone = ctx.newDoneBy.get(courseId) ?? 0
+    const reviewsDone = ctx.reviewsDoneBy.get(courseId) ?? 0
+    leftBy.set(courseId, {
+      reviews:
+        l.maxReviews === undefined ? Number.POSITIVE_INFINITY : Math.max(0, l.maxReviews - reviewsDone - newDone),
+      fresh: Math.max(0, l.newPerDay - newDone),
+    })
+  }
+  const limitOf = (id: Id) => {
+    const courseId = courseOf.get(id)
+    return courseId === undefined ? undefined : leftBy.get(courseId)
+  }
   for (const s of reviews) {
     if (left <= 0) break
-    if (admit(s, 'review', false, due)) left--
+    const own = limitOf(s.cardId)
+    if (own !== undefined && own.reviews <= 0) continue
+    if (admit(s, 'review', false, due)) {
+      left--
+      if (own) own.reviews--
+    }
   }
   let budget = Math.min(left, Math.max(0, input.newPerDay - newDoneToday))
   for (const s of orderNew(fresh, input.newOrder)) {
     if (budget <= 0) break
-    if (admit(s, 'new', false, added)) budget--
+    const own = limitOf(s.cardId)
+    if (own !== undefined && (own.fresh <= 0 || own.reviews <= 0)) continue
+    if (admit(s, 'new', false, added)) {
+      budget--
+      if (own) {
+        own.fresh--
+        own.reviews--
+      }
+    }
   }
   return [...out, ...mixNew(due, added, input.newMix)]
 }
