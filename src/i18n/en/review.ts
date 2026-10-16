@@ -30,6 +30,7 @@ export const review = {
   cardCreated: 'Card added to {course}',
   leechBadge: 'Hard card',
   leech: 'This card keeps slipping. Try rewriting it.',
+  leechSuspended: 'Suspended: this card keeps slipping, so it stays out of your reviews.',
   improve: 'Improve',
   improving: 'Rewriting the card…',
   improveTitle: 'Suggested rewrite',

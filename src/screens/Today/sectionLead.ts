@@ -1,6 +1,7 @@
 import type { StudyScope } from '../../core/contracts/workspace'
+import { queueLimitsFor, schedulerOf } from '../../core/model/reviewSettings'
 import type { ModelWorkspace } from '../../core/model/workspace'
-import { type CardState, createScheduler, localOffset } from '../../core/srs/fsrs'
+import { type CardState, localOffset } from '../../core/srs/fsrs'
 import { nearestScopedExam, type ScopedExam } from '../../core/srs/planner'
 import { buildQueue } from '../../core/srs/queue'
 import { examTime } from '../../ui/data/useStudy.ts'
@@ -33,7 +34,7 @@ export function sectionExamLead(ws: ModelWorkspace, now: number): { title: strin
   // The very input of Today's total (computeStudy): every unsuspended card of a live course.
   const live = new Set(ws.courses.list().map((c) => c.id))
   const cards = ws.cards.list().filter((c) => live.has(c.courseId) && !c.suspended)
-  const scheduler = createScheduler({ desiredRetention: ws.prefs.get('desiredRetention') })
+  const scheduler = schedulerOf(ws)
   const states = new Map<string, CardState>()
   for (const c of cards) {
     const events = ws.reviews.forCard(c.id)
@@ -44,7 +45,7 @@ export function sectionExamLead(ws: ModelWorkspace, now: number): { title: strin
     states,
     now,
     tzOffsetMin: localOffset(now),
-    newPerDay: ws.prefs.get('dailyNewCards'),
+    ...queueLimitsFor(ws),
   })
   const inSubset = new Set(ws.scoped('cards', exam.scope).map((c) => c.id))
   const due = queue.filter((q) => inSubset.has(q.cardId)).length

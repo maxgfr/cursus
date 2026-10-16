@@ -6,6 +6,7 @@ import { paths, sessionFrom, to } from '../../app/routes.ts'
 import { useWorkspace, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { Id, NewReview, Rating } from '../../core/contracts/workspace'
 import { relaunchFailed, sessionQueue, sessionReview } from '../../core/model/sessions'
+import { becameLeech } from '../../core/srs/leech'
 import { intlTag } from '../../i18n/index.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
 import { useAiReady } from '../../ui/ai/ready.ts'
@@ -36,6 +37,7 @@ import {
   RATINGS,
   readCard,
   returning,
+  schedulerFor,
   speakable,
   startQueue,
 } from './session.ts'
@@ -54,6 +56,8 @@ interface Suggestion {
 interface Answered {
   cardId: Id
   reviewId: Id
+  /** The grade made the card a leech, and the settings suspended it with the grade. */
+  suspended?: true
 }
 
 function isTyping(target: EventTarget | null): boolean {
@@ -100,6 +104,8 @@ function ReviewRun({ sessionId }: { sessionId: Id | null }) {
   const [answered, setAnswered] = useState<Answered[]>([])
   const [suggestion, setSuggestion] = useState<(Suggestion & { at: number }) | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  // A card suspended as a leech with its grade: said, with the way back.
+  const [suspended, setSuspended] = useState<Id | null>(null)
   const [error, setError] = useState<string | null>(null)
   const shownAt = useRef(Date.now())
   // Back to where the review started from (Today, a course, a section, Practice, a planned session), popping the
@@ -136,9 +142,21 @@ function ReviewRun({ sessionId }: { sessionId: Id | null }) {
       const now = Date.now()
       try {
         const given: NewReview = { cardId: card.id, rating, at: now, ms: now - shownAt.current }
-        // In a session, the review carries it, and stays out of the schedule when the session is cramming.
-        const reviewId = ws.reviews.record(session === undefined ? given : sessionReview(session, given))
-        setAnswered((a) => [...a, { cardId: card.id, reviewId }])
+        const settings = ws.reviewSettings.get()
+        let leech = false
+        // In a session, the review carries it, and stays out of the schedule when the session is cramming. A card
+        // the grade makes a leech is suspended with it when the settings say so: one write, one undo for both.
+        const reviewId = ws.batch(() => {
+          const id = ws.reviews.record(session === undefined ? given : sessionReview(session, given))
+          if (settings.leechAction === 'suspend') {
+            const after = schedulerFor(ws).replay(card.id, ws.reviews.forCard(card.id))
+            leech = becameLeech(card.state, after, settings.leechThreshold)
+            if (leech) ws.cards.update(card.id, { suspended: true })
+          }
+          return id
+        })
+        setAnswered((a) => [...a, { cardId: card.id, reviewId, ...(leech ? { suspended: true as const } : {}) }])
+        setSuspended(leech ? card.id : null)
         setError(null)
         setIndex((i) => i + 1)
       } catch (e) {
@@ -152,7 +170,12 @@ function ReviewRun({ sessionId }: { sessionId: Id | null }) {
   const undo = useCallback(() => {
     const last = answered.at(-1)
     if (!last) return
-    ws.reviews.void(last.reviewId)
+    ws.batch(() => {
+      ws.reviews.void(last.reviewId)
+      // A card suspended with the grade comes back with it.
+      if (last.suspended) ws.cards.update(last.cardId, { suspended: undefined })
+    })
+    setSuspended(null)
     setAnswered((a) => a.slice(0, -1))
     // A return this grade caused is taken back with it.
     setQueue((q) => dropReturnsOf(q, last.reviewId))
@@ -332,6 +355,15 @@ function ReviewRun({ sessionId }: { sessionId: Id | null }) {
         </p>
       )}
       {toast !== null && <Toast message={toast} />}
+      {toast === null && suspended !== null && (
+        <Toast
+          message={t('review.leechSuspended')}
+          actions={[
+            { label: t('common.undo'), onClick: undo },
+            { label: t('review.dismiss'), onClick: () => setSuspended(null) },
+          ]}
+        />
+      )}
     </div>
   )
 }

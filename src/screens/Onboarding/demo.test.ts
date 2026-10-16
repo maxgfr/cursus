@@ -10,6 +10,7 @@ import { refsOf } from '../../core/log/codec'
 import { clozeIndexes } from '../../core/model/cloze'
 import { isPhoto } from '../../core/model/photos'
 import type { RepoDeps } from '../../core/model/repos'
+import { schedulerOf } from '../../core/model/reviewSettings'
 import { nextPlanned, PlanRepo, sessionHistory } from '../../core/model/sessions'
 import { createWorkspace, type ModelWorkspace } from '../../core/model/workspace'
 import { virtualClock } from '../../core/ports/clock'
@@ -52,7 +53,7 @@ function make(seed: number, now = NOON) {
 function today(ws: ModelWorkspace, now: number) {
   const live = new Set(ws.courses.list().map((c) => c.id))
   const cards = ws.cards.list().filter((c) => live.has(c.courseId) && !c.suspended)
-  const scheduler = createScheduler({ desiredRetention: ws.prefs.get('desiredRetention') })
+  const scheduler = schedulerOf(ws)
   const states = new Map<Id, CardState>()
   for (const c of cards) {
     const events = ws.reviews.forCard(c.id)

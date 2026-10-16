@@ -5,6 +5,7 @@ import { REMOTE } from '../log/origins'
 import { type DeletionReport, deletionsBetween, track } from './deletions'
 import { DraftRepo } from './drafts'
 import { EntityNotFoundError, EntityRepo } from './repos'
+import { ReviewSettingsStore } from './reviewSettings'
 import { AiUsageLog, ReviewLog } from './reviews'
 import {
   type CardFields,
@@ -64,6 +65,8 @@ export interface ModelWorkspace extends Workspace {
   plans: PlanRepo
   /** Proposed questions awaiting review, and the « questions proposées automatiquement » settings. */
   drafts: DraftRepo
+  /** How reviews are scheduled and queued (limits, FSRS, steps, new cards, leeches), over the synced prefs. */
+  reviewSettings: ReviewSettingsStore
   search: SearchIndex
   /** What applying these remote updates would delete here, worked out on a scratch copy: the library is untouched. */
   previewRemote(updates: readonly Uint8Array[]): DeletionReport
@@ -124,6 +127,7 @@ export function createWorkspace(doc: Y.Doc, deps: WorkspaceDeps): ModelWorkspace
     atomic: (fn) => api.atomic(fn),
   })
   const prefsMap = doc.getMap<unknown>(ROOT.prefs)
+  const reviewSettings = new ReviewSettingsStore(doc, prefsMap)
   const texts = doc.getMap<Y.Text>(ROOT.texts)
   const search = new SearchIndex(doc, () => sections.tree())
   const repos: Record<RepoCollection, { readonly yRoot: Y.Map<Y.Map<unknown>> }> = {
@@ -256,6 +260,7 @@ export function createWorkspace(doc: Y.Doc, deps: WorkspaceDeps): ModelWorkspace
     sessions,
     plans,
     drafts,
+    reviewSettings,
     search,
     prefs: {
       get<K extends keyof Prefs>(k: K): Prefs[K] {

@@ -87,7 +87,7 @@ export const common = {
     'Le chiffrement chiffre tout ce qui est envoyé à une sauvegarde avec une phrase secrète que vous seul connaissez.',
   dataBody: 'Exportez votre bibliothèque dans des formats ouverts, ou importez depuis un fichier ou depuis Anki.',
   recoveryBody: 'Vos données locales se sont ouvertes normalement. Rien à récupérer.',
-  reviewPrefsBody: 'Les limites quotidiennes et la rétention visée s’appliquent sur tous vos appareils.',
+  reviewPrefsBody: 'Ces réglages s’appliquent à toutes vos cartes, sur tous vos appareils.',
   diagnosticBody: 'Le journal de diagnostic reste sur cet appareil jusqu’à ce que vous l’exportiez.',
   updateReady: 'Une nouvelle version de Cursus est prête.',
   updateNow: 'Mettre à jour',

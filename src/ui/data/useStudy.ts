@@ -2,10 +2,10 @@ import { useEffect, useState } from 'react'
 import { useRuntime, useWorkspace, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { LocalStore } from '../../core/contracts/ports'
 import type { Id } from '../../core/contracts/workspace'
+import { queueLimitsFor, schedulerOf } from '../../core/model/reviewSettings'
 import type { ModelWorkspace } from '../../core/model/workspace'
 import {
   type CardState,
-  createScheduler,
   dayStart,
   localOffset,
   type ReplaySnapshot,
@@ -109,7 +109,7 @@ export function computeStudy(ws: ModelWorkspace, now: number, saved: ReplaySnaps
   const courses = ws.courses.list()
   const live = new Set(courses.map((c) => c.id))
   const cards = ws.cards.list().filter((c) => live.has(c.courseId) && !c.suspended)
-  const scheduler = createScheduler({ desiredRetention: ws.prefs.get('desiredRetention') })
+  const scheduler = schedulerOf(ws)
   seedOnce(scheduler, saved)
   saveScheduler = scheduler
   const states = new Map<Id, CardState>()
@@ -120,8 +120,7 @@ export function computeStudy(ws: ModelWorkspace, now: number, saved: ReplaySnaps
     states.set(c.id, scheduler.replay(c.id, events))
     for (const e of events) if ('ms' in e && e.ms > 0) times.push(e.ms)
   }
-  const newPerDay = ws.prefs.get('dailyNewCards')
-  const input = { cards: cards.map((c) => ({ id: c.id })), states, tzOffsetMin: tz, newPerDay }
+  const input = { cards: cards.map((c) => ({ id: c.id })), states, tzOffsetMin: tz, ...queueLimitsFor(ws) }
   const queue = buildQueue({ ...input, now })
   const tomorrow = buildQueue({ ...input, now: dayStart(studyDay(now, tz) + 1, tz) })
 

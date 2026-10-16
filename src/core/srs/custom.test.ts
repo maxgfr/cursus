@@ -177,3 +177,17 @@ describe('buildSession', () => {
     expect(DEFAULT_SESSION_DAYS).toBe(7)
   })
 })
+
+describe('the order of new cards', () => {
+  test('a session of new cards (or all of them) takes them in the order the settings say; the day limit is not its', () => {
+    const cards: QueueCard[] = ['n1', 'n2', 'n3', 'n4', 'n5'].map((id) => ({ id }))
+    const base = { cards, states: states([]), now: NOW, tzOffsetMin: TZ, newPerDay: 10 }
+    const random = ids(buildSession({ ...base, kind: 'new', newOrder: 'random' }))
+    expect([...random].sort()).toEqual(['n1', 'n2', 'n3', 'n4', 'n5'])
+    expect(random).toEqual(ids(buildQueue({ ...base, newOrder: 'random' })))
+    expect(random).not.toEqual(['n1', 'n2', 'n3', 'n4', 'n5'])
+    expect(ids(buildSession({ ...base, kind: 'all', newOrder: 'random' }))).toEqual(random)
+    expect(ids(buildSession({ ...base, kind: 'new', newOrder: 'created' }))).toEqual(['n1', 'n2', 'n3', 'n4', 'n5'])
+    expect(ids(buildSession({ ...base, kind: 'new' }))).toEqual(['n1', 'n2', 'n3', 'n4', 'n5'])
+  })
+})

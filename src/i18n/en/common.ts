@@ -81,7 +81,7 @@ export const common = {
   sealBody: 'Encryption locks everything sent to a backup with a passphrase only you know.',
   dataBody: 'Export your library in open formats, or import from a file or from Anki.',
   recoveryBody: 'Your local data opened normally. Nothing needs recovering.',
-  reviewPrefsBody: 'Daily limits and target retention apply on every device.',
+  reviewPrefsBody: 'These settings apply to all your cards, on every device.',
   diagnosticBody: 'The diagnostic log stays on this device until you export it.',
   updateReady: 'A new version of Cursus is ready.',
   updateNow: 'Update',

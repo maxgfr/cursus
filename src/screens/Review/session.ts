@@ -1,16 +1,17 @@
 import type { Id, Rating, StudyScope } from '../../core/contracts/workspace'
 import { clozeFaces, makeClozeCards } from '../../core/model/cloze'
+import { queueLimitsFor, schedulerOf } from '../../core/model/reviewSettings'
 import type { ModelWorkspace } from '../../core/model/workspace'
-import { type CardState, createScheduler, dayStart, localOffset, type Scheduler, studyDay } from '../../core/srs/fsrs'
+import { type CardState, dayStart, localOffset, type Scheduler, studyDay } from '../../core/srs/fsrs'
 import { isLeech } from '../../core/srs/leech'
 import { buildQueue, inScope, type QueueCard } from '../../core/srs/queue'
 import { nearestExamScope } from '../Today/sectionLead.ts'
 
 export const RATINGS: readonly Rating[] = [1, 2, 3, 4]
 
-/** The scheduler for the workspace's current retention target. */
+/** The scheduler of the workspace's review settings. */
 export function schedulerFor(ws: ModelWorkspace): Scheduler {
-  return createScheduler({ desiredRetention: ws.prefs.get('desiredRetention') })
+  return schedulerOf(ws)
 }
 
 /** Live, unsuspended cards with what a scoped queue needs: their course and the sections they are filed under. */
@@ -41,7 +42,7 @@ export function startQueue(ws: ModelWorkspace, now: number, scope?: StudyScope):
     states,
     now,
     tzOffsetMin: localOffset(now),
-    newPerDay: ws.prefs.get('dailyNewCards'),
+    ...queueLimitsFor(ws),
     scope,
   }).map((q) => q.cardId)
   // Cards in (re)learning: those not due yet may come back later in the session.
@@ -149,7 +150,7 @@ export function readCard(ws: ModelWorkspace, id: Id, now: number): CardView | nu
     back,
     shown,
     state,
-    leech: isLeech(state),
+    leech: isLeech(state, ws.reviewSettings.get().leechThreshold),
     preview: scheduler.previewIntervals(state, now),
   }
 }

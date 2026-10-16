@@ -1,7 +1,8 @@
 import type { Id, Rating, SessionKind, SessionScope } from '../contracts/workspace'
 import { type CardState, dayStart, newCardState, retrievability, studyDay } from './fsrs'
-import { inScope, type QueueCard, type QueueEntry, studyDayContext } from './queue'
+import { inScope, orderNew, type QueueCard, type QueueEntry, studyDayContext } from './queue'
 import { SESSION_KINDS } from './sessionKinds'
+import type { NewOrder } from './settings'
 
 export { SESSION_KINDS }
 /** Look-ahead of an `ahead` session and look-back of a `failed` one, in study days (today included). */
@@ -28,6 +29,8 @@ export interface SessionQueueInput {
   practice?: boolean
   /** Only these cards (relaunching a session's failed cards); a `failed` session keeps their order. */
   cardIds?: readonly Id[]
+  /** The order new cards come in (see `buildQueue`); as given by default. */
+  newOrder?: NewOrder
 }
 
 const cmpId = (a: Id, b: Id): number => (a < b ? -1 : a > b ? 1 : 0)
@@ -64,7 +67,8 @@ function failures(i: SessionQueueInput, from: number): Map<Id, number> {
  * - `all`: every card, lowest estimated retention first, then the new ones.
  * Only cards in `scope` (and `cardIds` when given); `cards` must already exclude trashed and suspended cards. A
  * sibling group reviewed today, or already queued, is buried; new cards (whatever the kind) stay within the day's
- * remaining budget unless the session is practice. At most `limit` cards.
+ * remaining budget unless the session is practice. At most `limit` cards. The day's review limit does not apply:
+ * the student chose this session, and its size.
  */
 export function buildSession(input: SessionQueueInput): QueueEntry[] {
   const days = checkInput(input)
@@ -122,7 +126,7 @@ export function buildSession(input: SessionQueueInput): QueueEntry[] {
   let budget = input.practice === true ? Number.POSITIVE_INFINITY : Math.max(0, input.newPerDay - ctx.newDoneToday)
   const out: QueueEntry[] = []
   const taken = new Set<string>()
-  for (const s of [...picked, ...fresh]) {
+  for (const s of [...picked, ...orderNew(fresh, input.newOrder)]) {
     if (out.length >= limit) break
     if (s.phase === 'new' && budget <= 0) continue
     const sib = siblingOf.get(s.cardId)

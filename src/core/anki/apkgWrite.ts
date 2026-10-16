@@ -5,6 +5,7 @@ import type { Id } from '../contracts/workspace'
 import type { CardRecord } from '../model/schema'
 import type { ModelWorkspace } from '../model/workspace'
 import { type CardState, createScheduler, DAY_MS, type Phase, scheduledReviews } from '../srs/fsrs'
+import { srsParamsOf } from '../srs/settings'
 import { blobRefs, markdownToAnki } from './mdToAnki'
 import { loadSql, SCHEMA11_DDL } from './schema11'
 
@@ -108,7 +109,11 @@ function interval(s: CardState, at: number): number {
 export async function exportApkg(ws: ModelWorkspace, blobs: BlobStore, opts: ExportOptions): Promise<Uint8Array> {
   const now = opts.now
   const nowSecs = Math.floor(now / 1000)
-  const sched = createScheduler({ desiredRetention: opts.desiredRetention ?? ws.prefs.get('desiredRetention') })
+  // The workspace's review settings, the retention given to the export taking the place of its own.
+  const params = srsParamsOf(ws.reviewSettings.get())
+  const sched = createScheduler(
+    opts.desiredRetention === undefined ? params : { ...params, desiredRetention: opts.desiredRetention },
+  )
   const wanted = opts.courseIds ? new Set(opts.courseIds) : null
   const courses = ws.courses.list().filter((c) => !wanted || wanted.has(c.id))
   // Collection creation: midnight UTC of the export day minus a margin covering every review.

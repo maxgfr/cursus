@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import type { Rating, Review } from '../contracts/workspace'
 import { type CardState, createScheduler, DAY_MS, dayStart, studyDay } from './fsrs'
-import { buildQueue, inScope, type QueueCard } from './queue'
+import { buildQueue, inScope, mixNew, orderNew, type QueueCard, stableRank, studyDayContext } from './queue'
 
 const TZ = 0
 const MIN = 60_000
@@ -121,5 +121,95 @@ describe('buildQueue', () => {
       scope: { courseId: 'law', sectionId: 's' },
     })
     expect(q).toEqual([{ cardId: 'n1', kind: 'new' }])
+  })
+})
+
+describe('the settings of the day', () => {
+  /** Five reviews due today (r1…r5), learning card l1 due now, new cards n1…n6. */
+  function day() {
+    const log: Review[] = [rv('l', 'l1', 1, DAY0 + 60 * MIN)]
+    for (let i = 1; i <= 5; i++) log.push(rv(`r${i}`, `r${i}`, 4, DAY0 - 30 * DAY_MS + i * MIN))
+    const cards: QueueCard[] = [
+      ...Array.from({ length: 6 }, (_, i) => ({ id: `n${i + 1}` })),
+      ...Array.from({ length: 5 }, (_, i) => ({ id: `r${i + 1}` })),
+      { id: 'l1' },
+    ]
+    return { cards, states: states(log), now: DAY0 + 2 * 60 * MIN, tzOffsetMin: TZ }
+  }
+  const ids = (q: { cardId: string }[]) => q.map((e) => e.cardId)
+
+  test('without settings, the queue is the same as before', () => {
+    const d = day()
+    expect(buildQueue({ ...d, newPerDay: 3 })).toEqual(
+      buildQueue({ ...d, newPerDay: 3, newOrder: 'created', newMix: 'after' }),
+    )
+    // One new card was introduced today (l1, answered Again): two more come.
+    expect(ids(buildQueue({ ...d, newPerDay: 3 }))).toEqual(['l1', 'r1', 'r2', 'r3', 'r4', 'r5', 'n1', 'n2'])
+  })
+
+  test('a review limit holds back reviews, then new cards; cards in learning never wait', () => {
+    const d = day()
+    // The card introduced today counts toward the limit: 4 left, all taken by reviews.
+    expect(ids(buildQueue({ ...d, newPerDay: 3, maxReviews: 5 }))).toEqual(['l1', 'r1', 'r2', 'r3', 'r4'])
+    expect(ids(buildQueue({ ...d, newPerDay: 3, maxReviews: 7 }))).toEqual(['l1', 'r1', 'r2', 'r3', 'r4', 'r5', 'n1'])
+    expect(ids(buildQueue({ ...d, newPerDay: 3, maxReviews: 1 }))).toEqual(['l1'])
+    expect(ids(buildQueue({ ...d, newPerDay: 3, maxReviews: 100 }))).toEqual(ids(buildQueue({ ...d, newPerDay: 3 })))
+  })
+
+  test('reviews answered today count toward the limit', () => {
+    const log: Review[] = [
+      rv('a', 'x', 4, DAY0 - 30 * DAY_MS),
+      rv('b', 'y', 4, DAY0 - 30 * DAY_MS),
+      rv('c', 'x', 3, DAY0 + MIN),
+    ]
+    const cards: QueueCard[] = [{ id: 'x' }, { id: 'y' }, { id: 'z' }]
+    const input = { cards, states: states(log), now: DAY0 + 2 * MIN, tzOffsetMin: TZ, newPerDay: 5 }
+    expect(studyDayContext(cards, input.states, input.now, TZ)).toMatchObject({ reviewsDoneToday: 1, newDoneToday: 0 })
+    expect(ids(buildQueue({ ...input, maxReviews: 2 }))).toEqual(['y'])
+    expect(ids(buildQueue({ ...input, maxReviews: 1 }))).toEqual([])
+  })
+
+  test('new cards in a random order that stays the same, whatever the order they are given in', () => {
+    const d = day()
+    const shuffled = ids(buildQueue({ ...d, newPerDay: 7, newOrder: 'random' })).filter((id) => id.startsWith('n'))
+    expect([...shuffled].sort()).toEqual(['n1', 'n2', 'n3', 'n4', 'n5', 'n6'])
+    expect(shuffled).not.toEqual(['n1', 'n2', 'n3', 'n4', 'n5', 'n6'])
+    const reversed = { ...d, cards: [...d.cards].reverse() }
+    expect(
+      ids(buildQueue({ ...reversed, newPerDay: 7, newOrder: 'random' })).filter((id) => id.startsWith('n')),
+    ).toEqual(shuffled)
+    expect(stableRank('n1')).toBe(stableRank('n1'))
+    expect(stableRank('n1')).not.toBe(stableRank('n2'))
+    const fresh = [{ cardId: 'b' }, { cardId: 'a' }]
+    expect(orderNew(fresh, undefined)).toEqual(fresh)
+    expect(orderNew(fresh, 'created')).toEqual(fresh)
+  })
+
+  test('new cards before the reviews, or spread among them', () => {
+    const d = day()
+    expect(ids(buildQueue({ ...d, newPerDay: 3, newMix: 'before' }))).toEqual([
+      'l1',
+      'n1',
+      'n2',
+      'r1',
+      'r2',
+      'r3',
+      'r4',
+      'r5',
+    ])
+    expect(ids(buildQueue({ ...d, newPerDay: 3, newMix: 'mixed' }))).toEqual([
+      'l1',
+      'r1',
+      'r2',
+      'n1',
+      'r3',
+      'n2',
+      'r4',
+      'r5',
+    ])
+    expect(mixNew([1, 2, 3, 4], [9], 'mixed')).toEqual([1, 2, 9, 3, 4])
+    expect(mixNew([], [8, 9], 'mixed')).toEqual([8, 9])
+    expect(mixNew([1, 2], [], 'mixed')).toEqual([1, 2])
+    expect(mixNew([1], [7, 8, 9], 'mixed')).toEqual([7, 1, 8, 9])
   })
 })

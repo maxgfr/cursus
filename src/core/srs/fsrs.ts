@@ -226,12 +226,14 @@ const step = (h: number, r: GradedReview): number => (h * 31 + (r.at % 1_000_000
 /** One scheduler (engine and replay cache) per parameter set, shared by every screen. */
 const schedulers = new Map<string, Scheduler>()
 
-export function createScheduler(params: Partial<SrsParams> = {}): Scheduler {
-  const p: SrsParams = { ...DEFAULT_PARAMS, ...params }
-  const id = JSON.stringify([p.desiredRetention, p.learningSteps, p.relearningSteps, p.maximumInterval, p.enableFuzz])
-  const existing = schedulers.get(id)
-  if (existing) return existing
-  const engine: FSRS = fsrs({
+/** The key of a parameter set: two sets with the same key schedule alike. */
+export function paramsKey(p: SrsParams): string {
+  return JSON.stringify([p.desiredRetention, p.learningSteps, p.relearningSteps, p.maximumInterval, p.enableFuzz])
+}
+
+/** An FSRS engine for these parameters, the fuzz seeded by card id; nothing is cached (see `createScheduler`). */
+export function createEngine(p: SrsParams): FSRS {
+  return fsrs({
     request_retention: p.desiredRetention,
     maximum_interval: p.maximumInterval,
     enable_fuzz: p.enableFuzz,
@@ -239,6 +241,25 @@ export function createScheduler(params: Partial<SrsParams> = {}): Scheduler {
     learning_steps: p.learningSteps,
     relearning_steps: p.relearningSteps,
   }).useStrategy(StrategyMode.SEED, GenSeedStrategyWithCardId('cardId'))
+}
+
+/** Next due time for each rating if a card in `state` were reviewed at `now` by `engine`. */
+export function previewWith(engine: FSRS, state: CardState, now: number): Record<Rating, number> {
+  const preview = engine.repeat(toFsrsCard(state), new Date(now))
+  return {
+    1: preview[1].card.due.getTime(),
+    2: preview[2].card.due.getTime(),
+    3: preview[3].card.due.getTime(),
+    4: preview[4].card.due.getTime(),
+  }
+}
+
+export function createScheduler(params: Partial<SrsParams> = {}): Scheduler {
+  const p: SrsParams = { ...DEFAULT_PARAMS, ...params }
+  const id = paramsKey(p)
+  const existing = schedulers.get(id)
+  if (existing) return existing
+  const engine = createEngine(p)
   const cache = new Map<Id, Replayed>()
   let replays = 0
   let seed: { snap: ReplaySnapshot; at: Map<Id, number> } | null = null
@@ -391,13 +412,7 @@ export function createScheduler(params: Partial<SrsParams> = {}): Scheduler {
       return out
     },
     previewIntervals(state, now) {
-      const preview = engine.repeat(toFsrsCard(state), new Date(now))
-      return {
-        1: preview[1].card.due.getTime(),
-        2: preview[2].card.due.getTime(),
-        3: preview[3].card.due.getTime(),
-        4: preview[4].card.due.getTime(),
-      }
+      return previewWith(engine, state, now)
     },
   }
   schedulers.set(id, scheduler)

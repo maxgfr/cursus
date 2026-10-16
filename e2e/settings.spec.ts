@@ -445,6 +445,10 @@ test('review preferences are written only on Save; the theme on pick', async ({ 
   await open(page, '#/settings/review', 'Schedule')
   const save = page.getByRole('button', { name: 'Save' })
   await expect(save).toBeDisabled()
+  // The recommended settings, shown on a card due for review as Anki shows them.
+  await expect(page.getByTestId('review-preview')).toContainText(
+    'Again 10 min · Hard 7 days · Good 9 days · Easy 13 days',
+  )
   const daily = page.getByLabel('New cards per day')
   await expect(daily).toHaveValue('20')
   await daily.fill('15')

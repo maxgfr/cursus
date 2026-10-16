@@ -1,5 +1,6 @@
 import type { Id, StudyScope } from '../contracts/workspace'
-import { type CardState, createScheduler, retrievability } from '../srs/fsrs'
+import { type CardState, retrievability } from '../srs/fsrs'
+import { schedulerOf } from './reviewSettings'
 import type { ModelWorkspace } from './workspace'
 
 /**
@@ -30,7 +31,7 @@ export interface WeakCard {
  * are left out.
  */
 export function weakCards(ws: ModelWorkspace, scope: StudyScope, now: number, limit = WEAK_MAX): WeakCard[] {
-  const scheduler = createScheduler({ desiredRetention: ws.prefs.get('desiredRetention') })
+  const scheduler = schedulerOf(ws)
   const out: WeakCard[] = []
   for (const card of ws.scoped('cards', scope)) {
     if (card.suspended === true) continue

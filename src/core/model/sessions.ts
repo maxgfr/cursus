@@ -9,9 +9,10 @@ import type {
   SessionScope,
 } from '../contracts/workspace'
 import { buildSession } from '../srs/custom'
-import { type CardState, createScheduler, localOffset } from '../srs/fsrs'
+import { type CardState, localOffset } from '../srs/fsrs'
 import type { QueueEntry } from '../srs/queue'
 import { EntityNotFoundError } from './repos'
+import { schedulerOf } from './reviewSettings'
 import type { ReviewEvent } from './reviews'
 import type { PlanRecord } from './schema'
 import { cleanScope, cmp, parseTime } from './sessionLog'
@@ -195,7 +196,7 @@ export interface SessionQueueRequest {
 
 /**
  * A custom session's queue over the workspace: live, unsuspended cards of live courses, those hidden in a
- * trashed subset excluded; scheduled states for the student's retention target. Reads only.
+ * trashed subset excluded; scheduled states, and new cards in the order, of the review settings. Reads only.
  */
 export function sessionQueue(ws: ModelWorkspace, r: SessionQueueRequest): QueueEntry[] {
   const live = new Set(ws.courses.list().map((c) => c.id))
@@ -204,7 +205,8 @@ export function sessionQueue(ws: ModelWorkspace, r: SessionQueueRequest): QueueE
     .list()
     .filter((c) => live.has(c.courseId) && c.suspended !== true)
     .map((c) => ({ id: c.id, courseId: c.courseId, sections: tree.locate(c) }))
-  const scheduler = createScheduler({ desiredRetention: ws.prefs.get('desiredRetention') })
+  const settings = ws.reviewSettings.get()
+  const scheduler = schedulerOf(ws)
   const states = new Map<Id, CardState>()
   for (const c of cards) {
     const events = ws.reviews.forCard(c.id)
@@ -216,7 +218,8 @@ export function sessionQueue(ws: ModelWorkspace, r: SessionQueueRequest): QueueE
     reviews: ws.reviews.all(),
     now: r.now,
     tzOffsetMin: r.tzOffsetMin ?? localOffset(r.now),
-    newPerDay: ws.prefs.get('dailyNewCards'),
+    newPerDay: settings.dailyNewCards,
+    ...(settings.newOrder === 'created' ? {} : { newOrder: settings.newOrder }),
     kind: r.kind,
     ...(r.scope ? { scope: r.scope } : {}),
     ...(r.limit !== undefined ? { limit: r.limit } : {}),

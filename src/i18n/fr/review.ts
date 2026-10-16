@@ -33,6 +33,7 @@ export const review = {
   cardCreated: 'Carte ajoutée à {course}',
   leechBadge: 'Carte difficile',
   leech: 'Cette carte vous échappe sans cesse. Essayez de la reformuler.',
+  leechSuspended: 'Suspendue : cette carte vous échappe sans cesse, elle reste hors de vos révisions.',
   improve: 'Améliorer',
   improving: 'Reformulation de la carte…',
   improveTitle: 'Reformulation proposée',

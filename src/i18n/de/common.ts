@@ -86,7 +86,7 @@ export const common = {
     'Verschlüsseln verschlüsselt alles, was an einen Speicherort gesendet wird, mit einer Passphrase, die nur du kennst.',
   dataBody: 'Exportiere deine Bibliothek in offenen Formaten oder importiere aus einer Datei oder aus Anki.',
   recoveryBody: 'Deine lokalen Daten wurden normal geöffnet. Es muss nichts wiederhergestellt werden.',
-  reviewPrefsBody: 'Tageslimits und Zielbehaltensrate gelten auf allen Geräten.',
+  reviewPrefsBody: 'Diese Einstellungen gelten für alle deine Karten, auf allen Geräten.',
   diagnosticBody: 'Das Diagnoseprotokoll bleibt auf diesem Gerät, bis du es exportierst.',
   updateReady: 'Eine neue Version von Cursus ist bereit.',
   updateNow: 'Aktualisieren',
