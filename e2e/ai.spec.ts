@@ -652,36 +652,47 @@ test('cards generated in the chat flag duplicates, can be edited, then are saved
   await expect(page.getByRole('main').getByText('Where do light reactions take place?')).toBeVisible()
 })
 
-test('a quiz in the chat asks one question at a time and scores it without touching the review schedule', async ({
-  page,
-}, info) => {
+/** A course with a note, then the quiz set up on it. */
+async function quizOnBotany(page: Page) {
+  await page.goto('./#/')
+  await page.getByRole('button', { name: 'New course' }).first().click()
+  const dialog = page.getByRole('dialog', { name: 'New course' })
+  await dialog.getByLabel('Course name').fill('Botany')
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  await page.getByRole('radio', { name: 'Sources' }).check()
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await page.getByRole('button', { name: 'Write a note' }).click()
+  await page.getByRole('textbox', { name: 'Source' }).click()
+  await page.keyboard.type('Chlorophyll captures light; CO2 is fixed in the stroma.')
+  await page.goto('./#/quiz')
+  await expect(page.getByRole('heading', { level: 1, name: 'Quiz me' })).toBeVisible()
+}
+
+test('a quiz asks one question at a time and scores it without touching the review schedule', async ({ page }) => {
   await mockProvider(page)
   await configure(page)
-  await page.goto('./#/quiz')
-  const chat = chatPanel(page, info.project.name)
-  await expect(chat.getByText('Practice only: your review schedule is not affected.')).toBeVisible()
-  await chat.getByText('Sources: none chosen').click()
-  await chat.getByLabel('Paste text (optional)').fill('Chlorophyll captures light; CO2 is fixed in the stroma.')
-  await chat.getByRole('button', { name: 'Run again', exact: true }).click()
-  await chat.getByRole('button', { name: 'Chlorophyll' }).click()
-  await expect(chat.getByText('Correct', { exact: true })).toBeVisible()
-  await chat.getByRole('button', { name: 'Next question' }).click()
-  await chat.getByRole('button', { name: 'Thylakoid' }).click()
-  await expect(chat.getByText('Score: 1 / 2')).toBeVisible()
-  await expect(chat.getByText('Not quite')).toBeVisible()
+  await quizOnBotany(page)
+  await page.getByRole('radio', { name: '3', exact: true }).check({ force: true })
+  await page.getByRole('button', { name: 'Start the quiz' }).click()
+  await expect(page.getByText('Practice only: your review schedule is not affected.')).toBeVisible()
+  await page.getByRole('button', { name: 'Chlorophyll' }).click()
+  await expect(page.getByText('Correct', { exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Next question' }).click()
+  await page.getByRole('button', { name: 'Thylakoid' }).click()
+  await expect(page.getByText('Score: 1 / 2')).toBeVisible()
+  await expect(page.getByText('Not quite')).toBeVisible()
+  // The question missed can be asked about in the chat; a new quiz starts from its setup again.
+  await expect(page.getByRole('button', { name: 'Ask the chat about it' })).toHaveCount(1)
+  await page.getByRole('button', { name: 'New quiz' }).click()
+  await expect(page.getByRole('button', { name: 'Start the quiz' })).toBeVisible()
 })
 
-test('a quiz in the chat can cover everything: the model decides how many questions it takes', async ({
-  page,
-}, info) => {
+test('a quiz can cover everything: the model decides how many questions it takes', async ({ page }) => {
   const prompts = await mockProvider(page)
   await configure(page)
-  await page.goto('./#/quiz')
-  const chat = chatPanel(page, info.project.name)
-  await chat.getByText('Sources: none chosen').click()
-  await chat.getByLabel('Paste text (optional)').fill('Chlorophyll captures light; CO2 is fixed in the stroma.')
-  await chat.getByRole('radio', { name: 'All', exact: true }).check({ force: true })
-  await chat.getByRole('button', { name: 'Run again', exact: true }).click()
-  await expect(chat.getByRole('button', { name: 'Chlorophyll' })).toBeVisible()
+  await quizOnBotany(page)
+  await expect(page.getByRole('radio', { name: 'All', exact: true })).toBeChecked()
+  await page.getByRole('button', { name: 'Start the quiz' }).click()
+  await expect(page.getByRole('button', { name: 'Chlorophyll' })).toBeVisible()
   expect(prompts.at(-1)).toContain('cover every key point of the sources')
 })

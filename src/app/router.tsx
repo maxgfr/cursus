@@ -35,7 +35,7 @@ const screens: Record<Exclude<RouteName, 'today'>, Screen> = {
   generate: lazyChunk('generate', () =>
     import('../screens/ChatRoute/index.tsx').then((m) => ({ default: m.Generate })),
   ),
-  quiz: lazyChunk('quiz', () => import('../screens/ChatRoute/index.tsx').then((m) => ({ default: m.Quiz }))),
+  quiz: lazyChunk('quiz', () => import('../screens/Quiz/index.tsx')),
   stats: lazyChunk('stats', () => import('../screens/Stats/index.tsx')),
   sessions: lazyChunk('sessions', () => import('../screens/Sessions/index.tsx')),
   sessionNew: lazyChunk('sessionNew', () => import('../screens/SessionSetup/index.tsx')),

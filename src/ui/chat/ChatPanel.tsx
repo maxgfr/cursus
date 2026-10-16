@@ -59,6 +59,7 @@ import { formatUsd } from '../../i18n/format.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
 import { createFiche, WRITE_QUERY } from '../../screens/Fiche/create.ts'
 import { useFileLoader } from '../../screens/Photos/files.ts'
+import { newQuizRun, saveQuizRun } from '../../screens/Quiz/run.ts'
 import { describeFailure } from '../../screens/Review/failure.ts'
 import { cardText, passagesText, useAiModel } from '../../screens/Understand/shared/aiConfig.ts'
 import { Citation } from '../../screens/Understand/shared/SourcePicker.tsx'
@@ -615,6 +616,15 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
           writeSheetOn(placeOf({ ...start, ...chosen }), t('course.untitledSheet'))
           return
         }
+        // A quiz runs on its own screen.
+        if (action.id === 'quiz') {
+          if (!docked) onClose()
+          saveQuizRun(rt.store, newQuizRun({ ...start, ...chosen })).then(
+            () => navigate(paths.quiz),
+            (e: unknown) => console.warn('quiz not started', e),
+          )
+          return
+        }
         study(action.id, { ...start, ...chosen }, { label: action.label })
         return
       }
@@ -667,7 +677,7 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
       )
       if (!given) void explain(kind, action.label, card)
     },
-    [ask, current, explain, ws, t, study, deps, runRich, images, rt, persist, writeSheetOn],
+    [ask, current, explain, ws, t, study, deps, runRich, images, rt, persist, writeSheetOn, docked, onClose, navigate],
   )
 
   // The answer typed in one's own words concerns the card it was asked for: another card, or its reveal, ends it.

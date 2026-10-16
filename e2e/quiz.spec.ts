@@ -1,10 +1,10 @@
 import { expect, type Page, type Route, test } from '@playwright/test'
-import { chatPanel, configureAi } from './support/ai'
+import { configureAi } from './support/ai'
 import { createHarness } from './support/harness.ts'
-import { isPhone, seriousViolations, watchErrors } from './support/page.ts'
+import { seriousViolations, watchErrors } from './support/page.ts'
 
 // « Quiz me » is set up first: where (a course or one of its sections), how many questions, how hard, and the weak
-// points first; then it runs in the chat on that place's sources only.
+// points first; then it runs on its own screen, on that place's sources only.
 
 test.use({ serviceWorkers: 'block' })
 
@@ -117,7 +117,7 @@ async function seed(page: Page) {
 
 test('« Quiz me » from Practice: a section, 10 hard questions on its sources, its weak points first', async ({
   page,
-}, info) => {
+}) => {
   const errors = watchErrors(page)
   await seed(page)
   const quizzes = await mockProvider(page)
@@ -140,10 +140,9 @@ test('« Quiz me » from Practice: a section, 10 hard questions on its sources, 
   expect(await seriousViolations(page, '[role="dialog"], dialog[open]')).toEqual([])
   await sheet.getByRole('button', { name: 'Start the quiz' }).click()
 
-  // The quiz runs in the chat beside the section, on its own sources only.
-  await expect(page.getByRole('heading', { level: 1, name: 'Cardio' })).toBeVisible()
-  const chat = chatPanel(page, info.project.name)
-  await expect(chat.getByText('What does the heart pump?').first()).toBeVisible()
+  // The quiz runs on its own screen, on the section's sources only.
+  await expect(page.getByRole('heading', { level: 1, name: 'Quiz me' })).toBeVisible()
+  await expect(page.getByText('What does the heart pump?').first()).toBeVisible()
   expect(quizzes).toHaveLength(1)
   const sent = quizzes[0] ?? ''
   expect(sent).toContain('Number of questions: 10')
@@ -154,19 +153,12 @@ test('« Quiz me » from Practice: a section, 10 hard questions on its sources, 
   expect(sent).toContain('The heart pumps blood through two circuits.')
   expect(sent).not.toContain('Bones hold the body up')
   expect(sent).not.toContain('Physiology studies how the body works')
-  // « Run again » keeps the options: the answer's drawer shows them.
-  await chat
-    .getByText(/^10 questions/)
-    .first()
-    .click()
-  await expect(chat.getByRole('radio', { name: 'Hard' })).toBeChecked()
-  await expect(chat.getByRole('checkbox', { name: 'Focus on my weak points' })).toBeChecked()
+  // The screen says what was asked for.
+  await expect(page.getByText('10 questions · Hard')).toBeVisible()
   expect(errors).toEqual([])
 })
 
-test('on a course, « Quiz me » opens set up on it; the place quizzed last comes back next time', async ({
-  page,
-}, info) => {
+test('on a course, « Quiz me » opens set up on it; the place quizzed last comes back next time', async ({ page }) => {
   await seed(page)
   const quizzes = await mockProvider(page)
   await configureAi(page, LLM)
@@ -185,12 +177,13 @@ test('on a course, « Quiz me » opens set up on it; the place quizzed last come
   // By default the quiz covers everything the place holds, up to the quiz's own maximum.
   await expect(sheet.getByRole('radio', { name: 'All', exact: true })).toBeChecked()
   await sheet.getByRole('button', { name: 'Start the quiz' }).click()
-  const chat = chatPanel(page, info.project.name)
-  await expect(chat.getByText('What does the heart pump?').first()).toBeVisible()
+  await expect(page.getByText('What does the heart pump?').first()).toBeVisible()
   expect(quizzes).toHaveLength(1)
   expect(quizzes[0] ?? '').toContain('at most 20')
-  // On a phone the chat covers the screen: closed, to see Practice.
-  if (isPhone(info.project.name)) await chat.getByRole('button', { name: 'Close chat' }).click()
+  // A reload resumes the quiz where it was: nothing is asked again.
+  await page.reload()
+  await expect(page.getByText('What does the heart pump?').first()).toBeVisible()
+  expect(quizzes).toHaveLength(1)
   await page.goto('./#/sessions')
   await page
     .getByRole('main')

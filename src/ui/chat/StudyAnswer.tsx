@@ -1,5 +1,5 @@
 import type { DeepPartial } from 'ai'
-import { Check, ChevronDown, Library, MessageCircle, NotebookText, RotateCcw, Trash2, X } from 'lucide-react'
+import { Check, ChevronDown, Library, MessageCircle, NotebookText, RotateCcw, Trash2 } from 'lucide-react'
 import {
   createContext,
   type FormEvent,
@@ -46,6 +46,7 @@ import {
 import { estimateCost, PASTED } from '../../screens/Understand/shared/sources.ts'
 import { ExplainBack } from '../ai/ExplainBack.tsx'
 import { keyedChoices } from '../ai/keyed.ts'
+import { QuizStep } from '../ai/QuizStep.tsx'
 import { sourcesSummary } from '../ai/summary.ts'
 import { Button } from '../components/Button.tsx'
 import { Field } from '../components/Field.tsx'
@@ -542,63 +543,6 @@ function QuizAnswer({ id, rich }: { id: string; rich: Extract<RichResult, { kind
       )}
       <Options id={id} kind="quiz" options={rich.options} />
     </section>
-  )
-}
-
-function QuizStep({
-  q,
-  index,
-  total,
-  answer,
-  onChoose,
-}: {
-  q: QuizQuestion
-  index: number
-  total: number
-  answer: number | undefined
-  onChoose: (choice: number) => void
-}) {
-  const t = useT()
-  const checked = answer !== undefined
-  return (
-    <fieldset className={cx(shared.fieldset, shared.card)}>
-      <legend className={styles.legend}>
-        <span className={shared.hint}>{t('chat.questionOf', { n: String(index + 1), total: String(total) })}</span>{' '}
-        <span className={shared.heading}>{q.question}</span>
-      </legend>
-      <ul className={styles.choices}>
-        {keyedChoices(q.choices).map(({ item: c, key, at: ci }) => (
-          <li key={key}>
-            <button
-              type="button"
-              className={cx(
-                styles.choice,
-                checked && ci === q.answerIndex && styles.right,
-                checked && ci === answer && ci !== q.answerIndex && styles.wrong,
-              )}
-              aria-pressed={checked ? ci === answer : undefined}
-              disabled={checked}
-              onClick={() => onChoose(ci)}
-            >
-              <span>{c}</span>
-              {checked && ci === q.answerIndex && <Check size={18} className={styles.mark} aria-hidden="true" />}
-              {checked && ci === answer && ci !== q.answerIndex && (
-                <X size={18} className={styles.mark} aria-hidden="true" />
-              )}
-            </button>
-          </li>
-        ))}
-      </ul>
-      {checked && (
-        <div className={shared.tight} role="status">
-          <p className={answer === q.answerIndex ? shared.success : shared.error}>
-            {answer === q.answerIndex ? t('ai.correct') : t('ai.incorrect')}
-          </p>
-          <p className={shared.body}>{q.explanation}</p>
-          {q.sourceRef && <Citation sourceRef={q.sourceRef} />}
-        </div>
-      )}
-    </fieldset>
   )
 }
 

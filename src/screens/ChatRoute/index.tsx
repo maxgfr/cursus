@@ -74,10 +74,6 @@ export function Generate() {
   return <ChatRoute kind="generate" />
 }
 
-export function Quiz() {
-  return <ChatRoute kind="quiz" />
-}
-
 export function Understand() {
   return <ChatRoute kind="understand" />
 }

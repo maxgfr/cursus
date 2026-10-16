@@ -505,51 +505,53 @@ test('« Generate cards » drafts cards from the course in the thread: one saved
   expect(errors).toEqual([])
 })
 
-test('« Quiz me » on a course asks one question at a time in the thread and leaves the review schedule as it was', async ({
+test('« Quiz me » on a course asks one question at a time on its screen and leaves the review schedule as it was', async ({
   page,
-}, info) => {
+}) => {
   const errors = watchErrors(page)
   await seedCourse(page)
   await mockProvider(page)
   await configureAi(page, LLM)
   await openCourse(page)
   const meta = await page.getByTestId('place-meta').textContent()
-  // The course's own button sets the quiz up on the course; started, it runs in the chat.
   await page.getByRole('main').getByRole('button', { name: 'Quiz me' }).click()
   await page.getByRole('dialog', { name: 'Quiz me' }).getByRole('button', { name: 'Start the quiz' }).click()
-  const panel = chatPanel(page, info.project.name)
-  await expect(panel.getByText('Practice only: your review schedule is not affected.')).toBeVisible()
-  await expect(panel.getByText('Question 1 of 2')).toBeVisible()
-  await expect(panel.getByText('What do ribosomes build?')).toHaveCount(0)
+  const main = page.getByRole('main')
+  await expect(main.getByText('Practice only: your review schedule is not affected.')).toBeVisible()
+  await expect(main.getByText('Question 1 of 2')).toBeVisible()
+  await expect(main.getByText('What do ribosomes build?')).toHaveCount(0)
   // The question sits inside its card, not on its top edge.
-  const question = panel.getByRole('group', { name: /Which organelle makes ATP\?/ })
+  const question = main.getByRole('group', { name: /Which organelle makes ATP\?/ })
   const card = await question.boundingBox()
   const legend = await question.locator('legend').boundingBox()
   expect(card && legend && legend.y >= card.y).toBe(true)
   // Corrected, the right choice is ringed (in green, a wrong pick in red); the others keep their hairline.
   const ring = (name: string) =>
-    panel.getByRole('button', { name, exact: true }).evaluate((b) => getComputedStyle(b).boxShadow)
+    main.getByRole('button', { name, exact: true }).evaluate((b) => getComputedStyle(b).boxShadow)
   const neutral = await ring('The ribosome')
-  await panel.getByRole('button', { name: 'The mitochondrion' }).click()
-  await expect(panel.getByText('Correct', { exact: true })).toBeVisible()
-  await expect(panel.getByText('Respiration runs there.')).toBeVisible()
+  await main.getByRole('button', { name: 'The mitochondrion' }).click()
+  await expect(main.getByText('Correct', { exact: true })).toBeVisible()
+  await expect(main.getByText('Respiration runs there.')).toBeVisible()
   expect(await ring('The mitochondrion')).toContain('0px 0px 0px 2px')
   expect(await ring('The ribosome')).toBe(neutral)
-  await panel.getByRole('button', { name: 'Next question' }).click()
-  await expect(panel.getByText('Question 2 of 2')).toBeVisible()
-  await panel.getByRole('button', { name: 'Lipids' }).click()
-  await expect(panel.getByText('Not quite')).toBeVisible()
+  await main.getByRole('button', { name: 'Next question' }).click()
+  await expect(main.getByText('Question 2 of 2')).toBeVisible()
+  await main.getByRole('button', { name: 'Lipids' }).click()
+  await expect(main.getByText('Not quite')).toBeVisible()
   const right = await ring('Proteins')
   const wrong = await ring('Lipids')
   expect(right).toContain('0px 0px 0px 2px')
   expect(wrong).toContain('0px 0px 0px 2px')
   expect(wrong).not.toBe(right)
-  await expect(panel.getByRole('button', { name: 'Lipids', exact: true })).toHaveAttribute('aria-pressed', 'true')
-  await expect(panel.getByText('Score: 1 / 2')).toBeVisible()
-  await expect(panel.getByRole('button', { name: 'Next question' })).toHaveCount(0)
+  await expect(main.getByRole('button', { name: 'Lipids', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(main.getByText('Score: 1 / 2')).toBeVisible()
+  await expect(main.getByRole('button', { name: 'Next question' })).toHaveCount(0)
+  // The same questions again, from the start.
+  await main.getByRole('button', { name: 'Same questions again' }).click()
+  await expect(main.getByText('Question 1 of 2')).toBeVisible()
 
   // Nothing reached the schedule: the course says the same, and its card is still due in review.
-  if (isPhone(info.project.name)) await panel.getByRole('button', { name: 'Close chat' }).click()
+  await openCourse(page)
   await expect(page.getByTestId('place-meta')).toHaveText(meta ?? '')
   await page.goto('./#/review')
   await expect(page.getByTestId('question')).toContainText('Powerhouse of the cell?')

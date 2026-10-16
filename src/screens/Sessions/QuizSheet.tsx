@@ -1,19 +1,19 @@
 import { ListChecks } from 'lucide-react'
 import { useEffect, useId, useState } from 'react'
 import { useLocation } from 'wouter'
-import { to } from '../../app/routes.ts'
-import { useWorkspace, useWorkspaceData } from '../../app/workspaceContext.tsx'
+import { paths } from '../../app/routes.ts'
+import { useRuntime, useWorkspace, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { StudyOptions } from '../../core/ai/features/tutorChat'
 import type { Id, StudyScope } from '../../core/contracts/workspace'
 import { failedLately, QUIZ_DEFAULT_COUNT, weakCards } from '../../core/model/quizPlan'
 import type { ModelWorkspace } from '../../core/model/workspace'
 import { useT } from '../../i18n/react.tsx'
 import { useAiReady } from '../../ui/ai/ready.ts'
-import { useChat } from '../../ui/chat/context.tsx'
 import { QuizFields } from '../../ui/chat/QuizFields.tsx'
 import { Button } from '../../ui/components/Button.tsx'
 import { Field } from '../../ui/components/Field.tsx'
 import { Sheet } from '../../ui/components/Sheet.tsx'
+import { newQuizRun, saveQuizRun } from '../Quiz/run.ts'
 import { scopeOptions, scopeValue } from '../SessionSetup/draft.ts'
 import shared from '../Understand/shared/ai.module.css'
 import { readLastQuiz, writeLastQuiz } from './quizLast.ts'
@@ -73,27 +73,35 @@ function defaultNode(
 /**
  * « Quiz me », set up before it runs: the course or section (its sources, some of them only if wished), how many
  * questions — by default all its material covers —, how hard, and whether its weak points come first (on when
- * a card there was forgotten lately). The quiz then runs in the chat, beside that place. Offered only with a
- * model ready: it closes if the model goes away.
+ * a card there was forgotten lately). The quiz then runs on its own screen. Offered only with a model ready: it
+ * closes if the model goes away.
  */
 export function QuizSheet({ open, at, onClose }: { open: boolean; at?: StudyScope; onClose: () => void }) {
   const t = useT()
+  const rt = useRuntime()
   const ready = useAiReady()
+  const [, navigate] = useLocation()
   useEffect(() => {
     if (open && !ready) onClose()
   }, [open, ready, onClose])
+  const start = (options: StudyOptions) => {
+    onClose()
+    saveQuizRun(rt.store, newQuizRun(options)).then(
+      () => navigate(paths.quiz),
+      (e: unknown) => console.warn('quiz not started', e),
+    )
+  }
   return (
     <Sheet open={open && ready} title={t('ai.quiz')} onClose={onClose}>
-      {open && ready && <Setup at={at} onClose={onClose} />}
+      {open && ready && <QuizSetup at={at} onStart={start} />}
     </Sheet>
   )
 }
 
-function Setup({ at, onClose }: { at?: StudyScope; onClose: () => void }) {
+/** Where, how many, how hard: a quiz set up, then started (`onStart`). */
+export function QuizSetup({ at, onStart }: { at?: StudyScope; onStart: (options: StudyOptions) => void }) {
   const t = useT()
   const ws = useWorkspace()
-  const chat = useChat()
-  const [location, navigate] = useLocation()
   const nodeId = useId()
   const nodes = useWorkspaceData(['courses', 'sections', 'sources'], nodesOf)
   // Worked out once, when the sheet opens: what the student then changes stays.
@@ -127,19 +135,19 @@ function Setup({ at, onClose }: { at?: StudyScope; onClose: () => void }) {
   }
 
   const start = () => {
-    if (!current || !chat || chosen.length === 0) return
+    if (!current || chosen.length === 0) return
     const { courseId, sectionId } = current.scope as { courseId: Id; sectionId?: Id }
     writeLastQuiz(current.value)
-    onClose()
-    // Already on that place (opened from the course or section itself): no second entry for Back to land on.
-    const place = to.place(courseId, sectionId)
-    if (location !== place) navigate(place)
-    chat.run('quiz', sectionId ? { courseId, sectionId } : { courseId }, {
+    onStart({
       courseId,
       ...(sectionId ? { sectionId } : {}),
       sourceIds: [...chosen],
+      pasted: '',
       topic: topic.trim(),
-      ...choice,
+      count: choice.count,
+      detail: 'standard',
+      ...(choice.difficulty ? { difficulty: choice.difficulty } : {}),
+      ...(choice.focusWeak ? { focusWeak: true } : {}),
     })
   }
 
@@ -193,7 +201,7 @@ function Setup({ at, onClose }: { at?: StudyScope; onClose: () => void }) {
         type="submit"
         variant="primary"
         icon={<ListChecks size={18} aria-hidden="true" />}
-        disabled={!current || chosen.length === 0 || !chat}
+        disabled={!current || chosen.length === 0}
       >
         {t('ai.quizStart')}
       </Button>
