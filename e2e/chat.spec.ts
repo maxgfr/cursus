@@ -658,6 +658,9 @@ test('conversations stay on the device, can be reopened after a reload and delet
   const panel = chatPanel(page, info.project.name)
   await ask(panel, 'Where is ATP made?')
   await expect(panel.getByText(/Your notes say the mitochondrion/)).toBeVisible()
+  // The answer shows while it streams; the thread is saved once it ends, and only then listed.
+  await panel.getByRole('button', { name: 'Earlier chats' }).click()
+  await expect(panel.getByRole('button', { name: 'Open “Where is ATP made?”' })).toBeVisible()
 
   await page.reload()
   await expect(page.getByRole('heading', { level: 1, name: 'Biology' })).toBeVisible()
