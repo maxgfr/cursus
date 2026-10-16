@@ -55,12 +55,7 @@ export const course = {
   cardKind: 'Card type',
   clozeText: 'Text',
   extra: 'Extra (shown with the answer)',
-  clozeTitle: 'Fill-in-the-blank assistant',
-  clozeHelp: 'Type a word or phrase from the text to hide it. Each hidden part is asked in turn, one per review.',
-  clozePhrase: 'Word or phrase to hide',
-  clozeNotFound: 'This phrase isn’t in the text.',
-  clozeHint: 'Hint (optional)',
-  clozeHide: 'Hide it',
+  clozeHelp: 'Select a word or phrase in the text, then tap Hide. Each hidden part becomes its own card.',
   clozePreview: { one: '{count} card from this text', other: '{count} cards from this text' },
   trashFooter:
     'Restoring brings an item back everywhere. “Delete forever” hides it on every device, but your sync history still keeps a copy.',

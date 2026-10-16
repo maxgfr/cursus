@@ -28,7 +28,7 @@ import type { Rewritten } from '../Review/ImproveSheet.tsx'
 import { replaceFaces } from '../Review/replaceFaces.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 import styles from './CardEditor.module.css'
-import { ClozeAssistant } from './ClozeAssistant.tsx'
+import { ClozePreview } from './ClozePreview.tsx'
 import {
   type CardFields,
   dropDraft,
@@ -461,7 +461,7 @@ export default function CardEditor() {
                 side={kind === 'cloze' ? t('course.clozeText') : t('course.front')}
               />
             </section>
-            {kind === 'cloze' && <ClozeAssistant text={draft.front} value={fields.front} />}
+            {kind === 'cloze' && <ClozePreview value={fields.front} />}
             <section className={styles.side} aria-labelledby="card-back">
               <h2 id="card-back" className={styles.label}>
                 {kind === 'cloze' ? t('course.extra') : t('course.back')}

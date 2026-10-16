@@ -2,6 +2,7 @@ import {
   Bold,
   Code,
   Ellipsis,
+  EyeOff,
   Heading1,
   Heading2,
   Heading3,
@@ -22,6 +23,7 @@ import {
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react'
 import { useT } from '../../i18n/react.tsx'
 import { isApple } from '../chat/ChatButton.tsx'
+import { Button as TextButton } from '../components/Button.tsx'
 import { IconButton } from '../components/IconButton.tsx'
 import type { Format } from './format.ts'
 import styles from './MarkdownEditor.module.css'
@@ -78,6 +80,8 @@ export interface ToolbarProps {
   source: boolean
   /** The editor offers to add a photo (it knows where photos go). */
   photo?: boolean
+  /** The text is a cloze card's: its first button hides the selection as a blank. */
+  cloze?: boolean
   /**
    * The editor's controls; all absent while its code loads. The toolbar then holds the very place it will take
    * (same controls, same wrapping), so nothing below it moves when the editor arrives under a tap.
@@ -94,7 +98,7 @@ export interface ToolbarProps {
 }
 
 /** The formatting toolbar of the Markdown editor, live or as the loading placeholder. */
-export function Toolbar({ source, photo = false, live }: ToolbarProps) {
+export function Toolbar({ source, photo = false, cloze = false, live }: ToolbarProps) {
   const t = useT()
   const idle = live === undefined
   const apple = isApple()
@@ -107,6 +111,21 @@ export function Toolbar({ source, photo = false, live }: ToolbarProps) {
       inert={idle}
     >
       <div className={styles.formats}>
+        {cloze && (
+          <div className={styles.group}>
+            <TextButton
+              variant="plain"
+              icon={<EyeOff size={18} aria-hidden="true" />}
+              disabled={idle || source}
+              aria-pressed={live?.active.has('cloze') ?? false}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => live?.onFormat('cloze')}
+            >
+              {t('common.edCloze')}
+            </TextButton>
+            <span className={styles.divider} aria-hidden="true" />
+          </div>
+        )}
         {GROUPS.map((group, i) => (
           <div key={group[0]?.[0]} className={styles.group}>
             {i > 0 && <span className={styles.divider} aria-hidden="true" />}

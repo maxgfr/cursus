@@ -28,16 +28,6 @@
   font-size: var(--text-footnote);
 }
 
-.clozeForm {
-  display: grid;
-  gap: var(--space-3);
-  justify-items: start;
-}
-
-.clozeForm > :not(button) {
-  width: 100%;
-}
-
 .preview {
   display: grid;
   gap: var(--space-2);

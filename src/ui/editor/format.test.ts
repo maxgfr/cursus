@@ -14,6 +14,7 @@ import {
   prefixLines,
   setHeading,
   tableMarkdown,
+  toggleCloze,
   toggleList,
   toggleMarker,
   toggleQuote,
@@ -210,6 +211,31 @@ describe('what the toolbar shows as on', () => {
     expect(on('**bold** x', 6)).toEqual(['bold'])
     expect(on('**bold** x', 8)).toEqual([])
     expect(on('x **bold**', 2)).toEqual([])
+    // A blank of a cloze card, between its braces only.
+    expect(on('The {{c1::cell}}.', 8)).toEqual(['cloze'])
+    expect(on('The {{c1::cell}}.', 16)).toEqual([])
+  })
+})
+
+describe('the blanks of a cloze card', () => {
+  const hide = (doc: string, from: number, to = from) => after(state(doc, from, to), toggleCloze(state(doc, from, to)))
+
+  test('the selection, or the word at the caret, becomes the next blank', () => {
+    expect(hide('The nucleus holds the DNA.', 4, 11)).toBe('The {{c1::nucleus}}| holds the DNA.')
+    expect(hide('The {{c1::nucleus}} holds the DNA.', 31)).toBe('The {{c1::nucleus}} holds the {{c2::DNA}}|.')
+    // The spaces a selection takes along stay outside the blank; the numbering follows the highest one.
+    expect(hide('a {{c3::b}} cell wall', 11, 17)).toBe('a {{c3::b}} {{c4::cell}}| wall')
+    expect(hide('Été', 1)).toBe('{{c1::Été}}|')
+  })
+
+  test('on a blank, it is shown again, its hint gone', () => {
+    expect(hide('The {{c1::nucleus}} holds', 12)).toBe('The [nucleus] holds')
+    expect(hide('the {{c2::DNA::molecule}}.', 5, 9)).toBe('the [DNA].')
+  })
+
+  test('nothing to hide', () => {
+    expect(hide('a  b', 2)).toBe('null')
+    expect(hide('a   b', 1, 4)).toBe('null')
   })
 })
 

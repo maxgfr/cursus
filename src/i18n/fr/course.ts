@@ -59,13 +59,8 @@ export const course = {
   cardKind: 'Type de carte',
   clozeText: 'Texte',
   extra: 'En plus (montré avec la réponse)',
-  clozeTitle: 'Assistant texte à trous',
   clozeHelp:
-    'Tapez un mot ou une expression du texte pour le masquer. Les parties masquées sont demandées à tour de rôle, une par révision.',
-  clozePhrase: 'Mot ou expression à masquer',
-  clozeNotFound: 'Cette expression n’est pas dans le texte.',
-  clozeHint: 'Indice (facultatif)',
-  clozeHide: 'Masquer',
+    'Sélectionnez un mot ou une expression dans le texte, puis touchez Masquer. Chaque partie masquée devient une carte.',
   clozePreview: { one: '{count} carte tirée de ce texte', other: '{count} cartes tirées de ce texte' },
   trashFooter:
     'Restaurer ramène l’élément partout. « Supprimer définitivement » le masque sur tous vos appareils, mais l’historique de sync en garde une copie.',

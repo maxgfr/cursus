@@ -278,7 +278,7 @@ test('New course from files: a proposed name, every file added, the course opens
   expect(errors).toEqual([])
 })
 
-test('Card editor: the cloze assistant hides phrases and previews one card each', async ({ page }) => {
+test('Card editor: Hide turns the word at the caret or the selection into a blank, one card each', async ({ page }) => {
   const errors = watchErrors(page)
   await openToday(page)
   await createCourse(page, 'Cells')
@@ -287,26 +287,34 @@ test('Card editor: the cloze assistant hides phrases and previews one card each'
   await expect(page.getByRole('heading', { level: 1, name: 'Card' })).toBeVisible()
   await page.getByRole('radio', { name: 'Fill in the blank' }).check()
   await typeInto(page, 'Text', 'The nucleus holds the DNA.')
-  const phrase = page.getByLabel('Word or phrase to hide')
-  await phrase.fill('nucleus')
-  await page.getByRole('button', { name: 'Hide it' }).click()
-  await phrase.fill('DNA')
-  await page.getByLabel('Hint (optional)').fill('molecule')
-  await page.getByRole('button', { name: 'Hide it' }).click()
+  await expect(
+    page.getByText('Select a word or phrase in the text, then tap Hide. Each hidden part becomes its own card.'),
+  ).toBeVisible()
+  const hide = page.getByRole('button', { name: 'Hide', exact: true })
+  // The caret in a word hides the word; a selection hides what is selected.
+  await page.keyboard.press('Home')
+  for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowRight')
+  await hide.click()
+  await page.keyboard.press('End')
+  await page.keyboard.press('ArrowLeft')
+  for (let i = 0; i < 3; i++) await page.keyboard.press('Shift+ArrowLeft')
+  await hide.click()
   // The text reads with its answers marked; its Markdown source holds the deletions.
   const text = page.getByRole('textbox', { name: 'Text' })
   await expect(text.locator('.cm-md-cloze')).toHaveText(['nucleus', 'DNA'])
   await showMarkdown(page, text, true)
-  await expect(text).toContainText('The {{c1::nucleus}} holds the {{c2::DNA::molecule}}.')
+  await expect(text).toContainText('The {{c1::nucleus}} holds the {{c2::DNA}}.')
   await showMarkdown(page, text, false)
   const preview = page.getByRole('list', { name: '2 cards from this text' })
-  await expect(preview.getByRole('listitem')).toHaveText([
+  await expect(preview.getByRole('listitem')).toHaveText(['1The [...] holds the DNA.', '2The nucleus holds the [...].'])
+  // On a blank the button is on, and a tap shows the word again.
+  await text.locator('.cm-md-cloze', { hasText: 'DNA' }).click()
+  await expect(hide).toHaveAttribute('aria-pressed', 'true')
+  await hide.click()
+  await expect(text.locator('.cm-md-cloze')).toHaveText(['nucleus'])
+  await expect(page.getByRole('list', { name: '1 card from this text' }).getByRole('listitem')).toHaveText([
     '1The [...] holds the DNA.',
-    '2The nucleus holds the [molecule].',
   ])
-  await phrase.fill('ribosome')
-  await page.getByRole('button', { name: 'Hide it' }).click()
-  await expect(page.getByText('This phrase isn’t in the text.')).toBeVisible()
   expect(await seriousViolations(page)).toEqual([])
 
   // The editor works on a draft: Save creates the card and goes back to the course.

@@ -9,6 +9,7 @@ import {
 } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import type { SyntaxNode } from '@lezer/common'
+import { clozeIndexes, clozeSpans } from '../../core/model/cloze'
 import { pendingPair, tidyPair } from './livePlan.ts'
 
 /** Inline formats the toolbar toggles, by their Markdown marker. */
@@ -30,6 +31,7 @@ export type Format =
   | 'code'
   | 'math'
   | 'table'
+  | 'cloze'
 
 /** How many `c` sit right before `pos` (`dir` -1) or right after it (`dir` 1) on its line. */
 function run(state: EditorState, pos: number, c: string, dir: -1 | 1): number {
@@ -460,6 +462,9 @@ export function activeFormats(state: EditorState): Set<Format> {
     else if (item.parent?.name === 'OrderedList') out.add('numbered')
     else out.add('bullet')
   }
+  // A deletion holds the caret between its braces (the caret's line only: the toolbar follows every move).
+  const line = state.doc.lineAt(pos)
+  if (clozeSpans(line.text).some((c) => pos > line.from + c.from && pos < line.from + c.to)) out.add('cloze')
   // A format waiting at the caret turns it on for what is typed next, or off inside an element of its kind.
   const pending = state.field(pendingFormat, false) ?? null
   if (pending !== null && pending.pos === pos) {
@@ -470,6 +475,35 @@ export function activeFormats(state: EditorState): Set<Format> {
     }
   }
   return out
+}
+
+/**
+ * Hides the selection, or the word at the caret, as the text's next `{{cN::…}}` deletion; on a deletion, shows it
+ * again (its answer stays, a hint goes). Null when there is nothing to hide.
+ */
+export function toggleCloze(state: EditorState): TransactionSpec | null {
+  const { from, to } = state.selection.main
+  const doc = state.doc.toString()
+  // The deletion the selection touches, or that holds the caret strictly inside it.
+  const at = clozeSpans(doc).find((c) => from < c.to && to > c.from)
+  if (at) {
+    const answer = doc.slice(at.answerFrom, at.answerTo)
+    return {
+      changes: { from: at.from, to: at.to, insert: answer },
+      selection: EditorSelection.range(at.from, at.from + answer.length),
+    }
+  }
+  const range = from === to ? state.wordAt(from) : { from, to }
+  if (range === null) return null
+  const picked = doc.slice(range.from, range.to)
+  const answer = picked.trim()
+  if (answer === '') return null
+  const start = range.from + (picked.length - picked.trimStart().length)
+  const insert = `{{c${(clozeIndexes(doc).at(-1) ?? 0) + 1}::${answer}}}`
+  return {
+    changes: { from: start, to: start + answer.length, insert },
+    selection: EditorSelection.cursor(start + insert.length),
+  }
 }
 
 /** A link's address as Markdown writes it: in angle brackets when it holds spaces or parentheses. */

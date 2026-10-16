@@ -35,7 +35,7 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
       fallback={
         // The editor's own frame, toolbar included: what sits below does not move when the editor arrives.
         <div className={styles.frame} aria-busy="true">
-          <Toolbar source={false} photo={props.photos !== undefined} />
+          <Toolbar source={false} photo={props.photos !== undefined} cloze={props.cloze} />
           <p className={cx(styles.host, styles.loading)}>{t('common.edLoading')}</p>
         </div>
       }

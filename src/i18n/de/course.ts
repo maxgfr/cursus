@@ -60,13 +60,7 @@ export const course = {
   cardKind: 'Kartentyp',
   clozeText: 'Text',
   extra: 'Zusatz (mit der Antwort gezeigt)',
-  clozeTitle: 'Lückentext-Assistent',
-  clozeHelp:
-    'Gib ein Wort oder eine Wendung aus dem Text ein, um sie auszublenden. Die Lücken werden abwechselnd abgefragt, eine pro Wiederholung.',
-  clozePhrase: 'Auszublendendes Wort oder Wendung',
-  clozeNotFound: 'Diese Wendung steht nicht im Text.',
-  clozeHint: 'Hinweis (optional)',
-  clozeHide: 'Ausblenden',
+  clozeHelp: 'Markiere ein Wort oder eine Wendung im Text und tippe auf Ausblenden. Jede Lücke wird eine eigene Karte.',
   clozePreview: { one: '{count} Karte aus diesem Text', other: '{count} Karten aus diesem Text' },
   trashFooter:
     'Wiederherstellen holt ein Element überall zurück. „Endgültig löschen“ blendet es auf allen Geräten aus, doch dein Sync-Verlauf behält eine Kopie.',

@@ -97,6 +97,7 @@ export const common = {
   edChecklist: 'Checklist',
   edQuote: 'Quote',
   edLink: 'Link',
+  edCloze: 'Hide',
   edTable: 'Table',
   edPhoto: 'Photo',
   edMore: 'More options',

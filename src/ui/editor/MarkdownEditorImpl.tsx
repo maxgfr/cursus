@@ -33,6 +33,7 @@ import {
   pendingFormat,
   setHeading,
   tableMarkdown,
+  toggleCloze,
   toggleList,
   toggleMarker,
   toggleQuote,
@@ -262,6 +263,7 @@ export default function MarkdownEditorImpl({
     link: (v) => openLink(v),
     math: (v) => openMath(v),
     table: (v) => openTable(v),
+    cloze: (v) => apply(v, toggleCloze(v.state)),
   }
   // The editor is built once per text: its keys and its drawn elements reach the latest commands through these.
   const commandsNow = useRef(commands)
@@ -551,6 +553,7 @@ export default function MarkdownEditorImpl({
       <Toolbar
         source={source}
         photo={photos !== undefined}
+        cloze={cloze}
         live={{
           onSource: showSource,
           onFormat: format,
