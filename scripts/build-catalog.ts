@@ -8,6 +8,7 @@ import {
   clientBaseUrl,
   clientPackage,
   encodeCatalog,
+  fromLlmModels,
   isBrowserCallable,
   type ProviderFacts,
   type ProviderLike,
@@ -23,7 +24,7 @@ const NATIVE_IDS: ReadonlySet<string> = new Set(['anthropic', 'google', 'cohere'
 
 setCacheEnabled(false)
 // llm-models' probe checks what a browser checks: a 2xx preflight, the origin, every header the call sends.
-const providers = await listProviders()
+const providers = fromLlmModels(await listProviders())
 /** Where the client will call each provider it can speak to, so the probe checks that same endpoint. */
 const targets = providers.flatMap((p) => {
   const npm = clientPackage(p)

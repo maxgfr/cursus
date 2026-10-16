@@ -3,6 +3,7 @@ import { NoObjectGeneratedError } from 'ai'
 import { z } from 'zod'
 import type { CatalogProvider } from './catalogTrim'
 import { AiConfigError, createModel, generateStructured, outputLanguage, streamStructured } from './client'
+import { type AiEffort, effortLevels } from './effort'
 import { fakeGpu, fakeLocalEngine, LOCAL_PROVIDER, LOCAL_PROVIDER_INFO } from './local'
 import { memoryCaches } from './localkit.test'
 import { configureLocalModels, findLocalModel, localModelInfo, localModels } from './localModels'
@@ -186,6 +187,142 @@ describe('client', () => {
       { url: 'https://api.anthropic.com/v1/messages', header: 'true' },
       { url: 'https://api.minimax.io/anthropic/v1/messages', header: null },
     ])
+  })
+
+  const effortOf = (body: Record<string, unknown>) => (body.output_config as { effort?: string } | undefined)?.effort
+
+  /** The JSON body of the first request a call through `ref` sends; the fake server then refuses it. */
+  async function sentBody(ref: Parameters<typeof createModel>[0]): Promise<Record<string, unknown>> {
+    const { generateText } = await import('ai')
+    const bodies: Record<string, unknown>[] = []
+    const real = globalThis.fetch
+    globalThis.fetch = (async (_input: string | URL | Request, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)))
+      return new Response('{}', { status: 400 })
+    }) as typeof fetch
+    try {
+      const model = await createModel(ref)
+      await expect(generateText({ model, prompt: 'hi', maxRetries: 0 })).rejects.toThrow()
+    } finally {
+      globalThis.fetch = real
+    }
+    const [body] = bodies
+    if (!body) throw new Error('no request sent')
+    return body
+  }
+
+  /** Every level the model takes, each with the body its request carries. */
+  async function bodiesByLevel(providerId: string, modelId: string): Promise<[AiEffort, Record<string, unknown>][]> {
+    const levels = effortLevels(providerId, modelId)
+    expect(levels.length).toBeGreaterThan(1)
+    const ref = { provider: provider(providerId, { api: null }), modelId, apiKey: 'k' }
+    // One at a time: each call swaps the global fetch.
+    const out: [AiEffort, Record<string, unknown>][] = []
+    for (const effort of levels) out.push([effort, await sentBody({ ...ref, effort })])
+    return out
+  }
+  const thinkingConfig = (body: Record<string, unknown>) =>
+    (body.generationConfig as { thinkingConfig?: { thinkingLevel?: string; thinkingBudget?: number } }).thinkingConfig
+
+  test('each level a Claude model takes goes out as its effort, or as a thinking budget before Claude 4.6', async () => {
+    for (const modelId of ['claude-opus-5-5', 'claude-opus-4-7', 'claude-sonnet-4-6', 'claude-opus-4-5-20251101']) {
+      for (const [effort, body] of await bodiesByLevel('anthropic', modelId)) {
+        if (modelId.startsWith('claude-opus-4-5')) {
+          expect(body.thinking).toMatchObject({ type: 'enabled' })
+          expect(effortOf(body)).toBeUndefined()
+        } else {
+          expect(effortOf(body)).toBe(effort)
+          expect(body.thinking).toMatchObject({ type: 'adaptive' })
+        }
+      }
+    }
+    // A budget grows with the level.
+    const budgets = (await bodiesByLevel('anthropic', 'claude-sonnet-4-5')).map(
+      ([, body]) => (body.thinking as { budget_tokens: number }).budget_tokens,
+    )
+    expect(budgets).toEqual([...budgets].sort((a, b) => a - b))
+    expect(new Set(budgets).size).toBe(budgets.length)
+  })
+
+  test('each level an OpenAI model takes goes out as its reasoning effort', async () => {
+    for (const modelId of ['gpt-5', 'gpt-5.1', 'gpt-5.4', 'gpt-5.5-pro', 'gpt-5.6', 'gpt-6.1-sol', 'o3']) {
+      for (const [effort, body] of await bodiesByLevel('openai', modelId)) {
+        expect(body.reasoning).toMatchObject({ effort })
+      }
+    }
+  })
+
+  test('each level a Gemini model takes goes out as its thinking level, or a budget on 2.5', async () => {
+    for (const modelId of [
+      'gemini-4-argon',
+      'gemini-3-pro-preview',
+      'gemini-3.1-pro-preview',
+      'gemini-3-flash-preview',
+      'gemini-3.8-flash',
+    ]) {
+      for (const [effort, body] of await bodiesByLevel('google', modelId)) {
+        expect(thinkingConfig(body)?.thinkingLevel).toBe(effort)
+      }
+    }
+    const budgets = (await bodiesByLevel('google', 'gemini-2.5-flash')).map(
+      ([, body]) => thinkingConfig(body)?.thinkingBudget,
+    )
+    expect(budgets.every((b) => typeof b === 'number' && b > 0)).toBe(true)
+    expect(new Set(budgets).size).toBe(budgets.length)
+  })
+
+  test('each level goes to OpenRouter as its reasoning effort, which it maps for the maker', async () => {
+    for (const modelId of ['anthropic/claude-opus-4.6', 'openai/gpt-5.6', 'google/gemini-3-pro-preview']) {
+      for (const [effort, body] of await bodiesByLevel('openrouter', modelId)) {
+        expect(body.reasoning).toEqual({ effort })
+      }
+    }
+  })
+
+  test('a level the model does not take is never sent', async () => {
+    const at = (id: string) => provider(id, { api: null })
+    const opus46 = await sentBody({
+      provider: at('anthropic'),
+      modelId: 'claude-opus-4-6',
+      apiKey: 'k',
+      effort: 'xhigh',
+    })
+    expect(effortOf(opus46)).toBeUndefined()
+    expect(opus46.thinking).toBeUndefined()
+    const pro = await sentBody({
+      provider: at('google'),
+      modelId: 'gemini-3-pro-preview',
+      apiKey: 'k',
+      effort: 'medium',
+    })
+    expect(thinkingConfig(pro)).toBeUndefined()
+    const gpt5 = await sentBody({ provider: at('openai'), modelId: 'gpt-5', apiKey: 'k', effort: 'none' })
+    expect(gpt5.reasoning).toBeUndefined()
+    const routed = await sentBody({ provider: at('openrouter'), modelId: 'openai/gpt-5.6', apiKey: 'k', effort: 'max' })
+    expect(routed.reasoning).toBeUndefined()
+    const unknown = await sentBody({ provider: at('openai'), modelId: 'gpt-4o', apiKey: 'k', effort: 'high' })
+    expect(unknown.reasoning).toBeUndefined()
+  })
+
+  test('without an effort, or through a provider that does not take one, nothing is sent', async () => {
+    const at = (id: string) => provider(id, { api: null })
+    const anthropic = await sentBody({ provider: at('anthropic'), modelId: 'claude-opus-5', apiKey: 'k' })
+    expect(effortOf(anthropic)).toBeUndefined()
+    expect(anthropic.thinking).toBeUndefined()
+    const openai = await sentBody({ provider: at('openai'), modelId: 'gpt-5', apiKey: 'k' })
+    expect(openai.reasoning).toBeUndefined()
+    const google = await sentBody({ provider: at('google'), modelId: 'gemini-3-pro-preview', apiKey: 'k' })
+    expect(google.generationConfig).not.toHaveProperty('thinkingConfig')
+    const openrouter = await sentBody({ provider: at('openrouter'), modelId: 'a/b', apiKey: 'k' })
+    expect(openrouter.reasoning).toBeUndefined()
+    // A server speaking a known protocol may refuse a parameter it does not know: it never gets one.
+    const groq = provider('groq', { api: 'https://api.groq.com/openai/v1', baseUrlSource: 'default' })
+    const compat = await sentBody({ provider: groq, modelId: 'qwen3', apiKey: 'k', effort: 'high' })
+    expect(compat.reasoning_effort).toBeUndefined()
+    const minimax = provider('minimax', { npm: '@ai-sdk/anthropic', api: 'https://api.minimax.io/anthropic/v1' })
+    const viaAnthropic = await sentBody({ provider: minimax, modelId: 'MiniMax-M2', apiKey: 'k', effort: 'high' })
+    expect(effortOf(viaAnthropic)).toBeUndefined()
+    expect(viaAnthropic.thinking).toBeUndefined()
   })
 
   test('the on-device model is keyless, refused until downloaded, and free', async () => {

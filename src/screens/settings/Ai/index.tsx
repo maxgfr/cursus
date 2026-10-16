@@ -16,7 +16,9 @@ import {
 } from '../../../core/ai/catalog'
 import { type Catalog, type CatalogProvider, checkEndpoint } from '../../../core/ai/catalogTrim'
 import { createModel } from '../../../core/ai/client'
+import { savedEffort, withEffort } from '../../../core/ai/config'
 import { classifyFailure, reachOrigin } from '../../../core/ai/deviceCheck'
+import { type AiEffort, modelEfforts, usableEffort } from '../../../core/ai/effort'
 import { LOCAL_PROVIDER } from '../../../core/ai/local'
 import { usageEvent } from '../../../core/ai/usage'
 import { formatDate, formatUsd } from '../../../i18n/format.ts'
@@ -59,6 +61,16 @@ import { checkDevice, modelState, pickedLocalModel, releaseEngine, useOnDevice }
 const MAX_RESULTS = 60
 /** Provider shown first when nothing is set up: a maker's own API, never an aggregator. */
 const DEFAULT_PROVIDER = 'anthropic'
+
+const EFFORT_LABELS = {
+  none: 'ai.effortNone',
+  minimal: 'ai.effortMinimal',
+  low: 'ai.effortLow',
+  medium: 'ai.effortMedium',
+  high: 'ai.effortHigh',
+  xhigh: 'ai.effortXhigh',
+  max: 'ai.effortMax',
+} as const satisfies Record<AiEffort, string>
 
 const PRESETS = [
   { id: 'ollama', label: 'Ollama', baseUrl: 'http://localhost:11434/v1', model: 'llama3.2' },
@@ -143,6 +155,7 @@ function Editor({ initial }: { initial: Loaded }) {
   const browserId = useId()
   const structuredId = useId()
   const providerSelectId = useId()
+  const effortId = useId()
 
   const local = useOnDevice()
   const now = Date.now()
@@ -175,6 +188,9 @@ function Editor({ initial }: { initial: Loaded }) {
   const localChoice = local.device.kind === 'ready' ? local.device.choice : undefined
   const selectedLocal = isLocal && config.modelId ? modelState(local, config.modelId).cache : null
   const selectedLocalReady = selectedLocal ? selectedLocal.complete : initial.local?.downloaded === true
+  // The levels the selected model takes; its saved choice shows only while the model still takes it.
+  const efforts = selected ? modelEfforts(selected.provider.id, selected.info) : []
+  const effort = usableEffort(savedEffort(routed), efforts)
 
   const groups = useMemo(() => {
     if (isCustom && query.trim() === '') return []
@@ -603,6 +619,30 @@ function Editor({ initial }: { initial: Loaded }) {
           <p className={languageStatus.kind === 'ok' ? styles.success : styles.error} role="status">
             {languageStatus.text}
           </p>
+        )}
+        {efforts.length > 0 && (
+          <div className={styles.field}>
+            <label className={styles.label} htmlFor={effortId}>
+              {t('ai.effort')}
+            </label>
+            <select
+              id={effortId}
+              className={styles.select}
+              value={effort ?? ''}
+              onChange={(e) => {
+                const level = efforts.find((l) => l === e.target.value)
+                void update(withEffort(routed, level))
+              }}
+            >
+              <option value="">{t('ai.effortDefault')}</option>
+              {efforts.map((l) => (
+                <option key={l} value={l}>
+                  {t(EFFORT_LABELS[l])}
+                </option>
+              ))}
+            </select>
+            <p className={styles.hint}>{t('ai.effortHint')}</p>
+          </div>
         )}
       </section>
 

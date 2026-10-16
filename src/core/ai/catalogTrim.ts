@@ -168,6 +168,8 @@ export interface ModelLike {
   release_date?: string
   status?: string
   family?: string
+  /** The id the provider's own API accepts (llm-models' `api_id`); absent there when the provider does not serve it. */
+  api_id?: string
 }
 export interface ProviderLike {
   id: string
@@ -272,8 +274,9 @@ const VENDOR_NAMES: Readonly<Record<string, string>> = {
   moonshotai: 'Moonshot AI',
 }
 
-/** The id without the provider's own prefix, as its API wants it. */
+/** The id the provider's API wants: its `api_id`, else the id without the provider's own prefix. */
 function bareId(m: ModelLike): string {
+  if (m.api_id !== undefined) return m.api_id
   const prefix = `${m.provider}/`
   return m.id.startsWith(prefix) ? m.id.slice(prefix.length) : m.id
 }
@@ -350,10 +353,15 @@ export function buildCatalog(
   })
   const providerIds = new Set(kept.map((p) => p.id))
   const groups = new Map<string, ModelLike[]>()
+  // Listings left out still describe the model: a maker's own, for one it no longer serves, beats a reseller's.
+  const unused = new Map<string, ModelLike[]>()
   for (const p of kept) {
     for (const m of p.models) {
-      if (!usable(m)) continue
       const key = modelKey(bareId(m))
+      if (!usable(m)) {
+        unused.set(key, [...(unused.get(key) ?? []), m])
+        continue
+      }
       const list = groups.get(key)
       if (list) list.push(m)
       else groups.set(key, [m])
@@ -386,6 +394,9 @@ export function buildCatalog(
           compare(a.id, b.id),
       )[0]
     if (!primary) continue
+    // Aggregators often leave capability flags out (`reasoning` on Gemini 2.5): the maker's own flags win.
+    const ofVendor = (m: ModelLike) => m.provider === vendor
+    const maker = members.find(ofVendor) ?? unused.get(key)?.find(ofVendor)
     const seen = new Set<string>()
     const routes: CatalogRoute[] = []
     for (const m of members) {
@@ -405,7 +416,7 @@ export function buildCatalog(
       vendor,
       context_length: primary.context_length,
       modalities: { input: [...primary.modalities.input] },
-      capabilities: trimCaps(primary.capabilities),
+      capabilities: trimCaps(maker?.capabilities ?? primary.capabilities),
       routes,
     }
     if (primary.family) entry.family = primary.family
@@ -564,6 +575,14 @@ const devProvider = z.object({
   models: z.record(z.string(), z.unknown()),
 })
 
+/**
+ * llm-models' providers with only the models each one's own API serves: a vendor's list also holds what OpenRouter
+ * alone serves under the vendor's name (`claude-opus-4.1`, `…:batch`), which the vendor's API rejects.
+ */
+export function fromLlmModels(input: readonly ProviderLike[]): ProviderLike[] {
+  return input.map((p) => ({ ...p, models: p.models.filter((m) => m.api_id !== undefined) }))
+}
+
 /** Normalizes the raw models.dev `api.json` payload. Malformed models are skipped, a malformed root throws. */
 export function fromModelsDev(raw: unknown): ProviderLike[] {
   const root = z.record(z.string(), z.unknown()).parse(raw)
@@ -578,6 +597,8 @@ export function fromModelsDev(raw: unknown): ProviderLike[] {
       const d = m.data
       models.push({
         id: d.id,
+        // models.dev keys a model by the id its provider's API accepts, prefix included (`openrouter/auto`).
+        api_id: d.id,
         name: d.name,
         provider: p.data.id,
         family: d.family,

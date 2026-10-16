@@ -3,9 +3,10 @@ import { useRuntime, useWorkspace } from '../../../app/workspaceContext.tsx'
 import { findModel } from '../../../core/ai/catalog'
 import type { Catalog, CatalogModel, CatalogProvider } from '../../../core/ai/catalogTrim'
 import { createModel, type FeatureCtx, outputLanguage } from '../../../core/ai/client'
-import type { AiConfig } from '../../../core/ai/config'
+import { type AiConfig, savedEffort } from '../../../core/ai/config'
 import { costOf } from '../../../core/ai/cost'
 import { checkKey, type DeviceCheck, type DeviceChecks } from '../../../core/ai/deviceCheck'
+import { modelEfforts, usableEffort } from '../../../core/ai/effort'
 import { LOCAL_PROVIDER } from '../../../core/ai/local'
 import type { AiUsageEvent } from '../../../core/ai/usage'
 import { detectLanguage } from '../../../core/content/language'
@@ -228,7 +229,12 @@ export function useAiModel(): AiModelState {
     async (signal: AbortSignal, courseLanguage?: string, content?: AiContent): Promise<FeatureCtx> => {
       if (!settings) throw new Error('AI settings are not loaded')
       if (!route) throw new Error('No model selected')
-      const model = await createModel({ provider: route.provider, modelId: route.info.id, apiKey: settings.apiKey })
+      const model = await createModel({
+        provider: route.provider,
+        modelId: route.info.id,
+        apiKey: settings.apiKey,
+        effort: usableEffort(savedEffort(settings.config), modelEfforts(route.provider.id, route.info)),
+      })
       return {
         model,
         info: route.info,

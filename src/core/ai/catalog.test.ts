@@ -24,6 +24,7 @@ import {
   clientPackage,
   decodeCatalog,
   encodeCatalog,
+  fromLlmModels,
   fromModelsDev,
   isBrowserCallable,
   keepProvider,
@@ -142,6 +143,74 @@ describe('buildCatalog', () => {
   test('folds spellings of one model id', () => {
     expect(modelKey('anthropic/claude-haiku-5.5')).toBe(modelKey('claude-haiku-5-5'))
     expect(modelKey('@cf/meta/Llama_3.1')).toBe('llama-3-1')
+  })
+
+  test('calls each provider by the id its own API accepts, leaving out what only OpenRouter serves', () => {
+    const c = buildCatalog(
+      fromLlmModels([
+        {
+          id: 'anthropic',
+          name: 'Anthropic',
+          npm: '@ai-sdk/anthropic',
+          models: [
+            model('anthropic', 'anthropic/claude-opus-4-1', 'Claude Opus 4.1', { api_id: 'claude-opus-4-1' }),
+            // OpenRouter's spellings, listed under the vendor: Anthropic's API knows neither.
+            model('anthropic', 'anthropic/claude-opus-4.1', 'Anthropic: Claude Opus 4.1'),
+            model('anthropic', 'anthropic/claude-opus-4.1:batch', 'Anthropic: Claude Opus 4.1 (batch)'),
+          ],
+        },
+        {
+          id: 'openrouter',
+          name: 'OpenRouter',
+          npm: '@openrouter/ai-sdk-provider',
+          api: 'https://openrouter.ai/api/v1',
+          models: [model('openrouter', 'openrouter/openrouter/auto', 'Auto Router', { api_id: 'openrouter/auto' })],
+        },
+      ]),
+      facts(),
+      AT,
+    )
+    expect(modelsOf(c, 'anthropic').map((h) => h.route.id)).toEqual(['claude-opus-4-1'])
+    // OpenRouter's own models keep their prefix: its API wants `openrouter/auto`, not `auto`.
+    expect(modelsOf(c, 'openrouter').map((h) => h.route.id)).toEqual(['openrouter/auto'])
+  })
+
+  test('a model only resellers serve keeps the flags of its maker’s listing, even a retired one', () => {
+    const reasons = { reasoning: true, tool_call: true }
+    const c = buildCatalog(
+      [
+        {
+          id: 'google',
+          name: 'Google',
+          npm: '@ai-sdk/google',
+          api: 'https://generativelanguage.googleapis.com/v1beta',
+          models: [
+            model('google', 'gemini-2.5-flash', 'Gemini 2.5 Flash', { status: 'deprecated', capabilities: reasons }),
+          ],
+        },
+        {
+          id: 'openrouter',
+          name: 'OpenRouter',
+          npm: '@openrouter/ai-sdk-provider',
+          api: 'https://openrouter.ai/api/v1',
+          models: [model('openrouter', 'google/gemini-2.5-flash', 'Google: Gemini 2.5 Flash', { capabilities: {} })],
+        },
+        {
+          id: '302ai',
+          name: '302.AI',
+          npm: '@ai-sdk/openai-compatible',
+          api: 'https://api.302.ai/v1',
+          models: [model('302ai', 'gemini-2.5-flash', 'gemini-2.5-flash', { capabilities: {} })],
+        },
+      ],
+      facts(),
+      AT,
+    )
+    const [entry] = c.models
+    expect(c.models).toHaveLength(1)
+    expect(entry?.routes.map((r) => r.provider)).toEqual(['302ai', 'openrouter'])
+    expect(entry?.capabilities).toEqual(reasons)
+    expect(findModel(c, 'openrouter', 'google/gemini-2.5-flash')?.capabilities.reasoning).toBe(true)
   })
 
   test('catalog.json encoding round-trips', () => {
@@ -308,6 +377,40 @@ describe('config migration', () => {
     expect(migrateConfig(undefined, c)).toEqual({ language: 'auto' })
     expect(migrateConfig({ language: 'xx', providerId: 3 }, c)).toEqual({ language: 'auto' })
   })
+
+  test('keeps each route’s effort and drops anything unknown', () => {
+    const c = build()
+    const efforts = { 'anthropic/claude-haiku-5-5': 'max', 'openai/gpt-5': 'minimal', 'x/y': 'huge', 'x/z': 2 }
+    expect(migrateConfig({ language: 'auto', efforts }, c)).toEqual({
+      language: 'auto',
+      efforts: { 'anthropic/claude-haiku-5-5': 'max', 'openai/gpt-5': 'minimal' },
+    })
+    expect(migrateConfig({ language: 'auto', efforts: 'high' }, c)).toEqual({ language: 'auto' })
+  })
+
+  test('reads the single effort of the unreleased build as the choice for the model it was set with', () => {
+    const c = build()
+    const route = { providerId: 'anthropic', modelId: 'claude-haiku-5-5', language: 'auto' } as const
+    expect(migrateConfig({ ...route, effort: 'high' }, c)).toEqual({
+      ...route,
+      efforts: { 'anthropic/claude-haiku-5-5': 'high' },
+    })
+    // A choice already kept for that model wins; without a model, the old value has nowhere to go.
+    const kept = { 'anthropic/claude-haiku-5-5': 'low' } as const
+    expect(migrateConfig({ ...route, effort: 'high', efforts: kept }, c).efforts).toEqual(kept)
+    expect(migrateConfig({ language: 'auto', effort: 'high' }, c)).toEqual({ language: 'auto' })
+    expect(migrateConfig({ ...route, effort: 'huge' }, c)).toEqual(route)
+  })
+
+  test('a respelled model id keeps its effort', () => {
+    const c = build()
+    const raw = {
+      providerId: 'anthropic',
+      modelId: 'claude-haiku-5.5',
+      efforts: { 'anthropic/claude-haiku-5.5': 'low' },
+    }
+    expect(migrateConfig(raw, c).efforts).toEqual({ 'anthropic/claude-haiku-5-5': 'low' })
+  })
 })
 
 const FIXTURE = {
@@ -389,6 +492,20 @@ describe('catalog', () => {
     expect(ps[0]?.models).toHaveLength(1)
     expect(ps[0]?.models[0]?.cost).toEqual({ input: 1, output: 4 })
     expect(() => fromModelsDev([1, 2])).toThrow()
+  })
+
+  test('models.dev ids are the ones the provider’s API accepts, prefix included', () => {
+    const ps = fromModelsDev({
+      openrouter: {
+        id: 'openrouter',
+        name: 'OpenRouter',
+        npm: '@openrouter/ai-sdk-provider',
+        api: 'https://openrouter.ai/api/v1',
+        models: { 'openrouter/auto': { id: 'openrouter/auto', name: 'Auto Router', limit: { context: 2000000 } } },
+      },
+    })
+    const c = buildCatalog(ps, facts(), AT)
+    expect(modelsOf(c, 'openrouter').map((h) => h.route.id)).toEqual(['openrouter/auto'])
   })
 
   test('refreshCatalog GETs models.dev, keeps known verdicts and marks newcomers unknown', async () => {

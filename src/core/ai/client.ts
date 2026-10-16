@@ -2,15 +2,18 @@ import {
   type DeepPartial,
   generateText,
   type LanguageModel,
+  type LanguageModelMiddleware,
   type LanguageModelUsage,
   type ModelMessage,
   NoObjectGeneratedError,
   Output,
   streamText,
+  wrapLanguageModel,
 } from 'ai'
 import type { z } from 'zod'
 import type { CatalogModel, CatalogProvider } from './catalogTrim'
 import type { TokenUsage } from './cost'
+import { type AiEffort, effortLevels } from './effort'
 import { LOCAL_PROVIDER } from './local'
 import { type AiFeature, type UsageSink, usageEvent } from './usage'
 
@@ -23,11 +26,22 @@ export interface ModelRef {
   provider: CatalogProvider
   modelId: string
   apiKey: string
+  /** Sent on every call when the model takes it (see `effortLevels`); otherwise nothing is, and its default applies. */
+  effort?: AiEffort
 }
+
+/** Sets the call's reasoning level, which the provider package translates into its own parameter. */
+const effortMiddleware = (effort: AiEffort): LanguageModelMiddleware => ({
+  specificationVersion: 'v4',
+  transformParams: async ({ params }) => ({ ...params, reasoning: effort }),
+})
 
 /** Builds a language model; provider packages are loaded only when first needed. */
 export async function createModel(ref: ModelRef): Promise<LanguageModel> {
   const { provider, modelId, apiKey } = ref
+  const effort = ref.effort && effortLevels(provider.id, modelId).includes(ref.effort) ? ref.effort : undefined
+  const withEffort = (model: Exclude<LanguageModel, string>) =>
+    effort ? wrapLanguageModel({ model, middleware: effortMiddleware(effort) }) : model
   if (provider.id === LOCAL_PROVIDER) {
     // Keyless and offline: the model runs in this browser, the engine in a worker loaded on first use.
     const { localModels } = await import('./localModels')
@@ -44,23 +58,30 @@ export async function createModel(ref: ModelRef): Promise<LanguageModel> {
     // The header is Anthropic's own opt-in: it goes to Anthropic's host, never to another server
     // that merely speaks the same protocol (MiniMax, a proxy).
     const own = new URL(baseURL ?? ANTHROPIC_API).host === new URL(ANTHROPIC_API).host
-    return createAnthropic({
-      apiKey,
-      baseURL,
-      headers: own ? { [ANTHROPIC_BROWSER_HEADER]: 'true', ...headers } : headers,
-    })(modelId)
+    return withEffort(
+      createAnthropic({
+        apiKey,
+        baseURL,
+        headers: own ? { [ANTHROPIC_BROWSER_HEADER]: 'true', ...headers } : headers,
+      })(modelId),
+    )
   }
   if (provider.id === 'google' || provider.npm === '@ai-sdk/google') {
     const { createGoogle } = await import('@ai-sdk/google')
-    return createGoogle({ apiKey, baseURL: provider.api ?? undefined, headers })(modelId)
+    return withEffort(createGoogle({ apiKey, baseURL: provider.api ?? undefined, headers })(modelId))
   }
   if (provider.id === 'openai' || provider.npm === '@ai-sdk/openai') {
     const { createOpenAI } = await import('@ai-sdk/openai')
-    return createOpenAI({ apiKey, baseURL: provider.api ?? undefined, headers })(modelId)
+    return withEffort(createOpenAI({ apiKey, baseURL: provider.api ?? undefined, headers })(modelId))
   }
   if (provider.id === 'openrouter' || provider.npm === '@openrouter/ai-sdk-provider') {
     const { createOpenRouter } = await import('@openrouter/ai-sdk-provider')
-    return createOpenRouter({ apiKey, baseURL: provider.api ?? undefined, headers }).chat(modelId)
+    // Its package does not read the call's reasoning level: the effort goes in the model's own settings
+    // (`effortLevels` never offers `max` there).
+    return createOpenRouter({ apiKey, baseURL: provider.api ?? undefined, headers }).chat(
+      modelId,
+      effort && effort !== 'max' ? { reasoning: { effort } } : undefined,
+    )
   }
   const baseURL = provider.api
   if (!baseURL) throw new AiConfigError(`no base URL known for ${provider.id}`)
