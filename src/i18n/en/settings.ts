@@ -148,7 +148,7 @@ export const settings = {
   groupStudy: 'Study',
   groupDevices: 'Sync & devices',
   groupAppearance: 'Appearance & language',
-  securitySub: 'Password, recovery, erasing',
+  securitySub: 'Password, encryption, recovery, erasing',
   aiHidden: 'Hidden in the app',
   diagnosticSub: 'Version, updates and a report for support',
   versionTitle: 'Version and updates',
@@ -172,7 +172,25 @@ export const settings = {
   guardBody:
     'Ask for a password before erasing this device, deleting from the trash for good or removing a sync destination. The password is kept on this device only and never synced.',
   guardNotEncryption:
-    'This is a lock against accidents and borrowed devices, not encryption: your library stays readable on this device. To encrypt, use “{name}” in Settings › Sync.',
+    'This is a lock against accidents and borrowed devices, not encryption: your library stays readable on this device. To encrypt your backups, with this password or a separate passphrase, see “{name}” below.',
+  guardSeals: {
+    one: 'It is also the passphrase of {count} encrypted backup.',
+    other: 'It is also the passphrase of {count} encrypted backups.',
+  },
+  guardChangeSealed: {
+    one: 'This password encrypts {count} backup: its passphrase changes with it. The old password still opens what the backup already holds; if someone else knows it, encrypt a new backup.',
+    other:
+      'This password encrypts {count} backups: their passphrase changes with it. The old password still opens what the backups already hold; if someone else knows it, encrypt new backups.',
+  },
+  guardRemoveSealed: {
+    one: 'This password encrypts {count} backup. Removing it here does not decrypt it: the backup stays encrypted with this password, which becomes its passphrase. Keep it: there is no recovery key, and without it nobody can read the backup on a new device.',
+    other:
+      'This password encrypts {count} backups. Removing it here does not decrypt them: they stay encrypted with this password, which becomes their passphrase. Keep it: there is no recovery key, and without it nobody can read them on a new device.',
+  },
+  guardRemovedSealed: {
+    one: 'Password removed. Your encrypted backup still opens with it, as its passphrase.',
+    other: 'Password removed. Your {count} encrypted backups still open with it, as their passphrase.',
+  },
   guardOn: 'A password protects destructive actions on this device.',
   guardOff: 'No password is set.',
   guardSet: 'Set a password',

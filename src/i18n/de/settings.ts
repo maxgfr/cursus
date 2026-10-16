@@ -155,7 +155,7 @@ export const settings = {
   groupStudy: 'Lernen',
   groupDevices: 'Synchronisation und Geräte',
   groupAppearance: 'Darstellung und Sprache',
-  securitySub: 'Passwort, Wiederherstellung, Löschen',
+  securitySub: 'Passwort, Verschlüsselung, Wiederherstellung, Löschen',
   aiHidden: 'In der App ausgeblendet',
   diagnosticSub: 'Version, Updates und ein Bericht für den Support',
   versionTitle: 'Version und Updates',
@@ -180,7 +180,25 @@ export const settings = {
   guardBody:
     'Frag nach einem Passwort, bevor du dieses Gerät leerst, etwas endgültig aus dem Papierkorb löschst oder einen Sync-Speicherort entfernst. Das Passwort bleibt nur auf diesem Gerät und wird nie synchronisiert.',
   guardNotEncryption:
-    'Das ist eine Sperre gegen Versehen und verliehene Geräte, keine Verschlüsselung: Deine Bibliothek bleibt auf diesem Gerät lesbar. Zum Verschlüsseln nutze „{name}“ unter Einstellungen › Sync.',
+    'Das ist eine Sperre gegen Versehen und verliehene Geräte, keine Verschlüsselung: Deine Bibliothek bleibt auf diesem Gerät lesbar. Um deine Sicherungen zu verschlüsseln, mit diesem Passwort oder einer eigenen Passphrase, siehe „{name}“ weiter unten.',
+  guardSeals: {
+    one: 'Es ist auch die Passphrase von {count} verschlüsselten Sicherung.',
+    other: 'Es ist auch die Passphrase von {count} verschlüsselten Sicherungen.',
+  },
+  guardChangeSealed: {
+    one: 'Dieses Passwort verschlüsselt {count} Sicherung: Ihre Passphrase ändert sich mit. Das alte Passwort öffnet weiterhin, was sie schon enthält; wenn jemand anderes es kennt, verschlüssele eine neue Sicherung.',
+    other:
+      'Dieses Passwort verschlüsselt {count} Sicherungen: Ihre Passphrase ändert sich mit. Das alte Passwort öffnet weiterhin, was sie schon enthalten; wenn jemand anderes es kennt, verschlüssele neue Sicherungen.',
+  },
+  guardRemoveSealed: {
+    one: 'Dieses Passwort verschlüsselt {count} Sicherung. Es hier zu entfernen entschlüsselt sie nicht: Sie bleibt mit diesem Passwort verschlüsselt, das ihre Passphrase wird. Behalte es: Es gibt keinen Wiederherstellungsschlüssel, und ohne es kann niemand sie auf einem neuen Gerät lesen.',
+    other:
+      'Dieses Passwort verschlüsselt {count} Sicherungen. Es hier zu entfernen entschlüsselt sie nicht: Sie bleiben mit diesem Passwort verschlüsselt, das ihre Passphrase wird. Behalte es: Es gibt keinen Wiederherstellungsschlüssel, und ohne es kann niemand sie auf einem neuen Gerät lesen.',
+  },
+  guardRemovedSealed: {
+    one: 'Passwort entfernt. Deine verschlüsselte Sicherung öffnet sich weiterhin damit, als Passphrase.',
+    other: 'Passwort entfernt. Deine {count} verschlüsselten Sicherungen öffnen sich weiterhin damit, als Passphrase.',
+  },
   guardOn: 'Ein Passwort schützt gefährliche Aktionen auf diesem Gerät.',
   guardOff: 'Kein Passwort festgelegt.',
   guardSet: 'Passwort festlegen',

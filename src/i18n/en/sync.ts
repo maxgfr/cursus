@@ -153,6 +153,28 @@ export const sync = {
   sealNoDestination: 'Add a backup first, then encrypt it here.',
   sealNothingToSeal: 'Every backup that can be encrypted already is.',
   sealUnavailable: 'This backup can’t be opened on this device.',
+  sealLockWith: 'Lock with',
+  sealWithPassword: 'My password',
+  sealWithPassphrase: 'A separate passphrase',
+  sealPasswordFirst: {
+    one: 'To encrypt with your password, set one above first (at least {count} character).',
+    other: 'To encrypt with your password, set one above first (at least {count} characters).',
+  },
+  sealPasswordHint: {
+    one: 'The password set above, at least {count} character. Changing it there changes this backup’s passphrase too.',
+    other:
+      'The password set above, at least {count} characters. Changing it there changes this backup’s passphrase too.',
+  },
+  sealPasswordShort: {
+    one: 'Too short to encrypt: use at least {count} character. Change the password above, or choose a separate passphrase.',
+    other:
+      'Too short to encrypt: use at least {count} characters. Change the password above, or choose a separate passphrase.',
+  },
+  sealPasswordLoss:
+    'Forgetting this password means losing the encrypted copy: there is no recovery key. Your library stays on your devices.',
+  sealPasswordHowItWorks:
+    'Every new device needs this password once to read the backup. Without it, nobody can read the encrypted copy, not even you.',
+  sealMoved: 'Encrypting a backup, with your password or a passphrase, is in',
   pairBody: 'Pairing copies your backups and their keys to another device nearby, directly, without any server.',
   pairRole: 'This device',
   pairHost: 'Sends its backups',

@@ -11,7 +11,7 @@ import {
   Triangle,
 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
-import { useSearch } from 'wouter'
+import { Link, Redirect, useSearch } from 'wouter'
 import { paths } from '../../../app/routes.ts'
 import { useT } from '../../../i18n/react.tsx'
 import { ProtectionBadge, SyncBadge } from '../../../ui/components/Badges.tsx'
@@ -25,7 +25,6 @@ import { UpdateControl } from '../Diagnostic/update.tsx'
 import { oneClickDraft } from './builtIn.ts'
 import { beginOAuth, cloudkitSignIn, commit, folderSupported, isOAuth, pickFolder } from './connect.ts'
 import { DestSheet, stateText } from './DestSheet.tsx'
-import { EncryptionSection } from './Encryption.tsx'
 import { GitHubForm } from './GitHubForm.tsx'
 import { errorText, useAction, useDestinations, useWorkspaceConfirm } from './hooks.tsx'
 import { CloudKitForm, DriveForm, DropboxForm, FolderForm, OneDriveForm } from './ProviderForms.tsx'
@@ -57,12 +56,8 @@ export default function SyncSettings() {
   const [open, setOpen] = useState<string | null>(null)
   const [connected, setConnected] = useState<string | null>(null)
   const dests = status?.dests ?? []
-  // An older link to the Encryption page lands here (`?at=encryption`): the section is brought into view.
+  // Encryption moved to the Security page, under the password: an older link to its section here goes there.
   const at = new URLSearchParams(useSearch()).get('at')
-  const hasDests = dests.length > 0
-  useEffect(() => {
-    if (at === 'encryption' && hasDests) document.getElementById('encryption')?.scrollIntoView({ block: 'start' })
-  }, [at, hasDests])
 
   const ready = engine !== null && scheduler !== null
 
@@ -145,6 +140,7 @@ export default function SyncSettings() {
   )
   const openStatus = dests.find((d) => d.id === open)
 
+  if (at === 'encryption') return <Redirect to={`${paths.settingsSecurity}?at=encryption`} replace />
   return (
     <Screen title={t('settings.sync')} back={paths.settings}>
       <div className={styles.stack}>
@@ -265,7 +261,12 @@ export default function SyncSettings() {
           </ListGroup>
         </details>
 
-        {dests.length > 0 && <EncryptionSection rt={rt} engine={engine} records={records} reload={reload} />}
+        {dests.length > 0 && (
+          <p className={styles.note}>
+            {t('sync.sealMoved')}{' '}
+            <Link href={`${paths.settingsSecurity}?at=encryption`}>{t('common.setSecurity')}</Link>
+          </p>
+        )}
       </div>
 
       <Sheet open={adding !== null} title={addingTitle} onClose={() => setAdding(null)}>

@@ -148,7 +148,7 @@ test('hash navigation between routes', async ({ page }) => {
     ['#/quiz', 'Quiz me'],
     ['#/settings/sync', 'Sync & backup'],
     ['#/settings/ai', 'AI'],
-    ['#/settings/seal', 'Sync & backup'],
+    ['#/settings/seal', 'Security'],
     ['#/settings/pair', 'Pair a device'],
     ['#/settings/data', 'Import & export'],
     ['#/settings/security', 'Security'],

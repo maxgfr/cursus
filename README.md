@@ -46,8 +46,10 @@ reports a library as protected only when everything is confirmed on at least one
 | Backup file | export and import under *Data*, works everywhere; on iPhone and iPad *Save backup…* opens the share sheet (*Save to Files*) |
 
 Each provider uses your own app or bucket credentials, kept only on the device. A destination can be
-sealed with a passphrase: objects are then encrypted on the device with AES-256-GCM before upload. Without
-the passphrase on a new device, nothing can be read or uploaded there. Objects are never rewritten or
+sealed with a passphrase, either the app password or a separate one (*Settings > Security*): objects are then
+encrypted on the device with AES-256-GCM before upload. Without the passphrase on a new device, nothing can be
+read or uploaded there; there is no recovery key. Changing the app password adds a key file for the new one, and
+the old password keeps opening the older key file. Objects are never rewritten or
 deleted on a destination; the format is specified in [docs/sync-format.md](docs/sync-format.md).
 
 Automatic folder sync is not available in Safari or on iPad (no File System Access API), and nothing syncs

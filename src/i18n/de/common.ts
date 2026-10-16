@@ -80,10 +80,10 @@ export const common = {
   setDiagnostic: 'Diagnose',
   setSecurity: 'Sicherheit',
   securityBody:
-    'Ob deine lokalen Daten normal geöffnet wurden, ein Passwort, das folgenreiche Aktionen schützt, wie du deine Bibliothek wiederherstellst, und das Löschen von allem auf diesem Gerät. Deine Sicherungen bleiben unberührt.',
+    'Ob deine lokalen Daten normal geöffnet wurden, ein Passwort, das folgenreiche Aktionen schützt, das Verschlüsseln deiner Sicherungen, wie du deine Bibliothek wiederherstellst, und das Löschen von allem auf diesem Gerät. Deine Sicherungen werden nie gelöscht.',
   syncEmpty: 'Noch keine Ziele. Füge eines hinzu, um eine Kopie deiner Bibliothek außerhalb dieses Geräts zu behalten.',
   sealBody:
-    'Verschlüsseln verschlüsselt alles, was an einen Speicherort gesendet wird, mit einer Passphrase, die nur du kennst.',
+    'Verschlüsseln verschlüsselt alles, was an einen Speicherort gesendet wird, mit deinem Passwort oder einer Passphrase, die nur du kennst.',
   dataBody: 'Exportiere deine Bibliothek in offenen Formaten oder importiere aus einer Datei oder aus Anki.',
   recoveryBody: 'Deine lokalen Daten wurden normal geöffnet. Es muss nichts wiederhergestellt werden.',
   reviewPrefsBody: 'Diese Einstellungen gelten für alle deine Karten, auf allen Geräten.',

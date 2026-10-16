@@ -161,6 +161,28 @@ export const sync = {
   sealNoDestination: 'Füge zuerst einen Speicherort hinzu und versiegle es dann hier.',
   sealNothingToSeal: 'Alle Ziele, die sich verschlüsseln lassen, sind schon verschlüsselt.',
   sealUnavailable: 'Dieses Ziel lässt sich auf diesem Gerät nicht öffnen.',
+  sealLockWith: 'Sperren mit',
+  sealWithPassword: 'Meinem Passwort',
+  sealWithPassphrase: 'Einer eigenen Passphrase',
+  sealPasswordFirst: {
+    one: 'Um mit deinem Passwort zu verschlüsseln, lege es zuerst oben fest (mindestens {count} Zeichen).',
+    other: 'Um mit deinem Passwort zu verschlüsseln, lege es zuerst oben fest (mindestens {count} Zeichen).',
+  },
+  sealPasswordHint: {
+    one: 'Das oben festgelegte Passwort, mindestens {count} Zeichen. Wenn du es dort änderst, ändert sich auch die Passphrase dieser Sicherung.',
+    other:
+      'Das oben festgelegte Passwort, mindestens {count} Zeichen. Wenn du es dort änderst, ändert sich auch die Passphrase dieser Sicherung.',
+  },
+  sealPasswordShort: {
+    one: 'Zu kurz zum Verschlüsseln: mindestens {count} Zeichen. Ändere das Passwort oben oder wähle eine eigene Passphrase.',
+    other:
+      'Zu kurz zum Verschlüsseln: mindestens {count} Zeichen. Ändere das Passwort oben oder wähle eine eigene Passphrase.',
+  },
+  sealPasswordLoss:
+    'Wer dieses Passwort vergisst, verliert die verschlüsselte Kopie: Es gibt keinen Wiederherstellungsschlüssel. Deine Bibliothek bleibt auf deinen Geräten.',
+  sealPasswordHowItWorks:
+    'Jedes neue Gerät braucht dieses Passwort einmal, um die Sicherung zu lesen. Ohne es kann niemand die verschlüsselte Kopie lesen, auch du nicht.',
+  sealMoved: 'Eine Sicherung verschlüsselst du, mit deinem Passwort oder einer Passphrase, unter',
   pairBody:
     'Beim Koppeln werden deine Ziele samt Schlüsseln direkt auf ein anderes Gerät in der Nähe kopiert, ohne Server.',
   pairRole: 'Dieses Gerät',

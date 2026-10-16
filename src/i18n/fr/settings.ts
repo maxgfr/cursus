@@ -154,7 +154,7 @@ export const settings = {
   groupStudy: 'Étude',
   groupDevices: 'Synchronisation et appareils',
   groupAppearance: 'Apparence et langue',
-  securitySub: 'Mot de passe, récupération, effacement',
+  securitySub: 'Mot de passe, chiffrement, récupération, effacement',
   aiHidden: 'Masquée dans l’app',
   diagnosticSub: 'Version, mises à jour et rapport pour l’assistance',
   versionTitle: 'Version et mises à jour',
@@ -179,7 +179,25 @@ export const settings = {
   guardBody:
     'Demander un mot de passe avant d’effacer cet appareil, de supprimer définitivement depuis la corbeille ou de retirer une destination de synchronisation. Le mot de passe reste sur cet appareil et n’est jamais synchronisé.',
   guardNotEncryption:
-    'C’est un verrou contre les erreurs et les appareils prêtés, pas un chiffrement : votre bibliothèque reste lisible sur cet appareil. Pour chiffrer, utilisez « {name} » dans Réglages › Sync.',
+    'C’est un verrou contre les erreurs et les appareils prêtés, pas un chiffrement : votre bibliothèque reste lisible sur cet appareil. Pour chiffrer vos sauvegardes, avec ce mot de passe ou une phrase secrète à part, voyez « {name} » plus bas.',
+  guardSeals: {
+    one: 'Il sert aussi de phrase secrète à {count} sauvegarde chiffrée.',
+    other: 'Il sert aussi de phrase secrète à {count} sauvegardes chiffrées.',
+  },
+  guardChangeSealed: {
+    one: 'Ce mot de passe chiffre {count} sauvegarde : sa phrase secrète change avec lui. L’ancien mot de passe ouvre encore ce qu’elle contient déjà ; si quelqu’un d’autre le connaît, chiffrez une nouvelle sauvegarde.',
+    other:
+      'Ce mot de passe chiffre {count} sauvegardes : leur phrase secrète change avec lui. L’ancien mot de passe ouvre encore ce qu’elles contiennent déjà ; si quelqu’un d’autre le connaît, chiffrez de nouvelles sauvegardes.',
+  },
+  guardRemoveSealed: {
+    one: 'Ce mot de passe chiffre {count} sauvegarde. Le retirer ici ne la déchiffre pas : elle reste chiffrée avec ce mot de passe, qui devient sa phrase secrète. Gardez-le : il n’existe aucune clé de secours, et sans lui personne ne peut la lire sur un nouvel appareil.',
+    other:
+      'Ce mot de passe chiffre {count} sauvegardes. Le retirer ici ne les déchiffre pas : elles restent chiffrées avec ce mot de passe, qui devient leur phrase secrète. Gardez-le : il n’existe aucune clé de secours, et sans lui personne ne peut les lire sur un nouvel appareil.',
+  },
+  guardRemovedSealed: {
+    one: 'Mot de passe retiré. Votre sauvegarde chiffrée s’ouvre toujours avec lui, comme phrase secrète.',
+    other: 'Mot de passe retiré. Vos {count} sauvegardes chiffrées s’ouvrent toujours avec lui, comme phrase secrète.',
+  },
   guardOn: 'Un mot de passe protège les actions destructrices sur cet appareil.',
   guardOff: 'Aucun mot de passe défini.',
   guardSet: 'Définir un mot de passe',

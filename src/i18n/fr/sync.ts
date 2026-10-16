@@ -161,6 +161,28 @@ export const sync = {
   sealNoDestination: 'Ajoutez d’abord une sauvegarde, puis chiffrez-la ici.',
   sealNothingToSeal: 'Toutes les sauvegardes qui peuvent l’être sont déjà chiffrées.',
   sealUnavailable: 'Cette sauvegarde ne peut pas être ouverte sur cet appareil.',
+  sealLockWith: 'Verrouiller avec',
+  sealWithPassword: 'Mon mot de passe',
+  sealWithPassphrase: 'Une phrase secrète à part',
+  sealPasswordFirst: {
+    one: 'Pour chiffrer avec votre mot de passe, définissez-le d’abord plus haut (au moins {count} caractère).',
+    other: 'Pour chiffrer avec votre mot de passe, définissez-le d’abord plus haut (au moins {count} caractères).',
+  },
+  sealPasswordHint: {
+    one: 'Le mot de passe défini plus haut, d’au moins {count} caractère. Le changer là-haut change aussi la phrase secrète de cette sauvegarde.',
+    other:
+      'Le mot de passe défini plus haut, d’au moins {count} caractères. Le changer là-haut change aussi la phrase secrète de cette sauvegarde.',
+  },
+  sealPasswordShort: {
+    one: 'Trop court pour chiffrer : au moins {count} caractère. Changez le mot de passe plus haut, ou choisissez une phrase secrète à part.',
+    other:
+      'Trop court pour chiffrer : au moins {count} caractères. Changez le mot de passe plus haut, ou choisissez une phrase secrète à part.',
+  },
+  sealPasswordLoss:
+    'Oublier ce mot de passe, c’est perdre la copie chiffrée : il n’existe aucune clé de secours. Votre bibliothèque reste sur vos appareils.',
+  sealPasswordHowItWorks:
+    'Chaque nouvel appareil a besoin de ce mot de passe une fois pour lire la sauvegarde. Sans lui, personne ne peut lire la copie chiffrée, pas même vous.',
+  sealMoved: 'Le chiffrement d’une sauvegarde, avec votre mot de passe ou une phrase secrète, se règle dans',
   pairBody:
     'L’association copie vos sauvegardes et leurs clés vers un autre appareil proche, directement, sans serveur.',
   pairRole: 'Cet appareil',

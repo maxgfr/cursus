@@ -22,6 +22,9 @@ export interface KeyFile {
   body: Uint8Array
 }
 
+/** Shortest passphrase the app accepts: it is all that stands between a backup and anyone who reads it. */
+export const PASSPHRASE_MIN_LENGTH = 10
+
 const enc = new TextEncoder()
 const dec = new TextDecoder('utf-8', { fatal: true })
 const KEY_ID = /^[0-9a-f]{16}$/

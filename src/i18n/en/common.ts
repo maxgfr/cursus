@@ -76,9 +76,9 @@ export const common = {
   setDiagnostic: 'Diagnostics',
   setSecurity: 'Security',
   securityBody:
-    'Whether your local data opened normally, a password that guards destructive actions, how to recover your library, and erasing everything this device holds. Your backups are never touched.',
+    'Whether your local data opened normally, a password that guards destructive actions, encrypting your backups, how to recover your library, and erasing everything this device holds. Your backups are never deleted.',
   syncEmpty: 'No backups yet. Add one to keep a copy of your library beyond this device.',
-  sealBody: 'Encryption locks everything sent to a backup with a passphrase only you know.',
+  sealBody: 'Encryption locks everything sent to a backup with your password or a passphrase, known only to you.',
   dataBody: 'Export your library in open formats, or import from a file or from Anki.',
   recoveryBody: 'Your local data opened normally. Nothing needs recovering.',
   reviewPrefsBody: 'These settings apply to all your cards, on every device.',

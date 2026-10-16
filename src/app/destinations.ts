@@ -134,6 +134,16 @@ export const getRecord = (h: Host, id: string): Promise<DestRecord | undefined> 
 export const saveRecord = (h: Host, r: DestRecord): Promise<void> => vault(h).set(RECORD + r.id, r)
 export const deleteRecord = (h: Host, id: string): Promise<void> => vault(h).delete(RECORD + id)
 
+const PASSWORD_SEALS = 'password-seals'
+
+/** Encrypted backups whose passphrase is this device's app password: changing the password changes theirs. */
+export async function passwordSeals(h: Host): Promise<string[]> {
+  const sealed = new Set((await listRecords(h)).filter((r) => r.sealed).map((r) => r.id))
+  return ((await vault(h).get<string[]>(PASSWORD_SEALS)) ?? []).filter((id) => sealed.has(id))
+}
+export const setPasswordSeals = (h: Host, ids: string[]): Promise<void> =>
+  ids.length > 0 ? vault(h).set(PASSWORD_SEALS, [...new Set(ids)].sort()) : vault(h).delete(PASSWORD_SEALS)
+
 /** An OAuth connection in flight: the record waits here until the provider sends the user back. */
 export const saveDraft = (h: Host, state: string, r: DestDraft): Promise<void> => vault(h).set(DRAFT + state, r)
 export async function takeDraft(h: Host, state: string): Promise<DestDraft | undefined> {

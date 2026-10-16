@@ -468,11 +468,6 @@ test('sealing copies a backup encrypted and says the old copy stays', async ({ p
   const bucket = await newBucket()
   await createCourse(page, 'Toxicology')
   await addS3(page, bucket)
-  // Encryption is a section of the Sync page, under the backups it protects; the former page's link lands there.
-  await open(page, '#/settings/seal', 'Sync & backup')
-  await expect(page).toHaveURL(/#\/settings\/sync\?at=encryption$/)
-  const section = page.getByRole('region', { name: 'Encryption' })
-  await expect(section).toBeInViewport()
   await expect(
     page
       .getByRole('listitem')
@@ -480,12 +475,109 @@ test('sealing copies a backup encrypted and says the old copy stays', async ({ p
       .filter({ hasText: 'Not encrypted' })
       .first(),
   ).toBeVisible()
+  // Encryption is a section of the Security page, under the password that can lock it; the Sync page points
+  // there, and the former page's link and the former Sync section's link land there.
+  await expect(page.getByRole('main').getByRole('link', { name: 'Security' })).toHaveAttribute(
+    'href',
+    /#\/settings\/security\?at=encryption$/,
+  )
+  await open(page, '#/settings/sync?at=encryption', 'Security')
+  await expect(page).toHaveURL(/#\/settings\/security\?at=encryption$/)
+  await open(page, '#/settings/seal', 'Security')
+  await expect(page).toHaveURL(/#\/settings\/security\?at=encryption$/)
+  const section = page.getByRole('region', { name: 'Encryption' })
+  await expect(section).toBeInViewport()
+  // No password on this device: the passphrase is a separate one, and the password path says how to get it.
+  await expect(section.getByText(/To encrypt with your password, set one above first/)).toBeVisible()
   await expect(section.getByText('The old unencrypted copy stays there until you delete it yourself.')).toBeVisible()
   await page.getByLabel('Encryption passphrase').fill('correct horse battery')
   await page.getByLabel('Repeat passphrase').fill('correct horse battery')
   // Submitted from the keyboard: on phones a bottom prompt may cover the button.
   await page.getByLabel('Repeat passphrase').press('Enter')
   await expect(page.getByText(/objects? encrypted\./)).toBeVisible({ timeout: 60_000 })
+  await open(page, '#/settings/sync', 'Sync & backup')
+  await expect(
+    page
+      .getByRole('listitem')
+      .filter({ hasText: `${bucket}` })
+      .filter({ hasText: 'Encrypted' })
+      .first(),
+  ).toBeVisible()
+})
+
+/** Key files the emulator holds under a bucket's encrypted copy. */
+async function keyFilesIn(bucket: string): Promise<number> {
+  const admin = new AwsClient({ ...S3, service: 's3' })
+  const res = await admin.fetch(`${S3.endpoint}/${bucket}?list-type=2&prefix=cursus-sealed/keys/`)
+  expect(res.status).toBe(200)
+  return [...(await res.text()).matchAll(/<Key>[^<]*\/keys\/[^<]*\.json<\/Key>/g)].length
+}
+
+test('the app password encrypts a backup; changing it adds a key for the new one, removing it keeps the encryption', async ({
+  page,
+}) => {
+  test.setTimeout(120_000)
+  const bucket = await newBucket()
+  await createCourse(page, 'Toxicology')
+  await addS3(page, bucket)
+  await open(page, '#/settings/security', 'Security')
+  const guard = page.getByRole('region', { name: 'Protect destructive actions' })
+  await guard.getByRole('button', { name: 'Set a password' }).click()
+  await guard.getByLabel('New password').fill('lock-123')
+  await guard.getByLabel('Confirm the password').fill('lock-123')
+  await guard.getByRole('button', { name: 'Save password' }).click()
+  await expect(guard.getByText('Password saved.')).toBeVisible()
+
+  // With a password set, it is the simple path; a short one is refused for encryption, a wrong one too.
+  const section = page.getByRole('region', { name: 'Encryption' })
+  await expect(section.getByRole('radio', { name: 'My password' })).toBeChecked()
+  await expect(section.getByText(/there is no recovery key/)).toBeVisible()
+  await section.getByLabel('Password', { exact: true }).fill('lock-123')
+  await section.getByRole('button', { name: 'Encrypt' }).click()
+  await expect(section.getByText(/Too short to encrypt: use at least 10 characters/)).toBeVisible()
+  expect(await keyFilesIn(bucket)).toBe(0)
+
+  await guard.getByRole('button', { name: 'Change password' }).click()
+  await guard.getByLabel('Current password').fill('lock-123')
+  await guard.getByLabel('New password').fill('correct horse')
+  await guard.getByLabel('Confirm the password').fill('correct horse')
+  await guard.getByRole('button', { name: 'Save password' }).click()
+  await expect(guard.getByText('Password saved.')).toBeVisible()
+
+  await section.getByLabel('Password', { exact: true }).fill('correct hors')
+  await section.getByRole('button', { name: 'Encrypt' }).click()
+  await expect(section.getByText('Wrong password. Try again.')).toBeVisible()
+  await section.getByLabel('Password', { exact: true }).fill('correct horse')
+  await section.getByLabel('Password', { exact: true }).press('Enter')
+  await expect(page.getByText(/objects? encrypted\./)).toBeVisible({ timeout: 60_000 })
+  expect(await keyFilesIn(bucket)).toBe(1)
+  await expect(guard.getByText('It is also the passphrase of 1 encrypted backup.')).toBeVisible()
+
+  // Changing the password: it must now be long enough for a passphrase, and the backup gets a second key file.
+  await guard.getByRole('button', { name: 'Change password' }).click()
+  await expect(guard.getByText(/The old password still opens what the backup already holds/)).toBeVisible()
+  await guard.getByLabel('Current password').fill('correct horse')
+  await guard.getByLabel('New password').fill('battery-1')
+  await guard.getByLabel('Confirm the password').fill('battery-1')
+  await guard.getByRole('button', { name: 'Save password' }).click()
+  await expect(guard.getByText('Use at least 10 characters.')).toBeVisible()
+  await guard.getByLabel('New password').fill('battery staple')
+  await guard.getByLabel('Confirm the password').fill('battery staple')
+  await guard.getByRole('button', { name: 'Save password' }).click()
+  await expect(guard.getByText('Password saved.')).toBeVisible()
+  await expect.poll(() => keyFilesIn(bucket), { timeout: 30_000 }).toBe(2)
+
+  // Removing it says the backup stays encrypted with it, and does so.
+  await guard.getByRole('button', { name: 'Remove password' }).click()
+  await expect(guard.getByText(/Removing it here does not decrypt it/)).toBeVisible()
+  await guard.getByLabel('Current password').fill('battery staple')
+  await guard.getByRole('button', { name: 'Remove password' }).click()
+  await expect(
+    guard.getByText('Password removed. Your encrypted backup still opens with it, as its passphrase.'),
+  ).toBeVisible()
+  await expect(guard.getByText('No password is set.')).toBeVisible()
+  expect(await keyFilesIn(bucket)).toBe(2)
+  await open(page, '#/settings/sync', 'Sync & backup')
   await expect(
     page
       .getByRole('listitem')
@@ -556,10 +648,10 @@ test('Settings: most used first, no Search row, Sync & backup only once, Pair on
   await expect(main.getByText('Sync & backup', { exact: true })).toHaveCount(1)
   // No backup yet: pairing is offered from the Sync page, not here.
   await expect(main.getByRole('link', { name: 'Pair a device' })).toHaveCount(0)
-  // Version and updates are with the diagnostics; the password, recovery and erasing on one Security page, with
-  // the data.
+  // Version and updates are with the diagnostics; the password, encryption, recovery and erasing on one Security
+  // page, with the data.
   await expect(main.getByRole('link', { name: /^Diagnostics/ })).toContainText('Version, updates')
-  await expect(main.getByRole('link', { name: /^Security/ })).toContainText('Password, recovery, erasing')
+  await expect(main.getByRole('link', { name: /^Security/ })).toContainText('Password, encryption, recovery, erasing')
   await main.getByRole('link', { name: /^Security/ }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Security' })).toBeVisible()
   await expect(page.getByRole('main').getByRole('status').first()).toHaveText(
@@ -568,10 +660,11 @@ test('Settings: most used first, no Search row, Sync & backup only once, Pair on
   await expect(page.getByRole('region', { name: 'Protect destructive actions' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Recovery sheet' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Erase everything on this device' })).toBeVisible()
-  // In the order they are needed: the password, then recovery, erasing last.
+  // In the order they are needed: the password and the encryption it can lock, then recovery, erasing last.
   const sections = await page.getByRole('main').getByRole('heading', { level: 2 }).allTextContents()
   expect(sections).toEqual([
     'Protect destructive actions',
+    'Encryption',
     'Restore on this device',
     'Recovery sheet',
     'Erase this device',

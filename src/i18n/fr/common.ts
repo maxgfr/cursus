@@ -80,11 +80,11 @@ export const common = {
   setDiagnostic: 'Diagnostic',
   setSecurity: 'Sécurité',
   securityBody:
-    'L’état de vos données locales, un mot de passe qui protège les actions irréversibles, la récupération de votre bibliothèque et l’effacement de tout ce que garde cet appareil. Vos sauvegardes ne sont jamais touchées.',
+    'L’état de vos données locales, un mot de passe qui protège les actions irréversibles, le chiffrement de vos sauvegardes, la récupération de votre bibliothèque et l’effacement de tout ce que garde cet appareil. Vos sauvegardes ne sont jamais supprimées.',
   syncEmpty:
     'Aucune sauvegarde pour l’instant. Ajoutez-en une pour garder une copie de votre bibliothèque hors de cet appareil.',
   sealBody:
-    'Le chiffrement chiffre tout ce qui est envoyé à une sauvegarde avec une phrase secrète que vous seul connaissez.',
+    'Le chiffrement chiffre tout ce qui est envoyé à une sauvegarde avec votre mot de passe ou une phrase secrète, que vous seul connaissez.',
   dataBody: 'Exportez votre bibliothèque dans des formats ouverts, ou importez depuis un fichier ou depuis Anki.',
   recoveryBody: 'Vos données locales se sont ouvertes normalement. Rien à récupérer.',
   reviewPrefsBody: 'Ces réglages s’appliquent à toutes vos cartes, sur tous vos appareils.',

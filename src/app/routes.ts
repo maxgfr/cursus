@@ -34,7 +34,7 @@ export const paths = {
   settingsReview: '/settings/review',
   settingsAi: '/settings/ai',
   settingsSync: '/settings/sync',
-  /** Former Encryption page: redirects to its section of the Sync page. */
+  /** Former Encryption page: redirects to its section of the Security page. */
   settingsSeal: '/settings/seal',
   settingsPair: '/settings/pair',
   settingsData: '/settings/data',
