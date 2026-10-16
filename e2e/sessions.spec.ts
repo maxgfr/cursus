@@ -178,7 +178,8 @@ test('A session from a course counts toward the schedule; keyboard only', async 
   }
   await expect(page.getByRole('heading', { name: 'Session complete' })).toBeVisible()
   await page.keyboard.press('Escape')
-  await expect(page.getByRole('heading', { level: 1, name: 'Law' })).toBeVisible()
+  // Exact: the session's own title, « New cards · Law », would match before leaving pops back to the course.
+  await expect(page.getByRole('heading', { level: 1, name: 'Law', exact: true })).toBeVisible()
 
   // Counted: the two cards left today's due count (they are now learning).
   await openToday(page)
