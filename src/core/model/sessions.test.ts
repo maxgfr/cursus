@@ -8,6 +8,8 @@ import { canonicalJson } from '../sync/verify'
 import { EntityNotFoundError } from './repos'
 import { type PlanRecord, ROOT, type SessionEvent } from './schema'
 import {
+  livePlans,
+  liveSessionHistory,
   nextOccurrence,
   nextPlanned,
   parseTime,
@@ -15,6 +17,7 @@ import {
   planSession,
   relaunchFailed,
   SessionInputError,
+  scopeLive,
   sessionHistory,
   sessionQueue,
   sessionReview,
@@ -283,6 +286,129 @@ describe('history', () => {
   })
 })
 
+describe('sessions and plans follow their place', () => {
+  function setup() {
+    const { w, clock, doc } = make(20)
+    const law = deck(w, 2)
+    const art = deck(w, 1, w.courses.create({ title: 'Art' }))
+    const torts = w.sections.create({ courseId: law.course, name: 'Torts' })
+    const inner = w.sections.create({ courseId: law.course, name: 'Negligence', parentId: torts })
+    const [l1, l2] = law.cards as [Id, Id]
+    const [a1] = art.cards as [Id]
+    const review = (sid: Id, cardId: Id, rating: Rating) => {
+      clock.advance(MIN)
+      w.reviews.record(sessionReview({ id: sid, practice: false }, { cardId, rating, at: clock.now(), ms: 1 }))
+    }
+    const onLaw = w.sessions.start({ scope: { courseId: law.course }, kind: 'all', practice: false })
+    review(onLaw, l1, 3)
+    review(onLaw, l2, 1)
+    const onInner = w.sessions.start({
+      scope: { courseId: law.course, sectionId: inner },
+      kind: 'all',
+      practice: false,
+    })
+    review(onInner, l1, 4)
+    const everywhere = w.sessions.start({ scope: {}, kind: 'all', practice: false })
+    review(everywhere, l2, 3)
+    review(everywhere, a1, 3)
+    const lawPlan = w.plans.create({ ...plan, courseId: law.course })
+    const innerPlan = w.plans.create({ ...plan, courseId: law.course, sectionId: inner })
+    const anyPlan = w.plans.create(plan)
+    const artPlan = w.plans.create({ ...plan, courseId: art.course })
+    return {
+      w,
+      doc,
+      law,
+      art,
+      torts,
+      inner,
+      l1,
+      l2,
+      a1,
+      onLaw,
+      onInner,
+      everywhere,
+      lawPlan,
+      innerPlan,
+      anyPlan,
+      artPlan,
+    }
+  }
+  const ids = (list: readonly { id: Id }[]) => list.map((x) => x.id).sort()
+  const history = (w: ModelWorkspace) =>
+    Object.fromEntries(liveSessionHistory(w).map((s) => [s.session.id, s.reviews] as const))
+
+  test('a session or plan whose course is trashed waits there with it, and comes back with it', () => {
+    const t = setup()
+    const { w } = t
+    expect(ids(livePlans(w))).toEqual(ids(w.plans.list()))
+    expect(history(w)).toEqual({ [t.onLaw]: 2, [t.onInner]: 1, [t.everywhere]: 2 })
+    w.courses.trash(t.law.course)
+    expect(scopeLive(w, { courseId: t.law.course })).toBe(false)
+    expect(ids(livePlans(w))).toEqual(ids([{ id: t.anyPlan }, { id: t.artPlan }]))
+    // The session over every course keeps what it gave on the courses still there.
+    expect(history(w)).toEqual({ [t.everywhere]: 1 })
+    // The raw history keeps everything: nothing was written or lost.
+    expect(sessionHistory(w).map((s) => s.reviews)).toEqual([2, 1, 2])
+    w.courses.restore(t.law.course)
+    expect(ids(livePlans(w))).toEqual(ids(w.plans.list()))
+    expect(history(w)).toEqual({ [t.onLaw]: 2, [t.onInner]: 1, [t.everywhere]: 2 })
+  })
+
+  test('a purged course takes its sessions and plans away for good', () => {
+    const t = setup()
+    const { w } = t
+    w.courses.purge(t.law.course)
+    expect(w.courses.get(t.law.course)).toBeUndefined()
+    expect(scopeLive(w, { courseId: t.law.course })).toBe(false)
+    expect(ids(livePlans(w))).toEqual(ids([{ id: t.anyPlan }, { id: t.artPlan }]))
+    expect(history(w)).toEqual({ [t.everywhere]: 1 })
+    expect(nextPlanned(livePlans(w), NOW, () => 0)?.plan.courseId).not.toBe(t.law.course)
+    expect(scopeLive(w, { courseId: 'unknown' })).toBe(false)
+  })
+
+  test('a trashed subset (or one above it) hides its sessions and plans; its course stays', () => {
+    const t = setup()
+    const { w } = t
+    w.sections.trash(t.torts)
+    expect(scopeLive(w, { courseId: t.law.course, sectionId: t.inner })).toBe(false)
+    expect(scopeLive(w, { courseId: t.law.course })).toBe(true)
+    expect(ids(livePlans(w))).toEqual(ids([{ id: t.lawPlan }, { id: t.anyPlan }, { id: t.artPlan }]))
+    expect(history(w)).toEqual({ [t.onLaw]: 2, [t.everywhere]: 2 })
+    w.sections.restore(t.torts)
+    expect(history(w)[t.onInner]).toBe(1)
+    // A subset of another course is no place for this one.
+    expect(scopeLive(w, { courseId: t.art.course, sectionId: t.inner })).toBe(false)
+    expect(scopeLive(w, { courseId: t.law.course, sectionId: 'unknown' })).toBe(false)
+  })
+
+  test('a trashed card no longer counts in the sessions it was reviewed in', () => {
+    const t = setup()
+    const { w } = t
+    w.cards.trash(t.l2)
+    expect(history(w)).toEqual({ [t.onLaw]: 1, [t.onInner]: 1, [t.everywhere]: 1 })
+    const law = liveSessionHistory(w).find((s) => s.session.id === t.onLaw)
+    expect(law?.failed).toEqual([])
+    w.cards.restore(t.l2)
+    expect(history(w)).toEqual({ [t.onLaw]: 2, [t.onInner]: 1, [t.everywhere]: 2 })
+  })
+
+  test('every course trashed: the session over all of them has nothing left to show', () => {
+    const t = setup()
+    const { w, doc } = t
+    const sv = Y.encodeStateVector(doc)
+    w.courses.trash(t.law.course)
+    w.courses.trash(t.art.course)
+    const before = Y.encodeStateVector(doc)
+    expect(history(w)).toEqual({ [t.everywhere]: 0 })
+    expect(ids(livePlans(w))).toEqual([t.anyPlan])
+    expect(scopeLive(w, {})).toBe(true)
+    // Reading writes nothing.
+    expect(Buffer.from(Y.encodeStateVector(doc)).equals(Buffer.from(before))).toBe(true)
+    expect(Buffer.from(sv).equals(Buffer.from(before))).toBe(false)
+  })
+})
+
 describe('session queue over the workspace', () => {
   test('trash (direct, a trashed course, a trashed subset above) and suspension keep cards out', () => {
     const { w } = make(11)
@@ -434,6 +560,9 @@ describe('the workspace and sessions', () => {
     w.sessions.get('x')
     w.plans.list()
     sessionHistory(w)
+    liveSessionHistory(w)
+    livePlans(w)
+    scopeLive(w, { courseId: 'x', sectionId: 'y' })
     sessionQueue(w, { kind: 'all', now: NOW })
     nextPlanned(w.plans.list(), NOW)
     expect(Buffer.from(Y.encodeStateVector(doc)).equals(Buffer.from(sv))).toBe(true)

@@ -275,6 +275,61 @@ test('Planned sessions: create, show on Today, edit, add to calendar, delete wit
   expect(errors).toEqual([])
 })
 
+test('A course deleted forever takes its planned and past sessions with it; in the trash they wait with it', async ({
+  page,
+}) => {
+  const errors = watchErrors(page)
+  await harness.seed(page, {
+    courses: [
+      { ...LAW, plans: [{ name: 'Night law', time: '23:30' }], session: { at: Date.now() - 2 * 86_400_000 } },
+      { title: 'Biology', cards: [{ front: 'Cell?', back: 'Unit of life' }] },
+    ],
+  })
+  await page.goto('./#/sessions')
+  const main = page.getByRole('main')
+  await expect(page.getByRole('heading', { level: 1, name: 'Practice' })).toBeVisible()
+  await expect(main.getByRole('link', { name: /Night law/ })).toBeVisible()
+  await expect(page.getByTestId('session-facts')).toHaveCount(1)
+
+  // To the trash: gone from Practice and Today, back with the course.
+  const trash = async () => {
+    await page.goto('./#/courses')
+    await main.getByRole('link', { name: /^Law/ }).click()
+    await page.getByRole('button', { name: 'Course settings' }).click()
+    const settings = page.getByRole('dialog', { name: 'Course settings' })
+    await settings.getByRole('button', { name: 'Delete course' }).click()
+    await settings.getByRole('button', { name: 'Delete course' }).click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Courses' })).toBeVisible()
+  }
+  await trash()
+  await page.goto('./#/sessions')
+  await expect(page.getByText('Sessions you start show up here with their results.')).toBeVisible()
+  await expect(main.getByRole('link', { name: /Night law/ })).toHaveCount(0)
+  await expect(page.getByTestId('session-facts')).toHaveCount(0)
+  await page.goto('./#/trash')
+  await page.getByRole('button', { name: 'Restore Law' }).click()
+  await page.goto('./#/sessions')
+  await expect(main.getByRole('link', { name: /Night law/ })).toBeVisible()
+  await expect(page.getByTestId('session-facts')).toHaveCount(1)
+  await page.goto('./#/')
+  await expect(page.getByTestId('session-line')).toContainText('Night law')
+
+  // Deleted forever: they never come back, and Today no longer announces the plan.
+  await trash()
+  await page.goto('./#/trash')
+  await page.getByRole('button', { name: 'Delete Law forever' }).click()
+  await page.getByRole('dialog', { name: 'Delete forever?' }).getByRole('button', { name: 'Delete forever' }).click()
+  await expect(page.getByRole('heading', { name: 'The trash is empty' })).toBeVisible()
+  await page.goto('./#/sessions')
+  await expect(page.getByText('Sessions you start show up here with their results.')).toBeVisible()
+  await expect(main.getByRole('link', { name: /Night law/ })).toHaveCount(0)
+  await expect(page.getByTestId('session-facts')).toHaveCount(0)
+  await page.goto('./#/')
+  await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible()
+  await expect(page.getByTestId('session-line')).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+
 test('Nothing due and nothing suggested: the session planned for today is the main action on Today', async ({
   page,
 }) => {

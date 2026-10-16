@@ -52,6 +52,16 @@ async function seed(spec) {
     const courseId = ws.courses.create({ title: c.title, language: 'en' })
     fill(courseId, undefined, c)
     for (const s of c.sections ?? []) fill(courseId, ws.sections.create({ courseId, name: s.name }), s)
+    for (const p of c.plans ?? [])
+      ws.plans.create({ name: p.name, courseId, kind: 'due', weekdays: [1, 2, 3, 4, 5, 6, 7], time: p.time, practice: false })
+    if (c.session) {
+      // A past session over the course: each of its cards answered once, a minute apart.
+      const at = c.session.at
+      const sid = ws.sessions.start({ scope: { courseId }, kind: 'all', practice: false }, at)
+      const cards = ws.cards.list({ courseId })
+      cards.forEach((card, i) => ws.reviews.record({ cardId: card.id, rating: 3, at: at + (i + 1) * 60000, ms: 4000, sid }))
+      ws.sessions.end(sid, at + (cards.length + 1) * 60000)
+    }
   }
   if (spec.bulk) {
     // Generated here rather than shipped over the protocol: a large library with a long history.
@@ -101,6 +111,10 @@ export interface SeedCourse {
   cards?: SeedCard[]
   /** Sections of the course (one level), each with its own notes and cards. */
   sections?: { name: string; notes?: { title: string; body: string }[]; cards?: SeedCard[] }[]
+  /** Sessions planned over the course, every day at `time` (`HH:MM`). */
+  plans?: { name: string; time: string }[]
+  /** A past session over the course, started at `at`: each of its cards answered Good once. */
+  session?: { at: number }
 }
 export interface SeedSpec {
   courses?: SeedCourse[]

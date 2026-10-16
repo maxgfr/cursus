@@ -136,6 +136,12 @@ test('Demo: Today comes alive (due cards, exam, next session, proposed questions
   await go(page, '#/', 'Today')
   await expect(page.getByTestId('session-line')).toHaveCount(0)
   await expect(page.getByTestId('drafts-line')).toHaveCount(0)
+  // Its planned and past sessions wait in the trash with it.
+  await go(page, '#/sessions', 'Practice')
+  await expect(main.getByText('Weekly review')).toHaveCount(0)
+  await expect(main.getByText(translator('en')('review.plannedNone'))).toBeVisible()
+  await expect(page.getByTestId('session-facts')).toHaveCount(0)
+  await expect(main.getByText(translator('en')('review.pastSessionsNone'))).toBeVisible()
   await go(page, '#/trash', 'Trash')
   // The demo's own trashed subset waits there too.
   await expect(page.getByRole('button', { name: `Restore ${COURSE} › Last year’s notes` })).toBeVisible()
@@ -143,6 +149,11 @@ test('Demo: Today comes alive (due cards, exam, next session, proposed questions
   await go(page, '#/', 'Today')
   await expect(page.getByRole('heading', { level: 2, name: '3 cards due today' })).toBeVisible()
   await expect(page.getByTestId('session-line')).toBeVisible()
+  // Restored, its sessions come back with it: the two plans and the three past sessions.
+  await go(page, '#/sessions', 'Practice')
+  await expect(main.getByText('Weekly review').first()).toBeVisible()
+  await expect(main.getByText(translator('en')('review.plannedNone'))).toHaveCount(0)
+  await expect(page.getByTestId('session-facts')).toHaveCount(3)
   expect(errors).toEqual([])
 })
 

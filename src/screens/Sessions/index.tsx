@@ -6,7 +6,7 @@ import { paths, to } from '../../app/routes.ts'
 import { useWorkspace, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { SessionScope } from '../../core/contracts/workspace'
 import type { PlanRecord } from '../../core/model/schema'
-import { nextOccurrence, planScope, relaunchFailed, sessionHistory } from '../../core/model/sessions'
+import { livePlans, liveSessionHistory, nextOccurrence, planScope, relaunchFailed } from '../../core/model/sessions'
 import { formatDateTime, formatDuration } from '../../i18n/format.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
 import { useAiReady } from '../../ui/ai/ready.ts'
@@ -48,11 +48,12 @@ export default function Sessions() {
   )
   const [notice, setNotice] = useState<PlanNotice>(() => noticeFrom(history.state))
   const [message, setMessage] = useState<string | null>(null)
-  const plans = useWorkspaceData(['plans'], (w) => w.plans.list())
+  // A plan or a session over a course in the trash waits there with it (and comes back with it).
+  const plans = useWorkspaceData(['plans', 'courses', 'sections'], livePlans)
   // Sessions left before any answer say nothing about the student's work: only those with results are listed.
-  const past = useWorkspaceData(['sessions', 'reviews'], (w) => sessionHistory(w).filter((s) => s.reviews > 0))
-  // Names follow renamed courses, subsets and plans.
-  useWorkspaceData(['courses', 'sections'], () => null)
+  const past = useWorkspaceData(['sessions', 'reviews', 'courses', 'sections', 'cards'], (w) =>
+    liveSessionHistory(w).filter((s) => s.reviews > 0),
+  )
   const now = Date.now()
 
   const clearNotice = () => {

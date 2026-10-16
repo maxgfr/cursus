@@ -125,6 +125,51 @@ export function sessionHistory(ws: ModelWorkspace): SessionSummary[] {
   return ws.sessions.list().map((s) => summarize(s, ws.reviews.forSession(s.id)))
 }
 
+// ---- What still has a place ----
+
+/**
+ * Whether a session's or a plan's place is still there: every course (no course), or a live course and, for a
+ * subset, one of that course that is neither trashed nor under a trashed one. Derived: restoring the course brings
+ * the place back, purging it takes it away for good. Reads only.
+ */
+export function scopeLive(ws: ModelWorkspace, scope: SessionScope): boolean {
+  if (scope.courseId === undefined) return true
+  const course = ws.courses.get(scope.courseId)
+  if (course === undefined || course.deletedAt !== undefined) return false
+  if (scope.sectionId === undefined) return true
+  const tree = ws.sections.tree()
+  const section = tree.get(scope.sectionId)
+  return section !== undefined && section.courseId === scope.courseId && !tree.hidden(section.id)
+}
+
+/** The plans whose place is still there: one over a trashed course waits in the trash with it. Reads only. */
+export function livePlans(ws: ModelWorkspace): readonly PlanRecord[] {
+  return ws.plans.list().filter((p) => scopeLive(ws, planScope(p)))
+}
+
+/**
+ * The sessions whose place is still there, newest first, each with the results of its cards that are still there
+ * (a card in the trash, in a trashed subset or in a trashed course no longer counts). Reads only.
+ */
+export function liveSessionHistory(ws: ModelWorkspace): SessionSummary[] {
+  const courses = new Set(ws.courses.list().map((c) => c.id))
+  const cards = new Set(
+    ws.cards
+      .list()
+      .filter((c) => courses.has(c.courseId))
+      .map((c) => c.id),
+  )
+  return ws.sessions
+    .list()
+    .filter((s) => scopeLive(ws, s.scope))
+    .map((s) =>
+      summarize(
+        s,
+        ws.reviews.forSession(s.id).filter((r) => cards.has(r.cardId)),
+      ),
+    )
+}
+
 /**
  * Starts a new `failed` session over the cards failed in `sessionId`, same scope and mode. Null (and nothing
  * written) when none was failed.

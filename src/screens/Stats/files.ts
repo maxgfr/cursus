@@ -1,6 +1,7 @@
 import type { Id } from '../../core/contracts/workspace'
 import { COURSE_EXT, exportCoursePackage, type FileLoader } from '../../core/export/coursePackage'
 import { buildIcs } from '../../core/export/ics'
+import { livePlans } from '../../core/model/sessions'
 import type { ModelWorkspace } from '../../core/model/workspace'
 import { icsPlans } from '../Sessions/calendar.ts'
 import { download, safeName } from './download.ts'
@@ -47,7 +48,7 @@ export function downloadCalendar(
     daily: { hour: 18, minute: 0, summary: labels.daily },
     exams,
     examPrefix: labels.examPrefix,
-    plans: icsPlans(ws.plans.list()),
+    plans: icsPlans(livePlans(ws)),
   })
   download('cursus.ics', new Blob([ics], { type: 'text/calendar;charset=utf-8' }))
 }

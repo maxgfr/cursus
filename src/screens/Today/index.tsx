@@ -8,7 +8,7 @@ import { onboarded } from '../../app/onboarding.ts'
 import { paths, to } from '../../app/routes.ts'
 import { useSync } from '../../app/syncContext.tsx'
 import { useWorkspace, useWorkspaceData } from '../../app/workspaceContext.tsx'
-import { nextPlanned, planSession } from '../../core/model/sessions'
+import { livePlans, nextPlanned, planSession } from '../../core/model/sessions'
 import { formatDuration } from '../../i18n/format.ts'
 import { intlTag } from '../../i18n/index.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
@@ -132,14 +132,12 @@ export default function Today() {
   })
   // A session planned for today (earlier today included): the main action once nothing is due or suggested.
   const ws = useWorkspace()
-  const plannedToday = useWorkspaceData(['plans', 'courses', 'sessions'], (w) => {
+  const plannedToday = useWorkspaceData(['plans', 'courses', 'sections', 'sessions'], (w) => {
     const day = new Date()
     const midnight = new Date(day.getFullYear(), day.getMonth(), day.getDate()).getTime()
     const tomorrow = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1).getTime()
     // A plan over a course in the trash waits there with it.
-    const live = w.plans
-      .list()
-      .filter((p) => p.courseId === undefined || w.courses.get(p.courseId)?.deletedAt === undefined)
+    const live = livePlans(w)
     // One already started since its time is done for today: the next one today, if any, takes its place.
     const started = w.sessions.list()
     let from = midnight
