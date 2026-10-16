@@ -26,8 +26,12 @@ merge of every object present. There are two exceptions:
 ## Keys
 
 Keys are relative to the destination root (bucket prefix, Drive root folder, Dropbox or OneDrive app subfolder,
-CloudKit record field `key`). Parsing is strict: a name that does not match one of these patterns exactly
-(for example `x 2.seg` left by a sync client, uppercase hex, extra directories) is ignored.
+CloudKit record field `key`, folder of a GitHub repository). Parsing is strict: a name that does not match one of
+these patterns exactly (for example `x 2.seg` left by a sync client, uppercase hex, extra directories) is ignored.
+
+On a GitHub repository each object is stored as the standard base64 text (RFC 4648, with padding) of its bytes, at
+its key under the folder: the Git API that writes many files in one commit only takes text. Readers decode it
+before anything else; the bytes, and every rule below, are the same as on any other destination.
 
 | Key | Pattern | Content |
 |---|---|---|
@@ -184,7 +188,11 @@ Per destination, a sync round lists, downloads what is missing, uploads what is 
   listed once more in its own folder, and becomes unconfirmed again only if it is still absent. Incremental
   listings use the provider's mechanism (S3 and CloudKit: `start-after` per device; Drive: `createdTime` after
   the last listing minus 15 minutes; Dropbox: the same window, through its cursors); OneDrive, whose listings
-  always read every folder, lists everything in one call each round. `keys/` and `ws/` are always listed.
+  always read every folder, and GitHub, whose tree is read in one call, list everything each round. `keys/` and
+  `ws/` are always listed.
+- On GitHub, PUTs are grouped: objects put during a round are written together, as one commit, before the next
+  listing or read (and after a short delay otherwise); a commit rejected because another device moved the branch is
+  rebuilt on top of it. Nothing is ever deleted or force-pushed.
 - Rounds start at launch, when the app comes back online, on a manual "Sync now", and — merged when they come
   within 2 seconds — after local edits are sealed, when the app becomes visible, and every 60 seconds while it
   is visible (that last one is skipped when a round succeeded less than 60 seconds before).

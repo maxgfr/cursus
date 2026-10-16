@@ -198,6 +198,28 @@ export const sync = {
   ownAppKey: 'Needs your own app key.',
   onedrive: 'Microsoft OneDrive',
   onedriveSub: 'Your Microsoft account. Automatic on every device, iPad and iPhone included.',
+  github: 'GitHub repository',
+  githubSub: 'A private repository of your GitHub account, with a token you create. Free; on every device.',
+  githubIntro: 'Create a private repository, then a fine-grained token limited to it, with Contents: Read and write.',
+  githubGuide: 'Step-by-step guide',
+  githubRepo: 'Repository',
+  githubRepoHint: 'owner/name, or the repository’s address.',
+  githubTokenLabel: 'Token',
+  githubTokenHint: 'Kept on this device only, never synchronised.',
+  githubBranch: 'Branch',
+  githubBranchHint: 'Empty: the repository’s default branch.',
+  githubFolder: 'Folder',
+  githubLimits:
+    'GitHub suggests keeping a repository under 1 GB (5 GB at most). Objects are stored encoded, about a third larger: fine for course notes, tight with many photos or large PDFs. Encrypt the destination with a passphrase, even on a private repository.',
+  githubPublic:
+    'Connected. This repository is public: anyone can read the backup unless it is encrypted with a passphrase.',
+  githubToken: 'GitHub refused this token: check it, or create a new one.',
+  githubNotFound: 'There is no GitHub account with this name.',
+  githubNoAccess: 'This repository doesn’t exist, or the token can’t see it: give the token access to this repository.',
+  githubReadOnly:
+    'This token can read the repository but not write to it (or the repository is archived): give it Contents: Read and write.',
+  githubRateLimited: 'GitHub asks to wait before trying again.',
+  githubNetwork: 'GitHub can’t be reached. Check the connection and try again.',
   dropboxKeyOnly: 'Only the app key is needed: no app secret (Cursus signs in with PKCE), and leave Webhooks empty.',
   dropboxRedirect: 'In the Dropbox App Console, under Settings › OAuth 2 › Redirect URIs, add exactly:',
   onedriveHelp:

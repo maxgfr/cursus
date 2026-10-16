@@ -39,6 +39,7 @@ reports a library as protected only when everything is confirmed on at least one
 | Google Drive | [docs/setup-google-drive.md](docs/setup-google-drive.md) |
 | Dropbox | [docs/setup-dropbox.md](docs/setup-dropbox.md) |
 | Microsoft OneDrive | [docs/setup-onedrive.md](docs/setup-onedrive.md) |
+| GitHub repository (private, with a fine-grained token; objects stored base64-encoded) | [docs/setup-github.md](docs/setup-github.md) |
 | iCloud (CloudKit) | [docs/setup-icloud.md](docs/setup-icloud.md) |
 | Folder on this device, including an iCloud Drive folder | Chrome or Edge on a Mac or PC; synced while the tab is open |
 | Nearby device | pairing copies destinations and keys between two devices directly |

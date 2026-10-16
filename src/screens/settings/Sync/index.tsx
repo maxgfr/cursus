@@ -1,4 +1,15 @@
-import { Box, Cloud, CloudCog, FileArchive, FolderOpen, HardDrive, Server, Smartphone, Triangle } from 'lucide-react'
+import {
+  Box,
+  Cloud,
+  CloudCog,
+  FileArchive,
+  FolderOpen,
+  GitBranch,
+  HardDrive,
+  Server,
+  Smartphone,
+  Triangle,
+} from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { paths } from '../../../app/routes.ts'
 import { useT } from '../../../i18n/react.tsx'
@@ -13,6 +24,7 @@ import { UpdateControl } from '../General/update.tsx'
 import { oneClickDraft } from './builtIn.ts'
 import { beginOAuth, cloudkitSignIn, commit, folderSupported, isOAuth, pickFolder } from './connect.ts'
 import { DestSheet, stateText } from './DestSheet.tsx'
+import { GitHubForm } from './GitHubForm.tsx'
 import { errorText, useAction, useDestinations, useWorkspaceConfirm } from './hooks.tsx'
 import { CloudKitForm, DriveForm, DropboxForm, FolderForm, OneDriveForm } from './ProviderForms.tsx'
 import { recommended, thisDevice } from './pick.ts'
@@ -98,6 +110,7 @@ export default function SyncSettings() {
       subtitle: oneClickDraft('onedrive') ? t('sync.onedriveSub') : `${t('sync.onedriveSub')} ${t('sync.ownAppKey')}`,
       icon: <HardDrive size={ICON} />,
     },
+    { kind: 'github', title: t('sync.github'), subtitle: t('sync.githubSub'), icon: <GitBranch size={ICON} /> },
   ]
   const advanced: Kind[] = [
     { kind: 's3', title: t('sync.s3'), subtitle: t('sync.s3Sub'), icon: <Server size={ICON} /> },
@@ -237,6 +250,13 @@ export default function SyncSettings() {
           <p className={styles.prose}>{t('common.loading')}</p>
         ) : adding === 's3' ? (
           <S3Form
+            onSave={async (r) => {
+              const rec = await commit(rt, engine, r)
+              await added(rec.label)
+            }}
+          />
+        ) : adding === 'github' ? (
+          <GitHubForm
             onSave={async (r) => {
               const rec = await commit(rt, engine, r)
               await added(rec.label)

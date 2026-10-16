@@ -91,6 +91,21 @@ export type DestRecord =
       paused?: boolean
       sealed?: boolean
     }
+  | {
+      kind: 'github'
+      id: string
+      label: string
+      owner: string
+      repo: string
+      /** Empty: the repository's default branch. */
+      branch: string
+      /** The folder of the repository the backup lives in. */
+      root: string
+      /** Fine-grained personal access token limited to the repository (device vault only, never synced). */
+      token: string
+      paused?: boolean
+      sealed?: boolean
+    }
   | { kind: 'folder'; id: string; label: string; paused?: boolean; sealed?: boolean }
   | { kind: 'icloud'; id: string; label: string; paused?: boolean; sealed?: boolean }
 
@@ -223,6 +238,18 @@ export async function buildRemote(h: Host, r: DestRecord): Promise<RemoteStore |
         apiToken: r.apiToken,
         fetch: webFetch,
         auth: cloudkitAuth(cloudkitAuthOptions(h, r)),
+      })
+    }
+    case 'github': {
+      const { githubRemote } = await import('../core/sync/providers/github')
+      return githubRemote({
+        owner: r.owner,
+        repo: r.repo,
+        branch: r.branch,
+        root: r.root,
+        token: r.token,
+        fetch: webFetch,
+        now: () => h.clock.now(),
       })
     }
     case 'folder':

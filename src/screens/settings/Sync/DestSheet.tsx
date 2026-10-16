@@ -11,6 +11,7 @@ import { Field } from '../../../ui/components/Field.tsx'
 import { Sheet } from '../../../ui/components/Sheet.tsx'
 import { useGuard } from '../../../ui/PasswordGate.tsx'
 import { beginOAuth, cloudkitSignIn, commit, pickFolder } from './connect.ts'
+import { GitHubForm } from './GitHubForm.tsx'
 import { useAction } from './hooks.tsx'
 import { type DestRecord, deleteRecord, keyringFor, saveRecord, syncNow } from './registry.ts'
 import { S3Form } from './S3Form.tsx'
@@ -95,7 +96,7 @@ export function DestSheet({ rt, engine, scheduler, status: d, record, onClose, o
   const reconnect = () =>
     run('reconnect', async () => {
       if (!record) return
-      if (record.kind === 's3') return setEditing(true)
+      if (record.kind === 's3' || record.kind === 'github') return setEditing(true)
       if (record.kind === 'gdrive' || record.kind === 'dropbox' || record.kind === 'onedrive') {
         const { id: _id, ...draft } = record
         location.assign(await beginOAuth(rt, draft))
@@ -190,6 +191,16 @@ export function DestSheet({ rt, engine, scheduler, status: d, record, onClose, o
                 scheduler.trigger('manual')
               }}
             />
+          ) : editing && record?.kind === 'github' ? (
+            <GitHubForm
+              initial={record}
+              onSave={async (r) => {
+                await commit(rt, engine, { ...r, id: record.id })
+                setEditing(false)
+                onChanged()
+                scheduler.trigger('manual')
+              }}
+            />
           ) : (
             <div className={styles.actions}>
               {needsReconnect && (
@@ -208,7 +219,7 @@ export function DestSheet({ rt, engine, scheduler, status: d, record, onClose, o
               </Button>
               {!needsReconnect && record && (
                 <Button variant="plain" onClick={reconnect} disabled={busy !== null}>
-                  {record.kind === 's3' ? t('sync.editKeys') : t('sync.reconnect')}
+                  {record.kind === 's3' || record.kind === 'github' ? t('sync.editKeys') : t('sync.reconnect')}
                 </Button>
               )}
             </div>

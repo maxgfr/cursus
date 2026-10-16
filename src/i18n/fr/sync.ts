@@ -212,6 +212,29 @@ export const sync = {
   ownAppKey: 'Demande votre propre clé d’application.',
   onedrive: 'Microsoft OneDrive',
   onedriveSub: 'Votre compte Microsoft. Automatique sur tous vos appareils, iPad et iPhone compris.',
+  github: 'Dépôt GitHub',
+  githubSub: 'Un dépôt privé de votre compte GitHub, avec un jeton que vous créez. Gratuit ; sur tous vos appareils.',
+  githubIntro:
+    'Créez un dépôt privé, puis un jeton « fine-grained » limité à ce dépôt, avec Contents : Read and write.',
+  githubGuide: 'Guide pas à pas',
+  githubRepo: 'Dépôt',
+  githubRepoHint: 'propriétaire/nom, ou l’adresse du dépôt.',
+  githubTokenLabel: 'Jeton',
+  githubTokenHint: 'Gardé sur cet appareil uniquement, jamais synchronisé.',
+  githubBranch: 'Branche',
+  githubBranchHint: 'Vide : la branche par défaut du dépôt.',
+  githubFolder: 'Dossier',
+  githubLimits:
+    'GitHub conseille de garder un dépôt sous 1 Go (5 Go au plus). Les objets sont stockés encodés, environ un tiers plus gros : parfait pour des notes de cours, juste avec beaucoup de photos ou de gros PDF. Chiffrez la sauvegarde avec une phrase secrète, même sur un dépôt privé.',
+  githubPublic:
+    'Connecté. Ce dépôt est public : n’importe qui peut lire la sauvegarde, sauf si elle est chiffrée avec une phrase secrète.',
+  githubToken: 'GitHub a refusé ce jeton : vérifiez-le ou créez-en un nouveau.',
+  githubNotFound: 'Aucun compte GitHub ne porte ce nom.',
+  githubNoAccess: 'Ce dépôt n’existe pas, ou le jeton ne le voit pas : donnez au jeton l’accès à ce dépôt.',
+  githubReadOnly:
+    'Ce jeton peut lire le dépôt mais pas y écrire (ou le dépôt est archivé) : donnez-lui Contents : Read and write.',
+  githubRateLimited: 'GitHub demande d’attendre avant de réessayer.',
+  githubNetwork: 'GitHub est injoignable. Vérifiez la connexion et réessayez.',
   dropboxKeyOnly:
     'Seule la clé d’app est nécessaire : pas de secret (Cursus se connecte avec PKCE), et ne mettez rien dans Webhooks.',
   dropboxRedirect: 'Dans la console d’apps Dropbox, sous Settings › OAuth 2 › Redirect URIs, ajoutez exactement :',

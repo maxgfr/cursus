@@ -211,6 +211,31 @@ export const sync = {
   ownAppKey: 'Braucht deinen eigenen App-Schlüssel.',
   onedrive: 'Microsoft OneDrive',
   onedriveSub: 'Dein Microsoft-Konto. Automatisch auf jedem Gerät, auch auf iPad und iPhone.',
+  github: 'GitHub-Repository',
+  githubSub:
+    'Ein privates Repository deines GitHub-Kontos, mit einem Token, das du erstellst. Kostenlos; auf allen Geräten.',
+  githubIntro:
+    'Erstelle ein privates Repository, dann ein Fine-grained-Token nur für dieses Repository, mit Contents: Read and write.',
+  githubGuide: 'Schritt-für-Schritt-Anleitung',
+  githubRepo: 'Repository',
+  githubRepoHint: 'Besitzer/Name oder die Adresse des Repositorys.',
+  githubTokenLabel: 'Token',
+  githubTokenHint: 'Nur auf diesem Gerät gespeichert, nie synchronisiert.',
+  githubBranch: 'Branch',
+  githubBranchHint: 'Leer: der Standard-Branch des Repositorys.',
+  githubFolder: 'Ordner',
+  githubLimits:
+    'GitHub empfiehlt, ein Repository unter 1 GB zu halten (höchstens 5 GB). Die Objekte werden kodiert gespeichert, etwa ein Drittel größer: gut für Kursnotizen, knapp mit vielen Fotos oder großen PDFs. Verschlüssele das Ziel mit einer Passphrase, auch in einem privaten Repository.',
+  githubPublic:
+    'Verbunden. Dieses Repository ist öffentlich: Jeder kann die Sicherung lesen, wenn sie nicht mit einer Passphrase verschlüsselt ist.',
+  githubToken: 'GitHub hat dieses Token abgelehnt: Prüfe es oder erstelle ein neues.',
+  githubNotFound: 'Es gibt kein GitHub-Konto mit diesem Namen.',
+  githubNoAccess:
+    'Dieses Repository gibt es nicht, oder das Token sieht es nicht: Gib dem Token Zugriff auf dieses Repository.',
+  githubReadOnly:
+    'Dieses Token kann das Repository lesen, aber nicht hineinschreiben (oder das Repository ist archiviert): Gib ihm Contents: Read and write.',
+  githubRateLimited: 'GitHub bittet, vor dem nächsten Versuch zu warten.',
+  githubNetwork: 'GitHub ist nicht erreichbar. Prüfe die Verbindung und versuche es erneut.',
   dropboxKeyOnly:
     'Du brauchst nur den App-Schlüssel: kein App-Secret (Cursus meldet sich mit PKCE an), und lass Webhooks leer.',
   dropboxRedirect: 'Trag in der Dropbox App Console unter Settings › OAuth 2 › Redirect URIs genau diese Adresse ein:',
