@@ -8,6 +8,7 @@ import {
   useRef,
   useSyncExternalStore,
 } from 'react'
+import type { StudyOptions } from '../../core/ai/features/tutorChat'
 import { useAiReady } from '../ai/ready.ts'
 import type { ChatActionId } from './actions.ts'
 
@@ -36,6 +37,8 @@ export interface ChatRun {
    * route that opens a course and runs an action at once finds the course's context.
    */
   scope?: { courseId: string; sectionId?: string }
+  /** What a study action runs with, over what it would start from on that screen (« Quiz me » set up first). */
+  options?: Partial<StudyOptions>
 }
 
 /** A grade the chat suggested for an answer in the student's own words, for the card on screen to offer. */
@@ -111,9 +114,12 @@ class ChatHub {
     if (open !== this.snapshot.open) this.emit({ open })
   }
 
-  runAction(id: ChatActionId, scope?: ChatRun['scope']) {
+  runAction(id: ChatActionId, scope?: ChatRun['scope'], options?: ChatRun['options']) {
     this.seq += 1
-    this.emit({ open: true, running: { id, seq: this.seq, ...(scope ? { scope } : {}) } })
+    this.emit({
+      open: true,
+      running: { id, seq: this.seq, ...(scope ? { scope } : {}), ...(options ? { options } : {}) },
+    })
   }
 
   grade(grade: Omit<ChatGrade, 'seq'>) {
@@ -157,9 +163,9 @@ export interface ChatApi extends ChatSnapshot {
   close(): void
   /**
    * Opens the chat and runs one of its actions for the screen (see `actionById`), once the screens show `scope`
-   * when one is given.
+   * when one is given; a study action runs with `options` over what it would start from.
    */
-  run(id: ChatActionId, scope?: ChatRun['scope']): void
+  run(id: ChatActionId, scope?: ChatRun['scope'], options?: ChatRun['options']): void
   /** Opens the chat and asks `text` there, `excerpt` (what it was selected in) going along as context. */
   ask(text: string, excerpt?: string): void
   /** Hands a grade suggested in the chat to the card on screen. */
@@ -183,7 +189,8 @@ export function useChat(): ChatApi | null {
         ...snap,
         toggle: () => hub.setOpen(!hub.snapshot.open),
         close: () => hub.setOpen(false),
-        run: (id: ChatActionId, scope?: ChatRun['scope']) => hub.runAction(id, scope),
+        run: (id: ChatActionId, scope?: ChatRun['scope'], options?: ChatRun['options']) =>
+          hub.runAction(id, scope, options),
         ask: (text: string, excerpt?: string) => hub.ask(text, excerpt),
         grade: (grade: Omit<ChatGrade, 'seq'>) => hub.grade(grade),
         rate: (rating: Omit<ChatRating, 'seq'>) => hub.rate(rating),

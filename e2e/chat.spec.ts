@@ -507,8 +507,9 @@ test('« Quiz me » on a course asks one question at a time in the thread and le
   await configureAi(page, LLM)
   await openCourse(page)
   const meta = await page.getByTestId('place-meta').textContent()
-  // The course's own button opens the chat and starts the quiz at once.
+  // The course's own button sets the quiz up on the course; started, it runs in the chat.
   await page.getByRole('main').getByRole('button', { name: 'Quiz me' }).click()
+  await page.getByRole('dialog', { name: 'Quiz me' }).getByRole('button', { name: 'Start the quiz' }).click()
   const panel = chatPanel(page, info.project.name)
   await expect(panel.getByText('Practice only: your review schedule is not affected.')).toBeVisible()
   await expect(panel.getByText('Question 1 of 2')).toBeVisible()

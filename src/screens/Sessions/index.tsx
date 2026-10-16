@@ -21,6 +21,7 @@ import { downloadPlans } from './calendar.ts'
 import { formatWhen, KIND_LABEL, planSchedule, scopeName, sessionLabel } from './describe.ts'
 import { PracticeChip } from './PracticeChip.tsx'
 import { PracticeSheet } from './PracticeSheet.tsx'
+import { QuizSheet } from './QuizSheet.tsx'
 import styles from './Sessions.module.css'
 
 /** Past sessions shown before "Show all sessions". */
@@ -37,10 +38,11 @@ export default function Sessions() {
   const [, navigate] = useLocation()
   // « Quiz me » is the AI's: offered only with a model ready.
   const aiReady = useAiReady()
-  // « Quiz me » runs in the chat, on the first course until another is chosen in its options.
+  // « Quiz me » is set up first (where, how many, how hard), then runs in the chat beside that place.
   const chat = useChat()
   const [showAll, setShowAll] = useState(false)
   const [practicing, setPracticing] = useState<SessionScope | null>(null)
+  const [quizzing, setQuizzing] = useState(false)
   const courses = useWorkspaceData(['courses', 'cards'], (w) =>
     w.courses.list().map((c) => ({ id: c.id, title: c.title, cards: w.cards.list({ courseId: c.id }).length })),
   )
@@ -88,7 +90,7 @@ export default function Sessions() {
         />
         {aiReady && chat && (
           <ListRow
-            onClick={() => chat?.run('quiz')}
+            onClick={() => setQuizzing(true)}
             leading={<ListChecks size={20} strokeWidth={1.75} />}
             title={t('ai.quiz')}
             subtitle={t('common.quizBody')}
@@ -125,6 +127,7 @@ export default function Sessions() {
         </ListGroup>
       )}
       <PracticeSheet open={practicing !== null} scope={practicing ?? {}} onClose={() => setPracticing(null)} />
+      <QuizSheet open={quizzing} onClose={() => setQuizzing(false)} />
       <ListGroup title={t('review.plannedSessions')} footer={plans.length === 0 ? t('review.plannedNone') : undefined}>
         {plans.map((p) => {
           const next = nextOccurrence(p, now)

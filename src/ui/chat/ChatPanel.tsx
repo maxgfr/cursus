@@ -584,18 +584,18 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
   const busy = live !== null || liveRich !== null || liveStudy !== null
 
   const perform = useCallback(
-    (action: ChatAction, on: ScreenContext) => {
+    (action: ChatAction, on: ScreenContext, chosen?: Partial<StudyOptions>) => {
       if (action.kind === 'guided') {
         void ask([...current.messages, { role: 'user', text: action.label }], { intent: action.intent })
         return
       }
       if (action.kind === 'study') {
-        const options = startOptions(ws, action.id, on)
-        if (!options) {
+        const start = startOptions(ws, action.id, on)
+        if (!start) {
           setError(t('ai.needCourse'))
           return
         }
-        study(action.id, options, { label: action.label })
+        study(action.id, { ...start, ...chosen }, { label: action.label })
         return
       }
       if (action.kind === 'answer') {
@@ -743,7 +743,7 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
     setShowHistory(false)
     setDetached(null)
     const action = actionById(t, screen, running.id)
-    if (action) perform(action, screen)
+    if (action) perform(action, screen, running.options)
     else console.warn(`Chat action "${running.id}" has nothing to act on here`)
   }, [running, settle, ai.status, callable, busy, current.courseId, courseId, t, screen, perform])
 

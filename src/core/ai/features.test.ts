@@ -137,6 +137,30 @@ describe('features', () => {
     expect(sentPrompt(model).user).toContain('cover every key point of the sources')
   })
 
+  test('quiz asks at the difficulty chosen, and first about the weak points it is given', async () => {
+    const model = jsonModel({ questions: [{ question: 'Q1', choices: ['a', 'b'], answerIndex: 0, explanation: 'e' }] })
+    await quiz(ctxFor(model), {
+      topic: 'osmosis',
+      chunks: CHUNKS,
+      count: 10,
+      difficulty: 'hard',
+      focus: ['What moves in osmosis?', '  ', 'Define tonicity'],
+    })
+    const { user } = sentPrompt(model)
+    expect(user).toContain('Number of questions: 10')
+    expect(user).toContain('Difficulty: hard: application and reasoning')
+    expect(user).toContain('Weak points to test first')
+    expect(user).toContain('- What moves in osmosis?\n- Define tonicity')
+    // Standard, and no weak points: the prompt says neither.
+    const plain = jsonModel({ questions: [] })
+    await quiz(ctxFor(plain), { topic: 'osmosis', chunks: CHUNKS, count: 3, difficulty: 'standard', focus: [] })
+    expect(sentPrompt(plain).user).not.toContain('Difficulty')
+    expect(sentPrompt(plain).user).not.toContain('Weak points')
+    const easy = jsonModel({ questions: [] })
+    await quiz(ctxFor(easy), { topic: 'osmosis', chunks: CHUNKS, count: 3, difficulty: 'easy' })
+    expect(sentPrompt(easy).user).toContain('Difficulty: easy: direct recall')
+  })
+
   test('improveCard keeps cloze guidance', async () => {
     const model = jsonModel({ front: '{{c1::x}} y', back: '', rationale: 'shorter' })
     const out = await improveCard(ctxFor(model, [], 'German'), { front: '{{c1::x}} yy', back: '', kind: 'cloze' })

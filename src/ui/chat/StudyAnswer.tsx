@@ -28,6 +28,7 @@ import type {
   Understanding,
 } from '../../core/ai/schemas'
 import { getPhoto, listPhotos, type Photo, photoLabel } from '../../core/model/photos'
+import { weakCards } from '../../core/model/quizPlan'
 import type { ModelWorkspace } from '../../core/model/workspace'
 import { formatUsd } from '../../i18n/format.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
@@ -54,6 +55,7 @@ import { askAbout, keepSelection, useSelectedTerm } from '../ExplainLauncher.tsx
 import { Sanitized } from '../render/Sanitized.tsx'
 import type { StudyKind } from './actions.ts'
 import { useChat } from './context.tsx'
+import { QuizFields } from './QuizFields.tsx'
 import styles from './Study.module.css'
 import { photoCardsCost, photoCost, type ReadyModel } from './studyRun.ts'
 
@@ -149,7 +151,6 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 // Options
 
 const CARD_COUNTS = ['5', '10', '20'] as const
-const QUIZ_COUNTS = ['3', '5', '10', 'all'] as const
 
 const selectionOf = (o: StudyOptions): Selection => ({
   courseId: o.courseId,
@@ -219,6 +220,18 @@ function Options({ id, kind, options }: { id: string; kind: StudyKind; options: 
   const place = usePlace(o)
   const scoped = useScopedSources({ courseId: o.courseId, sectionId: o.sectionId ?? '' })
   const ws = useWorkspace()
+  // The place's weak points, for a quiz to ask about first.
+  const weak = useWorkspaceData(
+    ['cards', 'reviews', 'sections', 'prefs', { id: `${o.courseId}/${o.sectionId ?? ''}` }],
+    (w) =>
+      kind !== 'quiz' || o.courseId === ''
+        ? 0
+        : weakCards(
+            w,
+            o.sectionId ? { courseId: o.courseId, sectionId: o.sectionId } : { courseId: o.courseId },
+            Date.now(),
+          ).length,
+  )
   const [estimate, setEstimate] = useState<number | null>(null)
   const [photosRead, setPhotosRead] = useState(0)
   const { ai, load } = api
@@ -294,14 +307,7 @@ function Options({ id, kind, options }: { id: string; kind: StudyKind; options: 
               options={CARD_COUNTS.map((c) => ({ value: c, label: c }))}
             />
           )}
-          {kind === 'quiz' && (
-            <Segmented
-              label={t('ai.questionCount')}
-              value={String(o.count) as (typeof QUIZ_COUNTS)[number]}
-              onChange={(c) => setO({ ...o, count: c === 'all' ? 'all' : Number(c) })}
-              options={QUIZ_COUNTS.map((c) => ({ value: c, label: c === 'all' ? t('ai.quizAll') : c }))}
-            />
-          )}
+          {kind === 'quiz' && <QuizFields value={o} onChange={(patch) => setO({ ...o, ...patch })} weak={weak} />}
           <SourcePicker value={selectionOf(o)} onChange={(s) => setO(withSelection(o, s))} chosen />
           {kind === 'understand' && photosRead > 0 && (
             <p className={shared.hint}>{t('photos.aiUnderstandPhotos', { count: photosRead })}</p>

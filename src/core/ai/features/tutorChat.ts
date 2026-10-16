@@ -67,6 +67,10 @@ export interface StudyOptions {
   topic: string
   count: number | 'all'
   detail: Detail
+  /** A quiz's difficulty; standard when absent (threads saved before it read the same). */
+  difficulty?: 'easy' | 'standard' | 'hard'
+  /** A quiz asks first about the place's weak points (the cards the student keeps getting wrong). */
+  focusWeak?: boolean
 }
 
 /** A generated card in the thread: kept unsaved until « Save », flagged when the course has it already. */

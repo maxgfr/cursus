@@ -49,6 +49,7 @@ import NotFound from '../NotFound/index.tsx'
 import { startQueue } from '../Review/session.ts'
 import { NewSectionSheet, SectionSettings } from '../Section/SectionSheets.tsx'
 import { PracticeSheet } from '../Sessions/PracticeSheet.tsx'
+import { QuizSheet } from '../Sessions/QuizSheet.tsx'
 import { addFile, addImage, addNote, FILES_ACCEPT } from '../Source/importers.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 import { ExamCountdown } from '../Today/CourseRows.tsx'
@@ -119,6 +120,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   const [settings, setSettings] = useState(false)
   const [adding, setAdding] = useState(false)
   const [practicing, setPracticing] = useState(false)
+  const [quizzing, setQuizzing] = useState(false)
   const [moving, setMoving] = useState<{ kind: 'section' | 'fiches'; id: Id; name: string } | null>(null)
   const [moved, setMoved] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -190,6 +192,9 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
     (ws) => startQueue(ws, Date.now(), sectionId === undefined ? { courseId } : { courseId, sectionId }).queue.length,
   )
   const where = sectionId === undefined ? { courseId } : { courseId, sectionId }
+  const quizzable = useWorkspaceData(['sources', 'sections', { id: sectionId ?? courseId }], (ws) =>
+    ws.courses.get(courseId) ? ws.scoped('sources', where).length > 0 : false,
+  )
   // Opens on the cards when there are some, else on the sources to add the first one.
   const tab: Tab = chosenTab ?? (data !== null && data.cards.length > 0 ? 'cards' : 'sources')
 
@@ -416,18 +421,20 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
         <ExamCountdown examDate={examDate} />
       </p>
       {section === null && <DraftsLine courseId={courseId} />}
-      {(section !== null || data.total > 0) && (
+      {(section !== null || data.total > 0 || (aiReady && quizzable)) && (
         <div className={styles.study}>
           {due > 0 && (
             <Button variant="primary" onClick={() => navigate(withScope(paths.review, scope))}>
               {t('common.start')}
             </Button>
           )}
-          {aiReady && data.total > 0 && (
+          {/* A quiz asks about the sources (this place's and its subsets'): cards are not needed. */}
+          {aiReady && quizzable && (
             <Button
               variant="secondary"
               icon={<MessageCircleQuestion size={18} aria-hidden="true" />}
-              onClick={() => ask('quiz')}
+              aria-haspopup="dialog"
+              onClick={() => setQuizzing(true)}
             >
               {t('ai.quiz')}
             </Button>
@@ -650,6 +657,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
           </ListGroup>
         ))}
       <PracticeSheet open={practicing} scope={scope} onClose={() => setPracticing(false)} />
+      <QuizSheet open={quizzing} at={scope} onClose={() => setQuizzing(false)} />
       <AddSheet
         open={addingSource}
         onClose={() => setAddingSource(false)}

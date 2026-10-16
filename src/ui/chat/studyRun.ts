@@ -28,6 +28,7 @@ import type { Chunk } from '../../core/ai/retrieval'
 import type { ExplainBackReview } from '../../core/ai/schemas'
 import { blobStore } from '../../core/log/blobs'
 import { getPhoto } from '../../core/model/photos'
+import { weakCards } from '../../core/model/quizPlan'
 import type { ModelWorkspace } from '../../core/model/workspace'
 import type { useT } from '../../i18n/react.tsx'
 import { type AiModelState, cardText, courseText, passagesText } from '../../screens/Understand/shared/aiConfig.ts'
@@ -133,7 +134,19 @@ export async function runStudy(d: StudyDeps, kind: StudyKind, options: StudyOpti
   }
   if (kind === 'quiz') {
     const cost = estimateCost(ai.info, chunks)
-    const questions = await quiz(ctx, { topic: topicOf(t, options), chunks, count: options.count })
+    const place = options.sectionId
+      ? { courseId: options.courseId, sectionId: options.sectionId }
+      : { courseId: options.courseId }
+    // The weak points of the place, read from its cards' reviews when asked for.
+    const focus =
+      options.focusWeak === true && options.courseId !== '' ? weakCards(ws, place, Date.now()).map((w) => w.front) : []
+    const questions = await quiz(ctx, {
+      topic: topicOf(t, options),
+      chunks,
+      count: options.count,
+      ...(options.difficulty ? { difficulty: options.difficulty } : {}),
+      ...(focus.length > 0 ? { focus } : {}),
+    })
     return { kind: 'quiz', options, questions, answers: [], step: 0, cost }
   }
   const cost = estimateCost(ai.info, chunks)

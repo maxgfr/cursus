@@ -32,21 +32,26 @@ async function seed(spec) {
   for (const u of updates) Y.applyUpdateV2(doc, u, REPLAY)
   const ws = createWorkspace(doc, { rng, clock, deviceId: await log.deviceId() })
   const capture = captureUpdates(doc, (u) => log.appendLocal(u))
-  for (const c of spec.courses ?? []) {
-    const courseId = ws.courses.create({ title: c.title, language: 'en' })
+  const fill = (courseId, sectionId, c) => {
+    const where = sectionId === undefined ? { courseId } : { courseId, sectionId }
     for (const n of c.notes ?? []) {
-      const id = ws.sources.create({ courseId, kind: 'note', title: n.title })
+      const id = ws.sources.create({ ...where, kind: 'note', title: n.title })
       ws.text({ id, field: 'body' }).insert(0, n.body)
     }
     for (const card of c.cards ?? []) {
       const id = ws.batch(() => {
-        const id = ws.cards.create({ courseId, kind: 'basic' })
+        const id = ws.cards.create({ ...where, kind: 'basic' })
         ws.text({ id, field: 'front' }).insert(0, card.front)
         ws.text({ id, field: 'back' }).insert(0, card.back)
         return id
       })
       for (const r of card.reviews ?? []) ws.reviews.record({ cardId: id, rating: r.rating, at: r.at, ms: 4000 })
     }
+  }
+  for (const c of spec.courses ?? []) {
+    const courseId = ws.courses.create({ title: c.title, language: 'en' })
+    fill(courseId, undefined, c)
+    for (const s of c.sections ?? []) fill(courseId, ws.sections.create({ courseId, name: s.name }), s)
   }
   if (spec.bulk) {
     // Generated here rather than shipped over the protocol: a large library with a long history.
@@ -94,6 +99,8 @@ export interface SeedCourse {
   title: string
   notes?: { title: string; body: string }[]
   cards?: SeedCard[]
+  /** Sections of the course (one level), each with its own notes and cards. */
+  sections?: { name: string; notes?: { title: string; body: string }[]; cards?: SeedCard[] }[]
 }
 export interface SeedSpec {
   courses?: SeedCourse[]
