@@ -23,7 +23,7 @@ async function seed(page: Page) {
 
 async function setPassword(page: Page) {
   await page.goto('./#/settings/security')
-  await expect(page.getByRole('heading', { level: 1, name: 'Password & erasing' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Security' })).toBeVisible()
   const section = page.getByRole('region', { name: 'Protect destructive actions' })
   await expect(section.getByText(/not encryption/)).toBeVisible()
   await expect(section.getByText('No password is set.')).toBeVisible()

@@ -72,16 +72,15 @@ export const common = {
   statsEmpty: 'Dein Fortschritt erscheint hier nach den ersten Wiederholungen.',
   searchPlaceholder: 'Karten, Quellen und Spickzettel',
   searchEmpty: 'Tippe, um deine ganze Bibliothek zu durchsuchen, auch offline.',
-  setGeneral: 'Allgemein',
   setReview: 'Planung',
   setAi: 'KI',
   setSeal: 'Verschlüsselung',
   setData: 'Import und Export',
   setRecovery: 'Wiederherstellung',
   setDiagnostic: 'Diagnose',
-  setSecurity: 'Passwort und Löschen',
+  setSecurity: 'Sicherheit',
   securityBody:
-    'Ein Passwort, das folgenreiche Aktionen schützt, und das Löschen von allem auf diesem Gerät. Deine Sicherungen bleiben unberührt.',
+    'Ob deine lokalen Daten normal geöffnet wurden, ein Passwort, das folgenreiche Aktionen schützt, wie du deine Bibliothek wiederherstellst, und das Löschen von allem auf diesem Gerät. Deine Sicherungen bleiben unberührt.',
   syncEmpty: 'Noch keine Ziele. Füge eines hinzu, um eine Kopie deiner Bibliothek außerhalb dieses Geräts zu behalten.',
   sealBody:
     'Verschlüsseln verschlüsselt alles, was an einen Speicherort gesendet wird, mit einer Passphrase, die nur du kennst.',

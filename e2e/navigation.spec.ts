@@ -336,9 +336,9 @@ test('a settings page goes back to its opener, and the browser back does not reo
   await hop(page, '/settings', 'Settings')
   await page
     .getByRole('main')
-    .getByRole('link', { name: /^General/ })
+    .getByRole('link', { name: /^Schedule/ })
     .click()
-  await at(page, 'General', /#\/settings\/general$/)
+  await at(page, 'Schedule', /#\/settings\/review$/)
   await back(page).click()
   await at(page, 'Settings', /#\/settings$/)
   await page.goBack()
@@ -436,7 +436,7 @@ test('photos: Close returns to the gallery, a card made from a photo saves back 
   await at(page, 'Law', /#\/course\/[^/]+$/)
 })
 
-test('Sync opened from Today or from Recovery goes back to its opener', async ({ page }) => {
+test('Sync opened from Today or from Security goes back to its opener', async ({ page }) => {
   await seedLaw(page)
   await page.goto('./#/')
   await at(page, 'Today', /#\/$/)
@@ -445,11 +445,11 @@ test('Sync opened from Today or from Recovery goes back to its opener', async ({
   await back(page).click()
   await at(page, 'Today', /#\/$/)
 
-  await page.goto('./#/settings/recovery')
+  await page.goto('./#/settings/security')
   await page.getByRole('main').getByRole('link', { name: 'Sync & backup' }).click()
   await at(page, 'Sync & backup', /#\/settings\/sync$/)
   await back(page).click()
-  await expect(page).toHaveURL(/#\/settings\/recovery$/)
+  await expect(page).toHaveURL(/#\/settings\/security$/)
 })
 
 test('AI actions opened from a course run in the chat beside it; the course and its Back stay as they were', async ({

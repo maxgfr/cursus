@@ -5,8 +5,8 @@ import { useLocale, useT } from '../../../i18n/react.tsx'
 import { checkForUpdate, UpdateDownloadError } from '../../../pwa/check.ts'
 import { flushPending, offerInPlace, pendingUpdate, pwaRegistration, subscribeUpdate } from '../../../pwa/index.ts'
 import { Button } from '../../../ui/components/Button.tsx'
-import { noteError } from '../Diagnostic/recent.ts'
 import styles from '../Sync/settings.module.css'
+import { noteError } from './recent.ts'
 
 /** What the update control shows. `available` comes from the shared waiting worker, the toast's too. */
 export type UpdateView =

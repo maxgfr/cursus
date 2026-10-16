@@ -1,16 +1,4 @@
-import {
-  CalendarCheck,
-  Cloud,
-  Database,
-  FileText,
-  Info,
-  LifeBuoy,
-  LockKeyhole,
-  SlidersHorizontal,
-  Smartphone,
-  Sparkles,
-  Trash2,
-} from 'lucide-react'
+import { CalendarCheck, Cloud, Database, FileText, Info, LockKeyhole, Smartphone, Sparkles, Trash2 } from 'lucide-react'
 import { useEffect } from 'react'
 import { paths } from '../../app/routes.ts'
 import { useSync } from '../../app/syncContext.tsx'
@@ -21,10 +9,14 @@ import { SyncBadge } from '../../ui/components/Badges.tsx'
 import { ListGroup, ListRow } from '../../ui/components/List.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { restoreDestinations } from '../settings/Sync/registry.ts'
+import { Appearance } from './Appearance.tsx'
 
 const ICON = 20
 
-/** The settings, most used first: studying, then backups and devices, the data, its safety, and help. */
+/**
+ * The settings, most used first: how the app looks and speaks, studying, then backups and devices, the data and its
+ * safety, and help.
+ */
 export default function Settings() {
   const t = useT()
   const rt = useRuntime()
@@ -38,6 +30,7 @@ export default function Settings() {
   const hasBackup = (status?.dests.length ?? 0) > 0
   return (
     <Screen title={t('settings.title')}>
+      <Appearance />
       <ListGroup title={t('settings.groupStudy')}>
         <ListRow href={paths.settingsReview} leading={<CalendarCheck size={ICON} />} title={t('common.setReview')} />
         <ListRow
@@ -45,11 +38,6 @@ export default function Settings() {
           leading={<Sparkles size={ICON} />}
           title={t('common.setAi')}
           subtitle={aiShown ? undefined : t('settings.aiHidden')}
-        />
-        <ListRow
-          href={paths.settingsGeneral}
-          leading={<SlidersHorizontal size={ICON} />}
-          title={t('common.setGeneral')}
         />
       </ListGroup>
       <ListGroup title={t('settings.groupDevices')}>
@@ -66,10 +54,12 @@ export default function Settings() {
       <ListGroup title={t('settings.groupData')}>
         <ListRow href={paths.settingsData} leading={<Database size={ICON} />} title={t('common.setData')} />
         <ListRow href={paths.trash} leading={<Trash2 size={ICON} />} title={t('common.trashTitle')} />
-      </ListGroup>
-      <ListGroup title={t('settings.groupSecurity')}>
-        <ListRow href={paths.settingsSecurity} leading={<LockKeyhole size={ICON} />} title={t('common.setSecurity')} />
-        <ListRow href={paths.settingsRecovery} leading={<LifeBuoy size={ICON} />} title={t('common.setRecovery')} />
+        <ListRow
+          href={paths.settingsSecurity}
+          leading={<LockKeyhole size={ICON} />}
+          title={t('common.setSecurity')}
+          subtitle={t('settings.securitySub')}
+        />
       </ListGroup>
       <ListGroup title={t('settings.groupHelp')}>
         <ListRow href={paths.onboarding} leading={<Info size={ICON} />} title={t('common.welcomeTitle')} />

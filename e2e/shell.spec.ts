@@ -128,11 +128,18 @@ test('hash navigation between routes', async ({ page }) => {
 
   await nav.getByRole('link', { name: 'Settings' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Settings' })).toBeVisible()
-  await page.getByRole('link', { name: 'General' }).click()
-  await expect(page).toHaveURL(/#\/settings\/general$/)
-  await expect(page.getByRole('heading', { level: 1, name: 'General' })).toBeVisible()
+  // The appearance and the language are on the settings themselves, no page of their own.
+  await expect(page.getByRole('main').getByRole('group', { name: 'Appearance', exact: true })).toBeVisible()
+  await expect(page.getByRole('main').getByRole('group', { name: 'Language' })).toBeVisible()
+  await page.getByRole('link', { name: 'Schedule' }).click()
+  await expect(page).toHaveURL(/#\/settings\/review$/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Schedule' })).toBeVisible()
   await page.getByRole('link', { name: 'Back' }).click()
   await expect(page).toHaveURL(/#\/settings$/)
+  // An older link to General lands on the settings.
+  await page.goto('./#/settings/general')
+  await expect(page).toHaveURL(/#\/settings$/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Settings' })).toBeVisible()
 
   // Every route renders its own heading when opened directly.
   const routes: [string, string][] = [
@@ -144,8 +151,8 @@ test('hash navigation between routes', async ({ page }) => {
     ['#/settings/seal', 'Sync & backup'],
     ['#/settings/pair', 'Pair a device'],
     ['#/settings/data', 'Import & export'],
-    ['#/settings/security', 'Password & erasing'],
-    ['#/settings/recovery', 'Recovery'],
+    ['#/settings/security', 'Security'],
+    ['#/settings/recovery', 'Security'],
     ['#/settings/review', 'Schedule'],
     ['#/settings/diagnostic', 'Diagnostics'],
     ['#/onboarding', 'Welcome to Cursus'],
@@ -266,7 +273,7 @@ test('a long German title keeps its trailing control on the first line', async (
 
 test('dark segmented control: the selected segment is lifted above the track', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'dark' })
-  await page.goto('./#/settings/general')
+  await page.goto('./#/settings')
   const label = page.locator('input[type="radio"]:checked + *').first()
   await expect(label).toBeVisible()
   const lum = (c: string) => {
@@ -299,7 +306,7 @@ test('no horizontal overflow, even with long German and pseudo strings', async (
     await page.goto(`./${query}#/`)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
     await noHorizontalOverflow(page)
-    for (const hash of ['#/settings', '#/understand', '#/settings/general', '#/review']) {
+    for (const hash of ['#/settings', '#/understand', '#/settings/security', '#/review']) {
       await page.goto(`./${query}${hash}`)
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
       await noHorizontalOverflow(page)

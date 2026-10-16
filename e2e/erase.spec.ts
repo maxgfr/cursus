@@ -46,7 +46,7 @@ test('erasing this device leaves a fresh app on the welcome: no course, no AI ke
   )
 
   await page.goto('./#/settings/security')
-  await expect(page.getByRole('heading', { level: 1, name: 'Password & erasing' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Security' })).toBeVisible()
   await page.getByRole('button', { name: 'Erase everything on this device' }).click()
   const sheet = page.getByRole('dialog', { name: 'Erase everything on this device' })
   await expect(sheet).toBeVisible()

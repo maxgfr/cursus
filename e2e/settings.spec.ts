@@ -133,8 +133,9 @@ test('S3: the connection test says what is wrong, then verify, restore drill and
   expect(report).toContain('"kind": "s3"')
   expect(report).not.toContain(S3.secretAccessKey)
 
-  // The recovery sheet lists where the library lives, without keys.
-  await open(page, '#/settings/recovery', 'Recovery')
+  // The recovery sheet lists where the library lives, without keys; an older link to Recovery lands on it.
+  await open(page, '#/settings/recovery', 'Security')
+  await expect(page).toHaveURL(/#\/settings\/security\?at=recovery$/)
   await expect(page.getByRole('heading', { name: 'Recovery sheet' })).toBeVisible()
   await expect(page.getByText(`${S3.endpoint} · ${bucket}/cursus`)).toBeVisible()
   await expect(page.getByText(S3.secretAccessKey)).toHaveCount(0)
@@ -453,7 +454,7 @@ test('review preferences are written only on Save; the theme on pick', async ({ 
   await open(page, '#/settings/review', 'Schedule')
   await expect(page.getByLabel('New cards per day')).toHaveValue('15')
 
-  await open(page, '#/settings/general', 'General')
+  await open(page, '#/settings', 'Settings')
   await page.getByRole('radio', { name: 'Dark' }).check()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
 })
@@ -541,22 +542,36 @@ test('Settings: most used first, no Search row, Sync & backup only once, Pair on
   await open(page, '#/settings', 'Settings')
   const main = page.getByRole('main')
   await expect(main.getByRole('heading', { level: 2 })).toHaveText([
+    'Appearance & language',
     'Study',
     'Sync & devices',
     'Your data',
-    'Security',
     'Help',
   ])
   await expect(main.getByRole('link', { name: 'Search' })).toHaveCount(0)
   await expect(main.getByText('Sync & backup', { exact: true })).toHaveCount(1)
   // No backup yet: pairing is offered from the Sync page, not here.
   await expect(main.getByRole('link', { name: 'Pair a device' })).toHaveCount(0)
-  // Version and updates are with the diagnostics, the password and erasing on their own page.
+  // Version and updates are with the diagnostics; the password, recovery and erasing on one Security page, with
+  // the data.
   await expect(main.getByRole('link', { name: /^Diagnostics/ })).toContainText('Version, updates')
-  await main.getByRole('link', { name: 'Password & erasing' }).click()
-  await expect(page.getByRole('heading', { level: 1, name: 'Password & erasing' })).toBeVisible()
+  await expect(main.getByRole('link', { name: /^Security/ })).toContainText('Password, recovery, erasing')
+  await main.getByRole('link', { name: /^Security/ }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Security' })).toBeVisible()
+  await expect(page.getByRole('main').getByRole('status').first()).toHaveText(
+    'Your local data opened normally. Nothing needs recovering.',
+  )
   await expect(page.getByRole('region', { name: 'Protect destructive actions' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Recovery sheet' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Erase everything on this device' })).toBeVisible()
+  // In the order they are needed: the password, then recovery, erasing last.
+  const sections = await page.getByRole('main').getByRole('heading', { level: 2 }).allTextContents()
+  expect(sections).toEqual([
+    'Protect destructive actions',
+    'Restore on this device',
+    'Recovery sheet',
+    'Erase this device',
+  ])
   await open(page, '#/settings/data', 'Import & export')
   await expect(page.getByRole('button', { name: 'Erase everything on this device' })).toHaveCount(0)
   // Storage, for experts, comes last.

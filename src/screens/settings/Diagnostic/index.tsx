@@ -5,12 +5,12 @@ import { useSaveState } from '../../../app/workspaceContext.tsx'
 import { useT } from '../../../i18n/react.tsx'
 import { Button } from '../../../ui/components/Button.tsx'
 import { Screen } from '../../../ui/shell/Screen.tsx'
-import { VersionSection } from '../General/Version.tsx'
 import { localDatabases } from '../Recovery/rawExport.ts'
 import { useAction, useDestinations } from '../Sync/hooks.tsx'
 import { download, fileStamp } from '../Sync/registry.ts'
 import styles from '../Sync/settings.module.css'
 import { noteError, recentErrors } from './recent.ts'
+import { VersionSection } from './Version.tsx'
 
 const MAX_EVENTS = 200
 

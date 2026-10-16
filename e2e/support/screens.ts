@@ -62,14 +62,12 @@ export async function mainScreens(page: Page, query = ''): Promise<string[]> {
     '#/trash',
     '#/onboarding',
     '#/settings',
-    '#/settings/general',
     '#/settings/review',
     '#/settings/ai',
     '#/settings/sync',
     '#/settings/security',
     '#/settings/pair',
     '#/settings/data',
-    '#/settings/recovery',
     '#/settings/diagnostic',
   ]
 }

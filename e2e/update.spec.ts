@@ -116,7 +116,7 @@ test('Settings shows this build, says it is up to date, finds a new version and 
   await expect(status).toHaveText('A new version is ready. Your edits are saved before it opens.')
   const updateNow = page.getByRole('button', { name: 'Update now' })
   // An edit made just before updating is still unsealed when Update now is pressed.
-  await go(page, '#/settings/general', 'General')
+  await go(page, '#/settings', 'Settings')
   await page.getByRole('radio', { name: 'Dark' }).check()
   await go(page, '#/settings/diagnostic', 'Diagnostics')
   await expect.poll(() => unsealed(page)).toBeGreaterThan(0)
@@ -159,7 +159,7 @@ test('without a service worker, Settings explains it and Reload keeps every edit
     'Updates can’t be checked in this window (development or private browsing). Reload to get the latest version.',
   )
   await expect(page.getByRole('button', { name: 'Check for updates' })).toHaveCount(0)
-  await go(page, '#/settings/general', 'General')
+  await go(page, '#/settings', 'Settings')
   await page.getByRole('radio', { name: 'Dark' }).check()
   await go(page, '#/settings/diagnostic', 'Diagnostics')
   await expect.poll(() => unsealed(page)).toBeGreaterThan(0)

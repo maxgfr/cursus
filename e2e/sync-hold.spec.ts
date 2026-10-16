@@ -216,7 +216,7 @@ test('two devices through S3: « Apply the deletions » asks for the workspace p
     const course = await twoDevices(a, b)
 
     // B protects destructive actions with a password.
-    await go(b.page, '#/settings/security', 'Password & erasing')
+    await go(b.page, '#/settings/security', 'Security')
     const section = b.page.getByRole('region', { name: 'Protect destructive actions' })
     await section.getByRole('button', { name: 'Set a password' }).click()
     await section.getByLabel('New password').fill(PASSWORD)
