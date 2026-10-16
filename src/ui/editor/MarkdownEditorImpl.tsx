@@ -29,6 +29,7 @@ import {
   linkMarkdown,
   mathMarkdown,
   parseTable,
+  pendingFormat,
   setHeading,
   tableMarkdown,
   toggleList,
@@ -313,7 +314,8 @@ export default function MarkdownEditorImpl({ text, label, placeholder, cloze = f
           yCollab(text, null, { undoManager }),
           // The toolbar shows the formats in effect where the caret is.
           EditorView.updateListener.of((u) => {
-            if (!u.selectionSet && !u.docChanged) return
+            const waiting = u.state.field(pendingFormat, false) !== u.startState.field(pendingFormat, false)
+            if (!u.selectionSet && !u.docChanged && !waiting) return
             // A link's card shown by a tap goes once the caret leaves the link.
             const at = linkAt(u.state, u.state.selection.main.head)?.from
             setEditing((e) => (e?.kind === 'link' && !e.focus && at !== e.from ? null : e))

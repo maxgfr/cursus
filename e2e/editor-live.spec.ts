@@ -458,6 +458,62 @@ test('toolbar: Bold toggles, Heading and List take what is typed next; stars tha
   expect(errors).toEqual([])
 })
 
+test('bold at the caret, then words and spaces: no asterisk ever shows; leaving tidies the pair', async ({ page }) => {
+  const errors = watchErrors(page)
+  const editor = await newNote(page, 'Live spaces')
+  const bold = page.getByRole('toolbar', { name: 'Formatting' }).getByRole('button', { name: 'Bold' })
+  await editor.click()
+  await page.keyboard.type('Plain ')
+  await bold.click()
+  // Nothing is written yet: the format waits for what is typed.
+  await expect(bold).toHaveAttribute('aria-pressed', 'true')
+  await expect(editor).toHaveText('Plain')
+  for (const key of 'bold text ') {
+    await page.keyboard.type(key)
+    await expect(editor).not.toContainText('*')
+  }
+  await expect(editor.locator('.cm-md-strong').first()).toContainText('bold text')
+  // Leaving the editor tidies the pair: the space typed last goes after it.
+  await blur(editor)
+  await expect(editor).not.toContainText('*')
+  expect(await sourceText(page, editor)).toBe('Plain **bold text** ')
+  expect(errors).toEqual([])
+})
+
+test('bold on an empty line is neither a rule nor stars; asked again at its end, it ends there; no setext flash', async ({
+  page,
+}) => {
+  const errors = watchErrors(page)
+  const editor = await newNote(page, 'Live lines')
+  const bold = page.getByRole('toolbar', { name: 'Formatting' }).getByRole('button', { name: 'Bold' })
+  await editor.click()
+  await bold.click()
+  await expect(editor.getByRole('separator')).toHaveCount(0)
+  await page.keyboard.type('Title')
+  await expect(editor).toHaveText('Title')
+  await expect(editor.locator('.cm-md-strong')).toHaveText('Title')
+  await expect(editor.getByRole('separator')).toHaveCount(0)
+  // Asked again at the end of the bold word: what follows is plain.
+  await bold.click()
+  await expect(bold).toHaveAttribute('aria-pressed', 'false')
+  await page.keyboard.type('x')
+  await expect(editor.locator('.cm-md-strong')).toHaveText('Title')
+  await expect(editor).toHaveText('Titlex')
+
+  // A lone - typed under a paragraph is not a heading yet: the paragraph never flashes into a title.
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('Para')
+  await page.keyboard.press('Enter')
+  await page.keyboard.type('-')
+  await expect(editor.getByRole('heading')).toHaveCount(0)
+  await page.keyboard.type(' item')
+  await expect(editor.getByRole('heading')).toHaveCount(0)
+  await expect(editor.locator('.cm-md-listMark')).toHaveCount(1)
+  expect(await sourceText(page, editor)).toBe('**Title**x\n\nPara\n- item')
+  expect(errors).toEqual([])
+})
+
 test('a task checkbox is named after its task and ticks with Alt+Enter; an item continues under its text', async ({
   page,
 }) => {

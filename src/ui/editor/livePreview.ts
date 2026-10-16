@@ -19,17 +19,20 @@ import {
   type ViewUpdate,
   WidgetType,
 } from '@codemirror/view'
+import { ySyncAnnotation } from 'y-codemirror.next'
 import proseStyles from '../render/Sanitized.module.css'
 import { fillSanitized } from '../render/Sanitized.tsx'
-import { inputRule, leaveEmptyItem, unformatLine } from './format.ts'
+import { inputRule, leaveEmptyItem, pendingFormats, unformatLine } from './format.ts'
 import {
   hiddenPrefix,
   linkAt,
   PHOTO,
   type PlanOptions,
+  pendingPair,
   planBlocks,
   planInline,
   type Span,
+  tidyPair,
   wordNear,
 } from './livePlan.ts'
 
@@ -442,6 +445,48 @@ const pastLinePrefix = EditorState.transactionFilter.of((tr) => {
   return [tr, { selection: EditorSelection.create(ranges, state.selection.mainIndex), sequential: true }]
 })
 
+/** The pair the caret is typing into (`pendingPair`), while the editor has the focus and one caret. */
+function typedPair(state: EditorState) {
+  const { main } = state.selection
+  if (!state.field(reveal).focused || state.selection.ranges.length > 1 || !main.empty) return null
+  return pendingPair(state, main.head)
+}
+
+/**
+ * A pair the caret was typing into is tidied as the caret leaves it (`tidyPair`): moved by the student, by typing
+ * or on leaving the editor. Only this editor's own edits count: another device's, an undo and a composition (an IME,
+ * a dictation) are left as they come.
+ */
+const tidyPairs = EditorState.transactionFilter.of((tr) => {
+  const pair = typedPair(tr.startState)
+  if (pair === null || tr.annotation(ySyncAnnotation) !== undefined || tr.isUserEvent('input.type.compose')) return tr
+  const leaving = tr.effects.some((e) => e.is(setFocused) && !e.value)
+  if (!leaving && tr.selection === undefined && !tr.docChanged) return tr
+  const moved = {
+    open: { from: tr.changes.mapPos(pair.open.from, 1), to: tr.changes.mapPos(pair.open.to, -1) },
+    close: { from: tr.changes.mapPos(pair.close.from, 1), to: tr.changes.mapPos(pair.close.to, -1) },
+  }
+  const { state } = tr
+  if (!leaving && typedPair(state)?.open.from === moved.open.from) return tr
+  const tidy = tidyPair(state, moved)
+  if (tidy === null) return tr
+  const changes = state.changes(tidy)
+  return [tr, { changes, selection: state.selection.map(changes, 1), sequential: true }]
+})
+
+/**
+ * Enter in a pair being typed into ends the pair there, its trailing white space dropped, then makes the new line
+ * as Enter does (a list continues). False: Enter goes on as usual.
+ */
+function leavePair(view: EditorView): boolean {
+  const pair = typedPair(view.state)
+  if (pair === null) return false
+  const tidy = tidyPair(view.state, pair, true) ?? []
+  const changes = view.state.changes(tidy)
+  view.dispatch({ changes, selection: EditorSelection.cursor(changes.mapPos(pair.close.to, 1)), userEvent: 'input' })
+  return false
+}
+
 /**
  * A double click selects the word under the first click: that click brought the element's syntax back in sight,
  * which moved the text, so the second one would land on a `**` or a `[`.
@@ -563,6 +608,8 @@ export function livePreview(labels: LiveLabels, options: LiveOptions, actions: L
       RangeSet.join([view.plugin(inline)?.atomic ?? Decoration.none, view.state.field(blocks)]),
     ),
     pastLinePrefix,
+    tidyPairs,
+    pendingFormats(),
     links,
     EditorView.mouseSelectionStyle.of(doubleClickWord),
     EditorView.inputHandler.of((view, from, to, text) => {
@@ -586,6 +633,7 @@ export function livePreview(labels: LiveLabels, options: LiveOptions, actions: L
         {
           key: 'Enter',
           run: (view) => {
+            leavePair(view)
             const spec = leaveEmptyItem(view.state)
             if (spec === null) return false
             view.dispatch(spec, { scrollIntoView: true, userEvent: 'input' })

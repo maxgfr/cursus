@@ -1,6 +1,15 @@
 import { syntaxTree } from '@codemirror/language'
-import { EditorSelection, type EditorState, type TransactionSpec } from '@codemirror/state'
+import {
+  EditorSelection,
+  type EditorState,
+  type Extension,
+  StateEffect,
+  StateField,
+  type TransactionSpec,
+} from '@codemirror/state'
+import { EditorView } from '@codemirror/view'
 import type { SyntaxNode } from '@lezer/common'
+import { pendingPair, tidyPair } from './livePlan.ts'
 
 /** Inline formats the toolbar toggles, by their Markdown marker. */
 export type Marker = '**' | '*' | '~~' | '`' | '$'
@@ -42,14 +51,143 @@ function applies(marker: Marker, n: number): boolean {
   return n === 1
 }
 
+/** Formats turned on at the caret, waiting for what is typed next: nothing is written until then. */
+export interface PendingFormat {
+  pos: number
+  markers: readonly Marker[]
+}
+
+export const setPendingFormat = StateEffect.define<PendingFormat | null>()
+
 /**
- * Bold, italic, code or maths on the selection: applied by wrapping it (a pair at the caret), or taken off when it
- * is already there, the markers being around the selection or its first and last characters. A star run counts
- * once for each: italic on bold text makes it bold and italic.
+ * The formats waiting at the caret (`toggleMarker` with nothing selected). They go once the caret moves, or with
+ * what is typed (`typePending`); another device's edit only moves them.
+ */
+export const pendingFormat = StateField.define<PendingFormat | null>({
+  create: () => null,
+  update(value, tr) {
+    for (const e of tr.effects) if (e.is(setPendingFormat)) return e.value
+    if (value === null || tr.selection !== undefined) return null
+    return tr.docChanged ? { pos: tr.changes.mapPos(value.pos, -1), markers: value.markers } : value
+  },
+})
+
+const FORMAT_OF: Readonly<Record<Marker, Format>> = {
+  '**': 'bold',
+  '*': 'italic',
+  '~~': 'strike',
+  '`': 'code',
+  $: 'math',
+}
+
+/** The parsed element a marker makes, and its marks' node. */
+const NODE_OF: Readonly<Record<Marker, { node: string; mark: string }>> = {
+  '**': { node: 'StrongEmphasis', mark: 'EmphasisMark' },
+  '*': { node: 'Emphasis', mark: 'EmphasisMark' },
+  '~~': { node: 'Strikethrough', mark: 'StrikethroughMark' },
+  '`': { node: 'InlineCode', mark: 'CodeMark' },
+  $: { node: 'InlineMath', mark: 'InlineMathMark' },
+}
+
+/**
+ * The element of `marker`'s kind the caret is right inside of, at its very end (`end`) or its very start: the caret
+ * then steps out of it instead of starting a new pair there.
+ */
+function edgeOf(state: EditorState, head: number, marker: Marker, side: 'end' | 'start'): SyntaxNode | null {
+  const { node, mark } = NODE_OF[marker]
+  const tree = syntaxTree(state)
+  for (let n: SyntaxNode | null = tree.resolveInner(head, side === 'end' ? 1 : -1); n; n = n.parent) {
+    if (n.name !== node) continue
+    const marks = n.getChildren(mark)
+    const edge = side === 'end' ? marks.at(-1) : marks[0]
+    if (marks.length >= 2 && edge && (side === 'end' ? edge.from === head : edge.to === head)) return n
+  }
+  return null
+}
+
+/**
+ * The format turned on or off at a caret, word-processor style. At the end of an element of that format the caret
+ * steps out of it, as it does before one at its start; in a pair being typed into, it steps out and the pair is
+ * tidied (`tidyPair`). Elsewhere nothing is written: the format waits for what is typed next (`pendingFormat`),
+ * and asking again takes it back. Null for a selection, or several carets.
+ */
+export function toggleAtCaret(state: EditorState, marker: Marker): TransactionSpec | null {
+  const { main } = state.selection
+  if (state.selection.ranges.length > 1 || !main.empty) return null
+  const head = main.head
+  const end = edgeOf(state, head, marker, 'end')
+  if (end) return { selection: EditorSelection.cursor(end.to) }
+  const start = edgeOf(state, head, marker, 'start')
+  if (start) return { selection: EditorSelection.cursor(start.from) }
+  const pair = pendingPair(state, head)
+  if (pair && state.doc.sliceString(pair.open.from, pair.open.to) === marker) {
+    const tidy = tidyPair(state, pair) ?? []
+    const changes = state.changes(tidy)
+    return { changes, selection: EditorSelection.cursor(changes.mapPos(pair.close.to, 1)) }
+  }
+  const pending = state.field(pendingFormat, false) ?? null
+  const markers = pending !== null && pending.pos === head ? pending.markers : []
+  const next = markers.includes(marker) ? markers.filter((m) => m !== marker) : [...markers, marker]
+  return { effects: setPendingFormat.of(next.length === 0 ? null : { pos: head, markers: next }) }
+}
+
+/**
+ * Typing at the caret with formats waiting there: the text typed is written inside their markers, the caret before
+ * the closing ones, so what follows is in the format too. White space typed first goes before the markers, and the
+ * formats keep waiting. Null when nothing waits there: the text goes in as typed.
+ */
+export function typePending(state: EditorState, from: number, to: number, text: string): TransactionSpec | null {
+  const pending = state.field(pendingFormat, false) ?? null
+  if (pending === null || from !== to || from !== pending.pos || text === '' || text.includes('\n')) return null
+  const body = text.trimStart()
+  const space = text.slice(0, text.length - body.length)
+  if (body === '') {
+    return {
+      changes: { from, insert: text },
+      selection: EditorSelection.cursor(from + text.length),
+      effects: setPendingFormat.of({ pos: from + text.length, markers: pending.markers }),
+    }
+  }
+  const open = pending.markers.join('')
+  const close = [...pending.markers].reverse().join('')
+  return {
+    changes: { from, insert: `${space}${open}${body}${close}` },
+    selection: EditorSelection.cursor(from + space.length + open.length + body.length),
+    effects: setPendingFormat.of(null),
+  }
+}
+
+/** The formats waiting at the caret, and what typed text does with them (in the live view's text). */
+export function pendingFormats(): Extension {
+  return [
+    pendingFormat,
+    EditorView.inputHandler.of((view, from, to, text) => {
+      // A composition (an IME, a dictation) is left as it comes.
+      if (view.composing) return false
+      const spec = typePending(view.state, from, to, text)
+      if (spec === null) return false
+      view.dispatch(spec, { scrollIntoView: true, userEvent: 'input.type' })
+      return true
+    }),
+  ]
+}
+
+/**
+ * Bold, italic, code or maths on the selection: applied by wrapping it, or taken off when it is already there, the
+ * markers being around the selection or its first and last characters. A star run counts once for each: italic on
+ * bold text makes it bold and italic. At a caret, see `toggleAtCaret`; an empty pair there is taken off.
  */
 export function toggleMarker(state: EditorState, marker: Marker): TransactionSpec {
   const c = marker.charAt(0)
   const k = marker.length
+  const { main } = state.selection
+  if (state.selection.ranges.length === 1 && main.empty) {
+    const around = Math.min(run(state, main.head, c, -1), run(state, main.head, c, 1))
+    if (!applies(marker, around)) {
+      const caret = toggleAtCaret(state, marker)
+      if (caret !== null) return caret
+    }
+  }
   return state.changeByRange((range) => {
     const outside = Math.min(run(state, range.from, c, -1), run(state, range.to, c, 1))
     if (applies(marker, outside)) {
@@ -285,6 +423,8 @@ const NODE_FORMATS: Readonly<Record<string, Format>> = {
   Blockquote: 'quote',
 }
 
+const INLINE_FORMATS: ReadonlySet<Format> = new Set(['bold', 'italic', 'strike', 'code', 'math', 'link'])
+
 /** The formats in effect where the caret is (at the selection's start). */
 export function activeFormats(state: EditorState): Set<Format> {
   const out = new Set<Format>()
@@ -293,7 +433,8 @@ export function activeFormats(state: EditorState): Set<Format> {
   const seen = (n: SyntaxNode | null) => {
     for (; n; n = n.parent) {
       const f = NODE_FORMATS[n.name]
-      if (f) out.add(f)
+      // An inline element holds the caret only between its markers: right after one, what is typed is plain.
+      if (f && (!INLINE_FORMATS.has(f) || (pos > n.from && pos < n.to))) out.add(f)
       if (n.name === 'ListItem') {
         const list = n.parent?.name
         if (n.getChild('Task')) out.add('task')
@@ -318,6 +459,15 @@ export function activeFormats(state: EditorState): Set<Format> {
     if (item.getChild('Task')) out.add('task')
     else if (item.parent?.name === 'OrderedList') out.add('numbered')
     else out.add('bullet')
+  }
+  // A format waiting at the caret turns it on for what is typed next, or off inside an element of its kind.
+  const pending = state.field(pendingFormat, false) ?? null
+  if (pending !== null && pending.pos === pos) {
+    for (const m of pending.markers) {
+      const f = FORMAT_OF[m]
+      if (out.has(f)) out.delete(f)
+      else out.add(f)
+    }
   }
   return out
 }

@@ -1,6 +1,6 @@
 import { commonmarkLanguage, markdown } from '@codemirror/lang-markdown'
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language'
-import type { EditorState, Extension } from '@codemirror/state'
+import type { ChangeSpec, EditorState, Extension } from '@codemirror/state'
 import type { SyntaxNode, Tree } from '@lezer/common'
 import { GFM } from '@lezer/markdown'
 import { clozeSpans } from '../../core/model/cloze'
@@ -155,6 +155,14 @@ export function planInline(state: EditorState, focused: boolean, options: PlanOp
     while (p > floor && SPACE.test(doc.sliceString(p - 1, p))) p--
     return p
   }
+  /** A setext heading whose underline is a lone `-` or `=` with the caret on it: still being typed. */
+  const typedUnderline = (node: SyntaxNode) => {
+    if (node.name !== 'SetextHeading1' && node.name !== 'SetextHeading2') return false
+    const underline = node.getChild('HeaderMark')
+    if (!underline || underline.to - underline.from !== 1) return false
+    const l = doc.lineAt(underline.from)
+    return touches(l.from, l.to)
+  }
   const listDepth = (list: SyntaxNode) => {
     let depth = 0
     for (let p: SyntaxNode | null = list; p; p = p.parent) if (LIST.has(p.name)) depth++
@@ -179,6 +187,9 @@ export function planInline(state: EditorState, focused: boolean, options: PlanOp
         case 'SetextHeading2': {
           const level = node.name === 'SetextHeading1' ? 1 : 2
           const underline = node.getChild('HeaderMark')
+          // A lone `-` or `=` being typed under a paragraph (a list item, a rule to come) is not a heading yet: it
+          // shows as typed, and the paragraph does not flash into a title.
+          if (typedUnderline(node)) return false
           const last = underline ? doc.lineAt(underline.from).number - 1 : doc.lineAt(to).number
           for (let n = doc.lineAt(from).number; n <= last; n++) {
             line(
@@ -359,7 +370,7 @@ export function planInline(state: EditorState, focused: boolean, options: PlanOp
     const first = doc.lineAt(block.from)
     const before = first.number - 1
     const blankBefore = before > 0 && doc.line(before).text.trim() === ''
-    if (/Heading/.test(block.name)) {
+    if (/Heading/.test(block.name) && !typedUnderline(block)) {
       if (!blankBefore) line(first.from, 'cm-md-gap')
     } else if (previousLast > 0 && previousLast === before) line(first.from, 'cm-md-gap')
     previousLast = doc.lineAt(block.to).number
@@ -384,7 +395,14 @@ export function planInline(state: EditorState, focused: boolean, options: PlanOp
 
   const main = state.selection.main
   if (focused && state.selection.ranges.length === 1 && main.empty && main.head >= start && main.head <= end) {
-    for (const p of pendingEmphasis(state, main.head)) mark(p.from, p.to, p.cls)
+    // A pair being typed into reads as it will once tidied: its markers hidden, its text styled.
+    const pair = pendingPair(state, main.head)
+    if (pair) {
+      hide(pair.open.from, pair.open.to)
+      hide(pair.close.from, pair.close.to)
+      for (const cls of pair.cls) mark(pair.open.to, pair.close.from, cls)
+    }
+    for (const p of pendingEmphasis(state, main.head)) if (p.from !== pair?.open.to) mark(p.from, p.to, p.cls)
   }
   return out
 }
@@ -433,6 +451,81 @@ export function planBlocks(state: EditorState): LiveItem[] {
     })
   }
   return out
+}
+
+/** A pair of emphasis markers, the caret typing into it. */
+export interface PendingPair {
+  open: Span
+  close: Span
+  /** How its text is styled. */
+  cls: readonly string[]
+}
+
+const PAIR_STYLE: Readonly<Record<string, readonly string[]>> = {
+  '*': ['cm-md-em'],
+  _: ['cm-md-em'],
+  '**': ['cm-md-strong'],
+  __: ['cm-md-strong'],
+  '***': ['cm-md-em', 'cm-md-strong'],
+  ___: ['cm-md-em', 'cm-md-strong'],
+  '~~': ['cm-md-strike'],
+}
+const PAIR_MARKER = /^(?:\*{1,3}|_{1,3}|~~)$/
+
+/**
+ * A pair the caret is typing into that Markdown does not read yet, the caret right before its closing marker: an
+ * empty one (`**|**`), or one whose text ends with white space (`**word |**`, a space just typed). The renderer
+ * would print its markers; the editor hides them while the caret is there, and tidies the pair when it leaves
+ * (`tidyPair`). The opener starts a word (at the line's start or after a space) and the text holds no marker of
+ * its kind; code, maths, links and parsed emphasis are left alone.
+ */
+export function pendingPair(state: EditorState, head: number): PendingPair | null {
+  const { doc } = state
+  const l = doc.lineAt(head)
+  const close = /^(?:\*{1,3}|_{1,3}|~~)/.exec(doc.sliceString(head, l.to))?.[0]
+  if (close === undefined) return null
+  const c = close.charAt(0)
+  // The whole run: `**` followed by another `*` is a different marker.
+  if (doc.sliceString(head + close.length, head + close.length + 1) === c) return null
+  const before = doc.sliceString(l.from, head)
+  const at = before.lastIndexOf(close)
+  if (at < 0 || (at > 0 && !/\s/.test(before.charAt(at - 1)))) return null
+  const text = before.slice(at + close.length)
+  if (text.includes(c)) return null
+  // An empty pair is a whole run split by the caret (`**|**`): `*|*` is a `**` being typed.
+  if (text === '' ? close.length < 2 : /^\s/.test(text) || !/\s$/.test(text)) return null
+  const tree = syntaxTree(state)
+  for (const pos of [l.from + at, head]) {
+    for (let n: SyntaxNode | null = tree.resolveInner(pos, 1); n; n = n.parent) if (NOT_PENDING.has(n.name)) return null
+  }
+  const from = l.from + at
+  return {
+    open: { from, to: from + close.length },
+    close: { from: head, to: head + close.length },
+    cls: PAIR_STYLE[close] ?? [],
+  }
+}
+
+/**
+ * What tidies a pair the caret left (see `pendingPair`): the white space at the end of its text goes after the
+ * closing marker (`**a **` → `**a** `), or away with `drop` (before a new line); an empty pair goes, markers and
+ * all. Null when there is nothing to tidy, or when the pair is no longer whole on one line.
+ */
+export function tidyPair(state: EditorState, pair: { open: Span; close: Span }, drop = false): ChangeSpec[] | null {
+  const { doc } = state
+  const marker = doc.sliceString(pair.open.from, pair.open.to)
+  if (!PAIR_MARKER.test(marker) || doc.sliceString(pair.close.from, pair.close.to) !== marker) return null
+  if (pair.open.to > pair.close.from || doc.lineAt(pair.open.from).number !== doc.lineAt(pair.close.to).number) {
+    return null
+  }
+  const text = doc.sliceString(pair.open.to, pair.close.from)
+  if (text.trim() === '') return [{ from: pair.open.from, to: pair.close.to, insert: drop ? '' : text }]
+  const kept = text.trimEnd()
+  if (kept === text) return null
+  return [
+    { from: pair.open.to + kept.length, to: pair.close.from },
+    { from: pair.close.to, insert: drop ? '' : text.slice(kept.length) },
+  ]
 }
 
 /**

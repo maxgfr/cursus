@@ -10,6 +10,7 @@ import {
   type Marker,
   mathMarkdown,
   parseTable,
+  pendingFormat,
   prefixLines,
   setHeading,
   tableMarkdown,
@@ -17,6 +18,7 @@ import {
   toggleMarker,
   toggleQuote,
   toggleTask,
+  typePending,
   unformatLine,
 } from './format.ts'
 import { liveMarkdown } from './livePlan.ts'
@@ -77,8 +79,10 @@ describe('bold, italic, code and maths toggle', () => {
     expect(mark('*hi*', 1, 3, '**')).toBe('***[hi]***')
   })
 
-  test('at a caret: a pair, then taken back', () => {
-    expect(mark('ab', 1, 1, '**')).toBe('a**|**b')
+  test('at a caret: nothing is written (the format waits for what is typed); an empty pair is taken back', () => {
+    // A behaviour change: the caret used to get an empty pair (`a**|**b`), read as a rule or a code fence on an
+    // empty line, and shown as typed until something was written in it.
+    expect(mark('ab', 1, 1, '**')).toBe('a|b')
     expect(mark('a****b', 3, 3, '**')).toBe('a|b')
   })
 })
@@ -202,6 +206,10 @@ describe('what the toolbar shows as on', () => {
     expect(on('a $x$ b', 3)).toEqual(['math'])
     expect(on('| a |\n| - |\n| 1 |', 2)).toEqual(['table'])
     expect(on('plain', 2)).toEqual([])
+    // Between an element's markers only: right after bold, or before it, what is typed is plain.
+    expect(on('**bold** x', 6)).toEqual(['bold'])
+    expect(on('**bold** x', 8)).toEqual([])
+    expect(on('x **bold**', 2)).toEqual([])
   })
 })
 
@@ -231,5 +239,110 @@ describe('links, formulas and tables as Markdown', () => {
       ['x', ''],
     ])
     expect(tableMarkdown([['h'], ['two\nlines']])).toBe('| h |\n| --- |\n| two lines |')
+  })
+})
+
+describe('a format at the caret', () => {
+  /** A live text: Markdown parsed, formats able to wait at the caret. */
+  function live(doc: string, anchor: number, head = anchor) {
+    const s = EditorState.create({
+      doc,
+      selection: EditorSelection.single(anchor, head),
+      extensions: [liveMarkdown(), pendingFormat],
+    })
+    ensureSyntaxTree(s, s.doc.length, 5000)
+    return s
+  }
+  const shown = (s: EditorState) => {
+    const { from } = s.selection.main
+    const doc = s.doc.toString()
+    return `${doc.slice(0, from)}|${doc.slice(from)}`
+  }
+  const type = (s: EditorState, text: string) => {
+    const at = s.selection.main.head
+    return s.update(typePending(s, at, at, text) ?? s.replaceSelection(text)).state
+  }
+
+  test('waits for what is typed: nothing written until then, then the text in the format, the caret inside', () => {
+    const s = live('ab', 1)
+    const on = s.update(toggleMarker(s, '**')).state
+    expect(on.doc.toString()).toBe('ab')
+    expect(on.field(pendingFormat)).toEqual({ pos: 1, markers: ['**'] })
+    expect(activeFormats(on).has('bold')).toBe(true)
+    const typed = type(on, 'x')
+    expect(shown(typed)).toBe('a**x|**b')
+    expect(typed.field(pendingFormat)).toBeNull()
+    expect(shown(type(typed, 'y'))).toBe('a**xy|**b')
+  })
+
+  test('asked twice, nothing waits and nothing was written', () => {
+    const s = live('ab', 1)
+    const on = s.update(toggleMarker(s, '**')).state
+    const off = on.update(toggleMarker(on, '**')).state
+    expect(off.doc.toString()).toBe('ab')
+    expect(off.field(pendingFormat)).toBeNull()
+    expect(activeFormats(off).has('bold')).toBe(false)
+  })
+
+  test('white space typed first goes before the markers; two formats wrap the text together', () => {
+    const s = live('a', 1)
+    const bold = s.update(toggleMarker(s, '**')).state
+    const both = bold.update(toggleMarker(bold, '*')).state
+    expect([...activeFormats(both)].sort()).toEqual(['bold', 'italic'])
+    const spaced = type(both, ' ')
+    expect(shown(spaced)).toBe('a |')
+    expect(spaced.field(pendingFormat)).toEqual({ pos: 2, markers: ['**', '*'] })
+    expect(shown(type(spaced, 'b'))).toBe('a ***b|***')
+    expect(shown(type(both, ' c'))).toBe('a ***c|***')
+  })
+
+  test('on an empty line: no rule, no code block, never a star in sight', () => {
+    for (const marker of ['**', '~~', '`'] as const) {
+      const s = live('', 0)
+      const on = s.update(toggleMarker(s, marker)).state
+      expect(on.doc.toString()).toBe('')
+      const typed = type(on, 'Title')
+      expect(typed.doc.toString()).toBe(`${marker}Title${marker}`)
+    }
+  })
+
+  test('the caret moving away drops it; an edit from elsewhere only moves it', () => {
+    const s = live('abc', 1)
+    const on = s.update(toggleMarker(s, '**')).state
+    expect(on.update({ selection: EditorSelection.cursor(3) }).state.field(pendingFormat)).toBeNull()
+    expect(on.update({ changes: { from: 0, insert: 'xy' } }).state.field(pendingFormat)).toEqual({
+      pos: 3,
+      markers: ['**'],
+    })
+    // Typed elsewhere than where it waits, or several characters over a selection: as typed.
+    expect(typePending(on, 2, 2, 'x')).toBeNull()
+    expect(typePending(on, 1, 2, 'x')).toBeNull()
+    expect(typePending(on, 1, 1, '\n')).toBeNull()
+    expect(typePending(s, 1, 1, 'x')).toBeNull()
+  })
+
+  test('at the end of bold, a second toggle steps out of it; at its start, before it', () => {
+    const d = 'a **bold** b'
+    const end = live(d, 8)
+    expect(shown(end.update(toggleMarker(end, '**')).state)).toBe('a **bold**| b')
+    const start = live(d, 4)
+    expect(shown(start.update(toggleMarker(start, '**')).state)).toBe('a |**bold** b')
+    const code = live('a `x` b', 4)
+    expect(shown(code.update(toggleMarker(code, '`')).state)).toBe('a `x`| b')
+    // Italic at the end of bold is not bold's: it waits, to type italic in the bold.
+    const italic = end.update(toggleMarker(end, '*')).state
+    expect(italic.field(pendingFormat)).toEqual({ pos: 8, markers: ['*'] })
+  })
+
+  test('in a pair being typed into, the toggle steps out and tidies it', () => {
+    const s = live('**a **', 4)
+    expect(shown(s.update(toggleMarker(s, '**')).state)).toBe('**a** |')
+  })
+
+  test('inside bold, a waiting bold is off: what is typed comes out of it', () => {
+    const s = live('**bold**', 4)
+    const off = s.update(toggleMarker(s, '**')).state
+    expect(activeFormats(off).has('bold')).toBe(false)
+    expect(type(off, 'x').doc.toString()).toBe('**bo**x**ld**')
   })
 })

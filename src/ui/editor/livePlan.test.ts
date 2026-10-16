@@ -8,11 +8,13 @@ import {
   liveMarkdown,
   mathAt,
   pendingEmphasis,
+  pendingPair,
   planBlocks,
   planInline,
   planLive,
   tableAt,
   tableCellOffset,
+  tidyPair,
   wordNear,
 } from './livePlan.ts'
 
@@ -418,5 +420,85 @@ describe('tables and double clicks', () => {
     expect(word(d.indexOf('`fn'))).toBe('fn')
     expect(word(d.indexOf('[go'))).toBe('go')
     expect(word(d.indexOf(' a verb') + 1)).toBe('a')
+  })
+})
+
+describe('a pair being typed into', () => {
+  test('a space typed at the end of bold: both markers stay hidden, the text bold', () => {
+    const d = 'Hello **world **'
+    const caret = d.length - 2
+    const items = plan(d, caret)
+    expect(hidden(items, d)).toEqual(['**', '**'])
+    expect(marked(items, d, 'cm-md-strong')).toEqual(['world '])
+    // Nothing past the pair is styled.
+    const after = 'Hello **world ** after'
+    expect(marked(plan(after, caret), after, 'cm-md-strong')).toEqual(['world '])
+    expect(pendingPair(state(d), caret)).toEqual({
+      open: { from: 6, to: 8 },
+      close: { from: caret, to: d.length },
+      cls: ['cm-md-strong'],
+    })
+  })
+
+  test('an empty pair, italic, strikethrough, in a list item or a heading', () => {
+    expect(hidden(plan('a **** b', 4), 'a **** b')).toEqual(['**', '**'])
+    expect(pendingPair(state('*it *'), 4)?.cls).toEqual(['cm-md-em'])
+    expect(pendingPair(state('~~gone ~~'), 7)?.cls).toEqual(['cm-md-strike'])
+    expect(pendingPair(state('***both ***'), 8)?.cls).toEqual(['cm-md-em', 'cm-md-strong'])
+    expect(hidden(plan('- **a **', 6), '- **a **')).toEqual(['**', '**'])
+    expect(pendingPair(state('## **a **'), 7)).not.toBeNull()
+  })
+
+  test('not a pair being typed: read by Markdown, elsewhere than before its closer, not a word start, code, a rule', () => {
+    expect(pendingPair(state('**done**'), 6)).toBeNull()
+    expect(pendingPair(state('**a **'), 3)).toBeNull()
+    expect(pendingPair(state('x**a **'), 5)).toBeNull()
+    expect(pendingPair(state('** a**'), 4)).toBeNull()
+    expect(pendingPair(state('**a ***'), 4)).toBeNull()
+    expect(pendingPair(state('2 * 3 * 4'), 6)).toBeNull()
+    expect(pendingPair(state('`**a **`'), 5)).toBeNull()
+    expect(pendingPair(state('****'), 2)).toBeNull()
+    expect(pendingPair(state('**a\nb **'), 6)).toBeNull()
+    expect(pendingPair(state('a ** b'), 3)).toBeNull()
+  })
+
+  test('unfocused, or with a selection: drawn as the renderer prints it', () => {
+    const d = 'Hello **world **'
+    expect(hidden(plan(d), d)).toEqual([])
+    expect(hidden(plan(d, [8, 14]), d)).toEqual([])
+  })
+
+  test('tidied once the caret leaves: the space after the pair, an empty pair gone; dropped before a new line', () => {
+    const tidied = (d: string, drop = false) => {
+      const s = state(d)
+      const at = d.lastIndexOf('**')
+      const open = d.indexOf('**')
+      const changes = tidyPair(s, { open: { from: open, to: open + 2 }, close: { from: at, to: at + 2 } }, drop)
+      return changes === null ? null : s.update({ changes }).state.doc.toString()
+    }
+    expect(tidied('a **bold text ** b')).toBe('a **bold text**  b')
+    expect(tidied('**x  **')).toBe('**x**  ')
+    expect(tidied('**x **', true)).toBe('**x**')
+    expect(tidied('a **** b')).toBe('a  b')
+    expect(tidied('a ** ** b')).toBe('a   b')
+    expect(tidied('a ** ** b', true)).toBe('a  b')
+    expect(tidied('**done**')).toBeNull()
+    // The pair is no longer whole: left as it is.
+    const s = state('**a **')
+    expect(tidyPair(s, { open: { from: 0, to: 2 }, close: { from: 3, to: 5 } })).toBeNull()
+  })
+})
+
+describe('a setext underline being typed', () => {
+  test('a lone - or = under a paragraph, the caret on it: no heading yet, shown as typed', () => {
+    for (const d of ['Para\n-', 'Para\n=']) {
+      const items = plan(d, d.length)
+      expect(lineClasses(items, d)).toEqual([])
+      expect(hidden(items, d)).toEqual([])
+    }
+    // A longer underline is a heading, wherever the caret is; a lone - is one once the caret leaves.
+    expect(lineClasses(plan('Para\n---', 8), 'Para\n---')).toContainEqual(['Para', 'cm-md-h cm-md-h2'])
+    expect(lineClasses(plan('Para\n---', 0), 'Para\n---')).toContainEqual(['Para', 'cm-md-h cm-md-h2'])
+    expect(lineClasses(plan('Para\n-', 0), 'Para\n-')).toContainEqual(['Para', 'cm-md-h cm-md-h2'])
   })
 })
