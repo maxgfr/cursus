@@ -1,10 +1,11 @@
 import { syntaxTree } from '@codemirror/language'
 import {
   EditorSelection,
-  type EditorState,
+  EditorState,
   type Extension,
   Prec,
   type Range,
+  RangeSet,
   StateEffect,
   StateField,
 } from '@codemirror/state'
@@ -20,7 +21,27 @@ import {
 } from '@codemirror/view'
 import proseStyles from '../render/Sanitized.module.css'
 import { fillSanitized } from '../render/Sanitized.tsx'
-import { PHOTO, type PlanOptions, planBlocks, planInline, type Span, tableCellOffset, wordNear } from './livePlan.ts'
+import { inputRule, leaveEmptyItem, unformatLine } from './format.ts'
+import {
+  hiddenPrefix,
+  linkAt,
+  PHOTO,
+  type PlanOptions,
+  planBlocks,
+  planInline,
+  type Span,
+  wordNear,
+} from './livePlan.ts'
+
+/**
+ * What a tap on a drawn link, formula or table opens: its own small editor (the view hands the position over),
+ * never its Markdown in the text.
+ */
+export interface LiveActions {
+  link(at: number): void
+  math(at: number): void
+  table(at: number): void
+}
 
 /** The displayable URLs of the photos the text holds, set from outside once they are loaded. */
 export const setPhotoUrls = StateEffect.define<ReadonlyMap<string, string>>()
@@ -62,11 +83,21 @@ class PhotoWidget extends WidgetType {
   }
 }
 
-/** A formula, drawn by KaTeX through the renderer's own sanitising pipeline. */
+/** A press on a drawn formula or table opens its editor instead of placing the caret. */
+function opens(host: HTMLElement, view: EditorView, open: (at: number) => void): void {
+  host.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    open(view.posAtDOM(host))
+  })
+}
+
+/** A formula, drawn by KaTeX through the renderer's own sanitising pipeline; a tap edits it. */
 class MathWidget extends WidgetType {
   constructor(
     readonly source: string,
     readonly block: boolean,
+    readonly actions: LiveActions | null,
   ) {
     super()
   }
@@ -75,24 +106,27 @@ class MathWidget extends WidgetType {
     return other.source === this.source && other.block === this.block
   }
 
-  toDOM(): HTMLElement {
+  toDOM(view: EditorView): HTMLElement {
     const host = document.createElement(this.block ? 'div' : 'span')
     host.className = this.block ? 'cm-md-math cm-md-block' : 'cm-md-math'
     fillSanitized(host, this.source, { inline: !this.block })
+    const actions = this.actions
+    if (actions) opens(host, view, (at) => actions.math(at))
     return host
   }
 
-  override ignoreEvent(): boolean {
-    return false
+  override ignoreEvent(event: Event): boolean {
+    return this.actions !== null && event.type === 'mousedown'
   }
 }
 
-/** A table, drawn by the renderer (sanitised, its photos shown); a tap on a cell puts the caret in that cell. */
+/** A table, drawn by the renderer (sanitised, its photos shown); a tap edits it as a grid of cells. */
 class TableWidget extends WidgetType {
   constructor(
     readonly source: string,
     /** The URLs of the photos the table holds, by sha256. */
     readonly photos: ReadonlyMap<string, string>,
+    readonly actions: LiveActions | null,
   ) {
     super()
   }
@@ -107,27 +141,14 @@ class TableWidget extends WidgetType {
     const host = document.createElement('div')
     host.className = 'cm-md-table cm-md-block'
     fillSanitized(host, this.source, { resolveBlob: (sha) => this.photos.get(sha) ?? null })
-    host.addEventListener('mousedown', (e) => {
-      const cell = cellOf(e.target)
-      const row = cell?.parentElement
-      if (!cell || !(row instanceof HTMLTableRowElement) || e.button !== 0) return
-      e.preventDefault()
-      const at = view.posAtDOM(host) + tableCellOffset(this.source, row.rowIndex, cell.cellIndex)
-      view.dispatch({ selection: { anchor: at }, userEvent: 'select.pointer' })
-      view.focus()
-    })
+    const actions = this.actions
+    if (actions) opens(host, view, (at) => actions.table(at))
     return host
   }
 
-  /** A cell's own press is handled above; elsewhere the editor places the caret. */
   override ignoreEvent(event: Event): boolean {
-    return event.type === 'mousedown' && cellOf(event.target) !== null
+    return this.actions !== null && event.type === 'mousedown'
   }
-}
-
-function cellOf(target: EventTarget | null): HTMLTableCellElement | null {
-  const cell = target instanceof Element ? target.closest('th, td') : null
-  return cell instanceof HTMLTableCellElement ? cell : null
 }
 
 const BULLETS = ['disc', 'circle', 'square'] as const
@@ -289,33 +310,36 @@ function planOptions(state: EditorState, options: LiveOptions): [boolean, PlanOp
 }
 
 /** The drawn blocks and the photos, over the whole text (their height is the text's). */
-function blockDecorations(state: EditorState, options: LiveOptions): DecorationSet {
+function blockDecorations(state: EditorState, actions: LiveActions | null): DecorationSet {
   const urls = state.field(photoUrls)
   const ranges: Range<Decoration>[] = []
-  for (const item of planBlocks(state, ...planOptions(state, options))) {
+  for (const item of planBlocks(state)) {
     switch (item.kind) {
       case 'math':
         ranges.push(
-          Decoration.replace({ widget: new MathWidget(item.source, true), block: true }).range(item.from, item.to),
-        )
-        break
-      case 'table':
-        ranges.push(
-          Decoration.replace({ widget: new TableWidget(item.source, photosIn(item.source, urls)), block: true }).range(
+          Decoration.replace({ widget: new MathWidget(item.source, true, actions), block: true }).range(
             item.from,
             item.to,
           ),
         )
         break
+      case 'table':
+        ranges.push(
+          Decoration.replace({
+            widget: new TableWidget(item.source, photosIn(item.source, urls), actions),
+            block: true,
+          }).range(item.from, item.to),
+        )
+        break
       case 'photo': {
         const url = urls.get(item.sha)
         if (url === undefined) break
-        if (!item.active && item.alone) {
+        if (item.alone) {
           const widget = new PhotoWidget(url, item.alt, false)
           ranges.push(Decoration.replace({ widget, block: true }).range(item.lineFrom, item.lineTo))
           break
         }
-        if (!item.active) ranges.push(hidden.range(item.from, item.to))
+        ranges.push(hidden.range(item.from, item.to))
         const widget = new PhotoWidget(url, item.alt, true)
         ranges.push(Decoration.widget({ widget, block: true, side: 1 }).range(item.lineTo))
         break
@@ -332,14 +356,18 @@ function blockDecorations(state: EditorState, options: LiveOptions): DecorationS
   )
 }
 
-/** The inline part over `window`, leaving out what a drawn block covers. */
+/**
+ * The inline part over `window`, leaving out what a drawn block covers; `atomic` holds what replaces text (hidden
+ * syntax, drawn markers and formulas), which the caret steps over whole.
+ */
 function inlineDecorations(
   state: EditorState,
   window: Span,
   blocks: DecorationSet,
   options: LiveOptions,
   labels: LiveLabels,
-): DecorationSet {
+  actions: LiveActions | null,
+): { decorations: DecorationSet; atomic: DecorationSet } {
   const covering: Span[] = []
   blocks.between(window.from, window.to, (from, to, deco) => {
     if (deco.spec.block && from < to) covering.push({ from, to })
@@ -347,13 +375,18 @@ function inlineDecorations(
   const covered = (from: number, to: number) => covering.some((b) => from >= b.from && to <= b.to)
   const [focused, plan] = planOptions(state, options)
   const ranges: Range<Decoration>[] = []
+  const replaced: Range<Decoration>[] = []
+  const replace = (r: Range<Decoration>) => {
+    ranges.push(r)
+    replaced.push(r)
+  }
   for (const item of planInline(state, focused, { ...plan, within: window })) {
     const to = item.kind === 'line' ? item.at : item.to
     const from = item.kind === 'line' ? item.at : item.from
     if (covered(from, to)) continue
     switch (item.kind) {
       case 'hide':
-        ranges.push(hidden.range(item.from, item.to))
+        replace(hidden.range(item.from, item.to))
         break
       case 'mark':
         ranges.push(Decoration.mark({ class: item.cls }).range(item.from, item.to))
@@ -364,15 +397,13 @@ function inlineDecorations(
         )
         break
       case 'math':
-        ranges.push(Decoration.replace({ widget: new MathWidget(item.source, false) }).range(item.from, item.to))
+        replace(Decoration.replace({ widget: new MathWidget(item.source, false, actions) }).range(item.from, item.to))
         break
       case 'listMark':
-        ranges.push(
-          Decoration.replace({ widget: new ListMarkWidget(item.label, item.depth) }).range(item.from, item.to),
-        )
+        replace(Decoration.replace({ widget: new ListMarkWidget(item.label, item.depth) }).range(item.from, item.to))
         break
       case 'task':
-        ranges.push(
+        replace(
           Decoration.replace({ widget: new TaskWidget(item.checked, labels.task(item.text)) }).range(
             item.from,
             item.to,
@@ -380,46 +411,36 @@ function inlineDecorations(
         )
         break
       case 'rule':
-        ranges.push(Decoration.replace({ widget: new RuleWidget() }).range(item.from, item.to))
+        replace(Decoration.replace({ widget: new RuleWidget() }).range(item.from, item.to))
         break
       default:
         break
     }
   }
-  return Decoration.set(ranges, true)
+  return { decorations: Decoration.set(ranges, true), atomic: Decoration.set(replaced, true) }
 }
 
 /**
- * ArrowDown (ArrowUp) onto a drawn table, formula or photo enters it, showing its source, instead of jumping over
- * it as over any widget.
+ * The caret never rests inside the hidden syntax that starts a line (`## `, `> `, a list marker, a task's box):
+ * placed there (a tap at the line's start, Home, an arrow), it moves past it, so what is typed goes into the
+ * heading or the item. Stepping back out of it goes on to the end of the line before.
  */
-function enterBlock(blocks: StateField<DecorationSet>, forward: boolean) {
-  return (view: EditorView): boolean => {
-    const { state } = view
-    const { main } = state.selection
-    if (state.selection.ranges.length > 1 || !main.empty) return false
-    const line = state.doc.lineAt(main.head)
-    const target = forward ? line.to + 1 : line.from - 1
-    if (target < 0 || target > state.doc.length) return false
-    // Still within a wrapped line: an ordinary move.
-    const next = view.moveVertically(main, forward)
-    if (forward ? next.head <= line.to : next.head >= line.from) return false
-    const hits: Span[] = []
-    state.field(blocks).between(target, target, (from, to, deco) => {
-      if (deco.spec.block && from < to && (forward ? from === target : to === target)) hits.push({ from, to })
-    })
-    const found = hits[0]
-    if (!found) return false
-    const into = state.doc.lineAt(forward ? found.from : found.to)
-    const column = main.head - line.from
-    view.dispatch({
-      selection: EditorSelection.cursor(Math.min(into.from + column, into.to)),
-      scrollIntoView: true,
-      userEvent: 'select',
-    })
-    return true
-  }
-}
+const pastLinePrefix = EditorState.transactionFilter.of((tr) => {
+  if (!tr.selection) return tr
+  const { state } = tr
+  const before = tr.startState.selection.main.head
+  let moved = false
+  const ranges = state.selection.ranges.map((r) => {
+    if (!r.empty) return r
+    const prefix = hiddenPrefix(state, r.head)
+    if (!prefix || r.head >= prefix.to) return r
+    moved = true
+    const back = !tr.docChanged && before === prefix.to && prefix.from > 0
+    return EditorSelection.cursor(back ? prefix.from - 1 : prefix.to)
+  })
+  if (!moved) return tr
+  return [tr, { selection: EditorSelection.create(ranges, state.selection.mainIndex), sequential: true }]
+})
 
 /**
  * A double click selects the word under the first click: that click brought the element's syntax back in sight,
@@ -451,29 +472,31 @@ function doubleClickWord(view: EditorView, event: MouseEvent): MouseSelectionSty
 }
 
 /**
- * Live Markdown: the text reads as the renderer draws it while it is written. The syntax of the element under the
- * caret (or the selection) comes back to be edited; everything else is drawn. The text itself stays plain Markdown.
- * Drawn blocks span the whole text; the rest is drawn over the part near the screen, so a keystroke costs the
- * same in a long note as in a short one.
+ * Live Markdown, word-processor style: the text reads as the renderer draws it while it is written, and its
+ * Markdown never shows (a code block's fences and a cloze's braces excepted, under the caret). Hidden syntax is
+ * stepped over whole; a link, a formula or a table opens its own editor (`actions`). The text itself stays plain
+ * Markdown. Drawn blocks span the whole text; the rest is drawn over the part near the screen, so a keystroke
+ * costs the same in a long note as in a short one.
  */
-export function livePreview(labels: LiveLabels, options: LiveOptions): Extension {
+export function livePreview(labels: LiveLabels, options: LiveOptions, actions: LiveActions | null = null): Extension {
   const blocks = StateField.define<DecorationSet>({
-    create: (state) => blockDecorations(state, options),
+    create: (state) => blockDecorations(state, actions),
     update: (value, tr) =>
-      tr.docChanged ||
-      tr.state.field(reveal) !== tr.startState.field(reveal, false) ||
-      tr.effects.some((e) => e.is(setPhotoUrls)) ||
-      syntaxTree(tr.state) !== syntaxTree(tr.startState)
-        ? blockDecorations(tr.state, options)
+      tr.docChanged || tr.effects.some((e) => e.is(setPhotoUrls)) || syntaxTree(tr.state) !== syntaxTree(tr.startState)
+        ? blockDecorations(tr.state, actions)
         : value.map(tr.changes),
     provide: (f) => EditorView.decorations.from(f),
   })
 
+  const draw = (view: EditorView, state: EditorState) =>
+    inlineDecorations(state, view.viewport, state.field(blocks), options, labels, actions)
+
   const inline = ViewPlugin.fromClass(
     class {
       decorations: DecorationSet
+      atomic: DecorationSet
       constructor(view: EditorView) {
-        this.decorations = inlineDecorations(view.state, view.viewport, view.state.field(blocks), options, labels)
+        ;({ decorations: this.decorations, atomic: this.atomic } = draw(view, view.state))
       }
       update(u: ViewUpdate) {
         if (
@@ -484,12 +507,25 @@ export function livePreview(labels: LiveLabels, options: LiveOptions): Extension
           u.state.field(blocks) !== u.startState.field(blocks, false) ||
           syntaxTree(u.state) !== syntaxTree(u.startState)
         ) {
-          this.decorations = inlineDecorations(u.state, u.view.viewport, u.state.field(blocks), options, labels)
+          ;({ decorations: this.decorations, atomic: this.atomic } = draw(u.view, u.state))
         }
       }
     },
     { decorations: (v) => v.decorations },
   )
+
+  /** A tap on a link's text opens its editor, once the caret is placed. */
+  const links = actions
+    ? EditorView.domEventHandlers({
+        click(e, view) {
+          if (e.button !== 0 || !(e.target instanceof Element) || !e.target.closest('.cm-md-link')) return false
+          const at = view.posAtDOM(e.target)
+          if (linkAt(view.state, at) === null) return false
+          actions.link(at)
+          return false
+        },
+      })
+    : []
 
   /** Follows the mouse button: down on the text, then up anywhere (after the editor's own handling of it). */
   const pointer = ViewPlugin.fromClass(
@@ -523,11 +559,39 @@ export function livePreview(labels: LiveLabels, options: LiveOptions): Extension
     pointer,
     blocks,
     inline,
+    EditorView.atomicRanges.of((view) =>
+      RangeSet.join([view.plugin(inline)?.atomic ?? Decoration.none, view.state.field(blocks)]),
+    ),
+    pastLinePrefix,
+    links,
     EditorView.mouseSelectionStyle.of(doubleClickWord),
-    Prec.high(
+    EditorView.inputHandler.of((view, from, to, text) => {
+      const spec = inputRule(view.state, from, to, text)
+      if (spec === null) return false
+      view.dispatch(spec, { userEvent: 'input.type' })
+      return true
+    }),
+    // Before Markdown's own Backspace and Enter, which keep a list item's place as indentation.
+    Prec.highest(
       keymap.of([
-        { key: 'ArrowDown', run: enterBlock(blocks, true) },
-        { key: 'ArrowUp', run: enterBlock(blocks, false) },
+        {
+          key: 'Backspace',
+          run: (view) => {
+            const spec = unformatLine(view.state)
+            if (spec === null) return false
+            view.dispatch(spec, { scrollIntoView: true, userEvent: 'delete.backward' })
+            return true
+          },
+        },
+        {
+          key: 'Enter',
+          run: (view) => {
+            const spec = leaveEmptyItem(view.state)
+            if (spec === null) return false
+            view.dispatch(spec, { scrollIntoView: true, userEvent: 'input' })
+            return true
+          },
+        },
       ]),
     ),
     EditorView.editorAttributes.of({ class: proseStyles.live ?? '' }),

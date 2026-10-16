@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import type * as Y from 'yjs'
 import { lazyChunk } from '../../app/lazyChunk.tsx'
+import type { Id } from '../../core/contracts/workspace'
 import { useT } from '../../i18n/react.tsx'
 import { cx } from '../cx.ts'
 import styles from './MarkdownEditor.module.css'
@@ -17,6 +18,8 @@ export interface MarkdownEditorProps {
    * plain text, as the renderer prints them.
    */
   cloze?: boolean
+  /** Where a photo added from the toolbar is kept (its course, its section); no photo button without it. */
+  photos?: { courseId: Id; sectionId?: Id }
 }
 
 const Impl = lazyChunk('editor', () => import('./MarkdownEditorImpl.tsx'))
@@ -29,7 +32,7 @@ export function MarkdownEditor(props: MarkdownEditorProps) {
       fallback={
         // The editor's own frame, toolbar included: what sits below does not move when the editor arrives.
         <div className={styles.frame} aria-busy="true">
-          <Toolbar source={false} />
+          <Toolbar source={false} photo={props.photos !== undefined} />
           <p className={cx(styles.host, styles.loading)}>{t('common.edLoading')}</p>
         </div>
       }

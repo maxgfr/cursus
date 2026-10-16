@@ -30,7 +30,41 @@
 .group {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 2px;
+}
+
+.formats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* A format in effect where the caret is. */
+.formats [aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+/* On a phone the formats scroll sideways in one row instead of taking a third of the screen. */
+@media (max-width: 599px) {
+  .formats {
+    flex: 1 1 0%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .formats .group {
+    flex-wrap: nowrap;
+  }
+
+  /* The formats take all the room the history leaves them. */
+  .spacer {
+    display: none;
+  }
 }
 
 .spacer {
@@ -38,31 +72,150 @@
 }
 
 .divider {
+  flex: none;
   width: 1px;
   height: 1.5rem;
   margin-inline: var(--space-1);
   background: var(--hairline);
 }
 
-.mode {
+.more {
+  position: relative;
+}
+
+.menu {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: calc(100% + var(--space-1));
+  inset-inline-end: 0;
+  min-width: 15rem;
+  padding: var(--space-1);
+  border: var(--hairline-width) solid var(--hairline);
+  border-radius: var(--radius-surface);
+  background: var(--surface-raised);
+  box-shadow: var(--lift);
+}
+
+.switch {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   min-height: 2.75rem;
   padding: 0 var(--space-3);
-  border: 0;
   border-radius: var(--radius-control);
-  background: transparent;
-  color: var(--ink-2);
-  font-size: var(--text-footnote);
-  font-weight: 600;
   cursor: pointer;
 }
 
-.mode[aria-pressed="true"] {
-  background: var(--accent-soft);
+.switch:hover {
+  background: var(--surface-pressed);
+}
+
+.switch input {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+/* The small editor of a link, a formula or a table, next to it. */
+.popover {
+  position: fixed;
+  z-index: 30;
+  display: grid;
+  gap: var(--space-3);
+  width: min(24rem, calc(100vw - 2 * var(--space-4)));
+  max-height: calc(100dvh - 2 * var(--space-4));
+  overflow: auto;
+  padding: var(--space-4);
+  border: var(--hairline-width) solid var(--hairline);
+  border-radius: var(--radius-surface);
+  background: var(--surface-raised);
+  color: var(--ink);
+  box-shadow: var(--lift);
+}
+
+.popoverForm {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.popoverActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.latex {
+  width: 100%;
+  min-height: 5rem;
+  padding: var(--space-2) var(--space-3);
+  border: var(--hairline-width) solid var(--hairline-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: max(16px, var(--text-body));
+  resize: vertical;
+}
+
+.latex:focus-visible {
+  border-color: var(--focus);
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+}
+
+.preview {
+  min-height: 2.75rem;
+  overflow-x: auto;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--bg);
+}
+
+.caption {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+  font-weight: 600;
+}
+
+.grid {
+  display: grid;
+  gap: var(--space-1);
+  overflow-x: auto;
+}
+
+.grid input {
+  min-width: 6rem;
+  min-height: 2.75rem;
+  padding: var(--space-1) var(--space-2);
+  border: var(--hairline-width) solid var(--hairline-strong);
+  border-radius: var(--radius-small);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: max(16px, var(--text-body));
+}
+
+.grid .head {
+  font-weight: 600;
+}
+
+.grid input:focus-visible {
+  border-color: var(--focus);
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+}
+
+.openLink {
+  overflow-wrap: anywhere;
   color: var(--accent-ink);
 }
 
-.mode:hover:not([aria-pressed="true"]) {
-  background: var(--surface-pressed);
+.failed {
+  margin: 0;
+  padding: var(--space-2) var(--space-4) 0;
+  color: var(--danger);
+  font-size: var(--text-footnote);
 }
 
 .host {

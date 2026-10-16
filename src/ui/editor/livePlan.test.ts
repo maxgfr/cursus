@@ -2,12 +2,16 @@ import { describe, expect, test } from 'bun:test'
 import { ensureSyntaxTree } from '@codemirror/language'
 import { EditorSelection, EditorState } from '@codemirror/state'
 import {
+  hiddenPrefix,
   type LiveItem,
+  linkAt,
   liveMarkdown,
+  mathAt,
   pendingEmphasis,
   planBlocks,
   planInline,
   planLive,
+  tableAt,
   tableCellOffset,
   wordNear,
 } from './livePlan.ts'
@@ -55,20 +59,16 @@ describe('inline syntax', () => {
     expect(hidden(items, doc)).toEqual(['**', '**', '*', '*', '~~', '~~', '`', '`'])
   })
 
-  test('caret inside one element: only its markers come back, dimmed', () => {
+  test('the caret inside an element: its markers stay hidden, as in a word processor', () => {
     const at = doc.indexOf('bold') + 2
     const items = plan(doc, at)
-    expect(marked(items, doc, 'cm-md-mark')).toEqual(['**', '**'])
-    expect(hidden(items, doc)).toEqual(['*', '*', '~~', '~~', '`', '`'])
+    expect(marked(items, doc, 'cm-md-mark')).toEqual([])
+    expect(hidden(items, doc)).toEqual(['**', '**', '*', '*', '~~', '~~', '`', '`'])
+    expect(hidden(plan(doc, doc.indexOf('**,') + 2), doc)).toHaveLength(8)
   })
 
-  test('caret right after the closing marker still counts as inside', () => {
-    const items = plan(doc, doc.indexOf('**,') + 2)
-    expect(marked(items, doc, 'cm-md-mark')).toContain('**')
-  })
-
-  test('a selection across elements reveals them all', () => {
-    expect(hidden(plan(doc, [0, doc.length]), doc)).toEqual([])
+  test('a selection across elements shows no Markdown either', () => {
+    expect(hidden(plan(doc, [0, doc.length]), doc)).toHaveLength(8)
   })
 
   test('unfocused: everything drawn, wherever the selection is', () => {
@@ -76,11 +76,12 @@ describe('inline syntax', () => {
     expect(hidden(planLive(s, false), doc)).toHaveLength(8)
   })
 
-  test('a link shows its text, its brackets and URL hidden', () => {
+  test('a link shows its text, its brackets and URL hidden, the caret on it or not', () => {
     const d = 'See [the docs](https://example.com) now'
-    const items = plan(d)
-    expect(marked(items, d, 'cm-md-link')).toEqual(['the docs'])
-    expect(hidden(items, d)).toEqual(['[', '](https://example.com)'])
+    for (const items of [plan(d), plan(d, d.indexOf('docs'))]) {
+      expect(marked(items, d, 'cm-md-link')).toEqual(['the docs'])
+      expect(hidden(items, d)).toEqual(['[', '](https://example.com)'])
+    }
   })
 
   test('an escape hides its backslash', () => {
@@ -127,7 +128,14 @@ describe('blocks', () => {
     const h1 = items.find((i) => i.kind === 'line' && i.cls === 'cm-md-h cm-md-h1')
     expect(h1?.kind === 'line' ? h1.attrs : undefined).toEqual({ role: 'heading', 'aria-level': '2' })
     expect(hidden(items, d)).toEqual(['# ', '## '])
-    expect(hidden(plan(d, 3), d)).toEqual(['## '])
+    expect(hidden(plan(d, 3), d)).toEqual(['# ', '## '])
+  })
+
+  test('a lone # or > being typed shows as typed until a space follows', () => {
+    expect(hidden(plan('#', 1), '#')).toEqual([])
+    expect(marked(plan('#', 1), '#', 'cm-md-mark')).toEqual(['#'])
+    expect(hidden(plan('# ', 2), '# ')).toEqual(['# '])
+    expect(marked(plan('>', 1), '>', 'cm-md-mark')).toEqual(['>'])
   })
 
   test('bullet and numbered lists: markers drawn, numbers counted as the renderer does', () => {
@@ -143,28 +151,31 @@ describe('blocks', () => {
     ])
   })
 
-  test('a list marker comes back when the caret is on it, not when it starts the text', () => {
+  test('a list marker stays drawn with the caret on it; a lone - being typed shows as typed', () => {
     const d = '- one'
-    expect(plan(d, 0).filter((i) => i.kind === 'listMark')).toEqual([])
+    expect(plan(d, 0).filter((i) => i.kind === 'listMark')).toHaveLength(1)
     expect(plan(d, 2).filter((i) => i.kind === 'listMark')).toHaveLength(1)
+    expect(plan('-', 1).filter((i) => i.kind === 'listMark')).toEqual([])
+    expect(marked(plan('-', 1), '-', 'cm-md-mark')).toEqual(['-'])
   })
 
-  test('task items become checkboxes', () => {
+  test('task items become checkboxes, the space after the box going with it', () => {
     const d = '- [ ] todo\n- [x] done'
-    const tasks = plan(d).flatMap((i) => (i.kind === 'task' ? [i.checked] : []))
-    expect(tasks).toEqual([false, true])
+    const items = plan(d, 7)
+    expect(items.flatMap((i) => (i.kind === 'task' ? [i.checked] : []))).toEqual([false, true])
+    expect(items.flatMap((i) => (i.kind === 'task' ? [d.slice(i.from, i.to)] : []))).toEqual(['[ ] ', '[x] '])
   })
 
-  test('blockquote lines, > hidden off the line', () => {
+  test('blockquote lines, > hidden on every line', () => {
     const d = '> quoted\n> more'
     const items = plan(d, d.length)
     expect(lineClasses(items, d).filter(([, c]) => c === 'cm-md-quote')).toHaveLength(2)
-    expect(hidden(items, d)).toEqual(['> '])
+    expect(hidden(items, d)).toEqual(['> ', '> '])
   })
 
-  test('horizontal rule drawn off its line', () => {
+  test('horizontal rule drawn, the caret on its line or not', () => {
     expect(plan('a\n\n---\n\nb').filter((i) => i.kind === 'rule')).toHaveLength(1)
-    expect(plan('a\n\n---\n\nb', 4).filter((i) => i.kind === 'rule')).toHaveLength(0)
+    expect(plan('a\n\n---\n\nb', 4).filter((i) => i.kind === 'rule')).toHaveLength(1)
   })
 
   test('fenced code: one block of lines, fences folded away when the caret is out', () => {
@@ -177,11 +188,11 @@ describe('blocks', () => {
     expect(hidden(plan(d, d.indexOf('let')), d)).toEqual([])
   })
 
-  test('a table is drawn whole off it, shown as source on it', () => {
+  test('a table is drawn whole, the caret in it or not (it is edited as a grid)', () => {
     const d = 'a\n\n| x | y |\n| --- | --- |\n| 1 | 2 |\n\nb'
     const table = plan(d, 0).find((i) => i.kind === 'table')
     expect(table?.kind === 'table' ? table.source : '').toBe('| x | y |\n| --- | --- |\n| 1 | 2 |')
-    expect(plan(d, d.indexOf('1 |')).some((i) => i.kind === 'table')).toBe(false)
+    expect(plan(d, d.indexOf('1 |')).some((i) => i.kind === 'table')).toBe(true)
   })
 
   test('blank lines between blocks stand for the gap; touching blocks get it as padding', () => {
@@ -195,13 +206,13 @@ describe('blocks', () => {
 })
 
 describe('maths', () => {
-  test('inline maths drawn off the caret, source on it', () => {
+  test('inline maths drawn, the caret on it or not (it is edited in its own field)', () => {
     const d = 'Area $\\pi r^2$ here'
     const math = plan(d, 0).find((i) => i.kind === 'math')
     expect(math).toEqual({ kind: 'math', from: 5, to: 14, source: '$\\pi r^2$', block: false })
     const on = plan(d, 8)
-    expect(on.some((i) => i.kind === 'math')).toBe(false)
-    expect(marked(on, d, 'cm-md-mathSource')).toEqual(['$\\pi r^2$'])
+    expect(on.find((i) => i.kind === 'math')).toEqual(math)
+    expect(marked(on, d, 'cm-md-mathSource')).toEqual([])
   })
 
   test('as the renderer: no maths for $$ inline, a price, or emphasis inside a formula', () => {
@@ -230,11 +241,11 @@ describe('maths', () => {
     expect(plan('$$\nx\n\ny').some((i) => i.kind === 'math')).toBe(false)
   })
 
-  test('block maths with the caret in it: source lines', () => {
+  test('block maths with the caret in it: still drawn, never its source lines', () => {
     const d = '$$\nx\n$$'
     const items = plan(d, 3)
-    expect(items.some((i) => i.kind === 'math')).toBe(false)
-    expect(lineClasses(items, d).filter(([, c]) => c === 'cm-md-mathLine')).toHaveLength(3)
+    expect(items.some((i) => i.kind === 'math' && i.block)).toBe(true)
+    expect(lineClasses(items, d).filter(([, c]) => c === 'cm-md-mathLine')).toHaveLength(0)
   })
 })
 
@@ -252,13 +263,13 @@ describe('cloze and photos', () => {
     expect(marked(plan(d), d, 'cm-md-cloze')).toEqual([])
   })
 
-  test('a photo alone on its line, then beside text, then with the caret on it', () => {
+  test('a photo alone on its line, then beside text (the caret on it changes nothing)', () => {
     const ref = `![Skeleton](cursus-blob:${SHA})`
     const d = `${ref}\n\nSee ${ref}`
-    const photos = plan(d, d.length).flatMap((i) => (i.kind === 'photo' ? [[i.alt, i.sha, i.alone, i.active]] : []))
+    const photos = plan(d, d.length).flatMap((i) => (i.kind === 'photo' ? [[i.alt, i.sha, i.alone]] : []))
     expect(photos).toEqual([
-      ['Skeleton', SHA, true, false],
-      ['Skeleton', SHA, false, true],
+      ['Skeleton', SHA, true],
+      ['Skeleton', SHA, false],
     ])
   })
 })
@@ -297,7 +308,7 @@ describe('what the renderer prints, the editor draws', () => {
   test("a drawn rule's line is only the rule", () => {
     const d = 'a\n\n---\n\nb'
     expect(lineClasses(plan(d), d)).toContainEqual(['---', 'cm-md-ruleLine'])
-    expect(lineClasses(plan(d, 4), d)).not.toContainEqual(['---', 'cm-md-ruleLine'])
+    expect(lineClasses(plan(d, 4), d)).toContainEqual(['---', 'cm-md-ruleLine'])
   })
 
   test('a task checkbox knows its task', () => {
@@ -308,16 +319,16 @@ describe('what the renderer prints, the editor draws', () => {
 
 describe('reveal and windows', () => {
   test('the reveal can differ from the selection (held while a pointer selects)', () => {
-    const d = 'Some **bold** word'
-    const s = state(d, d.indexOf('bold') + 1)
+    const d = 'The {{c1::Seine}} flows'
+    const s = state(d, d.indexOf('Seine') + 1)
     expect(hidden(planLive(s, true), d)).toEqual([])
-    expect(hidden(planLive(s, true, { reveal: [] }), d)).toEqual(['**', '**'])
+    expect(hidden(planLive(s, true, { reveal: [] }), d)).toEqual(['{{c1::', '}}'])
   })
 
   test('drawn blocks come from planBlocks only; their lines are left alone by planInline', () => {
     const d = 'a\n\n| x | y |\n| --- | --- |\n| 1 | 2 |\n\n$$\nx^2\n$$\n\nb'
     const s = state(d, 0)
-    expect(planBlocks(s, true).map((i) => i.kind)).toEqual(['table', 'math'])
+    expect(planBlocks(s).map((i) => i.kind)).toEqual(['table', 'math'])
     const inline = planInline(s, true)
     expect(inline.some((i) => i.kind === 'table' || (i.kind === 'math' && i.block))).toBe(false)
     expect(lineClasses(inline, d).some(([, c]) => c === 'cm-md-tableSource' || c === 'cm-md-mathLine')).toBe(false)
@@ -338,6 +349,49 @@ describe('reveal and windows', () => {
     expect(part.map(key).every((k) => whole.includes(k))).toBe(true)
     expect(inBlock.every((k) => part.map(key).includes(k))).toBe(true)
     expect(part.length).toBeLessThan(20)
+  })
+})
+
+describe('where the caret goes, and what it is on', () => {
+  test("the hidden syntax that starts a line: a heading's #, a quote, a list marker, a task's box", () => {
+    const prefix = (d: string, pos = d.length) => {
+      const p = hiddenPrefix(state(d), pos)
+      return p ? d.slice(p.from, p.to) : null
+    }
+    expect(prefix('## Title')).toBe('## ')
+    expect(prefix('> quoted')).toBe('> ')
+    expect(prefix('- item')).toBe('- ')
+    expect(prefix('1. item')).toBe('1. ')
+    expect(prefix('- [ ] todo')).toBe('- [ ] ')
+    expect(prefix('> - quoted item')).toBe('> - ')
+    expect(prefix('- one\n  - deep', 9)).toBe('  - ')
+    // Inline syntax at a line's start is not a line prefix: the caret may sit before a bold word.
+    expect(prefix('**bold** text')).toBeNull()
+    expect(prefix('plain')).toBeNull()
+    expect(prefix('#tag')).toBeNull()
+  })
+
+  test('the link, the formula or the table at a position', () => {
+    const d = 'See [the docs](https://e.com/a) and $x^2$.\n\n| a | b |\n| - | - |\n| 1 | 2 |'
+    const s = state(d)
+    expect(linkAt(s, d.indexOf('docs'))).toEqual({
+      from: 4,
+      to: d.indexOf(')') + 1,
+      textFrom: 5,
+      textTo: 13,
+      url: 'https://e.com/a',
+    })
+    expect(linkAt(s, 0)).toBeNull()
+    expect(mathAt(s, d.indexOf('x^2'))).toEqual({
+      from: d.indexOf('$'),
+      to: d.indexOf('$.') + 1,
+      block: false,
+      latex: 'x^2',
+    })
+    expect(mathAt(state('$$\n\\frac{1}{2}\n$$'), 0)?.latex).toBe('\\frac{1}{2}')
+    const table = tableAt(s, d.indexOf('| 1'))
+    expect(table?.source).toBe('| a | b |\n| - | - |\n| 1 | 2 |')
+    expect(tableAt(s, 0)).toBeNull()
   })
 })
 

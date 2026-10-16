@@ -200,6 +200,8 @@ export default function Source() {
   const { source, sectionId } = found
   const home = to.place(source.courseId, sectionId)
   const notes = rt.ws.text({ id: source.id, field: 'body' })
+  // Photos added from the editor are kept with the source's own.
+  const photos = { courseId: source.courseId, ...(sectionId === null ? {} : { sectionId }) }
   const remove = () => {
     rt.ws.sources.trash(source.id)
     leaveTo(home)
@@ -213,6 +215,7 @@ export default function Source() {
             text={notes}
             label={source.kind === 'note' ? t('common.sourceTitle') : t('course.sourceNotes')}
             placeholder={source.kind === 'note' ? t('common.sourceEmpty') : t('course.notesEmpty')}
+            photos={photos}
           />
         </>
       ) : (
@@ -222,7 +225,12 @@ export default function Source() {
           <Original source={source} page={page} />
           <details className={styles.notes} open={notes.length > 0}>
             <summary className={styles.notesTitle}>{t('course.myNotes')}</summary>
-            <MarkdownEditor text={notes} label={t('course.sourceNotes')} placeholder={t('course.notesEmpty')} />
+            <MarkdownEditor
+              text={notes}
+              label={t('course.sourceNotes')}
+              placeholder={t('course.notesEmpty')}
+              photos={photos}
+            />
           </details>
         </>
       )}

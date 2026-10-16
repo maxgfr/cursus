@@ -436,6 +436,7 @@ export default function CardEditor() {
                 text={draft.front}
                 label={kind === 'cloze' ? t('course.clozeText') : t('course.front')}
                 cloze={kind === 'cloze'}
+                photos={{ courseId: card.courseId, sectionId: card.sectionId ?? undefined }}
               />
               <CardPhotos
                 text={draft.front}
@@ -450,7 +451,11 @@ export default function CardEditor() {
               <h2 id="card-back" className={styles.label}>
                 {kind === 'cloze' ? t('course.extra') : t('course.back')}
               </h2>
-              <MarkdownEditor text={draft.back} label={kind === 'cloze' ? t('course.extra') : t('course.back')} />
+              <MarkdownEditor
+                text={draft.back}
+                label={kind === 'cloze' ? t('course.extra') : t('course.back')}
+                photos={{ courseId: card.courseId, sectionId: card.sectionId ?? undefined }}
+              />
               <CardPhotos
                 text={draft.back}
                 value={fields.back}

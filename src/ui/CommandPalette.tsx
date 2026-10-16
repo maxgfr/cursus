@@ -129,6 +129,8 @@ export function CommandPalette() {
 
   useEffect(() => {
     const onKey = (e: globalThis.KeyboardEvent) => {
+      // Taken already (in the text editor, ⌘K makes a link).
+      if (e.defaultPrevented) return
       if ((e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         // The native dialog is the truth: Escape closes it before its close event reaches React.

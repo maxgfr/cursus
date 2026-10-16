@@ -25,7 +25,7 @@ export interface Span {
  * selection, turned into CodeMirror decorations by `livePreview.ts`.
  */
 export type LiveItem =
-  /** Syntax hidden while the caret is elsewhere (`**`, `#`, `>`, a link's URL…). */
+  /** Syntax hidden (`**`, `#`, `>`, a link's URL…): the text reads as written, never as Markdown. */
   | { kind: 'hide'; from: number; to: number }
   /** Inline styling (`cm-md-strong`, `cm-md-code`, `cm-md-mark` for visible syntax…). */
   | { kind: 'mark'; from: number; to: number; cls: string }
@@ -41,7 +41,7 @@ export type LiveItem =
   | { kind: 'task'; from: number; to: number; checked: boolean; text: string }
   /** `---`, drawn as the rule. */
   | { kind: 'rule'; from: number; to: number }
-  /** A stored photo; `alone` when its line holds nothing else, `active` when the selection is on that line. */
+  /** A stored photo; `alone` when its line holds nothing else (its reference is never shown). */
   | {
       kind: 'photo'
       from: number
@@ -51,13 +51,12 @@ export type LiveItem =
       lineFrom: number
       lineTo: number
       alone: boolean
-      active: boolean
     }
 
 export interface PlanOptions {
   /**
-   * Where the syntax comes back to be edited (the selection by default). The view holds it still while a pointer
-   * selects, so the text does not move under the pointer.
+   * Where the little syntax that is edited as typed comes back (a code block's fences, a cloze's braces): the
+   * selection by default. The view holds it still while a pointer selects, so the text does not move under it.
    */
   reveal?: readonly Span[]
   /** Only the blocks over this stretch are planned (the part of the text near the screen); the whole text by default. */
@@ -103,7 +102,7 @@ function revealOf(state: EditorState, focused: boolean, options: PlanOptions): r
  * drawn blocks (`planInline` and `planBlocks`), together.
  */
 export function planLive(state: EditorState, focused: boolean, options: PlanOptions = {}): LiveItem[] {
-  return [...planInline(state, focused, options), ...planBlocks(state, focused, options)]
+  return [...planInline(state, focused, options), ...planBlocks(state)]
 }
 
 /** The top-level block that holds `pos`, or `pos` itself between blocks. */
@@ -125,10 +124,6 @@ export function planInline(state: EditorState, focused: boolean, options: PlanOp
   const start = blockEdge(tree, Math.max(0, within.from), -1)
   const end = blockEdge(tree, Math.min(doc.length, within.to), 1)
   const touches = toucher(revealOf(state, focused, options))
-  const lineTouched = (pos: number) => {
-    const l = doc.lineAt(pos)
-    return touches(l.from, l.to)
-  }
   const out: LiveItem[] = []
   const verbatim: [number, number][] = []
   const hide = (from: number, to: number) => {
@@ -143,11 +138,13 @@ export function planInline(state: EditorState, focused: boolean, options: PlanOp
   const lines = (from: number, to: number, cls: string) => {
     for (let n = doc.lineAt(from).number, last = doc.lineAt(to).number; n <= last; n++) line(doc.line(n).from, cls)
   }
-  /** Syntax shown dimmed while the caret is on its element, hidden otherwise. */
+  /** Syntax shown dimmed while the caret is on its element, hidden otherwise (fences, cloze braces). */
   const syntax = (from: number, to: number, active: boolean) => (active ? mark(from, to, 'cm-md-mark') : hide(from, to))
-  const children = (node: SyntaxNode, name: string, active: boolean) => {
-    for (const c of node.getChildren(name)) syntax(c.from, c.to, active)
+  const children = (node: SyntaxNode, name: string) => {
+    for (const c of node.getChildren(name)) hide(c.from, c.to)
   }
+  /** A block marker (`#`, `>`, `-`) counts once a space follows it: a lone `#` or `-` being typed shows as typed. */
+  const spaced = (to: number) => SPACE.test(doc.sliceString(to, to + 1))
   const spacesAfter = (pos: number) => {
     let p = pos
     while (p < doc.length && SPACE.test(doc.sliceString(p, p + 1))) p++
@@ -190,64 +187,57 @@ export function planInline(state: EditorState, focused: boolean, options: PlanOp
               n === doc.lineAt(from).number ? { role: 'heading', 'aria-level': String(level + 1) } : undefined,
             )
           }
-          if (underline) syntax(underline.from, underline.to, touches(from, to))
+          if (underline) hide(underline.from, underline.to)
           return false
         }
         case 'HeaderMark': {
-          const active = lineTouched(from)
           const parent = node.parent
-          if (parent && from === parent.from) syntax(from, active ? to : spacesAfter(to), active)
-          else syntax(active ? from : spacesBefore(from, doc.lineAt(from).from), to, active)
+          if (parent && from === parent.from) {
+            if (spaced(to)) hide(from, spacesAfter(to))
+            else mark(from, to, 'cm-md-mark')
+          } else hide(spacesBefore(from, doc.lineAt(from).from), to)
           return
         }
         case 'Emphasis':
           mark(from, to, 'cm-md-em')
-          children(node, 'EmphasisMark', touches(from, to))
+          children(node, 'EmphasisMark')
           return
         case 'StrongEmphasis':
           mark(from, to, 'cm-md-strong')
-          children(node, 'EmphasisMark', touches(from, to))
+          children(node, 'EmphasisMark')
           return
         case 'Strikethrough':
           mark(from, to, 'cm-md-strike')
-          children(node, 'StrikethroughMark', touches(from, to))
+          children(node, 'StrikethroughMark')
           return
         case 'InlineCode':
           verbatim.push([from, to])
           mark(from, to, 'cm-md-code')
-          children(node, 'CodeMark', touches(from, to))
+          children(node, 'CodeMark')
           return false
         case 'InlineMath':
           verbatim.push([from, to])
-          if (touches(from, to)) {
-            mark(from, to, 'cm-md-mathSource')
-            children(node, 'InlineMathMark', true)
-          } else out.push({ kind: 'math', from, to, source: doc.sliceString(from, to), block: false })
+          out.push({ kind: 'math', from, to, source: doc.sliceString(from, to), block: false })
           return false
-        case 'BlockMath': {
+        case 'BlockMath':
           verbatim.push([from, to])
-          const first = doc.lineAt(from)
-          const last = doc.lineAt(to)
-          // Drawn whole by `planBlocks`.
-          if (node.parent?.name === 'Document' && !touches(first.from, last.to)) return false
+          // Drawn whole by `planBlocks`; nested in a list or a quote, its lines read as source.
+          if (node.parent?.name === 'Document') return false
           lines(from, to, 'cm-md-mathLine')
-          children(node, 'BlockMathMark', true)
+          for (const c of node.getChildren('BlockMathMark')) mark(c.from, c.to, 'cm-md-mark')
           return false
-        }
         case 'Link': {
           const [open, close] = node.getChildren('LinkMark')
           if (!open || !close || close.from < open.to) return
           mark(open.to, close.from, 'cm-md-link')
-          const active = touches(from, to)
-          syntax(open.from, open.to, active)
-          if (active) mark(close.from, to, 'cm-md-mark')
-          else hide(close.from, to)
+          hide(open.from, open.to)
+          hide(close.from, to)
           return
         }
         case 'Autolink': {
           const url = node.getChild('URL')
           if (url) mark(url.from, url.to, 'cm-md-link')
-          children(node, 'LinkMark', touches(from, to))
+          children(node, 'LinkMark')
           return false
         }
         case 'URL':
@@ -259,16 +249,16 @@ export function planInline(state: EditorState, focused: boolean, options: PlanOp
         case 'Image':
           return false
         case 'Escape':
-          if (!touches(from, to)) hide(from, from + 1)
+          hide(from, from + 1)
           return
         case 'Blockquote':
           lines(from, to, 'cm-md-quote')
           return
-        case 'QuoteMark': {
-          const active = lineTouched(from)
-          syntax(from, active ? to : Math.min(spacesAfter(to), to + 1), active)
+        case 'QuoteMark':
+          if (spaced(to)) hide(from, Math.min(spacesAfter(to), to + 1))
+          else if (doc.lineAt(from).to > to) hide(from, to)
+          else mark(from, to, 'cm-md-mark')
           return
-        }
         case 'ListMark': {
           const item = node.parent
           const list = item?.parent
@@ -277,8 +267,8 @@ export function planInline(state: EditorState, focused: boolean, options: PlanOp
           const l = doc.lineAt(from)
           const start = spacesBefore(from, l.from)
           line(from, 'cm-md-li', { style: `--md-depth: ${depth}` })
-          // The marker comes back as typed when the caret is on it (not when it only starts the item's text).
-          if (touches(start, to)) {
+          // A marker being typed (no space after it yet) shows as typed.
+          if (!spaced(to)) {
             mark(from, to, 'cm-md-mark')
             return
           }
@@ -308,20 +298,17 @@ export function planInline(state: EditorState, focused: boolean, options: PlanOp
           }
           return
         }
-        case 'TaskMarker':
-          if (touches(from, to)) mark(from, to, 'cm-md-mark')
-          else {
-            const text = doc.sliceString(to, doc.lineAt(to).to).trim()
-            out.push({ kind: 'task', from, to, checked: /x/i.test(doc.sliceString(from, to)), text })
-          }
+        case 'TaskMarker': {
+          const text = doc.sliceString(to, doc.lineAt(to).to).trim()
+          // The space after the box goes with it: the caret never lands between the two.
+          const end = doc.sliceString(to, to + 1) === ' ' ? to + 1 : to
+          out.push({ kind: 'task', from, to: end, checked: /x/i.test(doc.sliceString(from, to)), text })
           return
+        }
         case 'HorizontalRule':
-          if (lineTouched(from)) mark(from, to, 'cm-md-mark')
-          else {
-            // The line is as tall as the rule: the blank lines around it make the gap, as the rule's margins do.
-            line(from, 'cm-md-ruleLine')
-            out.push({ kind: 'rule', from, to })
-          }
+          // The line is as tall as the rule: the blank lines around it make the gap, as the rule's margins do.
+          line(from, 'cm-md-ruleLine')
+          out.push({ kind: 'rule', from, to })
           return
         case 'FencedCode':
         case 'CodeBlock': {
@@ -354,14 +341,11 @@ export function planInline(state: EditorState, focused: boolean, options: PlanOp
           }
           return false
         }
-        case 'Table': {
-          const first = doc.lineAt(from)
-          const last = doc.lineAt(to)
-          // Drawn whole by `planBlocks`.
-          if (node.parent?.name === 'Document' && !touches(first.from, last.to)) return false
+        case 'Table':
+          // Drawn whole by `planBlocks`; nested in a list or a quote, its lines read as source.
+          if (node.parent?.name === 'Document') return false
           lines(from, to, 'cm-md-tableSource')
           return
-        }
         default:
           return
       }
@@ -407,18 +391,17 @@ export function planInline(state: EditorState, focused: boolean, options: PlanOp
 
 /**
  * The blocks drawn in place of their lines (tables and `$$…$$` formulas at the top level, photos alone on their
- * line) and every photo of the text. Few, so the whole text is read: they decide the text's height.
+ * line) and every photo of the text. Few, so the whole text is read: they decide the text's height. Always drawn:
+ * a formula or a table is edited in its own field, never as source in the text.
  */
-export function planBlocks(state: EditorState, focused: boolean, options: PlanOptions = {}): LiveItem[] {
+export function planBlocks(state: EditorState): LiveItem[] {
   const { doc } = state
   const tree = ensureSyntaxTree(state, doc.length, 200) ?? syntaxTree(state)
-  const touches = toucher(revealOf(state, focused, options))
   const out: LiveItem[] = []
   for (let block = tree.topNode.firstChild; block; block = block.nextSibling) {
     if (block.name !== 'Table' && block.name !== 'BlockMath') continue
     const first = doc.lineAt(block.from)
     const last = doc.lineAt(block.to)
-    if (touches(first.from, last.to)) continue
     if (block.name === 'Table') {
       out.push({ kind: 'table', from: first.from, to: last.to, source: doc.sliceString(first.from, last.to) })
     } else {
@@ -447,7 +430,6 @@ export function planBlocks(state: EditorState, focused: boolean, options: PlanOp
       lineFrom: l.from,
       lineTo: l.to,
       alone: l.text.trim() === m[0],
-      active: touches(l.from, l.to),
     })
   }
   return out
@@ -531,4 +513,102 @@ export function wordNear(state: EditorState, pos: number): Span | null {
     if (w) return { from: w.from, to: w.to }
   }
   return null
+}
+
+/** Hidden syntax that starts a line: indentation, a heading's `#`, a quote's `>`. */
+const BLOCK_PREFIX = /^(?:\s+|#{1,6}\s*|>\s?)$/
+
+/**
+ * The syntax hidden at the start of `pos`'s line (a heading's `## `, `> `, a list marker, a task's box, a list item's
+ * indentation): the caret never sits inside it, so what is typed goes into the heading, the quote or the item.
+ */
+export function hiddenPrefix(state: EditorState, pos: number): Span | null {
+  const { doc } = state
+  const line = doc.lineAt(pos)
+  const items = planInline(state, false, { within: { from: line.from, to: line.to }, cloze: false })
+  let end = line.from
+  for (;;) {
+    const next = items.find(
+      (i) =>
+        (i.kind === 'listMark' ||
+          i.kind === 'task' ||
+          (i.kind === 'hide' && BLOCK_PREFIX.test(doc.sliceString(i.from, i.to)))) &&
+        i.from <= end &&
+        i.to > end &&
+        i.to <= line.to,
+    )
+    if (!next || next.kind === 'line') break
+    end = next.to
+  }
+  return end > line.from ? { from: line.from, to: end } : null
+}
+
+/** The innermost node named one of `names` around `pos` (either side of it), or null. */
+function around(state: EditorState, pos: number, names: ReadonlySet<string>): SyntaxNode | null {
+  const tree = ensureSyntaxTree(state, state.doc.length, 200) ?? syntaxTree(state)
+  for (const side of [1, -1] as const) {
+    for (let n: SyntaxNode | null = tree.resolveInner(pos, side); n; n = n.parent) if (names.has(n.name)) return n
+  }
+  return null
+}
+
+/** A link in the text: the whole `[text](url)`, where its text sits, and its address. */
+export interface LinkSpan extends Span {
+  textFrom: number
+  textTo: number
+  url: string
+}
+
+const LINK = new Set(['Link'])
+
+export function linkAt(state: EditorState, pos: number): LinkSpan | null {
+  const node = around(state, pos, LINK)
+  if (!node) return null
+  const [open, close] = node.getChildren('LinkMark')
+  if (!open || !close) return null
+  const url = node.getChild('URL')
+  return {
+    from: node.from,
+    to: node.to,
+    textFrom: open.to,
+    textTo: close.from,
+    url: url ? state.doc.sliceString(url.from, url.to) : '',
+  }
+}
+
+/** A formula in the text: the whole `$…$` or `$$…$$`, and its LaTeX. */
+export interface MathSpan extends Span {
+  block: boolean
+  latex: string
+}
+
+const MATH = new Set(['InlineMath', 'BlockMath'])
+
+export function mathAt(state: EditorState, pos: number): MathSpan | null {
+  const node = around(state, pos, MATH)
+  if (!node) return null
+  const block = node.name === 'BlockMath'
+  const marks = node.getChildren(block ? 'BlockMathMark' : 'InlineMathMark')
+  const first = marks[0]
+  const last = marks.at(-1)
+  const inner =
+    first && last && last.from > first.from
+      ? state.doc.sliceString(first.to, last.from)
+      : state.doc.sliceString(node.from, node.to)
+  return { from: node.from, to: node.to, block, latex: block ? inner.replace(/^\n|\n$/g, '') : inner }
+}
+
+/** A table in the text: its lines, whole. */
+export interface TableSpan extends Span {
+  source: string
+}
+
+const TABLE = new Set(['Table'])
+
+export function tableAt(state: EditorState, pos: number): TableSpan | null {
+  const node = around(state, pos, TABLE)
+  if (!node) return null
+  const from = state.doc.lineAt(node.from).from
+  const to = state.doc.lineAt(node.to).to
+  return { from, to, source: state.doc.sliceString(from, to) }
 }

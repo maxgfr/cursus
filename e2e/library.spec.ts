@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import AxeBuilder from '@axe-core/playwright'
 import { expect, type Page, test } from '@playwright/test'
+import { showMarkdown } from './support/editor.ts'
 
 test.use({ serviceWorkers: 'block' })
 
@@ -295,10 +296,9 @@ test('Card editor: the cloze assistant hides phrases and previews one card each'
   // The text reads with its answers marked; its Markdown source holds the deletions.
   const text = page.getByRole('textbox', { name: 'Text' })
   await expect(text.locator('.cm-md-cloze')).toHaveText(['nucleus', 'DNA'])
-  const source = page.getByRole('button', { name: 'Show the Markdown source' }).first()
-  await source.click()
+  await showMarkdown(page, text, true)
   await expect(text).toContainText('The {{c1::nucleus}} holds the {{c2::DNA::molecule}}.')
-  await source.click()
+  await showMarkdown(page, text, false)
   const preview = page.getByRole('list', { name: '2 cards from this text' })
   await expect(preview.getByRole('listitem')).toHaveText([
     '1The [...] holds the DNA.',

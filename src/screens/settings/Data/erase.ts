@@ -1,9 +1,10 @@
 import { ONBOARDED_KEY } from '../../../app/onboarding.ts'
 import { CACHE_PREFIX } from '../../../core/ai/local'
 import { DB_NAME } from '../../../core/storage/idbStore'
+import { SHOW_MARKDOWN_KEY } from '../../../ui/editor/prefs.ts'
 
 /** The device flags the app keeps in `localStorage`. */
-const DEVICE_KEYS = [ONBOARDED_KEY]
+const DEVICE_KEYS = [ONBOARDED_KEY, SHOW_MARKDOWN_KEY]
 
 export interface EraseHooks {
   /** Closes this page's own connection to the library first, so it does not hold the deletion. */

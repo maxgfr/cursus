@@ -1,5 +1,6 @@
 import { join } from 'node:path'
 import { expect, type Locator, type Page, test } from '@playwright/test'
+import { sourceText } from './support/editor.ts'
 import { createCourse, isPhone, watchErrors } from './support/page.ts'
 
 // The Markdown editor reads as the renderer draws it while it is written; the stored text stays plain Markdown.
@@ -15,18 +16,6 @@ async function newNote(page: Page, course: string): Promise<Locator> {
   const editor = page.getByRole('textbox', { name: 'Source' })
   await expect(editor).toBeVisible()
   return editor
-}
-
-/** The raw Markdown, line by line, as the source view shows it. */
-async function sourceText(page: Page, editor: Locator): Promise<string> {
-  const frame = page.locator('div[class*="frame"]', { has: editor }).last()
-  const toggle = frame.getByRole('button', { name: 'Show the Markdown source' })
-  await toggle.click()
-  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
-  const text = await editor.evaluate((el) => [...el.querySelectorAll('.cm-line')].map((l) => l.textContent).join('\n'))
-  await toggle.click()
-  await expect(toggle).toHaveAttribute('aria-pressed', 'false')
-  return text
 }
 
 const blur = (editor: Locator) => editor.evaluate((el) => (el as HTMLElement).blur())
@@ -98,7 +87,7 @@ function textBox(root: Locator, text: string): Promise<{ left: number; right: nu
 
 const selected = (page: Page) => page.evaluate(() => document.getSelection()?.toString() ?? '')
 
-test('bold shows as it is typed, its asterisks hide once the caret leaves; undo, source view, stored text', async ({
+test('bold shows as it is typed, its asterisks gone once closed and never back; undo, source view, stored text', async ({
   page,
 }) => {
   const errors = watchErrors(page)
@@ -111,20 +100,25 @@ test('bold shows as it is typed, its asterisks hide once the caret leaves; undo,
   await expect(strong).toHaveText('bo')
   expect(Number(await strong.evaluate((el) => getComputedStyle(el).fontWeight))).toBeGreaterThanOrEqual(600)
 
-  // Closed and left behind: bold, the asterisks gone from sight.
+  // Closed: bold, the asterisks gone from sight.
   await page.keyboard.type('ld** after')
   await expect(strong).toHaveText('bold')
   await expect(editor).toHaveText('Plain bold after')
-  // Back on the bold word: its syntax comes back to be edited.
-  for (let i = 0; i < ' after'.length; i++) await page.keyboard.press('ArrowLeft')
-  await expect(editor).toHaveText('Plain **bold** after')
+  // Back on the bold word, as in a word processor: no syntax comes back, the caret steps over the hidden **, and
+  // typing at the word's end makes the word longer, still bold.
+  for (let i = 0; i < ' after'.length + 1; i++) await page.keyboard.press('ArrowLeft')
+  await expect(editor).toHaveText('Plain bold after')
+  await page.keyboard.type('er')
+  await expect(strong).toHaveText('bolder')
+  await page.keyboard.press('Backspace')
+  await page.keyboard.press('Backspace')
   await page.keyboard.press('End')
   await expect(editor).toHaveText('Plain bold after')
 
   // One more edit (after the undo manager's 500 ms grouping window), then undone.
   await page.waitForTimeout(700)
   await page.keyboard.type(' and *more*')
-  await expect(editor.locator('.cm-md-em')).toHaveText('*more*')
+  await expect(editor.locator('.cm-md-em')).toHaveText('more')
   await page.getByRole('button', { name: 'Undo' }).click()
   await expect(editor.locator('.cm-md-em')).toHaveCount(0)
   await expect(editor).toContainText('Plain')
@@ -138,7 +132,9 @@ test('bold shows as it is typed, its asterisks hide once the caret leaves; undo,
   expect(errors).toEqual([])
 })
 
-test('a heading, a list and inline maths render in the editor, their syntax back under the caret', async ({ page }) => {
+test('a heading, a list and inline maths render in the editor; a tap on the formula edits it in its own field', async ({
+  page,
+}) => {
   const errors = watchErrors(page)
   const editor = await newNote(page, 'Live blocks')
   await editor.click()
@@ -157,14 +153,22 @@ test('a heading, a list and inline maths render in the editor, their syntax back
   await expect(editor).not.toContainText('#')
   await expect(editor).not.toContainText('$')
 
-  // A tap on the formula opens its source; on the heading, its #.
-  await editor.locator('.cm-md-math').click()
-  await expect(editor).toContainText('$\\pi r^2$')
+  // A tap on the heading: still no #. A tap on the formula opens its editor, its LaTeX drawn as typed.
   await heading.click()
-  await expect(editor).toContainText('# Membranes')
+  await expect(editor).not.toContainText('#')
+  await editor.locator('.cm-md-math').click()
+  const dialog = page.getByRole('dialog', { name: 'Math' })
+  const latex = dialog.getByRole('textbox', { name: 'Formula (LaTeX)' })
+  await expect(latex).toHaveValue('\\pi r^2')
+  await expect(latex).toBeFocused()
+  await latex.fill('\\pi r^3')
+  await expect(dialog.locator('.katex')).toHaveCount(1)
+  await dialog.getByRole('button', { name: 'Apply' }).click()
+  await expect(dialog).toBeHidden()
+  await expect(editor).not.toContainText('$')
   await expect(editor.locator('.cm-md-math .katex')).toHaveCount(1)
 
-  expect(await sourceText(page, editor)).toBe(markdown)
+  expect(await sourceText(page, editor)).toBe(markdown.replace('r^2', 'r^3'))
   expect(errors).toEqual([])
 })
 
@@ -371,13 +375,14 @@ test('a double click selects the drawn word; a drag ends where it is released', 
   await page.mouse.move((from.left + to.right) / 2, (from.top + to.bottom) / 2, { steps: 5 })
   await page.mouse.move(to.right, (to.top + to.bottom) / 2, { steps: 5 })
   await page.mouse.up()
-  // The link's address and the table's source come back once the button is up; the selection stays put.
-  await expect(editor).toContainText(url)
+  // Neither the link's address nor the table's source shows; the selection stays where it was released.
+  await expect(editor).not.toContainText(url)
+  await expect(editor).not.toContainText('|---|')
   await expect.poll(() => selected(page)).toMatch(/^Intro[\s\S]*target$/)
   expect(errors).toEqual([])
 })
 
-test('arrows enter a drawn table or formula; a tap on a cell puts the caret in it', async ({ page }) => {
+test('arrows go past a drawn table or formula; a tap on one edits it in its own editor', async ({ page }) => {
   const errors = watchErrors(page)
   const editor = await newNote(page, 'Live arrows')
   await editor.click()
@@ -388,34 +393,37 @@ test('arrows enter a drawn table or formula; a tap on a cell puts the caret in i
   await expect(table).toHaveCount(1)
   await expect(formula).toHaveCount(1)
 
+  // The caret moves through the text; the table and the formula stay drawn, their source never shown.
   await editor.getByText('before').click()
   await page.keyboard.press('End')
-  await page.keyboard.press('ArrowDown')
-  await page.keyboard.press('ArrowDown')
-  await expect(table).toHaveCount(0)
-  await expect(editor).toContainText('| a | b |')
-
-  await editor.getByText('after').click()
+  for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowDown')
   await expect(table).toHaveCount(1)
-  await page.keyboard.press('Home')
-  await page.keyboard.press('ArrowUp')
-  await page.keyboard.press('ArrowUp')
-  await expect(table).toHaveCount(0)
-  await expect(editor).toContainText('| 1 | 2 |')
-
-  await editor.getByText('end', { exact: true }).click()
   await expect(formula).toHaveCount(1)
-  await page.keyboard.press('Home')
-  await page.keyboard.press('ArrowUp')
-  await page.keyboard.press('ArrowUp')
-  await expect(formula).toHaveCount(0)
-  await expect(editor).toContainText('x^2')
+  await expect(editor).not.toContainText('| a | b |')
+  await expect(editor).not.toContainText('$$')
 
-  await blur(editor)
+  // The table as a grid of cells.
   await table.locator('td').first().click()
-  await expect(table).toHaveCount(0)
-  await page.keyboard.type('Z')
-  expect(await sourceText(page, editor)).toContain('| Z1 | 2 |')
+  const grid = page.getByRole('dialog', { name: 'Table' })
+  const cell = grid.getByRole('textbox', { name: 'Row 2, column 1' })
+  await expect(cell).toHaveValue('1')
+  await cell.fill('Z1')
+  await grid.getByRole('button', { name: 'Add a row' }).click()
+  await grid.getByRole('textbox', { name: 'Row 3, column 2' }).fill('4')
+  await grid.getByRole('button', { name: 'Apply' }).click()
+  await expect(grid).toBeHidden()
+  await expect(table.locator('td')).toHaveText(['Z1', '2', '', '4'])
+
+  // The formula in its field; Escape leaves it as it was.
+  await formula.click()
+  const math = page.getByRole('dialog', { name: 'Math' })
+  await expect(math.getByRole('textbox', { name: 'Formula (LaTeX)' })).toHaveValue('x^2')
+  await page.keyboard.press('Escape')
+  await expect(math).toBeHidden()
+
+  const stored = await sourceText(page, editor)
+  expect(stored).toContain('| a | b |\n| --- | --- |\n| Z1 | 2 |\n|  | 4 |')
+  expect(stored).toContain('$$\nx^2\n$$')
   expect(errors).toEqual([])
 })
 
@@ -429,7 +437,8 @@ test('toolbar: Bold toggles, Heading and List take what is typed next; stars tha
   await page.keyboard.press('Shift+Home')
   const button = (name: string) => page.getByRole('toolbar', { name: 'Formatting' }).getByRole('button', { name })
   await button('Bold').click()
-  await expect(editor.locator('.cm-md-strong')).toHaveText('**word**')
+  await expect(editor.locator('.cm-md-strong')).toHaveText('word')
+  await expect(button('Bold')).toHaveAttribute('aria-pressed', 'true')
   await button('Bold').click()
   await expect(editor.locator('.cm-md-strong')).toHaveCount(0)
   await expect(editor).toHaveText('word')
@@ -438,8 +447,9 @@ test('toolbar: Bold toggles, Heading and List take what is typed next; stars tha
   await page.keyboard.type(' 2*3=6')
   await expect(editor.locator('.cm-md-em')).toHaveCount(0)
   await page.keyboard.press('Enter')
-  await button('Heading').click()
+  await button('Heading 2').click()
   await page.keyboard.type('Title')
+  await expect(button('Heading 2')).toHaveAttribute('aria-pressed', 'true')
   await expect(editor.getByRole('heading', { name: 'Title' })).toBeVisible()
   await page.keyboard.press('Enter')
   await button('Bulleted list').click()
