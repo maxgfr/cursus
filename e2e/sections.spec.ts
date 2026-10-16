@@ -367,7 +367,9 @@ test('a new study sheet starts from the Study sheets tab, not the header, and is
   await expect(toSheet).toHaveCount(0)
   await newSection(page, 'Stems')
   await newCard(page, 'Stem question')
-  await expect(main.getByRole('button', { name: 'Quiz me' })).toBeVisible()
+  // A section with no source of its own has nothing to be quizzed on: Quiz me waits for one.
+  await expect(main.getByRole('heading', { level: 1, name: 'Stems' })).toBeVisible()
+  await expect(main.getByRole('button', { name: 'Quiz me' })).toHaveCount(0)
   await expect(toSheet).toHaveCount(0)
   await crumb(page, 'Biology')
   await expect(toSheet).toHaveCount(0)
