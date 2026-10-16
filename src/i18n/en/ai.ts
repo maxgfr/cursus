@@ -48,6 +48,7 @@ export const ai = {
   openSettings: 'Open AI settings',
   pastedSource: 'Pasted text',
   unknownSource: 'Removed source',
+  citedCard: 'Card: {front}',
   citePage: '{source}, p. {page}',
   openCitation: 'Open source: {source}',
   failed: 'The AI request failed: {reason}',

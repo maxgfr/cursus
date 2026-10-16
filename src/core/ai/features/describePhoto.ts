@@ -81,15 +81,21 @@ export interface PhotoRequest<T> {
   schema: z.ZodType<T>
 }
 
+/** The photos of a message, each introduced by a <<<PHOTO id="...">>> line and its caption, then the image. */
+export function photoParts(photos: readonly LabelledPhoto[]): Exclude<UserContent, string> {
+  return photos.flatMap((p) => {
+    const caption = p.caption?.trim() ? `\nCaption: ${fence(p.caption.trim())}` : ''
+    return [
+      { type: 'text' as const, text: `<<<PHOTO id="${p.photoId}">>>${caption}` },
+      { type: 'file' as const, data: { type: 'data' as const, data: p.image.bytes }, mediaType: p.image.mediaType },
+    ]
+  })
+}
+
 /** One structured call with the photos attached as images; usage is reported like the other features. */
 export async function askAboutPhotos<T>(ctx: FeatureCtx, req: PhotoRequest<T>): Promise<T> {
   if (!canSeeImages(ctx.info)) throw new VisionRequiredError(ctx.info.name)
-  const content: UserContent = [{ type: 'text', text: req.prompt }]
-  for (const p of req.photos) {
-    const caption = p.caption?.trim() ? `\nCaption: ${fence(p.caption.trim())}` : ''
-    content.push({ type: 'text', text: `<<<PHOTO id="${p.photoId}">>>${caption}` })
-    content.push({ type: 'file', data: { type: 'data', data: p.image.bytes }, mediaType: p.image.mediaType })
-  }
+  const content: UserContent = [{ type: 'text', text: req.prompt }, ...photoParts(req.photos)]
   const messages: ModelMessage[] = [{ role: 'user', content }]
   // Billed whether the answer parses or not; streamed when the screen shows the answer as it comes.
   return generateStructured(ctx, { feature: req.feature, system: req.system, messages, schema: req.schema })

@@ -47,7 +47,13 @@ function textOf(body: Body): string {
     .join('\n')
 }
 
-const noteId = (prompt: string) => /<<<SOURCE id="([^"]+)">>>/.exec(prompt)?.[1] ?? 'missing-note'
+/** The note's passage among those sent (the chat sends the student's cards too). */
+const noteId = (prompt: string) =>
+  /<<<SOURCE id="([^"]+)">>>\nThe mitochondrion produces ATP/.exec(prompt)?.[1] ??
+  /<<<SOURCE id="([^"]+)">>>/.exec(prompt)?.[1] ??
+  'missing-note'
+/** A card the student wrote, sent as a passage the answer may cite. */
+const cardId = (prompt: string) => /<<<SOURCE id="([^"]+)">>>\nCard question: Powerhouse/.exec(prompt)?.[1]
 
 /** An OpenAI-compatible stream of `deltas`, as the provider sends a streamed chat completion. */
 function sse(deltas: string[]): string {
@@ -139,6 +145,7 @@ async function mockProvider(page: Page): Promise<string[]> {
     }
     if (body.stream === true && text.includes('study tutor')) {
       const note = noteId(text)
+      const card = cardId(text)
       return route.fulfill({
         status: 200,
         headers: { ...CORS, 'cache-control': 'no-cache' },
@@ -147,7 +154,7 @@ async function mockProvider(page: Page): Promise<string[]> {
           'Your notes say the mitochondrion ',
           `produces ATP [[source:${note}]]`,
           ' through respiration [[source:INVENTED]].',
-          '\n\n- **Key idea**: respiration releases energy',
+          `\n\n- **Key idea**: respiration releases energy${card ? ` [[source:${card}]]` : ''}`,
         ]),
       })
     }
@@ -210,16 +217,20 @@ test('from a course: the chat knows the course, streams a cited answer and its c
   const panel = chatPanel(page, info.project.name)
   await expect(panel).toBeVisible()
   await expect(panel.getByText('About: Biology')).toBeVisible()
-  // The chat converses: the course's AI features are on its screen, not here.
-  await expect(panel.getByRole('list', { name: 'Actions for this screen' })).toHaveCount(0)
+  // A new thread on a course starts from a suggestion about it; the course's AI features stay on its screen.
+  expect(await actionNames(panel)).toEqual(['Summarise this course', 'What should I review?'])
 
   await ask(panel, 'Where is ATP made?')
+  await expect(panel.getByRole('list', { name: 'Actions for this screen' })).toHaveCount(0)
   await expect(panel.getByText(/Your notes say the mitochondrion produces ATP/)).toBeVisible()
   const sent = prompts.at(-1) ?? ''
   expect(sent).toContain('Course: Biology')
   expect(sent).toContain('Where is ATP made?')
   expect(sent).toContain('<<<SOURCE id=')
-  // One citation: the note. The invented id was dropped.
+  // What the student wrote in the course goes along, citable like a source.
+  expect(sent).toContain('Card question: Powerhouse of the cell?\nCard answer: The mitochondrion')
+  await expect(panel.getByRole('link', { name: 'Open source: Card: Powerhouse of the cell?' })).toHaveCount(1)
+  // One citation of the note. The invented id was dropped.
   const citation = panel.getByRole('link', { name: 'Open source: Cell notes' })
   await expect(citation).toHaveCount(1)
   await expect(panel).not.toContainText('INVENTED')
@@ -350,7 +361,7 @@ async function actionNames(panel: Locator): Promise<string[]> {
   return row.getByRole('listitem').allInnerTexts()
 }
 
-test('the panel only converses: no action on a card, a source or a course; on a quiz question, help to approach it', async ({
+test('the panel suggests a start for what is on screen: none in review, one on a source, two on a course; on a quiz question, help to approach it', async ({
   page,
 }, info) => {
   const errors = watchErrors(page)
@@ -375,13 +386,13 @@ test('the panel only converses: no action on a card, a source or a course; on a 
   await openNote(page)
   if (phone) await openChat(page)
   await expect(panel.getByText('About: Cell notes')).toBeVisible()
-  await expect(row).toHaveCount(0)
+  expect(await actionNames(panel)).toEqual(['Explain this source'])
   if (phone) await panel.getByRole('button', { name: 'Close' }).click()
 
   await openCourse(page)
   if (phone) await openChat(page)
   await expect(panel.getByText('About: Biology')).toBeVisible()
-  await expect(row).toHaveCount(0)
+  expect(await actionNames(panel)).toEqual(['Summarise this course', 'What should I review?'])
   if (phone) await panel.getByRole('button', { name: 'Close' }).click()
 
   // A quiz question: one guided turn, never its answer.
@@ -791,12 +802,15 @@ test('on a 375 px phone in German the chat fills the screen: one header row, onl
     expect(after.x).toBeGreaterThanOrEqual(before.x + before.width)
     return after
   })
-  // On a course the chat only converses: no actions row, the thread ends above the composer.
-  await expect(chat.getByRole('list', { name: 'Aktionen für diesen Bildschirm' })).toHaveCount(0)
+  // On a course a new thread offers its suggestions in one row between the thread and the composer.
+  const row = chat.getByRole('list', { name: 'Aktionen für diesen Bildschirm' })
+  await expect(row.getByRole('button', { name: 'Diesen Kurs zusammenfassen' })).toBeVisible()
   const logBox = await chat.getByRole('log').boundingBox()
+  const rowBox = await row.boundingBox()
   const composerBox = await chat.getByRole('textbox', { name: 'Deine Frage' }).boundingBox()
-  if (!logBox || !composerBox) throw new Error('missing box')
-  expect(logBox.y + logBox.height).toBeLessThanOrEqual(composerBox.y + 1)
+  if (!logBox || !rowBox || !composerBox) throw new Error('missing box')
+  expect(logBox.y + logBox.height).toBeLessThanOrEqual(rowBox.y + 1)
+  expect(rowBox.y + rowBox.height).toBeLessThanOrEqual(composerBox.y + 1)
 
   const box = chat.getByRole('textbox', { name: 'Deine Frage' })
   for (const n of [1, 2, 3, 4]) {
@@ -804,6 +818,8 @@ test('on a 375 px phone in German the chat fills the screen: one header row, onl
     await chat.getByRole('button', { name: 'Senden', exact: true }).click()
     await expect(chat.getByText(`Frage ${n}:`)).toBeVisible()
     await expect(chat.getByRole('button', { name: 'Stopp' })).toHaveCount(0)
+    // Once the thread has begun the suggestions step aside, the thread ending above the composer.
+    await expect(row).toHaveCount(0)
   }
   // The last answer and the composer are on screen; the thread scrolls, the screen does not.
   await expect(chat.getByRole('button', { name: 'Kopieren' }).last()).toBeInViewport()
@@ -984,4 +1000,62 @@ test('on a panel wider than a phone, every action shows whole: none is cut at th
     expect(b && b.x + b.width <= box.x + box.width + 0.5).toBe(true)
   }
   expect(await row.evaluate((r) => r.scrollWidth - r.clientWidth)).toBeLessThanOrEqual(0)
+})
+
+test('on a card of a section, « Explain this card » sends that card whole with the others of its section, and cites it', async ({
+  page,
+}, info) => {
+  const errors = watchErrors(page)
+  await harness.seed(page, {
+    courses: [
+      {
+        title: 'Biology',
+        notes: [{ title: 'Cell notes', body: NOTE_BODY }],
+        sections: [
+          {
+            name: 'Cells',
+            cards: [
+              { front: 'Powerhouse of the cell?', back: 'The mitochondrion' },
+              { front: 'What do ribosomes build?', back: 'Proteins' },
+            ],
+          },
+        ],
+      },
+    ],
+  })
+  const prompts = await mockProvider(page)
+  await configureAi(page, LLM)
+  await openCourse(page)
+  await page.getByRole('main').getByRole('link', { name: /Cells/ }).first().click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Cells' })).toBeVisible()
+  await page.getByRole('radio', { name: 'Cards' }).check()
+  await page
+    .getByRole('main')
+    .getByRole('link', { name: /Powerhouse of the cell\?/ })
+    .click()
+  await expect(page).toHaveURL(/#\/card\//)
+
+  await openChat(page)
+  const panel = chatPanel(page, info.project.name)
+  await expect(panel.getByText('About: this card')).toBeVisible()
+  expect(await actionNames(panel)).toEqual(['Explain this card', 'Give an example'])
+  await panel.getByRole('button', { name: 'Explain this card' }).click()
+  await expect(panel.getByText(/Your notes say the mitochondrion produces ATP/)).toBeVisible()
+  const sent = prompts.at(-1) ?? ''
+  expect(sent).toContain('explain the flashcard on screen')
+  expect(sent).toContain('Flashcard question: Powerhouse of the cell?')
+  // The card whole, first, then the other card of its section; the course's note among the sources.
+  expect(sent).toMatch(
+    /<<<SOURCE id="[^"]+">>>\nCard question: Powerhouse of the cell\?\nCard answer: The mitochondrion/,
+  )
+  expect(sent).toContain('Card question: What do ribosomes build?\nCard answer: Proteins')
+  expect(sent.indexOf('Card question: Powerhouse')).toBeLessThan(sent.indexOf('Card question: What do ribosomes'))
+  expect(sent).toContain('The mitochondrion produces ATP through cellular respiration.')
+  // Cited like a source, the card's link opens it.
+  const cite = panel.getByRole('link', { name: 'Open source: Card: Powerhouse of the cell?' })
+  await expect(cite).toHaveCount(1)
+  await expect(cite).toHaveAttribute('href', /#\/card\//)
+  // The thread has begun: the suggestions step aside.
+  await expect(panel.getByRole('list', { name: 'Actions for this screen' })).toHaveCount(0)
+  expect(errors).toEqual([])
 })

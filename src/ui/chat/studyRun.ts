@@ -37,7 +37,10 @@ export function placeName(ws: ModelWorkspace, place: { courseId: string; section
   return section?.name ?? ws.courses.get(place.courseId)?.title ?? ''
 }
 
-/** Reads the passages of the chosen sources (and of what a model read on chosen photos), cached by choice. */
+/**
+ * Reads the passages of the chosen sources, cached by choice, and what a model read on the chosen photos, read
+ * again each time: a photo read since (here or on its own screen) counts at once, never an earlier « nothing read ».
+ */
 export function chunkLoader(ws: ModelWorkspace, rt: Runtime) {
   const cache = new Map<string, Promise<Chunk[]>>()
   const blobs = blobStore(rt.store)
@@ -53,15 +56,12 @@ export function chunkLoader(ws: ModelWorkspace, rt: Runtime) {
     const key = `${o.sourceIds.map((id) => `${id}:${written(id)}`).join(',')}\u0000${o.pasted}`
     let loading = cache.get(key)
     if (!loading) {
-      const photos = o.sourceIds.filter((id) => ws.sources.get(id)?.kind === 'image')
-      loading = Promise.all([
-        chunksFor(ws, blobs, o.sourceIds, o.pasted, readDeck),
-        readingChunks(rt.store, photos),
-      ]).then(([chunks, read]) => [...chunks, ...read])
+      loading = chunksFor(ws, blobs, o.sourceIds, o.pasted, readDeck)
       cache.set(key, loading)
       loading.catch(() => cache.delete(key))
     }
-    return loading
+    const photos = o.sourceIds.filter((id) => ws.sources.get(id)?.kind === 'image')
+    return Promise.all([loading, readingChunks(rt.store, photos)]).then(([chunks, read]) => [...chunks, ...read])
   }
 }
 

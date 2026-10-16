@@ -283,7 +283,12 @@ function ReviewRun({ sessionId }: { sessionId: Id | null }) {
   const finished = index >= total
   useChatContext(
     card && !finished
-      ? { courseId: card.courseId, card: { front: card.front, back: card.back, revealed } }
+      ? {
+          courseId: card.courseId,
+          cardId: card.id,
+          card: { front: card.front, back: card.back, revealed },
+          review: true,
+        }
       : session?.scope.courseId
         ? { courseId: session.scope.courseId }
         : {},

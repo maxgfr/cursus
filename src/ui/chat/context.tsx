@@ -19,6 +19,10 @@ export interface ScreenContext {
   photoId?: string
   /** The card on screen, its faces as shown; before `revealed`, the chat never gives its answer. */
   card?: { front: string; back: string; revealed: boolean }
+  /** The id of the card on screen: the chat reads its section's other cards around it. */
+  cardId?: string
+  /** The review screen: the card's own help sits below it, so the chat suggests nothing on top. */
+  review?: true
   /** A quiz question being answered. */
   question?: string
 }

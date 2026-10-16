@@ -11,7 +11,7 @@ import {
   useState,
 } from 'react'
 import { Link } from 'wouter'
-import { paths } from '../../app/routes.ts'
+import { paths, to } from '../../app/routes.ts'
 import { useRuntime, useWorkspace } from '../../app/workspaceContext.tsx'
 import {
   type Conversation,
@@ -20,6 +20,7 @@ import {
   listConversations,
   saveConversation,
 } from '../../core/ai/chatStore'
+import { canSeeImages, loadReadings } from '../../core/ai/features/describePhoto'
 import {
   buildTutorTurn,
   type ChatContext,
@@ -30,8 +31,13 @@ import {
   keepValidCitations,
   parseCitations,
   tutorChat,
+  type UnreadPhoto,
 } from '../../core/ai/features/tutorChat'
+import { readWritten } from '../../core/ai/features/writtenContext'
 import type { Chunk } from '../../core/ai/retrieval'
+import { isPhoto } from '../../core/model/photos'
+import { weakCards } from '../../core/model/quizPlan'
+import type { SourceRecord } from '../../core/model/schema'
 import type { ModelWorkspace } from '../../core/model/workspace'
 import { useT } from '../../i18n/react.tsx'
 import { describeFailure } from '../../screens/Review/failure.ts'
@@ -47,11 +53,14 @@ import { actionsFor } from './actions.ts'
 import styles from './ChatPanel.module.css'
 import { type ScreenContext, useChat } from './context.tsx'
 import { LegacyAnswer } from './LegacyAnswer.tsx'
+import { usePhotoImages } from './photoImages.ts'
 import { ResizeHandle } from './ResizeHandle.tsx'
 import { keyed } from './RichAnswer.tsx'
 import { chunkLoader } from './studyRun.ts'
 
 const DOCKED = '(min-width: 1000px)'
+/** Photos not read yet sent along with a question, at most: each costs as much as a page of text. */
+const ATTACHED_PHOTOS = 3
 
 function useDocked(): boolean {
   const [docked, setDocked] = useState(() => window.matchMedia(DOCKED).matches)
@@ -99,7 +108,9 @@ export default function ChatPanel() {
 function describeContext(ws: ModelWorkspace, c: ScreenContext): ChatContext {
   const course = c.courseId ? ws.courses.get(c.courseId) : undefined
   const section = c.sectionId ? ws.sections.get(c.sectionId) : undefined
-  const source = c.sourceId ? ws.sources.get(c.sourceId) : undefined
+  // A photo open is a source of the course too.
+  const sourceId = c.sourceId ?? c.photoId
+  const source = sourceId ? ws.sources.get(sourceId) : undefined
   return {
     ...(course ? { courseTitle: course.title } : {}),
     ...(section ? { sectionTitle: section.name } : {}),
@@ -208,6 +219,35 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
   // The same reading as the study screens: a photo's caption, notes and what a model read on it included.
   const loadChunks = useCallback((ids: string[]): Promise<Chunk[]> => load({ sourceIds: ids, pasted: '' }), [load])
 
+  // Photos nothing was read on yet are sources all the same: a model that sees images gets a reduced copy of a few
+  // (the one on screen first), else they are named as not read yet, and the thread offers to read them.
+  const images = usePhotoImages()
+  const [unread, setUnread] = useState<{ id: string; photoIds: string[] } | null>(null)
+  const unreadPhotos = useCallback(
+    async (photos: readonly SourceRecord[], onScreen: string | undefined): Promise<UnreadPhoto[]> => {
+      if (photos.length === 0 || ai.status !== 'ready') return []
+      const readings = await loadReadings(
+        rt.store,
+        photos.map((p) => p.id),
+      )
+      const read = new Set(readings.map((r) => r.photoId))
+      const left = photos
+        .filter((p) => !read.has(p.id))
+        .sort((a, b) => Number(b.id === onScreen) - Number(a.id === onScreen))
+      const sees = canSeeImages(ai.info)
+      return Promise.all(
+        left.map(async (p, i): Promise<UnreadPhoto> => {
+          const named = { photoId: p.id, title: p.title, ...(p.caption ? { caption: p.caption } : {}) }
+          if (!sees || i >= ATTACHED_PHOTOS) return named
+          // Not on this device yet (on-demand files): named, as a photo not read.
+          const image = await images(p.id).catch(() => undefined)
+          return image ? { ...named, image } : named
+        }),
+      )
+    },
+    [ai, rt, images],
+  )
+
   // Saved one after another, in the order they happened: two quick changes (a card saved, then all the others)
   // never land the older one last.
   const saving = useRef<Promise<void>>(Promise.resolve())
@@ -253,11 +293,20 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
       setLive({ text: '', chunks: [] })
       let text = ''
       let grounded: Chunk[] = []
+      let notRead: string[] = []
       try {
         // Within a course its sources; elsewhere, or without the screen, the library.
         const scoped = screenOn && courseId !== undefined
-        const ids = ws.sources.list(scoped ? { courseId } : undefined).map((s) => s.id)
-        const chunks = await loadChunks(ids)
+        const sources = ws.sources.list(scoped ? { courseId } : undefined)
+        const chunks = await loadChunks(sources.map((s) => s.id))
+        // Within a course, what the student wrote there and its photos nothing was read on yet count too.
+        const photos = scoped ? await unreadPhotos(sources.filter(isPhoto), context.photoId) : []
+        notRead = photos.flatMap((p) => (p.image ? [] : [p.photoId]))
+        const place = scoped ? { courseId, ...(context.sectionId ? { sectionId: context.sectionId } : {}) } : null
+        const onCard =
+          context.cardId && context.card ? { id: context.cardId, hidden: !context.card.revealed } : undefined
+        const weak =
+          place && intent === 'whatToReview' ? weakCards(ws, place, Date.now()).map((w) => w.front) : undefined
         // Written in the language of what is on screen: the card, else the open source, else the course's sources.
         const ctx = await ai.context(ctl.signal, course?.language, [
           cardText(context.card),
@@ -268,8 +317,12 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
           ...describeContext(ws, context),
           ...(excerpt ? { excerpt } : {}),
           ...(intent ? { intent } : {}),
+          ...(weak ? { weak } : {}),
         }
-        const turn = buildTutorTurn(about, history, chunks, ctx.info, ctx.language)
+        const turn = buildTutorTurn(about, history, chunks, ctx.info, ctx.language, undefined, {
+          ...(place ? { written: readWritten(ws, place, onCard) } : {}),
+          photos,
+        })
         grounded = turn.chunks
         for await (const delta of tutorChat(ctx, turn)) {
           text += delta
@@ -283,6 +336,7 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
       }
       if (abort.current === ctl) abort.current = null
       setLive(null)
+      setUnread({ id: conv.id, photoIds: notRead })
       const kept = keepValidCitations(text, grounded).trim()
       const stopped = ctl.signal.aborted
       if (kept === '' && !stopped) return
@@ -293,7 +347,7 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
       setCurrent((c) => (c.id === conv.id ? { ...c, messages } : c))
       persist(conv.id, messages, conv.courseId)
     },
-    [ai, current, screenOn, courseId, ws, loadChunks, course, context, t, persist],
+    [ai, current, screenOn, courseId, ws, loadChunks, unreadPhotos, course, context, t, persist],
   )
 
   const settle = chat?.settle
@@ -338,6 +392,7 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
   const startNew = () => {
     abort.current?.abort()
     setError(null)
+    setUnread(null)
     setShowHistory(false)
     setCurrent({ id: rt.rng.id(), messages: [], ...(courseId ? { courseId } : {}) })
     input.current?.focus()
@@ -364,9 +419,10 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
   })
 
   const chip = chipLabel(t, ws, screen)
-  // On a quiz question, the one guided turn: help to approach it, without its answer. Right above the composer,
-  // within a thumb's reach: one line that scrolls sideways on phones (faded where more is hidden).
-  const actions = actionsFor(t, context)
+  // Suggestions to start a thread on what is on screen (a quiz question: help to approach it, without its answer).
+  // Right above the composer, within a thumb's reach: one line that scrolls sideways on phones (faded where more
+  // is hidden).
+  const actions = actionsFor(t, context, { empty: current.messages.length === 0 && !busy })
   const actionRow = actions.length > 0 && (
     <ul
       ref={actionList}
@@ -543,6 +599,12 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
                   </p>
                 )}
               </Answer>
+            )}
+            {!busy && unread?.id === current.id && unread.photoIds[0] && (
+              <p className={styles.note}>
+                {t('chat.photosUnread', { count: unread.photoIds.length })}{' '}
+                <Link href={to.photo(unread.photoIds[0])}>{t('chat.readPhoto')}</Link>
+              </p>
             )}
             {error && (
               <div className={styles.error} role="alert">

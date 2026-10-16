@@ -129,7 +129,7 @@ export default function CardEditor() {
       : {
           courseId: card.courseId,
           ...(card.sectionId ? { sectionId: card.sectionId } : {}),
-          ...(saved.front.trim() ? { card: { front: saved.front, back: saved.back, revealed: true } } : {}),
+          ...(saved.front.trim() ? { cardId: id, card: { front: saved.front, back: saved.back, revealed: true } } : {}),
         },
   )
 

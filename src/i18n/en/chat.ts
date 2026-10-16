@@ -88,4 +88,17 @@ export const chat = {
   cardSuggested: 'Added to Suggested cards.',
   legacyOpenSheet: 'Open the study sheet',
   legacyOpenPhoto: 'Open the photo',
+  suggestExplainCard: 'Explain this card',
+  suggestExample: 'Give an example',
+  suggestExplainSection: 'Explain this section',
+  suggestSummariseWritten: 'Summarise what I wrote',
+  suggestAskMe: 'Ask me a question',
+  suggestSummariseCourse: 'Summarise this course',
+  suggestWhatToReview: 'What should I review?',
+  suggestExplainSource: 'Explain this source',
+  photosUnread: {
+    one: '{count} photo here has not been read yet.',
+    other: '{count} photos here have not been read yet.',
+  },
+  readPhoto: 'Read the photo',
 } as const

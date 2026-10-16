@@ -73,8 +73,12 @@ up. Nothing is ever generated on its own: adding a note, a PDF, slides or a phot
 
 The chat opens beside any screen (its icon, ⌘J / Ctrl+J, or « Ask about this » in the command palette). It
 knows what the screen shows (a course, a section, a source, a card, a quiz question), answers from the
-course's sources with citations, and never gives a card's answer before it is revealed. Conversations are
-kept on the device, per course, and are not synchronised.
+course's sources and from the cards and study sheets written there (the card or section on screen first) with
+citations, and never gives a card's answer before it is revealed. A photo nothing was read on yet still counts
+as a source: sent along to a model that reads images, otherwise named as not read yet, with a link to read it. A
+new conversation offers two or three suggestions for the screen (« Explain this card », « Explain this
+section », « Summarise this course »…); review keeps its own help below the card. Conversations are kept on the
+device, per course, and are not synchronised.
 
 Every AI action answers in the chat, started from a button where it is needed (a course or section, its Cards and
 Study sheets tabs, a source, slides, a photo, a card in review, Practice) or from the chat's own actions:

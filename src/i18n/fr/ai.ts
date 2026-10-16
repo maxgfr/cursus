@@ -51,6 +51,7 @@ export const ai = {
   openSettings: 'Ouvrir les réglages IA',
   pastedSource: 'Texte collé',
   unknownSource: 'Source supprimée',
+  citedCard: 'Carte : {front}',
   citePage: '{source}, p. {page}',
   openCitation: 'Ouvrir la source : {source}',
   failed: 'La requête IA a échoué : {reason}',

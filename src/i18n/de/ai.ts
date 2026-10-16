@@ -51,6 +51,7 @@ export const ai = {
   openSettings: 'KI-Einstellungen öffnen',
   pastedSource: 'Eingefügter Text',
   unknownSource: 'Entfernte Quelle',
+  citedCard: 'Karte: {front}',
   citePage: '{source}, S. {page}',
   openCitation: 'Quelle öffnen: {source}',
   failed: 'Die KI-Anfrage ist fehlgeschlagen: {reason}',

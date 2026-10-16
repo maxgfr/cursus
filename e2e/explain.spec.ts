@@ -51,7 +51,11 @@ function textOf(body: Body): string {
     .join('\n')
 }
 
-const noteId = (prompt: string) => /<<<SOURCE id="([^"]+)">>>/.exec(prompt)?.[1] ?? 'missing-note'
+/** The note's passage among those sent (the chat sends the student's cards too). */
+const noteId = (prompt: string) =>
+  /<<<SOURCE id="([^"]+)">>>\nThe mitochondrion produces ATP/.exec(prompt)?.[1] ??
+  /<<<SOURCE id="([^"]+)">>>/.exec(prompt)?.[1] ??
+  'missing-note'
 
 /** The question explained by a model that names the answer anyway, in its context. */
 function questionExplanation(prompt: string) {

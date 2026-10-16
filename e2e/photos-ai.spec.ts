@@ -96,7 +96,11 @@ function jpegSize(dataUrl: string): { mime: string; width: number; height: numbe
 
 /** The photo id a prompt introduced (`<<<PHOTO id="…">>>` or a `<<<SOURCE id="…">>>` holding its reading). */
 function citedPhoto(text: string): string {
-  return /<<<SOURCE id="([^"]+)">>>\nKrebs cycle steps/.exec(text)?.[1] ?? 'missing-photo'
+  return (
+    /<<<SOURCE id="([^"]+)">>>\nKrebs cycle steps/.exec(text)?.[1] ??
+    /^<<<PHOTO id="([^"]+)">>>/m.exec(text)?.[1] ??
+    'missing-photo'
+  )
 }
 
 async function mockProvider(page: Page, hold?: Promise<void>): Promise<Sent[]> {
@@ -112,6 +116,7 @@ async function mockProvider(page: Page, hold?: Promise<void>): Promise<Sent[]> {
     let out: unknown = 'OK'
     if (s.text.includes('photographed course material')) out = DESCRIPTION
     else if (s.text.includes('flashcards from photos')) out = CARDS
+    else if (s.text.includes('study tutor')) out = `Citrate starts the cycle [[source:${citedPhoto(s.text)}]].`
     else if (s.text.includes('patient tutor')) {
       const id = citedPhoto(s.text)
       out = {
@@ -355,4 +360,53 @@ test('without a model nothing of the AI shows; with one that reads no images, th
   ).toBeVisible()
   await reading.getByRole('link', { name: 'Open AI settings' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'AI' })).toBeVisible()
+})
+
+test('a course whose only source is a photo: the chat never says there is none, sends it before it is read, then cites its reading', async ({
+  page,
+}, info) => {
+  const sent = await mockProvider(page)
+  await configureAi(page, LLM)
+  const courseId = await courseWithPhotos(page, 'Biochemistry', [LARGE])
+  const course = `./#/course/${encodeURIComponent(courseId)}`
+  const chat = chatPanel(page, info.project.name)
+  const openChat = async () => {
+    if (!(await chat.isVisible()))
+      await page.getByRole('main').getByRole('button', { name: 'Ask about this' }).first().click()
+    await expect(chat.getByRole('textbox', { name: 'Your question' })).toBeVisible()
+  }
+  const askChat = async (question: string) => {
+    await chat.getByRole('textbox', { name: 'Your question' }).fill(question)
+    await chat.getByRole('button', { name: 'Send', exact: true }).click()
+  }
+
+  // Nothing read on it yet: the photo goes along with the question, reduced, and the answer cites it.
+  await page.goto(course)
+  await openChat()
+  await askChat('What starts the cycle?')
+  await expect(chat.getByText('Citrate starts the cycle')).toBeVisible()
+  expect(sent).toHaveLength(1)
+  expect(sent[0]?.text).not.toContain('No sources are available')
+  expect(sent[0]?.images).toHaveLength(1)
+  expect(jpegSize(sent[0]?.images[0] ?? '')).toEqual({ mime: 'image/jpeg', width: 1024, height: 512 })
+  await expect(chat.getByRole('link', { name: /^Open photo: / })).toHaveCount(1)
+  await expect(chat).not.toContainText(/no source/i)
+
+  // Read on its own screen meanwhile: the chat, still open, grounds in the reading at once, no image sent.
+  if (isPhone(info.project.name)) await chat.getByRole('button', { name: 'Close chat' }).click()
+  await page.goto(`${course}/photos`)
+  await openFirstPhoto(page)
+  await explainWithAi(page).click()
+  await expect(readingOf(page).getByText('Krebs cycle steps')).toBeVisible()
+  expect(sent).toHaveLength(2)
+  await page.goto(course)
+  await openChat()
+  await chat.getByRole('button', { name: 'New chat' }).click()
+  await askChat('And then?')
+  await expect(chat.getByText('Citrate starts the cycle')).toBeVisible()
+  expect(sent).toHaveLength(3)
+  expect(sent[2]?.images).toHaveLength(0)
+  expect(sent[2]?.text).toMatch(/<<<SOURCE id="[^"]+">>>\nKrebs cycle steps/)
+  expect(sent[2]?.text).not.toContain('No sources are available')
+  await expect(chat.getByRole('link', { name: /^Open photo: / })).toHaveCount(1)
 })

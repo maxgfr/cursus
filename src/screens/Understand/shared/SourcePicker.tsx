@@ -7,9 +7,11 @@ import type { Chunk } from '../../../core/ai/retrieval'
 import type { SourceRef } from '../../../core/ai/schemas'
 import type { StudyScope } from '../../../core/contracts/workspace'
 import { blobStore } from '../../../core/log/blobs'
+import { clozePlain } from '../../../core/model/cloze'
 import { isPhoto, type Photo, photoLabel, toPhoto } from '../../../core/model/photos'
 import type { SourceRecord } from '../../../core/model/schema'
 import type { SectionTree } from '../../../core/model/sections'
+import type { ModelWorkspace } from '../../../core/model/workspace'
 import { useT } from '../../../i18n/react.tsx'
 import { buttonClass } from '../../../ui/components/Button.tsx'
 import { EmptyState } from '../../../ui/components/EmptyState.tsx'
@@ -230,8 +232,18 @@ export function Citation({ sourceRef }: { sourceRef: SourceRef }) {
   const t = useT()
   const source = useWorkspaceData([{ id: sourceRef.sourceId }], (ws) => ws.sources.get(sourceRef.sourceId))
   const unit = useCitedUnit(source, sourceRef.page)
+  // The chat also cites what the student wrote: a card, a study sheet.
+  const written = useWorkspaceData([{ id: sourceRef.sourceId }], (ws) => writtenCitation(ws, sourceRef.sourceId))
   const label = sourceRef.sourceId === PASTED ? t('ai.pastedSource') : (source?.title ?? t('ai.unknownSource'))
   const text = citationText(t, label, source, sourceRef.page, unit)
+  if (!source && written) {
+    const name = written.kind === 'card' ? t('ai.citedCard', { front: written.name }) : written.name
+    return (
+      <Link href={written.href} className={styles.cite} aria-label={t('ai.openCitation', { source: name })}>
+        {name}
+      </Link>
+    )
+  }
   if (!source) return <span className={styles.cite}>{text}</span>
   if (isPhoto(source)) return <PhotoCitation photo={toPhoto(source)} />
   const href = sourceRef.page === undefined ? to.source(source.id) : `${to.source(source.id)}?page=${sourceRef.page}`
@@ -240,6 +252,27 @@ export function Citation({ sourceRef }: { sourceRef: SourceRef }) {
       {text}
     </Link>
   )
+}
+
+/** Longest card question shown in a citation. */
+const CITED_FRONT_CHARS = 60
+
+/** A cited card (its question) or study sheet (its title), live; null for anything else. */
+function writtenCitation(
+  ws: ModelWorkspace,
+  id: string,
+): { kind: 'card' | 'sheet'; name: string; href: string } | null {
+  const card = ws.cards.get(id)
+  if (card && card.deletedAt === undefined) {
+    const front = clozePlain(ws.text({ id, field: 'front' }).toString())
+      .trim()
+      .replace(/\s+/g, ' ')
+    const name = front.length > CITED_FRONT_CHARS ? `${front.slice(0, CITED_FRONT_CHARS)}…` : front
+    return { kind: 'card', name, href: to.card(id) }
+  }
+  const sheet = ws.fiches.get(id)
+  if (sheet && sheet.deletedAt === undefined) return { kind: 'sheet', name: sheet.title, href: to.fiche(id) }
+  return null
 }
 
 /** A cited photo: its thumbnail and name, opening the photo viewer. */

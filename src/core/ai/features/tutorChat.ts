@@ -29,6 +29,7 @@ import type {
   SourceRef,
   Understanding,
 } from '../schemas'
+import { PHOTO_IMAGE_TOKENS, PHOTOS_RULE, type PhotoImage, photoParts } from './describePhoto'
 import type { AnswerExplanation } from './explainCard'
 import {
   answerTerms,
@@ -39,6 +40,7 @@ import {
   type QuestionExplanation,
 } from './explainQuestion'
 import type { Detail } from './understand'
+import { type WrittenPlace, writtenChunks } from './writtenContext'
 
 type Faces = { front: string; back: string }
 
@@ -150,7 +152,19 @@ export interface ChatMessage {
 }
 
 /** What a guided turn asks of the tutor, beyond the student's words. */
-export type ChatIntent = 'hint' | 'mnemonic' | 'summarise' | 'approach'
+export type ChatIntent =
+  | 'hint'
+  | 'mnemonic'
+  | 'summarise'
+  | 'approach'
+  | 'explainCard'
+  | 'example'
+  | 'explainSection'
+  | 'summariseWritten'
+  | 'askMe'
+  | 'summariseCourse'
+  | 'whatToReview'
+  | 'explainSource'
 
 const INTENTS: Record<ChatIntent, string> = {
   hint: 'The student asks for a hint: give one short hint that points them towards the answer without stating, naming or paraphrasing it.',
@@ -160,6 +174,21 @@ const INTENTS: Record<ChatIntent, string> = {
     'The student asks for a summary of the source open: give its main points as a short list, each cited with its marker.',
   approach:
     'The student asks how to approach the quiz question: give the steps to reason it through, without giving the answer.',
+  explainCard:
+    'The student asks to explain the flashcard on screen: what it asks, why its answer is right and how it connects to the rest, each point cited.',
+  example:
+    'The student asks for an example: give one concrete example of what the flashcard on screen says, cited when the sources cover it.',
+  explainSection:
+    'The student asks to explain the section open: its main ideas and how they connect, from what they wrote there and the sources, each cited.',
+  summariseWritten:
+    'The student asks for a summary of what they wrote here: the main points of their cards and study sheets as a short list, each cited.',
+  askMe:
+    'The student asks to be quizzed: ask one short question on what they wrote here, without its answer, then wait for their reply.',
+  summariseCourse:
+    'The student asks for a summary of the course: its main points as a short list, from what they wrote and the sources, each cited.',
+  whatToReview:
+    'The student asks what to review: name the few points to go over first, the cards they keep getting wrong first, each cited.',
+  explainSource: 'The student asks to explain the source open: what it is about and its main ideas, each cited.',
 }
 
 /** The readable rendition of a structured answer: what the thread says, as the model reads it back. */
@@ -211,6 +240,8 @@ export interface ChatContext {
   excerpt?: string
   /** A guided turn: what the student's action asks for. */
   intent?: ChatIntent
+  /** The questions of the cards the student keeps getting wrong here, for « What should I review? ». */
+  weak?: readonly string[]
 }
 
 export interface TutorTurn {
@@ -250,6 +281,9 @@ function describe(context: ChatContext): string {
   }
   if (context.question) lines.push(`Quiz question being answered: ${fence(context.question)}`)
   if (context.excerpt) lines.push(`Passage the student selected a term in: ${fence(context.excerpt)}`)
+  if (context.weak && context.weak.length > 0) {
+    lines.push(`Cards the student keeps getting wrong here: ${context.weak.map((w) => fence(w)).join(' | ')}`)
+  }
   return lines.length === 0 ? 'The student is browsing their library.' : lines.join('\n')
 }
 
@@ -305,11 +339,37 @@ function fitHistory(history: readonly ChatMessage[], budget: number): { kept: Ch
   return { kept: kept.slice(first), shown: kept.slice(0, first) }
 }
 
+/** A photo of the course a model has not read yet: attached with its pixels when the model sees images. */
+export interface UnreadPhoto {
+  photoId: string
+  title: string
+  caption?: string
+  /** A reduced copy, sent along when the model reads images; without, the photo is only named as not read. */
+  image?: PhotoImage
+}
+
+/** What a turn grounds in besides the sources' passages. */
+export interface TurnExtras {
+  /** What the student wrote where they are: their cards and study sheets, ahead of the sources. */
+  written?: WrittenPlace
+  /** The photos of the course nothing was read on yet: they count as sources, never « no source ». */
+  photos?: readonly UnreadPhoto[]
+}
+
+/** Share of the room left by the system prompt and the history that the student's own writing may take. */
+const WRITTEN_SHARE = 0.5
+/** Most of it, in tokens, whatever the model's context: the sources keep the rest. */
+const WRITTEN_MAX_TOKENS = 16_000
+
+const NO_SOURCES = '\n\nNo sources are available for this question.'
+
 /**
  * The system prompt and messages of one turn, within `info.context_length` minus the answer's reserve: the
- * history keeps its newest messages (half of what the system leaves), the sources relevant to the last
- * question and the screen fill the rest. An answer opening the conversation (an explanation the chat was
- * started from) goes into the system prompt as what the student was shown.
+ * history keeps its newest messages (half of what the system leaves), then what the student wrote here (their
+ * cards and sheets, half of what remains at most), and the sources relevant to the last question and the screen
+ * fill the rest. Photos not read yet go along with the last question when the model sees images, else are named
+ * as not read. An answer opening the conversation (an explanation the chat was started from) goes into the system
+ * prompt as what the student was shown.
  */
 export function buildTutorTurn(
   context: ChatContext,
@@ -318,27 +378,60 @@ export function buildTutorTurn(
   info: CatalogModel,
   language: string,
   scope?: RetrievalScope,
+  extras: TurnExtras = {},
 ): TutorTurn {
   const budget = contextBudget(info.context_length)
   let system = baseSystem(context, language)
-  const { kept, shown } = fitHistory(history, Math.max(0, Math.floor((budget - estimateTokens(system)) / 2)))
+  const photos = extras.photos ?? []
+  const attached = photos.filter((p) => p.image !== undefined)
+  const unread = photos.filter((p) => p.image === undefined)
+  if (attached.length > 0) {
+    system += `\n\n${PHOTOS_RULE} The photos sent with the last message are sources of the course: cite them by their id like the others.`
+  }
+  if (unread.length > 0) {
+    const names = unread.map((p) => `${fence(p.title)} (id ${p.photoId})`).join(', ')
+    system += `\n\nPhotos of the course nothing was read on yet, their content unknown: ${names}. When the question needs them, say in one short sentence that the photo has not been read yet; never say the course has no source.`
+  }
+  const imageTokens = attached.length * PHOTO_IMAGE_TOKENS
+  const { kept, shown } = fitHistory(
+    history,
+    Math.max(0, Math.floor((budget - estimateTokens(system) - imageTokens) / 2)),
+  )
   if (shown.length > 0) {
     system += `\n\nShown to the student before this conversation:\n<<<SCREEN>>>\n${shown.map((m) => fence(m.text)).join('\n\n')}\n<<<END SCREEN>>>`
   }
   const historyTokens = kept.reduce((n, m) => n + tokensOf(m), 0)
+  const room = budget - estimateTokens(system) - historyTokens - imageTokens
+  const written = extras.written
+    ? writtenChunks(extras.written, Math.min(WRITTEN_MAX_TOKENS, Math.max(0, Math.floor(room * WRITTEN_SHARE))))
+    : { chunks: [], omitted: 0 }
+  if (written.chunks.length > 0) {
+    const left =
+      written.omitted > 0 ? `\n(${written.omitted} more of their cards and sheets here were left out for length.)` : ''
+    system += `\n\nWhat the student wrote here, their cards and study sheets, to ground in and cite like the sources:\n${formatSources(written.chunks)}${left}`
+  }
   const head = '\n\nSources:\n'
   const grounded = groundChunks(
     chunks,
     chatQuery(context, history),
     info.context_length,
-    estimateTokens(system + head) + historyTokens,
+    estimateTokens(system + head) + historyTokens + imageTokens,
     scope,
   )
-  system += grounded.length > 0 ? head + formatSources(grounded) : '\n\nNo sources are available for this question.'
+  if (grounded.length > 0) system += head + formatSources(grounded)
+  else if (written.chunks.length === 0 && photos.length === 0) system += NO_SOURCES
+  const last = kept.length - 1
   return {
     system,
-    messages: kept.map((m): ModelMessage => ({ role: m.role, content: m.text })),
-    chunks: grounded,
+    messages: kept.map((m, i): ModelMessage => {
+      if (i !== last || m.role !== 'user' || attached.length === 0) return { role: m.role, content: m.text }
+      const labelled = attached.flatMap((p) =>
+        p.image ? [{ photoId: p.photoId, image: p.image, ...(p.caption ? { caption: p.caption } : {}) }] : [],
+      )
+      return { role: 'user', content: [{ type: 'text', text: m.text }, ...photoParts(labelled)] }
+    }),
+    // Attached photos are cited by their id, as a reading of them would be.
+    chunks: [...written.chunks, ...grounded, ...attached.map((p) => ({ sourceId: p.photoId, text: p.title }))],
   }
 }
 
