@@ -108,7 +108,10 @@ test('Demo: Today comes alive (due cards, exam, next session, nothing suggested)
   await expect(page.getByTestId('exam-lead')).toHaveText('incl. 2 in Membranes · 10 days left')
   await expect(page.getByTestId('session-line')).toHaveText(/^Next session: Weekly review, .+ · Sessions$/)
   await expect(page.getByTestId('drafts-line')).toHaveCount(0)
-  await expect(main.getByRole('link', { name: new RegExp(COURSE) })).toContainText('3 due')
+  // The course's share, and why: its overdue card.
+  const share = main.getByRole('button', { name: new RegExp(COURSE) })
+  await expect(share.getByTestId('course-reason')).toHaveText('1 overdue')
+  await expect(share).toContainText('3 cards · Review this course')
   expect(await seriousViolations(page)).toEqual([])
 
   // « Suggested cards » is empty: suggestions are made only when asked for.
@@ -227,7 +230,7 @@ test('Demo: a review with an illustrated card, the sessions history relaunched, 
 
   // Today's three cards; the new one shows its photo.
   await go(page, '#/', 'Today')
-  await page.getByRole('button', { name: /^Start/ }).click()
+  await page.getByRole('button', { name: /^Review/ }).click()
   let illustrated = 0
   for (let i = 0; i < 3; i++) {
     const question = page.getByTestId('question')
@@ -246,7 +249,7 @@ test('Demo: a review with an illustrated card, the sessions history relaunched, 
   expect(illustrated).toBe(1)
 
   // The history: a counted session started from the weekly plan and a cramming one, each with a missed card to
-  // relaunch; the cramming's missed card already gone over once. Two plans, one a practice of the midterm's subset.
+  // relaunch; the cramming's missed card already gone over once. Two plans, one an exam over the midterm's subset.
   await go(page, '#/sessions', 'Practice')
   const past = page.getByRole('region', { name: 'Past sessions' })
   await expect(past.getByTestId('cramming')).toHaveCount(2)
@@ -318,7 +321,7 @@ test('German, dark: the demo course fits every screen and passes axe', async ({ 
   }
   await expect(page.getByTestId('cramming-tile')).toBeVisible()
   await go(page, '#/', 'Heute')
-  await page.getByRole('button', { name: /^Starten/ }).click()
+  await page.getByRole('button', { name: /^Wiederholen/ }).click()
   await expect(page.getByTestId('question')).toBeVisible()
   await check('review')
   expect(problems).toEqual([])
@@ -483,7 +486,7 @@ for (const locale of ['en', 'de', 'fr'] as const) {
     await expect(main.getByRole('heading', { name: t('ai.inboxEmptyTitle') })).toBeVisible()
     expect(await cutOff(page)).toEqual([])
 
-    // Practice: the planned sessions (one a practice of the midterm's subset), a past one started from a plan, and
+    // Practice: the planned sessions (one an exam over the midterm's subset), a past one started from a plan, and
     // one tap over the course with its counts.
     await go(page, '#/sessions', t('review.practice'))
     const planned = page.getByRole('region', { name: t('review.plannedSessions') })

@@ -9,8 +9,9 @@ import type {
   SessionScope,
 } from '../contracts/workspace'
 import { buildSession } from '../srs/custom'
+import { EXAM_SIZE, examBatch } from '../srs/exam'
 import { type CardState, localOffset } from '../srs/fsrs'
-import type { QueueEntry } from '../srs/queue'
+import { inScope, type QueueCard, type QueueEntry } from '../srs/queue'
 import { EntityNotFoundError } from './repos'
 import { schedulersOf } from './reviewSettings'
 import type { ReviewEvent } from './reviews'
@@ -31,11 +32,55 @@ export function planScope(p: Pick<PlanInput, 'courseId' | 'sectionId'>): Session
   return cleanScope({ courseId: p.courseId, sectionId: p.sectionId })
 }
 
-/** The session a plan starts. */
+/** Whether a plan is an exam (a newer client's unknown mode plans a plain session). */
+export const isExam = (p: Pick<PlanInput, 'mode'>): boolean => p.mode === 'exam'
+
+/** The session a plan starts (an exam's draws its batch: see `startPlan`). */
 export function planSession(p: PlanRecord): NewSession {
   const s: NewSession = { scope: planScope(p), kind: p.kind, practice: p.practice, planId: p.id }
   if (p.limit !== undefined) s.limit = p.limit
   return s
+}
+
+/**
+ * The batch an exam plan's next sitting goes over: `limit` cards of its place (60 without one), those its earlier
+ * sittings went over least lately first, the weakest first among them (see `examBatch`). Reads only.
+ */
+export function examDraw(ws: ModelWorkspace, p: PlanRecord, now: number): Id[] {
+  const scope = planScope(p)
+  const cards = liveCards(ws).filter((c) => inScope(c, scope))
+  const sat = new Map<Id, number>()
+  for (const s of ws.sessions.list())
+    if (s.planId === p.id)
+      for (const r of ws.reviews.forSession(s.id)) sat.set(r.cardId, Math.max(sat.get(r.cardId) ?? r.at, r.at))
+  return examBatch({
+    cards: cards.map((c) => c.id),
+    states: scheduledStates(ws, cards),
+    sat,
+    now,
+    size: p.limit ?? EXAM_SIZE.default,
+  })
+}
+
+/** How many cards a place holds: live, unsuspended, outside any trashed subset. Reads only. */
+export function partSize(ws: ModelWorkspace, scope: SessionScope): number {
+  return liveCards(ws).filter((c) => inScope(c, scope)).length
+}
+
+/**
+ * Starts a plan's session now and returns its id. An exam's is practice, whatever the plan says: its cards come back
+ * until known, and none of those answers may move a review date.
+ */
+export function startPlan(ws: ModelWorkspace, p: PlanRecord, now: number = Date.now()): Id {
+  if (!isExam(p)) return ws.sessions.start(planSession(p))
+  return ws.sessions.start({
+    scope: planScope(p),
+    kind: 'all',
+    practice: true,
+    planId: p.id,
+    mode: 'exam',
+    cardIds: examDraw(ws, p, now),
+  })
 }
 
 /**
@@ -199,23 +244,12 @@ export interface SessionQueueRequest {
  * trashed subset excluded; scheduled states, and new cards in the order, of the review settings. Reads only.
  */
 export function sessionQueue(ws: ModelWorkspace, r: SessionQueueRequest): QueueEntry[] {
-  const live = new Set(ws.courses.list().map((c) => c.id))
-  const tree = ws.sections.tree()
-  const cards = ws.cards
-    .list()
-    .filter((c) => live.has(c.courseId) && c.suspended !== true)
-    .map((c) => ({ id: c.id, courseId: c.courseId, sections: tree.locate(c) }))
+  const cards = liveCards(ws)
   // New cards come in the order of the place studied: a course's own, or all cards'.
   const settings = ws.reviewSettings.forCourse(r.scope?.courseId)
-  const schedulerFor = schedulersOf(ws)
-  const states = new Map<Id, CardState>()
-  for (const c of cards) {
-    const events = ws.reviews.forCard(c.id)
-    if (events.length > 0) states.set(c.id, schedulerFor(c.courseId).replay(c.id, events))
-  }
   return buildSession({
     cards,
-    states,
+    states: scheduledStates(ws, cards),
     reviews: ws.reviews.all(),
     now: r.now,
     tzOffsetMin: r.tzOffsetMin ?? localOffset(r.now),
@@ -228,4 +262,25 @@ export function sessionQueue(ws: ModelWorkspace, r: SessionQueueRequest): QueueE
     ...(r.cardIds ? { cardIds: r.cardIds } : {}),
     practice: r.practice === true,
   })
+}
+
+/** Live, unsuspended cards of live courses, with the subsets they are filed under (those in a trashed one excluded). */
+function liveCards(ws: ModelWorkspace): (QueueCard & { courseId: Id })[] {
+  const live = new Set(ws.courses.list().map((c) => c.id))
+  const tree = ws.sections.tree()
+  return ws.cards
+    .list()
+    .filter((c) => live.has(c.courseId) && c.suspended !== true)
+    .map((c) => ({ id: c.id, courseId: c.courseId, sections: tree.locate(c) }))
+}
+
+/** The scheduled state of each card already reviewed, under its course's review settings. */
+function scheduledStates(ws: ModelWorkspace, cards: readonly { id: Id; courseId: Id }[]): Map<Id, CardState> {
+  const schedulerFor = schedulersOf(ws)
+  const states = new Map<Id, CardState>()
+  for (const c of cards) {
+    const events = ws.reviews.forCard(c.id)
+    if (events.length > 0) states.set(c.id, schedulerFor(c.courseId).replay(c.id, events))
+  }
+  return states
 }

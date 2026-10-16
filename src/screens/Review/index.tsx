@@ -2,12 +2,14 @@ import { Undo2, X } from 'lucide-react'
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { useLocation, useSearch } from 'wouter'
 import { goBack } from '../../app/nav.ts'
-import { paths, sessionFrom, to } from '../../app/routes.ts'
+import { paths, sessionFrom, to, todayShare } from '../../app/routes.ts'
 import { useWorkspace, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { Id, NewReview, Rating } from '../../core/contracts/workspace'
 import { relaunchFailed, sessionQueue, sessionReview } from '../../core/model/sessions'
+import type { ModelWorkspace } from '../../core/model/workspace'
+import { examNext, examProgress } from '../../core/srs/exam'
 import { becameLeech } from '../../core/srs/leech'
-import { intlTag } from '../../i18n/index.ts'
+import { intlTag, type Translate } from '../../i18n/index.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
 import { useAiReady } from '../../ui/ai/ready.ts'
 import { ChatButton } from '../../ui/chat/ChatButton.tsx'
@@ -26,6 +28,7 @@ import { PracticeChip } from '../Sessions/PracticeChip.tsx'
 import { useAiModel } from '../Understand/shared/aiConfig.ts'
 import { Improve } from './Assist.tsx'
 import { Assists } from './Assists.tsx'
+import { ExamDone } from './ExamDone.tsx'
 import { describeFailure } from './failure.ts'
 import { ImproveSheet, type Rewritten } from './ImproveSheet.tsx'
 import styles from './Review.module.css'
@@ -58,6 +61,7 @@ interface Suggestion {
 interface Answered {
   cardId: Id
   reviewId: Id
+  rating: Rating
   /** The grade made the card a leech, and the settings suspended it with the grade. */
   suspended?: true
 }
@@ -67,9 +71,22 @@ function isTyping(target: EventTarget | null): boolean {
   return target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
 }
 
+/** « 42 / 60 known ». */
+const examSaid = (t: Translate, p: { known: number; total: number }): string =>
+  t('review.examProgress', { known: p.known, total: p.total })
+
+/** An exam's batch as it stands: a card trashed or suspended since it was drawn leaves it. */
+function liveBatch(ws: ModelWorkspace, cardIds: readonly Id[]): Id[] {
+  return cardIds.filter((id) => {
+    const c = ws.cards.get(id)
+    return c !== undefined && c.deletedAt === undefined && c.suspended !== true
+  })
+}
+
 /**
  * Review focus view: one card at a time, nothing else on screen. Opened for a custom session (`?session=…`), it
- * runs that session's queue; relaunching its missed cards starts a fresh run.
+ * runs that session's queue; relaunching its missed cards starts a fresh run. An exam's queue grows one card at a
+ * time, each chosen from the answers so far, until its whole batch is known.
  */
 export default function Review() {
   const asked = sessionFrom(useSearch())
@@ -84,10 +101,18 @@ function ReviewRun({ sessionId }: { sessionId: Id | null }) {
   const [, navigate] = useLocation()
   const study = useStudy()
   const scope = useScopeOnce()
+  const search = useSearch()
+  const [share] = useState(() => todayShare(search))
   const [session] = useState(() => (sessionId === null ? undefined : ws.sessions.get(sessionId)))
+  const exam = session?.mode === 'exam'
+  const batch = useCallback(() => liveBatch(ws, session?.cardIds ?? []), [ws, session])
   const [start] = useState(() => {
     const now = Date.now()
-    if (session === undefined) return startQueue(ws, now, scope ?? undefined)
+    if (session === undefined) return startQueue(ws, now, scope ?? undefined, share)
+    if (exam) {
+      const first = examNext(batch(), [])
+      return { queue: first === null ? [] : [first], learning: [] }
+    }
     const { scope: where, kind, limit, practice, cardIds } = session
     const queue = sessionQueue(ws, {
       scope: where,
@@ -157,7 +182,13 @@ function ReviewRun({ sessionId }: { sessionId: Id | null }) {
           }
           return id
         })
-        setAnswered((a) => [...a, { cardId: card.id, reviewId, ...(leech ? { suspended: true as const } : {}) }])
+        const done: Answered = { cardId: card.id, reviewId, rating, ...(leech ? { suspended: true as const } : {}) }
+        setAnswered((a) => [...a, done])
+        if (exam) {
+          // The next card follows from every answer so far; undoing this one takes it back.
+          const next = examNext(batch(), [...answered, done])
+          setQueue((q) => [...q.slice(0, index + 1), ...(next === null ? [] : [{ id: next, returnOf: reviewId }])])
+        }
         setSuspended(leech ? card.id : null)
         setError(null)
         setIndex((i) => i + 1)
@@ -166,7 +197,7 @@ function ReviewRun({ sessionId }: { sessionId: Id | null }) {
         setError(describeFailure(e, t))
       }
     },
-    [card, revealed, ws, t, session],
+    [card, revealed, ws, t, session, exam, batch, answered, index],
   )
 
   const undo = useCallback(() => {
@@ -188,8 +219,15 @@ function ReviewRun({ sessionId }: { sessionId: Id | null }) {
   }, [answered, ws, t, index])
 
   const skip = useCallback(() => {
+    if (exam) {
+      // The card left the batch (suspended): the next one follows from the answers so far.
+      const next = examNext(batch(), answered)
+      const cause = answered.at(-1)?.reviewId ?? null
+      setQueue((q) => [...q.slice(0, index), ...(next === null ? [] : [{ id: next, returnOf: cause }])])
+      return
+    }
     setQueue((q) => q.filter((e, i) => i < index || e.id !== currentId))
-  }, [currentId, index])
+  }, [currentId, index, exam, batch, answered])
 
   // One listener for the whole session, reading the state of the latest render. In place as the first card
   // paints (a layout effect, not one run after the paint): a key pressed as soon as the card shows is never lost.
@@ -268,11 +306,11 @@ function ReviewRun({ sessionId }: { sessionId: Id | null }) {
   // have changed that since it was appended).
   const entry = queue[index]
   useEffect(() => {
-    if (entry?.returnOf === undefined) return
+    if (exam || entry?.returnOf === undefined) return
     const at = Date.now()
     if (returning(ws, [entry.id], at).some((p) => p.due <= at)) return
     setQueue((q) => q.filter((e) => e !== entry))
-  }, [entry, ws])
+  }, [entry, ws, exam])
   useEffect(() => {
     if (nextAt === null) return
     const timer = setInterval(() => setNow(Date.now()), 1000)
@@ -306,7 +344,10 @@ function ReviewRun({ sessionId }: { sessionId: Id | null }) {
             skip()
           }}
           remaining={total - done}
+          {...(exam ? { progress: examSaid(t, examProgress(batch(), answered)) } : {})}
         />
+      ) : session !== undefined && exam && (session.cardIds?.length ?? 0) > 0 ? (
+        <ExamDone session={session} batch={batch()} answers={answered} onLeave={leave} />
       ) : session !== undefined ? (
         <SessionDone
           session={session}
@@ -362,9 +403,21 @@ interface CardStageProps {
   onGraded: (rating: Rating, feedback: string) => void
   onSuspend: () => void
   remaining: number
+  /** Said instead of what remains (an exam: how many of its batch are known). */
+  progress?: string
 }
 
-function CardStage({ card, revealed, onReveal, onRate, suggested, onGraded, onSuspend, remaining }: CardStageProps) {
+function CardStage({
+  card,
+  revealed,
+  onReveal,
+  onRate,
+  suggested,
+  onGraded,
+  onSuspend,
+  remaining,
+  progress,
+}: CardStageProps) {
   const t = useT()
   const ws = useWorkspace()
   const [improving, setImproving] = useState(false)
@@ -391,7 +444,7 @@ function CardStage({ card, revealed, onReveal, onRate, suggested, onGraded, onSu
     <div className={styles.main}>
       {/* The session's one progress readout, announced politely as it changes. */}
       <p className={styles.remaining} role="status" data-testid="remaining">
-        {t('review.remaining', { count: remaining })}
+        {progress ?? t('review.remaining', { count: remaining })}
       </p>
       {card.leech && <Improve ai={aiReady} onImprove={() => setImproving(true)} onSuspend={onSuspend} />}
       <ImproveSheet

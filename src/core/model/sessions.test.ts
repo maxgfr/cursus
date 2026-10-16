@@ -21,6 +21,7 @@ import {
   sessionHistory,
   sessionQueue,
   sessionReview,
+  startPlan,
   summarize,
 } from './sessions'
 import { createWorkspace, type ModelWorkspace } from './workspace'
@@ -549,6 +550,84 @@ describe('planned sessions', () => {
     w.plans.trash(thu)
     expect(nextPlanned(w.plans.list(), NOW, () => 0)?.plan.id).toBe(fri)
     expect(nextPlanned([{ ...thursday, deletedAt: 1 }], NOW, () => 0)).toBeNull()
+  })
+})
+
+describe('exam plans', () => {
+  test('a sitting draws a batch of the part, practice only; the next one goes on through the part', () => {
+    const { w, doc, clock } = make(15)
+    const { course, cards } = deck(w, 75)
+    const ch = w.sections.create({ courseId: course, name: 'Ch' })
+    const inPart = cards.slice(0, 70)
+    for (const id of inPart) w.moveItem('cards', id, ch)
+    const id = w.plans.create({
+      ...plan,
+      courseId: course,
+      sectionId: ch,
+      kind: 'all',
+      limit: 50,
+      practice: false,
+      mode: 'exam',
+    })
+    // One optional scalar more on the plan's map.
+    expect(doc.getMap<Y.Map<unknown>>(ROOT.plans).get(id)?.get('mode')).toBe('exam')
+    const exam = w.plans.get(id) as PlanRecord
+
+    const first = w.sessions.get(startPlan(w, exam, NOW))
+    if (!first) throw new Error('no sitting')
+    // Practice whatever the plan says: its cards come back until known, and none of that moves a review date.
+    expect(first).toMatchObject({
+      scope: { courseId: course, sectionId: ch },
+      kind: 'all',
+      practice: true,
+      planId: id,
+      mode: 'exam',
+    })
+    expect(first.cardIds).toHaveLength(50)
+    expect(first.cardIds?.every((c) => inPart.includes(c))).toBe(true)
+    const before = sessionQueue(w, { kind: 'due', now: NOW, tzOffsetMin: 0 })
+    for (const c of first.cardIds ?? []) {
+      clock.advance(MIN)
+      const r = sessionReview(first, { cardId: c, rating: 1, at: clock.now(), ms: 1 })
+      expect(r.p).toBe(true)
+      w.reviews.record(r)
+      w.reviews.record(sessionReview(first, { cardId: c, rating: 3, at: clock.now() + 1, ms: 1 }))
+    }
+    expect(sessionQueue(w, { kind: 'due', now: NOW, tzOffsetMin: 0 })).toEqual(before)
+
+    // The 20 cards not gone over yet, then those gone over longest ago.
+    const second = w.sessions.get(startPlan(w, exam, clock.now()))
+    const rest = inPart.filter((c) => !first.cardIds?.includes(c))
+    expect(second?.cardIds?.slice(0, 20).sort()).toEqual(rest.sort())
+    expect(second?.cardIds?.slice(20)).toEqual(first.cardIds?.slice(0, 30))
+    // Sixty by default, or the whole part when smaller.
+    w.plans.update(id, { limit: undefined })
+    expect(w.sessions.get(startPlan(w, w.plans.get(id) as PlanRecord))?.cardIds).toHaveLength(60)
+    w.plans.update(id, { limit: 80 })
+    expect(w.sessions.get(startPlan(w, w.plans.get(id) as PlanRecord))?.cardIds).toHaveLength(70)
+  })
+
+  test('older data reads as before: a plan or a session without a mode, or with one this build does not know', () => {
+    const { w } = make(16)
+    const { course } = deck(w, 3)
+    const old = w.plans.create({ ...plan, courseId: course })
+    const sid = startPlan(w, w.plans.get(old) as PlanRecord)
+    expect(w.sessions.get(sid)).toEqual({
+      id: sid,
+      startedAt: NOW,
+      scope: { courseId: course },
+      kind: 'due',
+      practice: false,
+      planId: old,
+    })
+    w.sessions.yArray.push([
+      { id: 'newer', startedAt: NOW + 1, dev: 'x', scope: {}, kind: 'all', practice: true, mode: 'marathon' as 'exam' },
+    ])
+    expect(w.sessions.get('newer')?.mode).toBeUndefined()
+    expect(() => w.sessions.start({ scope: {}, kind: 'all', practice: true, mode: 'marathon' as 'exam' })).toThrow(
+      SessionInputError,
+    )
+    expect(() => w.plans.create({ ...plan, mode: 'marathon' as 'exam' })).toThrow(SessionInputError)
   })
 })
 

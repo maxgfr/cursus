@@ -91,6 +91,8 @@ test('after the first load the app works fully offline, and edits are saved on t
   await page.reload()
   await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible()
   await expect(chip(page)).toHaveAttribute('data-sync', 'offline')
+  await expect(page.getByRole('main').getByRole('button', { name: /^Offline anatomy/ })).toContainText('1 new')
+  await go(page, '#/courses', 'Courses')
   await page
     .getByRole('main')
     .getByRole('link', { name: /Offline anatomy/ })

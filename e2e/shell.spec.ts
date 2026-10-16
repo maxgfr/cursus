@@ -173,7 +173,7 @@ test('hash navigation between routes', async ({ page }) => {
   expect(errors).toEqual([])
 })
 
-test('a created course appears on Today and in the course list', async ({ page }, info) => {
+test('a created course appears in the course list, and Today asks for its first card', async ({ page }, info) => {
   const errors = watchErrors(page)
   await openToday(page)
   await expect(page.getByRole('heading', { name: 'Start with a course' })).toBeVisible()
@@ -181,7 +181,9 @@ test('a created course appears on Today and in the course list', async ({ page }
   await page.getByRole('link', { name: 'Back' }).click()
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Today' }).click()
   await expect(page.getByRole('heading', { name: 'Add your first card' })).toBeVisible()
-  await expect(page.getByRole('main').getByRole('link', { name: /Makroökonomie II/ })).toBeVisible()
+  // Nothing to review in it yet: Today lists no course, and its one action writes the first card.
+  await expect(page.getByRole('main').getByRole('button', { name: /Makroökonomie II/ })).toHaveCount(0)
+  await expect(page.getByRole('main').getByRole('link', { name: 'Write a card' })).toBeVisible()
   if (!isPhone(info.project.name)) {
     const nav = page.getByRole('navigation', { name: 'Main' })
     const row = nav.getByRole('link', { name: /Makroökonomie II/ })
@@ -189,6 +191,7 @@ test('a created course appears on Today and in the course list', async ({ page }
   }
   // Survives a reload: the edit went through the local log.
   await page.waitForTimeout(300)
+  await page.goto('./#/courses')
   await page.reload()
   await expect(page.getByRole('main').getByRole('link', { name: /Makroökonomie II/ })).toBeVisible()
   if (!isPhone(info.project.name)) {

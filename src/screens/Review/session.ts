@@ -5,6 +5,8 @@ import type { ModelWorkspace } from '../../core/model/workspace'
 import { type CardState, dayStart, localOffset, type Scheduler, studyDay } from '../../core/srs/fsrs'
 import { isLeech } from '../../core/srs/leech'
 import { buildQueue, inScope, type QueueCard } from '../../core/srs/queue'
+import { inTodayOrder, planToday } from '../../core/srs/today'
+import { courseExams } from '../../ui/data/useStudy.ts'
 import { nearestExamScope } from '../Today/sectionLead.ts'
 
 export const RATINGS: readonly Rating[] = [1, 2, 3, 4]
@@ -26,10 +28,16 @@ export function queueCards(ws: ModelWorkspace): (QueueCard & { courseId: Id })[]
 
 /**
  * Today's queue, fixed when the session starts so answering never reshuffles it. With a scope, only that
- * course or subset (descendants included). The nearest exam's cards lead; the order within each part is the
- * scheduler's.
+ * course or subset (descendants included); with `share` too, only that course's share of today's queue (the one Today
+ * counts for it, within the new-card budget of every course). The nearest exam's cards lead, then cards on a learning
+ * step, then course by course in Today's order (see `planToday`); the order within each course is the scheduler's.
  */
-export function startQueue(ws: ModelWorkspace, now: number, scope?: StudyScope): { queue: Id[]; learning: Id[] } {
+export function startQueue(
+  ws: ModelWorkspace,
+  now: number,
+  scope?: StudyScope,
+  share = false,
+): { queue: Id[]; learning: Id[] } {
   const cards = queueCards(ws)
   const schedulerOfCourse = schedulersOf(ws)
   const states = new Map<Id, CardState>()
@@ -37,18 +45,37 @@ export function startQueue(ws: ModelWorkspace, now: number, scope?: StudyScope):
     const events = ws.reviews.forCard(c.id)
     if (events.length > 0) states.set(c.id, schedulerOfCourse(c.courseId).replay(c.id, events))
   }
-  const ids = buildQueue({
+  const tzOffsetMin = localOffset(now)
+  const built = share ? undefined : scope
+  const entries = buildQueue({
     cards,
     states,
     now,
-    tzOffsetMin: localOffset(now),
+    tzOffsetMin,
     ...queueLimitsFor(
       ws,
-      scope,
+      built,
       cards.map((c) => c.courseId),
     ),
-    scope,
-  }).map((q) => q.cardId)
+    scope: built,
+  })
+  const courseOf = new Map(cards.map((c) => [c.id, c.courseId]))
+  const plan = planToday({
+    courses: ws.courses.list().map((c) => c.id),
+    courseOf,
+    queue: entries,
+    states,
+    exams: courseExams(ws, now),
+    now,
+    tzOffsetMin,
+  })
+  const byId = new Map(cards.map((c) => [c.id, c]))
+  const ids = inTodayOrder(entries, plan, courseOf)
+    .map((q) => q.cardId)
+    .filter((id) => {
+      const c = byId.get(id)
+      return c !== undefined && inScope(c, scope)
+    })
   // Cards in (re)learning: those not due yet may come back later in the session.
   const learning: Id[] = []
   const queued = new Set(cards.filter((c) => inScope(c, scope)).map((c) => c.id))
@@ -56,7 +83,6 @@ export function startQueue(ws: ModelWorkspace, now: number, scope?: StudyScope):
     if ((st.phase === 'learning' || st.phase === 'relearning') && queued.has(id)) learning.push(id)
   const exam = nearestExamScope(ws, now)
   if (exam === null) return { queue: ids, learning }
-  const byId = new Map(cards.map((c) => [c.id, c]))
   const leads = (id: Id) => {
     const c = byId.get(id)
     return c !== undefined && inScope(c, exam.scope)
@@ -87,7 +113,8 @@ export interface QueueEntry {
   id: Id
   /**
    * Set on a card appended because it came back: the review (in this session) whose grade sent it
-   * back, or null for a card already in learning when the session began.
+   * back, or null for a card already in learning when the session began. In an exam, every card after the first:
+   * the review it was chosen after.
    */
   returnOf?: Id | null
 }

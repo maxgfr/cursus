@@ -6,6 +6,7 @@ import { blobRef, blobStore } from '../../core/log/blobs'
 import { addPhoto, attachPhoto } from '../../core/model/photos'
 import type { CardOrigin } from '../../core/model/schema'
 import type { ModelWorkspace } from '../../core/model/workspace'
+import { EXAM_SIZE } from '../../core/srs/exam'
 import { createTranslator, type Locale, loadCatalog, type Translate } from '../../i18n/index.ts'
 import { storeDeckFiles } from '../DeckImport/deckSource.ts'
 import { bilayerDiagram, cellSketch, deckPptx, documentDocx, microscopePhoto, textPdf } from './demoFiles.ts'
@@ -420,8 +421,8 @@ export async function createDemoCourse(deps: DemoDeps, t: Translate, language?: 
       if (c.back !== undefined) ws.text({ id, field: 'back' }).insert(0, c.back)
       made.push({ id, history: c.history, ...(c.cram === undefined ? {} : { cram: c.cram }) })
     }
-    // Planned sessions: the weekly review (two days ago was one of its days), and a practice over the midterm's
-    // subset, later in the week.
+    // Planned sessions: the weekly review (two days ago was one of its days), and an exam over the midterm's subset,
+    // later in the week.
     const countedAt = studyDayAt(now, -SESSION_DAY, PLAN_TIME)
     const pad = (n: number) => String(n).padStart(2, '0')
     const weekly = ws.plans.create({
@@ -435,11 +436,12 @@ export async function createDemoCourse(deps: DemoDeps, t: Translate, language?: 
     ws.plans.create({
       name: texts.plan2,
       ...where('membranes'),
-      kind: 'ahead',
-      limit: 20,
+      kind: 'all',
+      limit: EXAM_SIZE.default,
       weekdays: [weekdayOf(now + 3 * DAY)],
       time: '17:30',
       practice: true,
+      mode: 'exam',
     })
 
     // Two weeks of reviews; those of two days ago form one counted session, started from the weekly plan at its

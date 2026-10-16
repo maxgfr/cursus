@@ -215,7 +215,7 @@ function structureOf(ws: ModelWorkspace, courseId: Id): unknown {
     fiches: ws.fiches.list({ courseId }).map((f) => [f.id, tree.sectionOf(f), f.sourceIds]),
     cards: ws.cards.list({ courseId }).map((c) => [c.id, tree.sectionOf(c), c.kind, c.origin, c.sourceId, c.unit]),
     drafts: ws.drafts.all().map((d) => [d.id, d.status, d.sourceId, d.unit, d.unitKind, d.unitLabel, d.kind, d.type]),
-    plans: ws.plans.list().map((p) => [p.id, p.sectionId, p.kind, p.limit, p.weekdays, p.time, p.practice]),
+    plans: ws.plans.list().map((p) => [p.id, p.sectionId, p.kind, p.limit, p.weekdays, p.time, p.practice, p.mode]),
     sessions: ws.sessions.list(),
     reviews: ws.reviews.all().map((r) => [r.cardId, r.rating, r.at, r.p, r.sid]),
   }
@@ -396,7 +396,7 @@ describe('the demo course', () => {
     expect(ws.drafts.summary().total).toBe(0)
 
     // Two weeks of reviews: a counted session started from the weekly plan, a cramming one, and the relaunch of the
-    // card it missed; two plans, one a practice of the midterm's subset.
+    // card it missed; two plans, one an exam over the midterm's subset.
     const all = ws.reviews.all()
     expect(Math.min(...all.map((r) => r.at))).toBeGreaterThanOrEqual(NOON - 15 * DAY_MS)
     expect(Math.max(...all.map((r) => r.at))).toBeLessThan(NOON)
@@ -435,13 +435,14 @@ describe('the demo course', () => {
     }
     expect(weekly?.weekdays).not.toContain(isoWeekday(NOON))
     const midterm = plans.find((p) => p.id !== weekly?.id)
-    expect([midterm?.name, midterm?.sectionId, midterm?.kind, midterm?.limit, midterm?.practice]).toEqual([
-      'Before the midterm',
-      id('Membranes'),
-      'ahead',
-      20,
-      true,
-    ])
+    expect([
+      midterm?.name,
+      midterm?.sectionId,
+      midterm?.mode,
+      midterm?.kind,
+      midterm?.limit,
+      midterm?.practice,
+    ]).toEqual(['Before the midterm', id('Membranes'), 'exam', 'all', 60, true])
     const next = nextPlanned(plans, NOON)
     expect(next?.plan.id).toBe(weekly?.id)
     expect((next?.at ?? Number.POSITIVE_INFINITY) - NOON).toBeLessThan(2 * DAY_MS)

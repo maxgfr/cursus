@@ -4,9 +4,8 @@ import { useLocation } from 'wouter'
 import { clearEntryState } from '../../app/nav.ts'
 import { paths, to } from '../../app/routes.ts'
 import { useWorkspace, useWorkspaceData } from '../../app/workspaceContext.tsx'
-import type { SessionScope } from '../../core/contracts/workspace'
 import type { PlanRecord } from '../../core/model/schema'
-import { livePlans, liveSessionHistory, nextOccurrence, planScope, relaunchFailed } from '../../core/model/sessions'
+import { livePlans, liveSessionHistory, nextOccurrence, relaunchFailed } from '../../core/model/sessions'
 import { formatDateTime, formatDuration } from '../../i18n/format.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
 import { useAiReady } from '../../ui/ai/ready.ts'
@@ -18,7 +17,7 @@ import { Screen } from '../../ui/shell/Screen.tsx'
 import type { PlanNotice } from '../SessionSetup/PlanEditor.tsx'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 import { downloadPlans } from './calendar.ts'
-import { formatWhen, KIND_LABEL, planSchedule, scopeName, sessionLabel } from './describe.ts'
+import { formatWhen, planLabel, planSchedule, sessionLabel } from './describe.ts'
 import { PracticeChip } from './PracticeChip.tsx'
 import { PracticeSheet } from './PracticeSheet.tsx'
 import { QuizSheet } from './QuizSheet.tsx'
@@ -41,11 +40,8 @@ export default function Sessions() {
   // « Quiz me » is set up first (where, how many, how hard), then runs in the chat beside that place.
   const chat = useChat()
   const [showAll, setShowAll] = useState(false)
-  const [practicing, setPracticing] = useState<SessionScope | null>(null)
+  const [practicing, setPracticing] = useState(false)
   const [quizzing, setQuizzing] = useState(false)
-  const courses = useWorkspaceData(['courses', 'cards'], (w) =>
-    w.courses.list().map((c) => ({ id: c.id, title: c.title, cards: w.cards.list({ courseId: c.id }).length })),
-  )
   const [notice, setNotice] = useState<PlanNotice>(() => noticeFrom(history.state))
   const [message, setMessage] = useState<string | null>(null)
   // A plan or a session over a course in the trash waits there with it (and comes back with it).
@@ -60,11 +56,7 @@ export default function Sessions() {
     setNotice({})
     clearEntryState()
   }
-  const describe = (p: PlanRecord) => {
-    const kind = t(KIND_LABEL[p.kind])
-    const scope = scopeName(ws, planScope(p))
-    return scope === null ? kind : t('review.sessionLabel', { kind, scope })
-  }
+  const describe = (p: PlanRecord) => planLabel(ws, t, p)
   const calendar = (list: readonly PlanRecord[], name: string) => {
     try {
       downloadPlans(list, name, describe)
@@ -84,7 +76,7 @@ export default function Sessions() {
     <Screen title={t('review.practice')} subtitle={t('review.practiceHint')}>
       <ListGroup>
         <ListRow
-          href={paths.sessionNew}
+          onClick={() => setPracticing(true)}
           leading={<Play size={20} strokeWidth={1.75} />}
           title={t('review.newSession')}
           subtitle={t('review.newSessionBody')}
@@ -104,30 +96,7 @@ export default function Sessions() {
           subtitle={t('review.statsBody')}
         />
       </ListGroup>
-      {courses.some((c) => c.cards > 0) && (
-        <ListGroup title={t('review.practiceCourses')}>
-          {courses.length > 1 && (
-            <ListRow
-              leading={<Play size={20} strokeWidth={1.75} />}
-              title={t('review.allCourses')}
-              subtitle={t('course.cardCount', { count: courses.reduce((n, c) => n + c.cards, 0) })}
-              onClick={() => setPracticing({})}
-            />
-          )}
-          {courses
-            .filter((c) => c.cards > 0)
-            .map((c) => (
-              <ListRow
-                key={c.id}
-                leading={<Play size={20} strokeWidth={1.75} />}
-                title={c.title}
-                subtitle={t('course.cardCount', { count: c.cards })}
-                onClick={() => setPracticing({ courseId: c.id })}
-              />
-            ))}
-        </ListGroup>
-      )}
-      <PracticeSheet open={practicing !== null} scope={practicing ?? {}} onClose={() => setPracticing(null)} />
+      <PracticeSheet open={practicing} onClose={() => setPracticing(false)} />
       <QuizSheet open={quizzing} onClose={() => setQuizzing(false)} />
       <ListGroup title={t('review.plannedSessions')} footer={plans.length === 0 ? t('review.plannedNone') : undefined}>
         {plans.map((p) => {

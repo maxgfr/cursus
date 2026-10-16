@@ -1,6 +1,6 @@
 import type * as Y from 'yjs'
 import type { Clock, Rng } from '../contracts/ports'
-import type { Id, NewSession, Session, SessionKind, SessionScope } from '../contracts/workspace'
+import type { Id, NewSession, Session, SessionKind, SessionMode, SessionScope } from '../contracts/workspace'
 import { SESSION_KINDS } from '../srs/sessionKinds'
 import { EntityNotFoundError, EntityRepo, type RepoDeps } from './repos'
 import {
@@ -26,6 +26,12 @@ export class SessionInputError extends RangeError {
 
 function checkKind(kind: SessionKind): void {
   if (!SESSION_KINDS.includes(kind)) throw new SessionInputError(`unknown session kind ${String(kind)}`)
+}
+
+const MODES: readonly SessionMode[] = ['exam']
+
+function checkMode(mode: SessionMode | undefined): void {
+  if (mode !== undefined && !MODES.includes(mode)) throw new SessionInputError(`unknown session mode ${String(mode)}`)
 }
 
 function checkLimit(limit: number | undefined): void {
@@ -75,6 +81,7 @@ export class SessionLog {
   /** Starts a session now, or at `at` (a session that already took place: the demo course's), and returns its id. */
   start(s: NewSession, at?: number): Id {
     checkKind(s.kind)
+    checkMode(s.mode)
     checkLimit(s.limit)
     checkTime(at)
     const e: SessionStartEvent = {
@@ -88,6 +95,7 @@ export class SessionLog {
     if (s.limit !== undefined) e.limit = s.limit
     if (s.planId !== undefined) e.planId = s.planId
     if (s.cardIds !== undefined) e.cardIds = [...s.cardIds]
+    if (s.mode !== undefined) e.mode = s.mode
     this.arr.push([e])
     this.cache = null
     return e.id
@@ -115,6 +123,8 @@ export class SessionLog {
       if (e.limit !== undefined) s.limit = e.limit
       if (e.planId !== undefined) s.planId = e.planId
       if (e.cardIds !== undefined) s.cardIds = [...e.cardIds]
+      // A mode this build does not know (from a newer client) runs as a plain session.
+      if (e.mode !== undefined && MODES.includes(e.mode)) s.mode = e.mode
       const end = ends.get(e.id)
       if (end !== undefined) s.endedAt = end
       list.push(s)
@@ -153,6 +163,7 @@ function checkPlan<P extends Partial<PlanFields>>(p: P, creating: boolean): P {
     if ((creating || k in p) && p[k] === undefined) throw new SessionInputError(`a planned session needs ${k}`)
   if (p.name !== undefined && p.name.trim() === '') throw new SessionInputError('a planned session needs a name')
   if (p.kind !== undefined) checkKind(p.kind)
+  checkMode(p.mode)
   checkLimit(p.limit)
   if (p.time !== undefined) parseTime(p.time)
   if (p.weekdays === undefined) return p

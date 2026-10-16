@@ -67,6 +67,8 @@ export const to = {
   history: (id: string) => `/history/${encodeURIComponent(id)}`,
   /** A planned session's editor; `new` creates one. */
   sessionPlan: (id: string) => `/sessions/plan/${encodeURIComponent(id)}`,
+  /** The review focus view over a course's share of today's queue, as Today counts it (see `todayShare`). */
+  reviewToday: (courseId: string) => `/review?${new URLSearchParams({ course: courseId, today: '1' }).toString()}`,
   /** The review focus view running a started session. */
   sessionRun: (sessionId: string) => `/review?${new URLSearchParams({ session: sessionId }).toString()}`,
 } as const
@@ -82,6 +84,11 @@ export function withScope(path: string, scope: { courseId: string; sectionId?: s
   const q = new URLSearchParams({ course: scope.courseId })
   if (scope.sectionId) q.set('section', scope.sectionId)
   return `${path}?${q.toString()}`
+}
+
+/** Whether a review was opened from Today for a course's share of today's queue (`&today=1`). */
+export function todayShare(search: string): boolean {
+  return new URLSearchParams(search).get('today') === '1'
 }
 
 /** The scope a query carries, if any. */

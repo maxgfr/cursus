@@ -1,6 +1,6 @@
 import { useId } from 'react'
 import { useWorkspaceData } from '../../app/workspaceContext.tsx'
-import type { SessionKind } from '../../core/contracts/workspace'
+import type { SessionKind, SessionScope } from '../../core/contracts/workspace'
 import { SESSION_KINDS } from '../../core/srs/custom'
 import { useT } from '../../i18n/react.tsx'
 import { Field } from '../../ui/components/Field.tsx'
@@ -12,37 +12,15 @@ import styles from './SessionSetup.module.css'
 /** Where the cards come from, which ones, how many, and whether the answers count toward the schedule. */
 export function SessionFields({ draft, onChange }: { draft: SessionDraft; onChange: (d: SessionDraft) => void }) {
   const t = useT()
-  const scopeId = useId()
   const countsHintId = useId()
   const everyHintId = useId()
   const everyLabelId = useId()
   const countsLabelId = useId()
-  const options = useWorkspaceData(['courses', 'sections'], scopeOptions)
   const limitValid = parseLimit(draft.limit) !== null
 
   return (
     <>
-      <div className={styles.field}>
-        <label className={styles.label} htmlFor={scopeId}>
-          {t('review.sessionScope')}
-        </label>
-        <select
-          id={scopeId}
-          className={styles.select}
-          value={scopeValue(draft.scope)}
-          onChange={(e) => {
-            const picked = options.find((o) => o.value === e.target.value)
-            onChange({ ...draft, scope: picked?.scope ?? {} })
-          }}
-        >
-          <option value="">{t('review.allCourses')}</option>
-          {options.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      </div>
+      <ScopeField scope={draft.scope} onChange={(scope) => onChange({ ...draft, scope })} />
       <div className={styles.field}>
         <Segmented<SessionKind>
           label={t('review.sessionKind')}
@@ -107,5 +85,50 @@ export function SessionFields({ draft, onChange }: { draft: SessionDraft; onChan
         />
       </label>
     </>
+  )
+}
+
+/** "Cards from": every course at once, or one course or subset; with `part`, only a course or subset. */
+export function ScopeField({
+  scope,
+  onChange,
+  part = false,
+  error = null,
+}: {
+  scope: SessionScope
+  onChange: (s: SessionScope) => void
+  part?: boolean
+  error?: string | null
+}) {
+  const t = useT()
+  const scopeId = useId()
+  const errorId = useId()
+  const options = useWorkspaceData(['courses', 'sections'], scopeOptions)
+  return (
+    <div className={styles.field}>
+      <label className={styles.label} htmlFor={scopeId}>
+        {t('review.sessionScope')}
+      </label>
+      <select
+        id={scopeId}
+        className={styles.select}
+        value={scopeValue(scope)}
+        aria-invalid={error !== null}
+        aria-describedby={error !== null ? errorId : undefined}
+        onChange={(e) => onChange(options.find((o) => o.value === e.target.value)?.scope ?? {})}
+      >
+        {!part && <option value="">{t('review.allCourses')}</option>}
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      {error !== null && (
+        <p id={errorId} className={styles.error} role="alert">
+          {error}
+        </p>
+      )}
+    </div>
   )
 }

@@ -1,5 +1,8 @@
 import type { SessionKind, SessionScope } from '../../core/contracts/workspace'
+import type { PlanRecord } from '../../core/model/schema'
+import { isExam, planScope } from '../../core/model/sessions'
 import type { ModelWorkspace } from '../../core/model/workspace'
+import { EXAM_SIZE } from '../../core/srs/exam'
 import { intlTag, type Locale, type Translate } from '../../i18n/index.ts'
 
 /** Short labels of the type control, in the order the control shows them. */
@@ -54,6 +57,18 @@ export function sessionLabel(
   if (plan !== undefined && plan.deletedAt === undefined) return plan.name
   const kind = t(KIND_LABEL[s.kind])
   const scope = scopeName(ws, s.scope)
+  return scope === null ? kind : t('review.sessionLabel', { kind, scope })
+}
+
+/** What a plan goes over: « Exam · Law › Contracts · 60 cards », or an older plan's type and place. */
+export function planLabel(ws: ModelWorkspace, t: Translate, p: PlanRecord): string {
+  const scope = scopeName(ws, planScope(p))
+  if (isExam(p))
+    return [
+      t('review.examLabel', { scope: scope ?? t('review.allCourses') }),
+      t('review.sessionCards', { count: p.limit ?? EXAM_SIZE.default }),
+    ].join(' · ')
+  const kind = t(KIND_LABEL[p.kind])
   return scope === null ? kind : t('review.sessionLabel', { kind, scope })
 }
 

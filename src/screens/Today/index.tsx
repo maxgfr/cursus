@@ -8,7 +8,7 @@ import { onboarded } from '../../app/onboarding.ts'
 import { paths, to } from '../../app/routes.ts'
 import { useSync } from '../../app/syncContext.tsx'
 import { useWorkspace, useWorkspaceData } from '../../app/workspaceContext.tsx'
-import { livePlans, nextPlanned, planSession } from '../../core/model/sessions'
+import { livePlans, nextPlanned, startPlan } from '../../core/model/sessions'
 import { formatDuration } from '../../i18n/format.ts'
 import { intlTag } from '../../i18n/index.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
@@ -19,7 +19,6 @@ import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { EmptyState } from '../../ui/components/EmptyState.tsx'
 import { IconButton } from '../../ui/components/IconButton.tsx'
 import { Keycap } from '../../ui/components/Keycap.tsx'
-import { ListGroup } from '../../ui/components/List.tsx'
 import { useStudy } from '../../ui/data/useStudy.ts'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { newCardId } from '../CardEditor/draft.ts'
@@ -27,10 +26,10 @@ import { formatInterval } from '../Review/interval.ts'
 import { formatWhen } from '../Sessions/describe.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 import { BackupLine } from './BackupLine.tsx'
-import { CourseRows } from './CourseRows.tsx'
 import { InstallHint } from './InstallHint.tsx'
 import { LeadLine } from './LeadLine.tsx'
 import styles from './Today.module.css'
+import { TodayCourses } from './TodayCourses.tsx'
 
 // Not on Today's first paint: the sheet's chunk loads right after it.
 // Should a chunk fail: the course lead stays, and the sheet says so calmly when opened.
@@ -46,7 +45,7 @@ const NewCourseSheet = lazyChunk<Parameters<typeof import('./NewCourseSheet.tsx'
 )
 
 // Off the first paint: the next planned session's line arrives right after it (and simply stays away should it fail).
-const SessionLine = lazyChunk<object>(
+const SessionLine = lazyChunk<Parameters<typeof import('./SessionLine.tsx').SessionLine>[0]>(
   'today.sessionLine',
   () => import('./SessionLine.tsx').then((m) => ({ default: m.SessionLine })),
   nothing,
@@ -152,7 +151,7 @@ export default function Today() {
   })
   const startPlanned = () => {
     if (plannedToday === null) return
-    const id = ws.sessions.start(planSession(plannedToday.plan))
+    const id = startPlan(ws, plannedToday.plan)
     navigate(to.sessionRun(id), { state: { session: id } })
   }
   const [adding, setAdding] = useState(false)
@@ -174,6 +173,12 @@ export default function Today() {
   const hasDestination = status !== null && status.dests.length > 0
   const backedUp = status !== null && (status.protectedOn > 0 || status.dests.some((d) => d.lastOkAt !== undefined))
   const install = <InstallHint hasDestination={hasDestination} />
+  // A course's exam its row already announces (« Exam on Thursday ») is not said twice; a chapter's still is.
+  const examRow = study.today.find((c) => c.courseId === study.exam?.courseId)?.reason.kind === 'exam'
+  const courseLead = examRow ? null : study.exam
+  // The hero's main action, in this order: what is due, suggested cards, the first card, a session planned today.
+  const draftsHero = study.due === 0 && drafts !== null && draftsShown
+  const plannedHero = study.due === 0 && !draftsHero && study.totalCards > 0 && plannedToday !== null
 
   return (
     <Screen
@@ -226,8 +231,8 @@ export default function Today() {
                   {t('today.heroDue', { count: study.due })}
                 </h2>
                 {/* The course lead paints at once; a chapter exam's (computed off the first paint) may replace it. */}
-                <Suspense fallback={<LeadLine lead={study.exam} />}>
-                  <ExamLead course={study.exam} />
+                <Suspense fallback={<LeadLine lead={courseLead} />}>
+                  <ExamLead course={courseLead} />
                 </Suspense>
                 <p className={styles.meta}>{meta.join(' · ')}</p>
                 <Button
@@ -240,11 +245,11 @@ export default function Today() {
                   onFocus={() => void preloadReview()}
                   aria-keyshortcuts="S"
                 >
-                  {t('common.start')}
+                  {t('today.review')}
                   <Keycap>{t('today.startKey')}</Keycap>
                 </Button>
               </>
-            ) : drafts !== null && draftsShown ? (
+            ) : draftsHero && drafts !== null ? (
               <div data-testid="drafts-hero" className={styles.draftsHero}>
                 <h2 id="today-hero" className={styles.caughtUp}>
                   {drafts.courses === 1
@@ -269,7 +274,7 @@ export default function Today() {
                   </Link>
                 )}
               </>
-            ) : plannedToday !== null ? (
+            ) : plannedHero && plannedToday !== null ? (
               <div data-testid="planned-hero">
                 <h2 id="today-hero" className={styles.caughtUp}>
                   {t('today.plannedTitle', { name: plannedToday.plan.name })}
@@ -299,23 +304,17 @@ export default function Today() {
                 </p>
               </>
             )}
-            {hasData && (
-              <Link href={paths.sessionNew} className={`${buttonClass({ variant: 'plain' })} ${styles.newSession}`}>
-                {t('review.newSession')}
-              </Link>
-            )}
           </section>
+          <TodayCourses study={study} />
+          {/* A session planned for today that the hero does not show starts from its line. */}
           <Suspense fallback={null}>
-            <SessionLine />
+            <SessionLine today={plannedHero ? null : plannedToday} onStart={startPlanned} />
           </Suspense>
           <Suspense fallback={null}>
             <DraftsLine hidden={study.due === 0} />
           </Suspense>
           {hasData && status !== null && <BackupLine hasDestination={hasDestination} backedUp={backedUp} />}
           {hasData && install}
-          <ListGroup title={t('today.courses')}>
-            <CourseRows courses={study.courses} />
-          </ListGroup>
         </>
       )}
     </Screen>

@@ -1,30 +1,41 @@
 import { CalendarPlus, Play, Trash2 } from 'lucide-react'
-import { useId, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { useLocation, useParams } from 'wouter'
 import { goBack } from '../../app/nav.ts'
 import { paths, to } from '../../app/routes.ts'
 import { useWorkspace, useWorkspaceData } from '../../app/workspaceContext.tsx'
-import type { Id, Weekday } from '../../core/contracts/workspace'
+import type { Id, SessionScope, Weekday } from '../../core/contracts/workspace'
 import type { PlanFields, PlanRecord } from '../../core/model/schema'
-import { planScope, planSession } from '../../core/model/sessions'
+import { partSize, planScope, startPlan } from '../../core/model/sessions'
+import { EXAM_SIZE } from '../../core/srs/exam'
 import { intlTag } from '../../i18n/index.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
 import { Button } from '../../ui/components/Button.tsx'
 import { Field } from '../../ui/components/Field.tsx'
+import { Segmented } from '../../ui/components/Segmented.tsx'
 import { Toast } from '../../ui/components/Toast.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import NotFound from '../NotFound/index.tsx'
 import { useScopeOnce } from '../Section/scope.ts'
 import { downloadPlans } from '../Sessions/calendar.ts'
-import { sessionLabel } from '../Sessions/describe.ts'
+import { planLabel } from '../Sessions/describe.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
-import { DEFAULT_LIMIT, draftLimit, liveScope, newDraft, type SessionDraft, scopeOptions } from './draft.ts'
-import { SessionFields } from './SessionFields.tsx'
+import { liveScope, scopeOptions } from './draft.ts'
+import { ScopeField } from './SessionFields.tsx'
 import styles from './SessionSetup.module.css'
 
 const WEEKDAYS: readonly Weekday[] = [1, 2, 3, 4, 5, 6, 7]
 const TIME = /^([01]\d|2[0-3]):[0-5]\d$/
 const DEFAULT_TIME = '18:00'
+/** The batch sizes offered, every ten cards from the smallest to the largest. */
+const SIZES = ['50', '60', '70', '80'] as const
+type Size = (typeof SIZES)[number]
+
+/** A plan's batch size as one of those offered (an older plan's limit, the nearest one). */
+function sizeOf(limit: number | undefined): Size {
+  const n = Math.min(EXAM_SIZE.max, Math.max(EXAM_SIZE.min, Math.round((limit ?? EXAM_SIZE.default) / 10) * 10))
+  return SIZES.find((s) => Number(s) === n) ?? '60'
+}
 
 /** History state the editor leaves the sessions screen: a plan to undo the deletion of, or a calm "planned". */
 export interface PlanNotice {
@@ -32,7 +43,10 @@ export interface PlanNotice {
   planSaved?: boolean
 }
 
-/** A planned session's editor (`/sessions/plan/new` creates one). */
+/**
+ * A planned session's editor (`/sessions/plan/new` creates one). Every plan saved here is an exam: a part of a course,
+ * a batch of cards drawn from it each time, gone over until every one is known.
+ */
 export default function PlanEditor() {
   const { id = '' } = useParams<{ id: string }>()
   return <PlanForm key={id} planId={id === 'new' ? null : id} />
@@ -47,9 +61,15 @@ function PlanForm({ planId }: { planId: Id | null }) {
   const options = useWorkspaceData(['courses', 'sections'], scopeOptions)
   const plan = useWorkspaceData(['plans'], (w) => (planId === null ? null : (w.plans.get(planId) ?? null)))
   const [name, setName] = useState(() => plan?.name ?? '')
-  const [draft, setDraft] = useState<SessionDraft>(() =>
-    fromPlan(plan, liveScope(options, plan ? planScope(plan) : (asked ?? {}))),
-  )
+  // A part of a course: every course at once is no part to know by heart.
+  const [scope, setScope] = useState<SessionScope>(() => {
+    const live = liveScope(options, plan ? planScope(plan) : (asked ?? {}))
+    return live.courseId === undefined ? (options[0]?.scope ?? {}) : live
+  })
+  const [size, setSize] = useState<Size>(() => sizeOf(plan?.limit))
+  // A fresh snapshot whenever the cards or the subsets change: the count follows them, and the place picked, live.
+  const live = useWorkspaceData(['cards', 'courses', 'sections'], (w) => ({ w }))
+  const cards = useMemo(() => partSize(live.w, scope), [live, scope])
   const [days, setDays] = useState<readonly Weekday[]>(() => plan?.weekdays ?? [1, 2, 3, 4, 5])
   const [time, setTime] = useState(() => plan?.time ?? DEFAULT_TIME)
   const [tried, setTried] = useState(false)
@@ -59,26 +79,28 @@ function PlanForm({ planId }: { planId: Id | null }) {
 
   if (planId !== null && (plan === null || plan.deletedAt !== undefined)) return <NotFound />
 
-  const limit = draftLimit(draft)
   const nameError = name.trim() === '' ? t('review.planNameMissing') : null
   const daysError = days.length === 0 ? t('review.planDaysMissing') : null
+  const scopeError = scope.courseId === undefined ? t('review.planScopeMissing') : null
   const timeValid = TIME.test(time)
   const short = new Intl.DateTimeFormat(intlTag(locale), { weekday: 'short', timeZone: 'UTC' })
   const long = new Intl.DateTimeFormat(intlTag(locale), { weekday: 'long', timeZone: 'UTC' })
-  const describe = (p: PlanRecord) => sessionLabel(ws, t, { kind: p.kind, scope: planScope(p) })
+  const describe = (p: PlanRecord) => planLabel(ws, t, p)
 
   const save = () => {
     setTried(true)
-    if (nameError !== null || daysError !== null || !timeValid || limit === null) return
+    if (nameError !== null || daysError !== null || scopeError !== null || !timeValid) return
+    // `kind`, `limit` and `practice` are what an older client runs: once over a batch, out of the schedule.
     const fields: PlanFields = {
       name: name.trim(),
-      courseId: draft.scope.courseId,
-      sectionId: draft.scope.sectionId,
-      kind: draft.kind,
-      limit,
+      courseId: scope.courseId,
+      sectionId: scope.sectionId,
+      kind: 'all',
+      limit: Number(size),
       weekdays: [...days],
       time,
-      practice: draft.practice,
+      practice: true,
+      mode: 'exam',
     }
     try {
       if (plan) ws.plans.update(plan.id, fields)
@@ -113,7 +135,23 @@ function PlanForm({ planId }: { planId: Id | null }) {
           enterKeyHint="next"
           autoComplete="off"
         />
-        <SessionFields draft={draft} onChange={setDraft} />
+        <p className={styles.hint}>{t('review.examHint')}</p>
+        <ScopeField scope={scope} onChange={setScope} part error={tried ? scopeError : null} />
+        <div className={styles.field}>
+          <Segmented<Size>
+            label={t('review.examSize')}
+            value={size}
+            onChange={setSize}
+            options={SIZES.map((s) => ({ value: s, label: s }))}
+          />
+          <p className={styles.hint} aria-live="polite">
+            {cards === 0
+              ? t('review.examSizeNone')
+              : cards <= Number(size)
+                ? t('review.examSizeAll', { count: cards })
+                : t('review.examSizeMore', { total: cards, size })}
+          </p>
+        </div>
         <fieldset className={styles.days} aria-describedby={tried && daysError !== null ? daysErrorId : undefined}>
           <legend className={styles.label}>{t('review.planDays')}</legend>
           <div className={styles.dayTrack}>
@@ -162,7 +200,7 @@ function PlanForm({ planId }: { planId: Id | null }) {
           <Button
             icon={<Play size={18} aria-hidden="true" />}
             onClick={() => {
-              const sid = ws.sessions.start(planSession(plan))
+              const sid = startPlan(ws, plan)
               navigate(to.sessionRun(sid), { state: { session: sid } })
             }}
           >
@@ -200,16 +238,4 @@ function PlanForm({ planId }: { planId: Id | null }) {
       )}
     </Screen>
   )
-}
-
-function fromPlan(plan: PlanRecord | null, scope: SessionDraft['scope']): SessionDraft {
-  if (plan === null) return newDraft(scope)
-  return {
-    scope,
-    kind: plan.kind,
-    limit: String(plan.limit ?? DEFAULT_LIMIT),
-    every: plan.limit === undefined,
-    practice: plan.practice,
-    practiceSet: true,
-  }
 }

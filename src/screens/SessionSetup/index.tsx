@@ -1,8 +1,8 @@
 import { History } from 'lucide-react'
 import { useState } from 'react'
-import { Link, useLocation } from 'wouter'
+import { useLocation } from 'wouter'
 import { leaveTo } from '../../app/nav.ts'
-import { paths, to, withScope } from '../../app/routes.ts'
+import { paths, to } from '../../app/routes.ts'
 import { useWorkspace, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { SessionScope } from '../../core/contracts/workspace'
 import { useT } from '../../i18n/react.tsx'
@@ -80,11 +80,6 @@ export default function SessionSetup() {
           </p>
         )}
       </form>
-      <p>
-        <Link href={withScope(to.sessionPlan('new'), asStudyScope(draft.scope))} className={styles.link}>
-          {t('review.planSession')}
-        </Link>
-      </p>
     </Screen>
   )
 }

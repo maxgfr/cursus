@@ -14,10 +14,11 @@ import {
   Settings,
   Sun,
 } from 'lucide-react'
-import { type KeyboardEvent, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import { type KeyboardEvent, Suspense, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'wouter'
 import { useDueBadge } from '../app/badge.ts'
 import { splitHash } from '../app/hashPath.ts'
+import { ChunkFailed, lazyChunk } from '../app/lazyChunk.tsx'
 import { navigate } from '../app/nav.ts'
 import { type Captured, usePasteCapture } from '../app/paste.ts'
 import { paths, to } from '../app/routes.ts'
@@ -33,6 +34,13 @@ import { useChat } from './chat/context.tsx'
 import { Sheet } from './components/Sheet.tsx'
 import { Toast } from './components/Toast.tsx'
 import { useStudy } from './data/useStudy.ts'
+
+// Loaded the first time « New session » is chosen.
+const PracticeSheet = lazyChunk<Parameters<typeof import('../screens/Sessions/PracticeSheet.tsx').PracticeSheet>[0]>(
+  'palette.practice',
+  () => import('../screens/Sessions/PracticeSheet.tsx').then((m) => ({ default: m.PracticeSheet })),
+  ({ open, retry, again }) => (open ? <ChunkFailed retry={retry} again={again} /> : null),
+)
 
 interface Item {
   id: string
@@ -102,6 +110,8 @@ export function CommandPalette() {
   const [active, setActive] = useState(0)
   const [captured, setCaptured] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  // « New session » opens the quick start the Practice tab opens, over the current screen.
+  const [practicing, setPracticing] = useState(false)
   const listId = useId()
   const inputRef = useRef<HTMLInputElement>(null)
   const study = useStudy()
@@ -225,7 +235,16 @@ export function CommandPalette() {
       { id: 'today', group: 'go', title: t('common.cmdToday'), icon: Sun, run: () => go(paths.today) },
       { id: 'courses', group: 'go', title: t('common.cmdCourses'), icon: Library, run: () => go(paths.courses) },
       { id: 'sessions', group: 'go', title: t('review.practice'), icon: CalendarClock, run: () => go(paths.sessions) },
-      { id: 'newSession', group: 'go', title: t('review.newSession'), icon: Play, run: () => go(paths.sessionNew) },
+      {
+        id: 'newSession',
+        group: 'go',
+        title: t('review.newSession'),
+        icon: Play,
+        run: () => {
+          close()
+          setPracticing(true)
+        },
+      },
       { id: 'stats', group: 'go', title: t('common.cmdStats'), icon: ChartColumn, run: () => go(paths.stats) },
       ...(aiReady || (hasDrafts && draftsShown)
         ? [{ id: 'inbox', group: 'go' as const, title: t('ai.inboxTitle'), icon: Inbox, run: () => go(paths.inbox) }]
@@ -362,6 +381,11 @@ export function CommandPalette() {
         <p className={styles.hint}>{t('common.paletteHint')}</p>
       </Sheet>
       {toast !== null && !open && <Toast message={toast} />}
+      {practicing && (
+        <Suspense fallback={null}>
+          <PracticeSheet open onClose={() => setPracticing(false)} />
+        </Suspense>
+      )}
     </>
   )
 }

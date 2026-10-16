@@ -43,8 +43,10 @@ test('functional journey: course, note, cards, review, search, stats, reload', a
   // Today offers the two new cards; the session reviews both.
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Today' }).click()
   await expect(page.getByRole('heading', { name: /due today$/ })).toBeVisible()
-  await expect(page.getByRole('main').getByRole('link', { name: /Cell biology/ })).toContainText('2 due today')
-  await page.getByRole('button', { name: 'Start' }).click()
+  await expect(page.getByRole('main').getByRole('button', { name: /^Cell biology/ })).toContainText(
+    '2 cards · Review this course',
+  )
+  await page.getByRole('button', { name: /^Review/ }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Review' })).toBeVisible()
   for (let i = 0; i < 2; i++) {
     await expect(page.getByTestId('remaining')).toHaveText(`${2 - i} left`)
@@ -76,6 +78,9 @@ test('functional journey: course, note, cards, review, search, stats, reload', a
   await go(page, '#/', 'Today')
   await expect(page.getByRole('heading', { name: /^2 cards back, the first in/ })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'All caught up' })).toHaveCount(0)
+  // Nothing due: Today lists no course; the course is on the Courses tab.
+  await expect(page.getByRole('main').getByRole('button', { name: /^Cell biology/ })).toHaveCount(0)
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Courses' }).click()
   await page
     .getByRole('main')
     .getByRole('link', { name: /Cell biology/ })

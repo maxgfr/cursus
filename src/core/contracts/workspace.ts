@@ -94,6 +94,11 @@ export type Scope =
  * every card of the scope (lowest estimated retention first).
  */
 export type SessionKind = 'due' | 'ahead' | 'failed' | 'new' | 'all'
+/**
+ * How a session runs: absent, once through its queue; `exam`, its cards (`cardIds`) over and over until each is known.
+ * Older clients ignore it and go through those cards once.
+ */
+export type SessionMode = 'exam'
 /** A course, one of its subsets (descendants included), or every course when empty. */
 export interface SessionScope {
   courseId?: Id
@@ -107,8 +112,9 @@ export interface NewSession {
   practice: boolean
   /** The planned session it was started from. */
   planId?: Id
-  /** Only these cards (relaunching a session's failed cards). */
+  /** Only these cards (relaunching a session's failed cards, an exam's batch). */
   cardIds?: Id[]
+  mode?: SessionMode
 }
 export interface Session extends NewSession {
   id: Id
@@ -128,6 +134,8 @@ export interface PlanInput {
   /** Local wall-clock time, `HH:MM`. */
   time: string
   practice: boolean
+  /** An exam: each session draws a batch of `limit` cards and goes over it until every one is known. */
+  mode?: SessionMode
 }
 export interface Plan extends EntityMeta, PlanInput {}
 

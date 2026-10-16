@@ -433,6 +433,7 @@ test('Trashing a section hides its content; restoring brings it back', async ({ 
 
   // Restored from the course, after a reload: the whole subtree is back.
   await page.reload()
+  await page.goto('./#/courses')
   await page.getByRole('main').getByRole('link', { name: /Law/ }).click()
   await page.getByRole('button', { name: 'Restore Contracts' }).click()
   await expect(page.getByRole('main').getByRole('link', { name: /^Contracts/ })).toContainText('2 cards')
@@ -497,7 +498,7 @@ test('A trashed section is listed in the Trash with its path and contents, resto
 
   await page.getByRole('button', { name: 'Restore Law › Contracts' }).click()
   await expect(page.getByRole('heading', { name: 'The trash is empty' })).toBeVisible()
-  await page.goto('./#/')
+  await page.goto('./#/courses')
   await page.getByRole('main').getByRole('link', { name: /Law/ }).click()
   await expect(page.getByRole('main').getByRole('link', { name: /^Contracts/ })).toContainText('2 cards')
   expect(errors).toEqual([])

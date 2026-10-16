@@ -232,7 +232,7 @@ test('a review closes back to where it started, and the browser back never resta
   await at(page, 'Courses', /#\/courses$/)
 
   await hop(page, '/', 'Today')
-  await page.getByRole('button', { name: 'Start', exact: true }).first().click()
+  await page.getByRole('button', { name: 'Review', exact: true }).first().click()
   await at(page, 'Review', /#\/review/)
   await page.getByRole('button', { name: 'Close' }).click()
   await at(page, 'Today', /#\/$/)
@@ -266,13 +266,33 @@ test('Practice screens go back to Practice', async ({ page }) => {
   await hop(page, '/sessions', 'Practice')
   await page
     .getByRole('main')
-    .getByRole('link', { name: /New session/ })
+    .getByRole('button', { name: /New session/ })
+    .click()
+  await page
+    .getByRole('dialog', { name: 'New session' })
+    .getByRole('button', { name: /Custom session/ })
     .click()
   await at(page, 'New session', /#\/sessions\/new$/)
   await back(page).click()
   await at(page, 'Practice', /#\/sessions$/)
   await page.goBack()
   await at(page, 'Today', /#\/$/)
+})
+
+test('the palette’s New session opens the quick start over the current screen', async ({ page }) => {
+  await openLaw(page)
+  await page.keyboard.press('ControlOrMeta+k')
+  const palette = page.getByRole('dialog', { name: 'Command palette' })
+  await palette.getByRole('combobox').fill('New session')
+  await palette.getByRole('option', { name: 'New session' }).click()
+  await expect(palette).toBeHidden()
+  const quick = page.getByRole('dialog', { name: 'New session' })
+  await expect(quick.getByLabel('Cards from')).toHaveValue('')
+  await expect(quick.getByRole('button', { name: /^Custom session…/ })).toBeVisible()
+  await at(page, 'Law', /#\/course\/[^/?]+$/)
+  await quick.getByRole('button', { name: 'Close' }).click()
+  await expect(quick).toBeHidden()
+  await at(page, 'Law', /#\/course\/[^/?]+$/)
 })
 
 test('course → New session → Back → course Back goes to Courses, not back to New session', async ({ page }) => {
@@ -320,7 +340,6 @@ test('planning a session from Practice leaves one Practice entry', async ({ page
   await page.getByLabel('Name').fill('Morning law')
   for (const day of ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'])
     await page.getByRole('checkbox', { name: day }).check()
-  await page.getByRole('radio', { name: 'All', exact: true }).check()
   await page.getByLabel('Time').fill('08:00')
   await page.getByRole('button', { name: 'Save' }).click()
   await at(page, 'Practice', /#\/sessions$/)

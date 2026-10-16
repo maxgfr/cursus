@@ -24,3 +24,8 @@
   display: block;
   margin-inline-start: calc(-1 * var(--space-2));
 }
+
+/* « New session » from the Practice tab: where the cards come from, above the choices. */
+.picker {
+  margin-block-end: var(--space-4);
+}

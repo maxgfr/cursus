@@ -37,13 +37,29 @@ async function horizontalOverflow(page: Page): Promise<number> {
   return page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
 }
 
-test('Cramming from Today: all cards outside the schedule, a summary, the missed ones relaunched', async ({ page }) => {
+test('Cramming from Practice: all cards outside the schedule, a summary, the missed ones relaunched', async ({
+  page,
+}) => {
   const errors = watchErrors(page)
   await harness.seed(page, { courses: [LAW] })
   await openToday(page)
   await expect(page.getByRole('heading', { level: 2, name: '3 cards due today' })).toBeVisible()
 
-  await page.getByRole('link', { name: 'New session' }).click()
+  // Today keeps to today's reviews: « New session » lives on the Practice tab (and in the command palette).
+  await expect(page.getByRole('main').getByRole('button', { name: /New session/ })).toHaveCount(0)
+  // There it opens the quick start; the custom session is one row away.
+  await page.goto('./#/sessions')
+  await page
+    .getByRole('main')
+    .getByRole('button', { name: /^New session/ })
+    .click()
+  const quick = page.getByRole('dialog', { name: 'New session' })
+  await expect(quick.getByLabel('Cards from')).toHaveValue('')
+  // New cards are not due cards: « Due cards » has nothing to start, the three wait under « New cards ».
+  await expect(quick.getByRole('listitem').filter({ hasText: /^Due cards/ })).toContainText('No card here')
+  await expect(quick.getByRole('button', { name: /^Due cards/ })).toHaveCount(0)
+  await expect(quick.getByRole('button', { name: /^New cards/ })).toContainText('3 cards')
+  await quick.getByRole('button', { name: /^Custom session…/ }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'New session' })).toBeVisible()
   await expect(page.getByLabel('Cards from')).toHaveValue('')
   // Due by default: it counts toward the schedule, and new cards are not due cards.
@@ -125,6 +141,7 @@ test('A session from a course counts toward the schedule; keyboard only', async 
   await harness.seed(page, { courses: [LAW, { title: 'Biology', cards: [{ front: 'Cell?', back: 'Unit of life' }] }] })
   await openToday(page)
   await expect(page.getByRole('heading', { level: 2, name: '4 cards due today' })).toBeVisible()
+  await page.goto('./#/courses')
   await page.getByRole('main').getByRole('link', { name: /^Law/ }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Law' })).toBeVisible()
   await page.getByRole('button', { name: 'Practice', exact: true }).click()
@@ -181,6 +198,12 @@ test('Planned sessions: create, show on Today, edit, add to calendar, delete wit
   await expect(page.getByText('Sessions you start show up here with their results.')).toBeVisible()
   await page.getByRole('button', { name: 'Plan a session' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'New planned session' })).toBeVisible()
+  // An exam over a part of a course: no « All courses », 60 cards by default, all of them in a smaller part, and
+  // nothing more to set.
+  await expect(page.getByLabel('Cards from').locator('option')).toHaveText(['Law'])
+  await expect(page.getByRole('radio', { name: '60', exact: true })).toBeChecked()
+  await expect(page.getByText('3 cards here: each session takes them all.')).toBeVisible()
+  await expect(page.getByRole('switch')).toHaveCount(0)
 
   // Nothing is saved without a name or a day.
   await page.getByRole('button', { name: 'Save' }).click()
@@ -195,7 +218,7 @@ test('Planned sessions: create, show on Today, edit, add to calendar, delete wit
   for (const day of ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'])
     await page.getByRole('checkbox', { name: day }).check()
   await page.getByLabel('Cards from').selectOption({ label: 'Law' })
-  await page.getByRole('radio', { name: 'Forgotten', exact: true }).check()
+  await page.getByRole('radio', { name: '50', exact: true }).check()
   await page.getByLabel('Time').fill('23:59')
   await page.getByRole('button', { name: 'Save' }).click()
 
@@ -204,26 +227,28 @@ test('Planned sessions: create, show on Today, edit, add to calendar, delete wit
   const planned = page.getByRole('region', { name: 'Planned sessions' })
   const row = planned.getByRole('link', { name: /Evening law/ })
   await expect(row).toContainText(
-    /Every day at 11:59\sPM · Forgotten cards · Law · Next: (today|tomorrow) at 11:59\sPM/,
+    /Every day at 11:59\sPM · Exam · Law · 50 cards · Next: (today|tomorrow) at 11:59\sPM/,
   )
+  // Practice only: the answers of an exam never move a review date.
+  await expect(row.getByTestId('cramming')).toBeVisible()
 
-  // The next one shows on Today, as one calm line.
+  // The next one shows on Today, as one calm line: started from it while it is today's.
   await openToday(page)
   await expect(page.getByTestId('session-line')).toHaveText(
-    /^Next session: Evening law, (today|tomorrow) at 11:59\sPM · Sessions$/,
+    /^Next session: Evening law, (today at 11:59\sPM · Start now|tomorrow at 11:59\sPM) · Sessions$/,
   )
   await page.getByTestId('session-line').getByRole('link', { name: 'Sessions' }).click()
 
-  // Edit: rename, switch to cramming.
+  // Edit: rename, a larger batch.
   await page
     .getByRole('region', { name: 'Planned sessions' })
     .getByRole('link', { name: /Evening law/ })
     .click()
   await expect(page.getByRole('heading', { level: 1, name: 'Planned session' })).toBeVisible()
   await expect(page.getByLabel('Name')).toHaveValue('Evening law')
-  await expect(page.getByRole('radio', { name: 'Forgotten', exact: true })).toBeChecked()
+  await expect(page.getByRole('radio', { name: '50', exact: true })).toBeChecked()
   await page.getByLabel('Name').fill('Night law')
-  await page.getByRole('switch', { name: 'Count toward the schedule' }).uncheck()
+  await page.getByRole('radio', { name: '80', exact: true }).check()
 
   // Add to calendar: a weekly event with an alarm.
   // The name the app asks for; some browsers then rewrite it (WebKit on Linux turns spaces into '_').
@@ -243,7 +268,7 @@ test('Planned sessions: create, show on Today, edit, add to calendar, delete wit
   expect(ics).toContain('RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA,SU')
   expect(ics).toMatch(/DTSTART:\d{8}T235900/)
   expect(ics).toContain('SUMMARY:Evening law')
-  expect(ics).toContain('DESCRIPTION:Forgotten cards · Law')
+  expect(ics).toContain('DESCRIPTION:Exam · Law · 50 cards')
   expect(ics).toContain('BEGIN:VALARM')
   await expect(page.getByText('Calendar file saved. Open it to add the reminder.')).toBeVisible()
 
@@ -251,6 +276,7 @@ test('Planned sessions: create, show on Today, edit, add to calendar, delete wit
   await expect(page.getByText('Session planned')).toBeVisible()
   const renamed = page.getByRole('region', { name: 'Planned sessions' }).getByRole('link', { name: /Night law/ })
   await expect(renamed).toBeVisible()
+  await expect(renamed).toContainText('Exam · Law · 80 cards')
   await expect(renamed.getByTestId('cramming')).toBeVisible()
 
   // Delete acts at once and offers Undo.
@@ -272,6 +298,67 @@ test('Planned sessions: create, show on Today, edit, add to calendar, delete wit
   await page.getByRole('button', { name: 'Start now' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Night law' })).toBeVisible()
   await expect(page.getByTestId('cramming')).toBeVisible()
+  await expect(page.getByTestId('remaining')).toHaveText('0 / 3 known')
+  expect(errors).toEqual([])
+})
+
+test('An exam on a section: its cards only, a missed card comes back, done once all are known', async ({ page }) => {
+  const errors = watchErrors(page)
+  await harness.seed(page, {
+    courses: [
+      {
+        title: 'Law',
+        cards: [{ front: 'What is a tort?', back: 'A civil wrong' }],
+        sections: [{ name: 'Contracts', cards: LAW.cards.slice(0, 2) }],
+      },
+    ],
+  })
+  await page.goto('./#/sessions')
+  await page.getByRole('button', { name: 'Plan a session' }).click()
+  await page.getByLabel('Name').fill('Contracts exam')
+  await page.getByLabel('Cards from').selectOption({ label: 'Law › Contracts' })
+  await expect(page.getByText('2 cards here: each session takes them all.')).toBeVisible()
+  await page.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByText('Session planned')).toBeVisible()
+  const row = page.getByRole('region', { name: 'Planned sessions' }).getByRole('link', { name: /Contracts exam/ })
+  await expect(row).toContainText('Exam · Law › Contracts · 60 cards')
+
+  // Started: the section's two cards, none known yet.
+  await row.click()
+  await page.getByRole('button', { name: 'Start now' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Contracts exam' })).toBeVisible()
+  const progress = page.getByTestId('remaining')
+  await expect(progress).toHaveText('0 / 2 known')
+  const missed = ((await page.getByTestId('question').textContent()) ?? '').trim()
+  expect(LAW.cards.slice(0, 2).map((c) => c.front)).toContain(missed)
+  await answer(page, 'Again')
+  await expect(page.getByTestId('question')).not.toHaveText(missed)
+  await answer(page, 'Good')
+  await expect(progress).toHaveText('1 / 2 known')
+
+  // The missed card comes back, and the sitting goes on until it is known.
+  await expect(page.getByTestId('question')).toHaveText(missed)
+  await answer(page, 'Again')
+  await expect(page.getByTestId('question')).toHaveText(missed)
+  await expect(progress).toHaveText('1 / 2 known')
+  await answer(page, 'Good')
+  const done = page.getByTestId('exam-done')
+  await expect(done.getByRole('heading', { name: 'You know them all' })).toBeVisible()
+  await expect(done).toContainText('All 2 cards of this batch are known.')
+  const struggled = page.getByRole('region', { name: 'Took several passes' })
+  await expect(struggled.getByRole('listitem')).toHaveCount(1)
+  await expect(struggled.getByRole('listitem')).toContainText(missed)
+  await expect(struggled.getByRole('listitem')).toContainText('3 passes')
+  await page.getByRole('button', { name: 'Done' }).click()
+
+  // Practice only: the schedule is untouched, the three new cards are still due; the sitting is in the history.
+  await openToday(page)
+  await expect(page.getByRole('heading', { level: 2, name: '3 cards due today' })).toBeVisible()
+  await page.goto('./#/sessions')
+  const past = page.getByRole('region', { name: 'Past sessions' })
+  await expect(past.getByRole('listitem')).toHaveCount(1)
+  await expect(past.getByRole('listitem')).toContainText('Contracts exam')
+  await expect(past.getByTestId('session-facts')).toContainText('2 cards · 1 forgotten')
   expect(errors).toEqual([])
 })
 
@@ -347,7 +434,6 @@ test('Nothing due and nothing suggested: the session planned for today is the ma
   await page.getByLabel('Name').fill('Morning law')
   for (const day of ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'])
     await page.getByRole('checkbox', { name: day }).check()
-  await page.getByRole('radio', { name: 'All', exact: true }).check()
   // Early today: still today's session, though its time has passed.
   await page.getByLabel('Time').fill('00:01')
   await page.getByRole('button', { name: 'Save' }).click()
@@ -358,7 +444,7 @@ test('Nothing due and nothing suggested: the session planned for today is the ma
   await expect(hero.getByRole('heading', { level: 2, name: 'Planned today: Morning law' })).toBeVisible()
   await hero.getByRole('button', { name: 'Start now' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Morning law' })).toBeVisible()
-  await expect(page.getByTestId('remaining')).toHaveText('3 left')
+  await expect(page.getByTestId('remaining')).toHaveText('0 / 3 known')
 
   // Started: it is done for today, and Today no longer offers it.
   await openToday(page)
@@ -370,7 +456,7 @@ test('Practice offers « Quiz me » only with an AI model ready', async ({ page 
   await harness.seed(page, { courses: [LAW] })
   await page.goto('./#/sessions')
   await expect(page.getByRole('heading', { level: 1, name: 'Practice' })).toBeVisible()
-  await expect(page.getByRole('link', { name: /New session/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /New session/ })).toBeVisible()
   await expect(page.getByRole('button', { name: /Quiz me/ })).toHaveCount(0)
 
   await configureAi(page, 'https://llm.mock.test/v1')
@@ -394,7 +480,11 @@ test('German, dark: sessions screens neither overflow nor fail axe', async ({ pa
 
   await openToday(page, query)
   await expect(page.locator('html')).toHaveAttribute('lang', 'de-DE')
-  await page.getByRole('link', { name: 'Neue Lerneinheit' }).click()
+  await page.getByRole('main').getByRole('button', { name: 'Neue Lerneinheit', exact: true }).click()
+  await page
+    .getByRole('dialog', { name: 'Neue Lerneinheit' })
+    .getByRole('button', { name: /^Eigene Sitzung…/ })
+    .click()
   await expect(page.getByRole('heading', { level: 1, name: 'Neue Lerneinheit' })).toBeVisible()
   await page.getByRole('radio', { name: 'Alle', exact: true }).check()
   await expect(page.getByTestId('session-preview')).toHaveText('3 Karten in dieser Lerneinheit')
@@ -426,7 +516,7 @@ test('German, dark: sessions screens neither overflow nor fail axe', async ({ pa
 test('Practice: a course or every course in one tap, all cards included, with no form', async ({ page }) => {
   const errors = watchErrors(page)
   await harness.seed(page, { courses: [LAW, { title: 'Biology', cards: [{ front: 'Cell?', back: 'Unit of life' }] }] })
-  await openToday(page)
+  await page.goto('./#/courses')
   await page.getByRole('main').getByRole('link', { name: /^Law/ }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Law' })).toBeVisible()
 
@@ -444,10 +534,20 @@ test('Practice: a course or every course in one tap, all cards included, with no
   for (let i = 0; i < 3; i++) await answer(page, 'Good')
   await expect(page.getByText('Session complete')).toBeVisible()
 
-  // From the Practice tab: every course at once, or the custom session for the fine settings.
+  // From the Practice tab: one « New session », every course by default, a course picked in it, or the custom session
+  // for the fine settings.
   await page.goto('./#/sessions')
-  await page.getByRole('button', { name: /^All courses/ }).click()
-  const all = page.getByRole('dialog', { name: 'Practice · All courses' })
+  await expect(page.getByText('Practice a course')).toHaveCount(0)
+  await page
+    .getByRole('main')
+    .getByRole('button', { name: /^New session/ })
+    .click()
+  const all = page.getByRole('dialog', { name: 'New session' })
+  await expect(all.getByLabel('Cards from')).toHaveValue('')
+  await expect(all.getByRole('button', { name: /^All cards/ })).toContainText('4 cards')
+  await all.getByLabel('Cards from').selectOption({ label: 'Biology' })
+  await expect(all.getByRole('button', { name: /^All cards/ })).toContainText('1 card')
+  await all.getByLabel('Cards from').selectOption({ label: 'All courses' })
   await expect(all.getByRole('button', { name: /^All cards/ })).toContainText('4 cards')
   await all.getByRole('button', { name: /Custom session/ }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'New session' })).toBeVisible()

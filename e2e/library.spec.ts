@@ -118,7 +118,15 @@ test('Today: first-launch state, "+" action, due counts and the exam countdown',
   await expect(page.getByTestId('backup-line')).not.toContainText(/this device/i)
   await expect(page.getByRole('link', { name: 'Add a backup' })).toHaveAttribute('href', /settings\/sync/)
   await expect(page.getByText(/≈ \d+/)).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Start' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^Review/ })).toBeVisible()
+  // Today's share of the course, and why it is there: its new card (the exam is further off than a week).
+  const share = page.getByRole('main').getByRole('button', { name: /^Physiology/ })
+  await expect(share.getByTestId('course-reason')).toHaveText('1 new')
+  await expect(share).toContainText('1 card · Review this course')
+  expect(await seriousViolations(page)).toEqual([])
+  // The course itself, with its exam countdown, is on the Courses tab.
+  await page.goto('./#/courses')
+  await expect(page.getByRole('heading', { level: 1, name: 'Courses' })).toBeVisible()
   const row = page.getByRole('main').getByRole('link', { name: /Physiology/ })
   await expect(row).toContainText('12 days left')
   await expect(row).toContainText('Exam in 12 days')
@@ -353,7 +361,7 @@ test('Trash: restore, then delete forever with the history caveat explained', as
   await expect(
     page.getByText('Deleted courses, sections, sources and cards wait here until you restore them.'),
   ).toBeVisible()
-  await page.goto('./#/')
+  await page.goto('./#/courses')
   await page.getByRole('main').getByRole('link', { name: /Law/ }).click()
   await expect(page.getByRole('main').getByRole('link', { name: /Consideration/ })).toBeVisible()
 
@@ -462,7 +470,9 @@ test('Onboarding: install first, Safari tab warning, storage health and an expli
   await expect(main.getByRole('link')).toHaveCount(5)
   await page.goto('./#/')
   await expect(page.getByRole('heading', { name: /due today$/ })).toBeVisible()
-  await expect(page.getByRole('main').getByRole('link', { name: /Demo: Cell biology/ })).toContainText('3 due')
+  await expect(page.getByRole('main').getByRole('button', { name: /^Demo: Cell biology/ })).toContainText(
+    '3 cards · Review this course',
+  )
   expect(errors).toEqual([])
 })
 

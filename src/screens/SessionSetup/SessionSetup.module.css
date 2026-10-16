@@ -180,23 +180,6 @@
   font-size: var(--text-caption);
 }
 
-.link {
-  color: var(--accent-ink);
-  font-size: var(--text-footnote);
-  font-weight: 600;
-  text-decoration: none;
-  border-radius: var(--radius-small);
-}
-
-.link:hover {
-  text-decoration: underline;
-}
-
-.link:focus-visible {
-  outline: 2px solid var(--focus);
-  outline-offset: 2px;
-}
-
 @media (forced-colors: active) {
   .switch {
     border: 1px solid CanvasText;

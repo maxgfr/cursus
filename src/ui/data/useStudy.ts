@@ -12,9 +12,10 @@ import {
   type Scheduler,
   studyDay,
 } from '../../core/srs/fsrs'
-import { nearestExam } from '../../core/srs/planner'
+import { courseDeadline, nearestExam, type ScopedExam } from '../../core/srs/planner'
 import { buildQueue } from '../../core/srs/queue'
 import { REPLAYS_KEY } from '../../core/srs/savedReplays'
+import { type CourseToday, planToday } from '../../core/srs/today'
 import { type CourseHue, courseHue } from '../components/Badges.tsx'
 
 export interface CourseStudy {
@@ -41,6 +42,8 @@ export interface StudySummary {
   later: { count: number; nextAt: number } | null
   /** The course whose exam comes first, with its share of today's queue. */
   exam: { courseId: Id; title: string; due: number; days: number } | null
+  /** The courses with work today, most urgent first: each one's share of today's queue and why it comes there. */
+  today: CourseToday[]
 }
 
 /** Local noon of an ISO `YYYY-MM-DD` exam date (inside that study day whatever the zone); null when malformed. */
@@ -59,6 +62,22 @@ export function examCourse(ws: ModelWorkspace, now: number): { id: Id; days: num
     if (examAt !== null) candidates.push({ id: c.id, plan: { examAt, tzOffsetMin } })
   }
   return nearestExam(candidates, now)
+}
+
+/** Study days to each course's nearest exam ahead, its own or a subset's (past exams left out). */
+export function courseExams(ws: ModelWorkspace, now: number): Map<Id, number> {
+  const tzOffsetMin = localOffset(now)
+  const exams: ScopedExam[] = []
+  for (const e of ws.exams()) {
+    const examAt = examTime(e.examDate)
+    if (examAt !== null) exams.push({ scope: e.scope, plan: { examAt, tzOffsetMin } })
+  }
+  const out = new Map<Id, number>()
+  for (const courseId of new Set(exams.map((e) => e.scope.courseId))) {
+    const deadline = courseDeadline(exams, courseId, now)
+    if (deadline !== null) out.set(courseId, deadline.days)
+  }
+  return out
 }
 
 // ---- Replays kept between launches ----
@@ -184,6 +203,15 @@ export function computeStudy(ws: ModelWorkspace, now: number, saved: ReplaySnaps
       nearest === null || examTitle === undefined
         ? null
         : { courseId: nearest.id, title: examTitle, due: dueBy.get(nearest.id) ?? 0, days: nearest.days },
+    today: planToday({
+      courses: courses.map((c) => c.id),
+      courseOf,
+      queue,
+      states,
+      exams: courseExams(ws, now),
+      now,
+      tzOffsetMin: tz,
+    }),
   }
 }
 
