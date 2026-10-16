@@ -1,17 +1,16 @@
 import { useEffect, useSyncExternalStore } from 'react'
 import type { Runtime } from '../../app/workspaceContext.tsx'
-import type { JobReason } from '../../core/ai/autoQuestions'
 import type { AiJob, AiJobs, JobsState } from '../../core/ai/jobs'
 import type { Id } from '../../core/contracts/workspace'
 import { noteError } from '../../screens/settings/Diagnostic/recent.ts'
-import { isAiReady } from '../ai/ready.ts'
 
 /**
- * Questions proposed when a source is added, as every add path and screen sees them: `proposeFor(rt, id)` after
- * a source is created, and the queue's state for the screens that show it.
+ * Cards suggested on a source when the student asks (« Suggest cards » on a source, its slides, a photo), as
+ * every screen sees them: `proposeFor(rt, id)` queues the source, and the queue's state for the screens that
+ * show it. Nothing is ever queued on its own when a source is added.
  *
  * Nothing here loads the AI code: the queue (`screens/Inbox/runner.ts`, the jobs and the AI SDK) is fetched the
- * first time a source is queued, the review screen opens, or a stored job needs to run again.
+ * first time a source is queued, the inbox opens, or a stored job needs to run again.
  */
 
 /** Where the device store keeps the queue: `JOBS_KEY` of `core/ai/jobs` (importing it would load the AI code). */
@@ -49,38 +48,17 @@ export function autoQuestions(rt: Runtime): Promise<AiJobs> {
   return started
 }
 
-/**
- * Queues questions for a source just added (`added`: follows the « When I add a document » setting) or asked for
- * (`manual`). Resolves with the job id, or null when the setting says to do nothing or no model is set up (a
- * source added without one is never queued for later).
- */
-export async function proposeFor(rt: Runtime, sourceId: Id, reason: JobReason = 'added'): Promise<string | null> {
-  if (reason === 'added' && rt.ws.drafts.settings.get().mode === 'off') return null
+/** Queues the cards the student asked for on a source. Resolves with the job id, or null when it could not be queued. */
+export async function proposeFor(rt: Runtime, sourceId: Id): Promise<string | null> {
   try {
-    if (reason === 'added' && !(await isAiReady(rt))) return null
-    return await (await autoQuestions(rt)).enqueue(sourceId, reason)
+    return await (await autoQuestions(rt)).enqueue(sourceId)
   } catch (e) {
     noteError('autoQuestions.enqueue', e)
     return null
   }
 }
 
-/** Notes created empty, proposed once the student leaves them with something written. */
-const freshNotes = new Set<Id>()
-
-export function proposeWhenWritten(sourceId: Id): void {
-  freshNotes.add(sourceId)
-}
-
-/** The student left a note: a fresh one with text in it is proposed now (an empty one keeps waiting). */
-export function leftNote(rt: Runtime, sourceId: Id): void {
-  if (!freshNotes.has(sourceId)) return
-  if (rt.ws.text({ id: sourceId, field: 'body' }).toString().trim() === '') return
-  freshNotes.delete(sourceId)
-  void proposeFor(rt, sourceId)
-}
-
-const ACTIVE: ReadonlySet<string> = new Set(['queued', 'running', 'waiting', 'needs-model', 'over-cap'])
+const ACTIVE: ReadonlySet<string> = new Set(['queued', 'running', 'waiting', 'needs-model'])
 
 function storedJob(v: unknown): v is AiJob {
   if (typeof v !== 'object' || v === null) return false
@@ -104,27 +82,22 @@ export async function readStoredJobs(rt: Runtime): Promise<AiJob[]> {
 }
 
 /**
- * Runs again what the stored queue still has to do: jobs queued or interrupted (the app was closed), waiting for
- * a connection, and when asked those waiting for a model (one was just set up) or over a cap (the caps changed).
+ * Runs again what the stored queue still has to do: jobs the student asked for that were queued or interrupted
+ * (the app was closed), or waiting for a connection or a model.
  */
-export async function resumeAutoQuestions(rt: Runtime, o: { model?: boolean; overCap?: boolean } = {}): Promise<void> {
+export async function resumeAutoQuestions(rt: Runtime): Promise<void> {
   try {
     if (queue) {
-      await queue.kick(o.overCap ? { overCap: true } : undefined)
+      await queue.kick()
       return
     }
     const jobs = await readStoredJobs(rt)
     const pending = jobs.some(
       (j) =>
-        j.status === 'queued' ||
-        j.status === 'running' ||
-        j.status === 'waiting' ||
-        (o.model === true && j.status === 'needs-model') ||
-        (o.overCap === true && j.status === 'over-cap'),
+        j.reason === 'manual' &&
+        (j.status === 'queued' || j.status === 'running' || j.status === 'waiting' || j.status === 'needs-model'),
     )
-    if (!pending) return
-    const q = await autoQuestions(rt)
-    if (o.overCap) await q.kick({ overCap: true })
+    if (pending) await autoQuestions(rt)
   } catch (e) {
     noteError('autoQuestions.resume', e)
   }

@@ -10,7 +10,6 @@ import { useT } from '../../i18n/react.tsx'
 import { useAiReady } from '../../ui/ai/ready.ts'
 import { useChatContext } from '../../ui/chat/context.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
-import { leftNote } from '../../ui/data/autoQuestions.ts'
 import { AskSelection } from '../../ui/ExplainLauncher.tsx'
 import { MarkdownEditor } from '../../ui/editor/MarkdownEditor.tsx'
 import { MoveSheet, moveItemTo } from '../../ui/MoveSheet.tsx'
@@ -181,8 +180,6 @@ export default function Source() {
   const page = cited.page
   const [moving, setMoving] = useState(false)
   const [movedTo, setMovedTo] = useState<string | null>(null)
-  // A note written here for the first time gets its questions proposed when the student leaves it.
-  useEffect(() => () => leftNote(rt, id), [rt, id])
   const found = useWorkspaceData(['sources', 'sections'], (w) => {
     const s = w.sources.get(id)
     return s && s.deletedAt === undefined ? { source: s, sectionId: w.sections.tree().sectionOf(s) } : null

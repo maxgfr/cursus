@@ -174,8 +174,6 @@ test('a photo is explained in the chat from a reduced copy, its cost shown, then
 }, info) => {
   const sent = await mockProvider(page)
   await configureAi(page, LLM)
-  // Since S-044 adding a document proposes questions on its own (auto-questions.spec.ts): off for this manual flow.
-  await page.getByRole('radio', { name: 'Do nothing' }).check({ force: true })
   await courseWithPhotos(page, 'Biochemistry', [LARGE])
   const title = await openFirstPhoto(page)
   const phone = isPhone(info.project.name)
@@ -249,8 +247,6 @@ test('a photo is explained in the chat from a reduced copy, its cost shown, then
 test('cards from several photos in the chat: duplicates flagged, saved only when confirmed', async ({ page }, info) => {
   const sent = await mockProvider(page)
   await configureAi(page, LLM)
-  // Since S-044 adding a document proposes questions on its own (auto-questions.spec.ts): off for this manual flow.
-  await page.getByRole('radio', { name: 'Do nothing' }).check({ force: true })
   const courseId = await courseWithPhotos(page, 'Metabolism', [LARGE, LARGE])
   await openFirstPhoto(page)
   await explainWithAi(page).click()
@@ -305,8 +301,6 @@ test('a running request can be stopped in the chat; offline, its actions wait fo
   })
   const sent = await mockProvider(page, hold)
   await configureAi(page, LLM)
-  // Since S-044 adding a document proposes questions on its own (auto-questions.spec.ts): off for this manual flow.
-  await page.getByRole('radio', { name: 'Do nothing' }).check({ force: true })
   await courseWithPhotos(page, 'Genetics', [LARGE])
   await openFirstPhoto(page)
   await explainWithAi(page).click()

@@ -1,4 +1,83 @@
-/* A document and its proposed questions: a surface in the flow, like Today's hero. */
+/* Jobs still running: a quiet list above the cards. */
+.jobs {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.sectionTitle {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+  font-weight: 600;
+}
+
+.jobList {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.jobItem {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-surface);
+  background: var(--surface);
+  box-shadow: var(--lift);
+  min-width: 0;
+}
+
+/* Which source to show, and how to go through the cards. */
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.filterLabel {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+  font-weight: 600;
+}
+
+.select {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 2.75rem;
+  padding: 0 var(--space-3);
+  border: var(--hairline-width) solid var(--hairline-strong);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: max(16px, var(--text-body));
+}
+
+.select:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+}
+
+.keys {
+  flex-basis: 100%;
+  color: var(--ink-3);
+  font-size: var(--text-caption);
+}
+
+/* Touch screens have no keys to learn. */
+@media (pointer: coarse) {
+  .keys {
+    display: none;
+  }
+}
+
+.list {
+  display: grid;
+  gap: var(--space-5);
+}
+
+/* A source and its suggested cards: a surface in the flow, like Today's hero. */
 .source {
   display: grid;
   gap: var(--space-4);
@@ -25,8 +104,10 @@
 
 .sourceLink {
   color: inherit;
+  font-weight: 600;
   text-decoration: none;
   border-radius: var(--radius-small);
+  overflow-wrap: anywhere;
 }
 
 .sourceLink:hover {
@@ -34,7 +115,9 @@
 }
 
 .sourceLink:focus-visible,
-.link:focus-visible {
+.link:focus-visible,
+.fold:focus-visible,
+.card:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
@@ -42,6 +125,155 @@
 .meta {
   color: var(--ink-2);
   font-size: var(--text-footnote);
+}
+
+.destination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* One slide, page or section: folded or not, added or rejected at once. */
+.unit {
+  display: grid;
+  gap: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: var(--hairline-width) solid var(--hairline);
+  min-width: 0;
+}
+
+.unitHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+}
+
+.unitTitle {
+  flex: 1 1 12rem;
+  min-width: 0;
+  font-size: var(--text-body);
+  font-weight: 600;
+}
+
+.fold {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  max-width: 100%;
+  padding: 0 var(--space-2) 0 0;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.chevron {
+  flex: none;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.fold[aria-expanded="false"] .chevron {
+  transform: rotate(-90deg);
+}
+
+.groupActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.cards {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  min-width: 0;
+}
+
+.card {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: var(--hairline-width) solid var(--hairline);
+  border-radius: var(--radius-control);
+  background: var(--bg);
+  min-width: 0;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.badge {
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--surface-pressed);
+  color: var(--ink-2);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  line-height: 1.6;
+}
+
+.front {
+  min-width: 0;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.back {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.backSummary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.quote {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.editing {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.emptyActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
 }
 
 .job {
@@ -52,7 +284,6 @@
 }
 
 .jobText,
-.jobWarn,
 .jobError {
   flex: 1 1 16rem;
   min-width: 0;
@@ -63,10 +294,6 @@
 
 .jobText {
   color: var(--ink-2);
-}
-
-.jobWarn {
-  color: var(--ink);
 }
 
 .jobError {
@@ -92,19 +319,12 @@
   text-decoration: underline;
 }
 
-.saveBar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
-}
-
 .error {
   color: var(--danger);
   font-size: var(--text-footnote);
 }
 
-/* One calm line on a source or a course: where its proposed questions stand. */
+/* One calm line on a source or a course: where its suggested cards stand. */
 .line {
   color: var(--ink-2);
   font-size: var(--text-footnote);

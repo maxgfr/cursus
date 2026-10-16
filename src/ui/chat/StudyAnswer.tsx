@@ -1360,7 +1360,6 @@ function JobAnswer({ sourceId }: { sourceId: string }) {
     ? {
         cancel: act('cancel', (id) => q.cancel(id)),
         retry: act('retry', (id) => q.retry(id)),
-        approve: act('approve', (id) => q.approve(id)),
       }
     : undefined
   return (

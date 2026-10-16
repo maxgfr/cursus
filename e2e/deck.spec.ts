@@ -139,8 +139,6 @@ test('slides: preview, questions for a range of slides, review by slide, saved c
 }, info) => {
   const calls = await mockProvider(page)
   await configureAi(page, LLM)
-  // Since S-044 adding a document proposes questions on its own (auto-questions.spec.ts): off for this manual flow.
-  await page.getByRole('radio', { name: 'Do nothing' }).check({ force: true })
   await openImport(page, 'Biology')
 
   await page.getByLabel('Add files').setInputFiles(join(DECKS, 'slides.pptx'))
@@ -319,8 +317,6 @@ test('a PDF of slides with a text-only model: notice, offline state, stop and re
   })
   const calls = await mockProvider(page, { hold: held })
   await configureAi(page, LLM)
-  // Since S-044 adding a document proposes questions on its own (auto-questions.spec.ts): off for this manual flow.
-  await page.getByRole('radio', { name: 'Do nothing' }).check({ force: true })
   await page.getByRole('button', { name: 'Refresh catalog' }).click()
   await expect(page.getByText('Catalog updated.')).toBeVisible()
   await openImport(page, 'Cells')
@@ -334,8 +330,9 @@ test('a PDF of slides with a text-only model: notice, offline state, stop and re
   await page.getByRole('button', { name: 'Create cards' }).click()
   const chat = chatPanel(page, info.project.name)
   await expect.poll(() => calls.questions.length).toBe(1)
-  await chat.getByRole('button', { name: 'Cancel' }).click()
-  await expect(chat.getByText('Cancelled.')).toBeVisible()
+  await chat.getByRole('button', { name: 'Stop' }).click()
+  await expect(chat.getByText(/^Stopped/)).toBeVisible()
+  await expect(chat.getByRole('button', { name: 'Resume' })).toBeVisible()
   const before = calls.questions.length
   await chat.getByRole('link', { name: 'Choose the slides or sections' }).click()
   await expect(page.getByText(/^This model can’t see pictures: the cards come from the text/)).toBeVisible()

@@ -1,18 +1,15 @@
 /**
- * The device's background AI queue: questions proposed for each added source, one source at a time.
+ * The device's background AI queue: questions proposed on the sources the student asks about, one source at a
+ * time.
  *
  * - Persisted in the device store (`kv`, key `ai:jobs`), never synced: closing the app keeps the queue, and a
  *   job resumes where it stopped (units already read are skipped; their drafts are already in the doc).
  * - Drafts are written to the workspace batch by batch, so they sync as they come and nothing read is lost.
  * - Never runs without a configured model (`needs-model`), nor offline with an online model (`waiting`,
- *   `waitReason: 'offline'`), nor beyond a cost cap (`over-cap`, with the estimate and the cap): the per
- *   document cap counts what the source already cost on every device (synced usage carries the source, see
- *   `JobsDeps.sourceSpent`; a new job for the same source starts from there), the monthly one what every device
- *   spent this month. Spending is also watched while running: a run that would pass a cap stops between two
- *   calls; when the call that passed it was the last one, the job is `done` with `overspent` saying by how much
- *   (the caps then hold every later run back). The student can `approve` a job's estimate once, or raise the
- *   caps and `retry`.
+ *   `waitReason: 'offline'`). What a run costs is recorded with the usage, against its source.
  * - Cancellable (`cancel`), retryable (`retry`); `stop` interrupts the running job without cancelling it.
+ * - Only the student starts a job: a job queued on its own by an earlier version (when a source was added) is
+ *   cancelled when the queue is read, never run.
  * - Tabs: one runs the queue at a time (lock `cursus:ai-jobs:run`); every change to the stored queue is a
  *   read-modify-write under `cursus:ai-jobs:store`. Another tab's view refreshes with `refresh()`.
  *
@@ -43,8 +40,8 @@ export const JOBS_RUN_LOCK = 'cursus:ai-jobs:run'
 /** Finished jobs kept for the UI (newest first); active ones are always kept. */
 export const KEEP_FINISHED = 20
 
-export type JobStatus = 'queued' | 'running' | 'waiting' | 'needs-model' | 'over-cap' | 'done' | 'failed' | 'cancelled'
-/** How a finished job ended. */
+export type JobStatus = 'queued' | 'running' | 'waiting' | 'needs-model' | 'done' | 'failed' | 'cancelled'
+/** How a finished job ended (`added` and `off`: stored by earlier versions only). */
 export type JobOutcome = 'proposed' | 'added' | 'off' | 'source-gone' | 'empty'
 
 export interface JobEstimate {
@@ -52,14 +49,6 @@ export interface JobEstimate {
   cost: number
   calls: number
   units: number
-}
-
-export interface JobCap {
-  scope: 'document' | 'month'
-  /** The cap, USD. */
-  limit: number
-  /** Already spent against it: on this source, or this month. */
-  spent: number
 }
 
 export interface AiJob {
@@ -71,20 +60,11 @@ export interface AiJob {
   updatedAt: number
   waitReason?: 'offline'
   estimate?: JobEstimate
-  /** Set while `over-cap`: which cap the estimate would pass. */
-  cap?: JobCap
-  /** USD the student allowed this source to cost in all, beyond the caps (`approve`). */
-  approved?: number
-  /** USD this job spent on its source so far (what the source cost in all comes from `JobsDeps.sourceSpent`). */
+  /** USD this job spent on its source so far. */
   spent: number
-  /**
-   * Set on a `done` job whose last call passed a cap (spending is only known once a call returns): which cap,
-   * and what was spent against it in the end. Said to the student; later runs stay held by the caps.
-   */
-  overspent?: JobCap
   /** Units read (slides, pages, sections) out of `total`. */
   progress: { done: number[]; total: number }
-  /** Drafts written, and cards added directly (`add` mode). */
+  /** Drafts written (and, from earlier versions, cards added directly). */
   proposed: number
   added: number
   duplicates: number
@@ -124,13 +104,6 @@ export interface JobsDeps {
   model(): Promise<JobModel | null>
   /** The source's units (decks, documents, PDFs, notes, a photo); null when it cannot be read here. */
   content(source: SourceRecord, signal: AbortSignal): Promise<SourceContent | null>
-  /** USD every device spent on AI this calendar month (synced usage, priced). */
-  monthSpent(now: number): number
-  /**
-   * USD every device spent on this source so far (synced usage events carry the source they were spent on,
-   * priced): the per-document cap counts it, whichever job or device spent it.
-   */
-  sourceSpent(sourceId: Id): number
   /** Generators by source kind (e.g. `image`: a `photoToCards` adapter); `deckQuestions` otherwise. */
   generators?: Partial<Record<SourceRecord['kind'], QuestionGenerator>>
 }
@@ -140,38 +113,22 @@ export type SourceEstimate =
   | { kind: 'needs-model' }
   | { kind: 'source-gone' }
   | { kind: 'empty' }
-  | {
-      kind: 'ok'
-      estimate: JobEstimate
-      local: boolean
-      capPerDocument: number
-      capPerMonth: number
-      monthSpent: number
-      /** What the source already cost (every device), counted against `capPerDocument`. */
-      sourceSpent: number
-      /** The cap it would pass, if any. */
-      over: 'document' | 'month' | null
-    }
+  | { kind: 'ok'; estimate: JobEstimate; local: boolean }
 
 export interface AiJobs {
   /** Reads the stored queue and starts running it (in the background: `idle` waits for it). */
   start(): Promise<void>
   /** Interrupts the running job (it resumes on the next start) and stops the queue. */
   stop(): void
-  /**
-   * Queues a source; null when the mode is off for an added source (nothing is stored). A source already
-   * queued or waiting keeps its job, whose id is returned.
-   */
-  enqueue(sourceId: Id, reason?: JobReason): Promise<string | null>
+  /** Queues a source the student asked about. A source already queued or waiting keeps its job, whose id is returned. */
+  enqueue(sourceId: Id): Promise<string>
   state(): JobsState
   subscribe(fn: (s: JobsState) => void): () => void
   cancel(id: string): Promise<void>
-  /** Queues a failed, cancelled, waiting or over-cap job again (a finished one starts over). */
+  /** Queues a failed, cancelled or waiting job again (a finished one starts over). */
   retry(id: string): Promise<void>
-  /** Allows an over-cap job its estimate once, and queues it. */
-  approve(id: string): Promise<void>
-  /** Re-checks jobs waiting for a connection or a model (and over-cap ones when asked, after a cap change). */
-  kick(o?: { overCap?: boolean }): Promise<void>
+  /** Re-checks jobs waiting for a connection or a model. */
+  kick(): Promise<void>
   /** Re-reads the stored queue (another tab may have changed it). */
   refresh(): Promise<void>
   estimate(sourceId: Id): Promise<SourceEstimate>
@@ -179,11 +136,12 @@ export interface AiJobs {
   idle(): Promise<void>
 }
 
-const ACTIVE: ReadonlySet<JobStatus> = new Set(['queued', 'running', 'waiting', 'needs-model', 'over-cap'])
-const STATUSES: ReadonlySet<string> = new Set([...ACTIVE, 'done', 'failed', 'cancelled'])
+const ACTIVE: ReadonlySet<JobStatus> = new Set(['queued', 'running', 'waiting', 'needs-model'])
+/** `over-cap`: held by a cost cap in earlier versions; read as cancelled (the student can try again). */
+const STATUSES: ReadonlySet<string> = new Set([...ACTIVE, 'done', 'failed', 'cancelled', 'over-cap'])
 
 class JobAbort extends Error {
-  constructor(readonly why: 'cancel' | 'stop' | 'cap') {
+  constructor(readonly why: 'cancel' | 'stop') {
     super(`job ${why}`)
     this.name = 'JobAbort'
   }
@@ -210,11 +168,33 @@ function isJob(v: unknown): v is AiJob {
   )
 }
 
+/** Fields of earlier versions' cost caps: dropped when a job is read. */
+const LEGACY = ['cap', 'approved', 'overspent'] as const
+
+/**
+ * A stored job as this version runs it: one held by a cost cap is cancelled, and so is one still waiting that was
+ * queued on its own when its source was added (nothing runs without the student asking).
+ */
+function current(j: AiJob, now: number): AiJob {
+  const raw = j as AiJob & Partial<Record<(typeof LEGACY)[number], unknown>>
+  const legacy = LEGACY.some((k) => k in raw)
+  const stale = (j.status as string) === 'over-cap' || (j.reason === 'added' && ACTIVE.has(j.status))
+  if (!legacy && !stale) return j
+  const out: Record<string, unknown> = { ...raw }
+  for (const k of LEGACY) delete out[k]
+  if (stale) {
+    out.status = 'cancelled'
+    delete out.waitReason
+    out.updatedAt = now
+  }
+  return out as unknown as AiJob
+}
+
 /** The stored queue; entries this version cannot read are left out. */
-export function parseJobs(raw: unknown): AiJob[] {
+export function parseJobs(raw: unknown, now = 0): AiJob[] {
   if (typeof raw !== 'object' || raw === null) return []
   const jobs = (raw as { jobs?: unknown }).jobs
-  return Array.isArray(jobs) ? jobs.filter(isJob) : []
+  return Array.isArray(jobs) ? jobs.filter(isJob).map((j) => current(j, now)) : []
 }
 
 /** Oldest first; jobs queued in the same millisecond keep their order (the sorts are stable). */
@@ -288,9 +268,10 @@ class JobQueue implements AiJobs {
   private async mutate(fn: (jobs: AiJob[]) => AiJob[]): Promise<void> {
     await this.deps.locks.run(JOBS_STORE_LOCK, async () => {
       const raw = await this.deps.store.read(['kv'], (tx) => tx.get<unknown>('kv', JOBS_KEY))
-      const before = parseJobs(raw)
+      const stored = parseJobs(raw)
+      const before = parseJobs(raw, this.deps.clock.now())
       const next = prune(fn(before.map((j) => ({ ...j }))))
-      if (JSON.stringify(next) !== JSON.stringify(before)) {
+      if (JSON.stringify(next) !== JSON.stringify(stored)) {
         await this.deps.store.commit([{ put: 'kv', key: JOBS_KEY, value: { v: 1, jobs: next } }])
       }
       this.publish({ loaded: true, jobs: next })
@@ -307,7 +288,6 @@ class JobQueue implements AiJobs {
           const rest: Partial<AiJob> = { ...p }
           delete rest.status
           delete rest.waitReason
-          delete rest.cap
           delete rest.outcome
           if (this.current?.id === id) this.current.controller.abort(new JobAbort('cancel'))
           return apply(j, rest, now)
@@ -386,21 +366,19 @@ class JobQueue implements AiJobs {
 
   // ---- commands ----
 
-  async enqueue(sourceId: Id, reason: JobReason = 'added'): Promise<string | null> {
-    if (reason === 'added' && this.deps.ws.drafts.settings.get().mode === 'off') return null
-    let id: string | null = null
+  async enqueue(sourceId: Id): Promise<string> {
+    let id = ''
     const now = this.deps.clock.now()
     await this.mutate((jobs) => {
       const active = jobs.find((j) => j.sourceId === sourceId && ACTIVE.has(j.status))
       if (active) {
         id = active.id
-        // Asked for explicitly: it no longer depends on the mode.
-        return reason === 'manual' ? jobs.map((j) => (j === active ? apply(j, { reason }, now) : j)) : jobs
+        return jobs
       }
       const job: AiJob = {
         id: this.deps.rng.id(),
         sourceId,
-        reason,
+        reason: 'manual',
         status: 'queued',
         createdAt: now,
         updatedAt: now,
@@ -429,13 +407,13 @@ class JobQueue implements AiJobs {
     await this.refresh()
     const job = this.find(id)
     if (!job || job.status === 'queued' || job.status === 'running') return
+    // Asked for again: it is the student's own from now on.
     const again: Partial<AiJob> = {
+      reason: 'manual',
       status: 'queued',
       waitReason: undefined,
-      cap: undefined,
       error: undefined,
       outcome: undefined,
-      overspent: undefined,
     }
     // A finished source is read again from the start: questions already proposed are dropped as duplicates.
     if (job.status === 'done') again.progress = { done: [], total: 0 }
@@ -443,21 +421,12 @@ class JobQueue implements AiJobs {
     void this.pump()
   }
 
-  async approve(id: string): Promise<void> {
-    await this.refresh()
-    const job = this.find(id)
-    if (job?.status !== 'over-cap' || !job.estimate) return
-    // The approval covers what the source already cost and this estimate, nothing more.
-    await this.patch(id, { status: 'queued', cap: undefined, approved: this.sourceBase(job) + job.estimate.cost })
-    void this.pump()
-  }
-
-  async kick(o?: { overCap?: boolean }): Promise<void> {
+  async kick(): Promise<void> {
     const now = this.deps.clock.now()
     await this.mutate((jobs) =>
       jobs.map((j) =>
-        j.status === 'waiting' || j.status === 'needs-model' || (o?.overCap === true && j.status === 'over-cap')
-          ? apply(j, { status: 'queued', waitReason: undefined, cap: undefined }, now)
+        j.status === 'waiting' || j.status === 'needs-model'
+          ? apply(j, { status: 'queued', waitReason: undefined }, now)
           : j,
       ),
     )
@@ -465,39 +434,13 @@ class JobQueue implements AiJobs {
   }
 
   async estimate(sourceId: Id): Promise<SourceEstimate> {
-    const plan = planRun(this.deps.ws, sourceId, 'manual')
-    if (plan === 'off' || plan === 'source-gone') return { kind: 'source-gone' }
+    const plan = planRun(this.deps.ws, sourceId)
+    if (plan === 'source-gone') return { kind: 'source-gone' }
     const model = await this.deps.model()
     if (!model) return { kind: 'needs-model' }
     const prepared = await this.prepare(plan, model, [], new AbortController().signal)
     if (!prepared) return { kind: 'empty' }
-    const monthSpent = this.deps.monthSpent(this.deps.clock.now())
-    const sourceSpent = this.deps.sourceSpent(sourceId)
-    const { capPerDocument, capPerMonth } = plan.settings
-    const cost = prepared.estimate.cost
-    const over =
-      cost <= 0
-        ? null
-        : sourceSpent + cost > capPerDocument
-          ? 'document'
-          : monthSpent + cost > capPerMonth
-            ? 'month'
-            : null
-    return {
-      kind: 'ok',
-      estimate: prepared.estimate,
-      local: model.local,
-      capPerDocument,
-      capPerMonth,
-      monthSpent,
-      sourceSpent,
-      over,
-    }
-  }
-
-  /** What `job`'s source already cost: on every device (synced usage), and at least what this job spent. */
-  private sourceBase(job: AiJob): number {
-    return Math.max(job.spent, this.deps.sourceSpent(job.sourceId))
+    return { kind: 'ok', estimate: prepared.estimate, local: model.local }
   }
 
   // ---- running ----
@@ -524,8 +467,8 @@ class JobQueue implements AiJobs {
     const id = job.id
     // Every write keeps a cancellation made meanwhile (maybe from another tab).
     const set = (p: Partial<AiJob>): Promise<void> => this.patch(id, p, { keepCancelled: true })
-    const plan: PlanOutcome = planRun(ws, job.sourceId, job.reason)
-    if (plan === 'off' || plan === 'source-gone') {
+    const plan: PlanOutcome = planRun(ws, job.sourceId)
+    if (plan === 'source-gone') {
       await set({ status: 'done', outcome: plan })
       return
     }
@@ -543,11 +486,6 @@ class JobQueue implements AiJobs {
     this.publish({ running: id })
     let chain: Promise<void> = Promise.resolve()
     let spentNow = 0
-    /** What the source cost before this run (set once the model is known). */
-    let already = job.spent
-    let capHit: JobCap['scope'] = 'document'
-    /** Set once a call's usage passed a cap (the abort it asks for may come too late to stop anything). */
-    let passed = false
     const done = new Set(job.progress.done)
     let total = job.progress.total
     try {
@@ -559,29 +497,8 @@ class JobQueue implements AiJobs {
       }
       const { content, generator, input, estimate } = prepared
       total = content.units.length
-      const { capPerDocument, capPerMonth } = plan.settings
-      const monthSpent = model.local ? 0 : this.deps.monthSpent(this.deps.clock.now())
-      // What the source already cost, whichever job or device spent it: the per-document cap counts it all.
-      already = model.local ? job.spent : this.sourceBase(job)
-      const approved = job.approved ?? 0
-      const allowed = estimate.cost > 0 && approved >= already + estimate.cost
-      if (estimate.cost > 0 && !allowed) {
-        const over: JobCap | null =
-          already + estimate.cost > capPerDocument
-            ? { scope: 'document', limit: capPerDocument, spent: already }
-            : monthSpent + estimate.cost > capPerMonth
-              ? { scope: 'month', limit: capPerMonth, spent: monthSpent }
-              : null
-        if (over) {
-          await set({ status: 'over-cap', estimate, cap: over })
-          return
-        }
-      }
-      // Budget while running: the caps, or what the student approved for this source.
-      const docBudget = allowed ? approved : capPerDocument
-      const monthBudget = allowed ? monthSpent + approved - already : capPerMonth
       await set({ estimate, progress: { done: [...done].sort((a, b) => a - b), total } })
-      // In the language of the document itself unless the settings or the course name one.
+      // In the language of the document itself unless the course names one.
       const language = plan.languageFromContent
         ? (unitsLanguage(content.units, this.deps.ws.prefs.get('locale')) ?? plan.language)
         : plan.language
@@ -590,33 +507,22 @@ class JobQueue implements AiJobs {
         ...base,
         signal: controller.signal,
         onUsage: (e) => {
-          // Synced with the source it was spent on: the per-document cap sees it on every device, in any job.
+          // Recorded with the source it was spent on.
           base.onUsage?.({ ...e, sourceId: job.sourceId })
-          if (model.local) return
-          spentNow += e.cost
-          if (already + spentNow > docBudget) capHit = 'document'
-          else if (monthSpent + spentNow > monthBudget) capHit = 'month'
-          else return
-          passed = true
-          controller.abort(new JobAbort('cap'))
+          if (!model.local) spentNow += e.cost
         },
       }
       let proposed = job.proposed
-      let added = job.added
       const write = (questions: readonly DeckQuestion[], units: readonly number[]): void => {
         const drafts = toNewDrafts(questions, plan, content.units, modelName(model.info))
         if (drafts.length > 0) {
-          ws.atomic(() => {
-            const ids = ws.drafts.propose(drafts)
-            if (plan.mode === 'add') added += ws.drafts.acceptAll(ids, plan.destination).length
-          })
+          ws.drafts.propose(drafts)
           proposed += drafts.length
         }
         for (const u of units) done.add(u)
         const p: Partial<AiJob> = {
           progress: { done: [...done].sort((a, b) => a - b), total },
           proposed,
-          added,
           spent: job.spent + spentNow,
         }
         chain = chain.then(() => set(p))
@@ -631,22 +537,12 @@ class JobQueue implements AiJobs {
       const rest = res.questions.filter((q) => !done.has(q.unit))
       if (rest.length > 0) write(rest, [...new Set(rest.map((q) => q.unit))])
       await chain
-      const outcome: JobOutcome = plan.mode === 'add' ? 'added' : 'proposed'
-      // The call that passed a cap was the last one: nothing was left to stop, but the job says it overspent
-      // (and an approval is used up). Later runs see the spending through the synced usage, and stay held.
-      const overspent: JobCap | undefined = !passed
-        ? undefined
-        : capHit === 'document'
-          ? { scope: 'document', limit: docBudget, spent: already + spentNow }
-          : { scope: 'month', limit: monthBudget, spent: monthSpent + spentNow }
       await set({
         status: 'done',
-        outcome,
+        outcome: 'proposed',
         duplicates: job.duplicates + res.duplicates,
         spent: job.spent + spentNow,
         progress: { done: content.units.map((u) => u.index), total },
-        overspent,
-        ...(passed ? { approved: undefined } : {}),
       })
     } catch (e) {
       // Drafts written so far stay; their progress is stored before deciding what happens next.
@@ -655,32 +551,12 @@ class JobQueue implements AiJobs {
       const spent = job.spent + spentNow
       if (why === 'cancel') await set({ spent })
       else if (why === 'stop') await set({ status: 'queued', spent })
-      else if (why === 'cap')
-        await set(await this.overCapAfterRun(plan, model, [...done], spent, already + spentNow, capHit))
       else if (!model.local && !network.online()) await set({ status: 'waiting', waitReason: 'offline', spent })
       else await set({ status: 'failed', spent, error: e instanceof Error ? e.message : String(e) })
     } finally {
       this.current = null
       this.publish({ running: null })
     }
-  }
-
-  /** A run stopped by its budget: over-cap, with what is left to read priced again (an approval is used up). */
-  private async overCapAfterRun(
-    plan: RunPlan,
-    model: JobModel,
-    done: readonly number[],
-    spent: number,
-    sourceSpent: number,
-    scope: JobCap['scope'],
-  ): Promise<Partial<AiJob>> {
-    const prepared = await this.prepare(plan, model, done, new AbortController().signal)
-    const estimate = prepared?.estimate ?? { cost: 0, calls: 0, units: 0 }
-    const cap: JobCap =
-      scope === 'document'
-        ? { scope, limit: plan.settings.capPerDocument, spent: sourceSpent }
-        : { scope, limit: plan.settings.capPerMonth, spent: this.deps.monthSpent(this.deps.clock.now()) }
-    return { status: 'over-cap', spent, estimate, cap, approved: undefined, overspent: undefined }
   }
 }
 

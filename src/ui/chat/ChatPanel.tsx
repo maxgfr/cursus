@@ -625,8 +625,8 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
       if (action.kind === 'job') {
         const sourceId = on.sourceId
         if (!sourceId) return
-        // The source's cards are proposed by the background queue, within its cost limits; the thread follows it.
-        void proposeFor(rt, sourceId, 'manual')
+        // The source's cards are proposed by the background queue; the thread follows it.
+        void proposeFor(rt, sourceId)
         const conv = current
         const job: RichResult = { kind: 'job', sourceId }
         const messages: ChatMessage[] = [

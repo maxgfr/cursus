@@ -57,17 +57,18 @@ async function cutOff(page: Page): Promise<string[]> {
         hidden = style.clip.startsWith('rect') || style.clipPath !== 'none'
       }
       if (hidden) continue
+      // Every box that clips it counts; a box that scrolls sideways lifts the screen's edge (what it holds is
+      // reached by scrolling), not the boxes clipping inside it (an icon's own SVG box among them).
+      let clip = Number.POSITIVE_INFINITY
       for (let up = el.parentElement; up !== null; up = up.parentElement) {
         const overflow = getComputedStyle(up).overflowX
         if (overflow === 'auto' || overflow === 'scroll') {
           limit = Number.POSITIVE_INFINITY
           break
         }
-        if (overflow === 'hidden' || overflow === 'clip') {
-          limit = Math.min(limit, up.getBoundingClientRect().right)
-          break
-        }
+        if (overflow === 'hidden' || overflow === 'clip') clip = Math.min(clip, up.getBoundingClientRect().right)
       }
+      limit = Math.min(limit, clip)
       if (box.right > limit + 1)
         out.push(`${name(el)} ends at ${Math.round(box.right)}px, cut at ${Math.round(limit)}px`)
     }
@@ -110,17 +111,17 @@ test('Demo: Today comes alive (due cards, exam, next session, proposed questions
   await expect(main.getByRole('link', { name: new RegExp(COURSE) })).toContainText('3 due')
   expect(await seriousViolations(page)).toEqual([])
 
-  // « To review »: the proposed questions, grouped by slide, by section of the handout, and on the sketch; a
-  // slide's citation opens it in the deck.
+  // « Suggested cards »: the cards suggested when asked, grouped by slide, by section of the handout, and on the
+  // sketch; a slide opens in the deck.
   await page.getByTestId('drafts-line').getByRole('link').click()
   await expect(page.getByRole('heading', { level: 1, name: 'Suggested cards' })).toBeVisible()
-  for (const unit of ['Slide 2', 'Slide 3', 'Slide 4', 'Section 3'])
-    await expect(main.getByRole('link', { name: unit, exact: true })).toBeVisible()
+  const unit = (name: string) => main.getByRole('region', { name: new RegExp(`^${name} \\(\\d+\\)$`) })
+  for (const name of ['Slide 2', 'Slide 3', 'Slide 4', 'Section 3']) await expect(unit(name)).toBeVisible()
   await expect(main.getByText('What happens to a red blood cell in 3 % NaCl?')).toBeVisible()
   await expect(main.getByText('Which organelle is labelled B on the sketch?')).toBeVisible()
   await expect(main.getByText('How thick is the plasma membrane?')).toBeVisible()
   expect(await seriousViolations(page)).toEqual([])
-  await main.getByRole('link', { name: 'Slide 2', exact: true }).click()
+  await unit('Slide 2').getByRole('link', { name: 'Open in the source' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Lecture 3: Membranes and transport' })).toBeVisible()
   await expect(page.getByText('Cited: Slide 2')).toBeVisible()
   await expect(page.locator('li[aria-current="location"]')).toContainText('The plasma membrane')
@@ -463,23 +464,16 @@ for (const locale of ['en', 'de', 'fr'] as const) {
     await expect(page.getByText(t('ai.deckPages', { count: 2 }))).toBeVisible()
     await expect(main.locator('ol > li[id^="unit-"]')).toHaveCount(2)
 
-    // « To review »: questions on the slides, on a section of the handout and on a photo.
+    // « Suggested cards »: cards on the slides, on a section of the handout and on a photo.
     await go(page, '#/inbox', t('ai.inboxTitle'))
-    for (const n of [2, 3, 4])
-      await expect(main.getByRole('link', { name: t('ai.deckSlide', { n }), exact: true })).toBeVisible()
-    await expect(main.getByRole('link', { name: t('ai.deckSection', { n: '3' }), exact: true })).toBeVisible()
-    await expect(main.getByText(t('ai.inboxPhoto'), { exact: true })).toBeVisible()
-    // Each question and answer shows in full, on a phone too; its quote is a passage, not a table row's Markdown.
+    const unitNamed = (name: string) => main.getByRole('region', { name: new RegExp(`^${literal(name)} \\(\\d+\\)$`) })
+    for (const n of [2, 3, 4]) await expect(unitNamed(t('ai.deckSlide', { n }))).toBeVisible()
+    await expect(unitNamed(t('ai.deckSection', { n: '3' }))).toBeVisible()
+    await expect(unitNamed(t('ai.inboxPhoto'))).toBeVisible()
+    // Each question and answer shows in full, on a phone too (the answers unfolded); its quote is a passage, not a
+    // table row's Markdown.
+    for (const summary of await main.locator('summary').all()) await summary.click()
     await settle(page)
-    expect(
-      await main
-        .locator('textarea')
-        .evaluateAll((boxes) =>
-          (boxes as HTMLTextAreaElement[])
-            .filter((box) => box.scrollHeight > box.clientHeight + 1)
-            .map((box) => box.value.slice(0, 40)),
-        ),
-    ).toEqual([])
     await expect(main).not.toContainText(' | ')
     expect(await cutOff(page)).toEqual([])
 

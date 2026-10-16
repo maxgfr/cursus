@@ -57,15 +57,15 @@ while the app is closed.
 Understanding a source, generating and improving cards, explanations, quizzes, answer grading and the chat
 can use a language model, in one of two ways:
 
-- **On this device**: a model (Qwen 3.5 0.8B where the device has room for it, about 0.4 GB) downloads once and runs in the browser through
-  WebGPU. It is free, works offline, and nothing leaves the device.
+- **On this device**: a model (Qwen 3.5 0.8B where the device has room for it, about 0.4 GB) downloads once and
+  runs in the browser through WebGPU. It is free, works offline, and nothing leaves the device.
 - **Your own key** for a provider that can be called from a browser (for example OpenAI, Anthropic, Google
   or OpenRouter); requests go directly from the device to that provider. The key stays on the device and is
   never synchronised. Usage and estimated cost are recorded per month. Local servers such as Ollama or LM
   Studio work from Chrome on the same Mac, not from an iPad (mixed content is blocked).
 
-Without a model set up, no AI feature shows anywhere (Settings › AI and the welcome's AI step aside): no chat, no
-AI buttons, and documents added are not queued for suggested cards later.
+Without a model set up, no AI feature shows anywhere (Settings › AI and the welcome's AI step aside): no chat and
+no AI buttons. Nothing is ever generated on its own: adding a note, a PDF, slides or a photo asks no model.
 
 The chat opens beside any screen (its icon, ⌘J / Ctrl+J, or « Ask about this » in the command palette). It
 knows what the screen shows (a course, a section, a source, a card, a quiz question), answers from the
@@ -88,7 +88,10 @@ Study sheets tabs, a source, slides, a photo, a card in review, Practice) or fro
 - **Improve** (a card that keeps slipping): a rewrite applied with « Use this version »; before the card's answer
   shows, the proposed answer stays folded.
 - **Suggest cards** on a source, **Create cards** on slides or a document: the background queue proposes cards
-  (within the cost limits) into « Suggested cards », and the chat follows its progress.
+  into « Suggested cards », and the chat follows its progress. There, grouped by source and by slide, page or
+  section, each card is added (to the course or section chosen for its source), edited then added, or rejected
+  for good, at once and with a moment to undo; a whole group at once too. On a keyboard: ↑ ↓ to move, A to add,
+  E to edit, R to reject.
 
 The cards, quiz and study sheet answers show what they ran with in one line (« 10 cards · Sources: all of
 Biology »), unfolding into their options (topic, number, detail, sources, pasted text) with « Run again ». The

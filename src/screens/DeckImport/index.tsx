@@ -10,7 +10,6 @@ import { useChat, useChatContext } from '../../ui/chat/context.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { EmptyState } from '../../ui/components/EmptyState.tsx'
 import { ListGroup, ListRow } from '../../ui/components/List.tsx'
-import { proposeFor } from '../../ui/data/autoQuestions.ts'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { useScopeOnce } from '../Section/scope.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
@@ -87,7 +86,6 @@ export default function DeckImport() {
         const title = deck.title.trim() || titleFromName(file.name) || t('ai.deckUntitled')
         const loaded = { deck, bytes }
         const sourceId = await saveDeckSource(rt, where, loaded, title)
-        void proposeFor(rt, sourceId)
         setPhase({ step: 'saved', sourceId, loaded, title })
       } catch (e) {
         noteError('deck.import', e)

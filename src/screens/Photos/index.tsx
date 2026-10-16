@@ -11,7 +11,6 @@ import { useT } from '../../i18n/react.tsx'
 import { Breadcrumb } from '../../ui/Breadcrumb.tsx'
 import { EmptyState } from '../../ui/components/EmptyState.tsx'
 import { Toast } from '../../ui/components/Toast.tsx'
-import { proposeFor } from '../../ui/data/autoQuestions.ts'
 import { PhotoGrid, type PhotoTile } from '../../ui/PhotoGrid.tsx'
 import { PhotoPicker } from '../../ui/PhotoPicker.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
@@ -73,7 +72,6 @@ export default function Photos() {
         (r) => {
           setFailed(r.failed)
           if (r.ids.length > 0) setAdded(r.ids.length)
-          for (const id of r.ids) void proposeFor(rt, id)
         },
         (e: unknown) => {
           noteError('photos.capture', e)

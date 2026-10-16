@@ -23,16 +23,14 @@ describe('autoQuestions helper', () => {
   })
 
   test("a source's newest job wins", () => {
-    const jobs = [job('a', 's1', 'done', 5), job('b', 's1', 'over-cap', 9), job('c', 's2', 'queued', 20)]
+    const jobs = [job('a', 's1', 'done', 5), job('b', 's1', 'failed', 9), job('c', 's2', 'queued', 20)]
     expect(jobOf(jobs, 's1')?.id).toBe('b')
     expect(jobOf(jobs, 's3')).toBeUndefined()
   })
 
-  test('active jobs are those still to run or waiting for the student', () => {
+  test('active jobs are those still to run or waiting for a connection or a model', () => {
     expect(
-      ['queued', 'running', 'waiting', 'needs-model', 'over-cap'].every((s) =>
-        isActiveJob({ status: s as AiJob['status'] }),
-      ),
+      ['queued', 'running', 'waiting', 'needs-model'].every((s) => isActiveJob({ status: s as AiJob['status'] })),
     ).toBe(true)
     expect(['done', 'failed', 'cancelled'].some((s) => isActiveJob({ status: s as AiJob['status'] }))).toBe(false)
   })

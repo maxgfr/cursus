@@ -84,32 +84,28 @@ describe('auto questions: the language of the document', () => {
   }
   const units = [unit]
 
-  test('follows the document only when neither the settings nor the course name a language', () => {
+  test('follows the document only when the course names no language', () => {
     const { ws, courseId, sourceId } = setup()
     ws.prefs.set('locale', 'fr')
-    const plan = planRun(ws, sourceId, 'added') as RunPlan
+    const plan = planRun(ws, sourceId) as RunPlan
     expect(plan.languageFromContent).toBe(true)
     // The interface's language is only the fallback.
     expect(plan.language).toBe('French')
     expect(unitsLanguage(units, 'fr')).toBe('German')
     expect(unitsLanguage([{ ...unit, title: 'Zelle', text: 'Membran' }], 'fr')).toBeUndefined()
     ws.courses.update(courseId, { language: 'en' })
-    expect((planRun(ws, sourceId, 'added') as RunPlan).languageFromContent).toBe(false)
-    ws.courses.update(courseId, { language: undefined })
-    ws.drafts.settings.set({ language: 'fr' })
-    expect((planRun(ws, sourceId, 'added') as RunPlan).languageFromContent).toBe(false)
+    expect((planRun(ws, sourceId) as RunPlan).languageFromContent).toBe(false)
   })
 })
 
 describe('auto questions: planning a run', () => {
-  test('destination, language and dedupe follow the settings', () => {
+  test("bound for the source's own place, in the course's language, avoiding the cards it has", () => {
     const { ws, courseId, sectionId, sourceId } = setup()
     const card = ws.cards.create({ courseId, kind: 'basic' })
     ws.text({ id: card, field: 'front' }).insert(0, 'Existing question')
     ws.courses.update(courseId, { language: 'fr' })
-    const plan = planRun(ws, sourceId, 'added') as RunPlan
+    const plan = planRun(ws, sourceId) as RunPlan
     expect(plan.destination).toEqual({ courseId, sectionId })
-    expect(plan.mode).toBe('propose')
     expect(plan.language).toBe('French')
     expect(plan.input).toMatchObject({
       sourceId,
@@ -121,43 +117,34 @@ describe('auto questions: planning a run', () => {
       existing: ['Existing question'],
     })
     expect(existingCardTexts(ws, courseId)).toEqual(['Existing question'])
-
-    const other = ws.courses.create({ title: 'Anatomy' })
-    ws.drafts.settings.set({ destination: { courseId: other }, language: 'de', dedupe: false, mode: 'add' })
-    const again = planRun(ws, sourceId, 'added') as RunPlan
-    expect(again.destination).toEqual({ courseId: other })
-    expect(again.language).toBe('German')
-    expect(again.mode).toBe('add')
-    expect(again.input.existing).toBeUndefined()
-    expect(again.input.courseTitle).toBe('Anatomy')
-    // A destination course in the trash: back to the source's own place.
-    ws.courses.trash(other)
-    expect(destinationOf(ws, ws.sources.get(sourceId) as never, ws.drafts.settings.get())).toEqual({
-      courseId,
-      sectionId,
-    })
-    ws.drafts.settings.set({ destination: { courseId, sectionId } })
-    expect((planRun(ws, sourceId, 'added') as RunPlan).destination).toEqual({ courseId, sectionId })
     const root = ws.sources.create({ courseId, kind: 'note', title: 'Root' })
-    ws.drafts.settings.set({ destination: undefined })
-    expect((planRun(ws, root, 'added') as RunPlan).destination).toEqual({ courseId })
+    expect((planRun(ws, root) as RunPlan).destination).toEqual({ courseId })
+    expect(destinationOf(ws.sources.get(root) as never)).toEqual({ courseId })
   })
 
-  test("'off' only stops added sources; gone sources are reported", () => {
+  test('the « When I add a document » settings of earlier versions are still readable, and ignored', () => {
     const { ws, courseId, sectionId, sourceId } = setup()
-    ws.drafts.settings.set({ mode: 'off' })
-    expect(planRun(ws, sourceId, 'added')).toBe('off')
-    expect(typeof planRun(ws, sourceId, 'manual')).toBe('object')
-    expect((planRun(ws, sourceId, 'manual') as RunPlan).mode).toBe('propose')
-    expect(planRun(ws, 'missing', 'manual')).toBe('source-gone')
+    const other = ws.courses.create({ title: 'Anatomy' })
+    ws.drafts.settings.set({ destination: { courseId: other }, language: 'de', dedupe: false, mode: 'off', perUnit: 3 })
+    expect(ws.drafts.settings.get()).toMatchObject({ mode: 'off', perUnit: 3 })
+    const plan = planRun(ws, sourceId) as RunPlan
+    expect(plan.destination).toEqual({ courseId, sectionId })
+    expect(plan.input).toMatchObject({ perUnit: 'auto', courseTitle: 'Physiology', existing: [] })
+    expect(plan.languageFromContent).toBe(true)
+  })
+
+  test('gone sources are reported', () => {
+    const { ws, courseId, sectionId, sourceId } = setup()
+    expect(typeof planRun(ws, sourceId)).toBe('object')
+    expect(planRun(ws, 'missing')).toBe('source-gone')
     ws.sections.trash(sectionId)
-    expect(planRun(ws, sourceId, 'manual')).toBe('source-gone')
+    expect(planRun(ws, sourceId)).toBe('source-gone')
     ws.sections.restore(sectionId)
     ws.courses.trash(courseId)
-    expect(planRun(ws, sourceId, 'manual')).toBe('source-gone')
+    expect(planRun(ws, sourceId)).toBe('source-gone')
     ws.courses.restore(courseId)
     ws.sources.trash(sourceId)
-    expect(planRun(ws, sourceId, 'manual')).toBe('source-gone')
+    expect(planRun(ws, sourceId)).toBe('source-gone')
   })
 
   test('the duplicate test follows rejections made while a run goes on', () => {
@@ -181,7 +168,7 @@ describe('auto questions: planning a run', () => {
 
   test('questions become drafts bound for the destination, with their unit labels', () => {
     const { ws, courseId, sectionId, sourceId } = setup()
-    const plan = planRun(ws, sourceId, 'added') as RunPlan
+    const plan = planRun(ws, sourceId) as RunPlan
     const units = [{ index: 2, kind: 'slide' as const, label: '2', title: 't', text: 'x' }]
     const drafts = toNewDrafts(
       [

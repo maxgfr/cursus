@@ -81,6 +81,10 @@ destinations. Record the date, devices and OS versions with each run.
 - [ ] **Real keys.** For each provider used (for example OpenAI, Anthropic, Google, OpenRouter), enter a
   key and generate cards from a source. Expected: cards generated from the device without any proxy; usage
   and cost recorded; a wrong key shows a clear error. Repeat on iPhone.
+- [ ] **Suggested cards on touch.** On iPhone and iPad, *Suggest cards* on a PDF, then open *Suggested cards*.
+  Expected: adding a PDF or a photo alone starts nothing; once asked, the job shows its progress at the top and
+  can be stopped and resumed; *Add*, *Edit* and *Reject* are easy to hit with a thumb; each shows a toast with
+  *Undo*; a card added is in its course once the toast is gone, and still there after switching apps.
 
 ## AI on this device (WebGPU)
 

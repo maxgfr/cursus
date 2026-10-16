@@ -468,8 +468,6 @@ test('AI screens ask for a model until one is set up', async ({ page }) => {
 test('a new study sheet streams into the chat cited, then checks an explanation back', async ({ page }, info) => {
   const prompts = await mockProvider(page)
   await configure(page)
-  // Since S-044 adding a document proposes questions on its own (auto-questions.spec.ts): off for this manual flow.
-  await page.getByRole('radio', { name: 'Do nothing' }).check({ force: true })
   const phone = isPhone(info.project.name)
 
   // Ground the explanation in the course's own sources: a written note and an imported PDF.

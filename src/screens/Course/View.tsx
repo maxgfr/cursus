@@ -41,7 +41,6 @@ import { ListGroup, ListRow } from '../../ui/components/List.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
 import { Sheet } from '../../ui/components/Sheet.tsx'
 import { Toast } from '../../ui/components/Toast.tsx'
-import { proposeFor, proposeWhenWritten } from '../../ui/data/autoQuestions.ts'
 import { MoveSheet, moveItemTo, type Place } from '../../ui/MoveSheet.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { newCardId } from '../CardEditor/draft.ts'
@@ -194,13 +193,12 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   // Opens on the cards when there are some, else on the sources to add the first one.
   const tab: Tab = chosenTab ?? (data !== null && data.cards.length > 0 ? 'cards' : 'sources')
 
-  /** Adds a source and opens it; its questions are proposed (per « When I add a document »). */
+  /** Adds a source and opens it (cards are suggested only when the student asks, from the source). */
   const run = async (work: () => Promise<string>) => {
     setBusy(true)
     setError(null)
     try {
       const id = await work()
-      void proposeFor(rt, id)
       navigate(to.source(id))
     } catch (e) {
       noteError('course.import', e)
@@ -225,9 +223,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
     const failed: string[] = []
     for (const file of files) {
       try {
-        const id = await addFile(rt, where, file, fallback)
-        added.push(id)
-        void proposeFor(rt, id)
+        added.push(await addFile(rt, where, file, fallback))
       } catch (e) {
         noteError('course.import', e)
         failed.push(t('course.fileFailed', { name: file.name, reason: deckErrorMessage(t, e) }))
@@ -246,11 +242,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   usePasteCapture(
     (c: Captured) => {
       if (c.kind === 'image') void run(() => addImage(rt, where, c.blob, c.name, t('course.untitledPhoto')))
-      else {
-        const id = addNote(rt, where, t('course.pastedNote'), c.text)
-        void proposeFor(rt, id)
-        navigate(to.source(id))
-      }
+      else navigate(to.source(addNote(rt, where, t('course.pastedNote'), c.text)))
     },
     {
       enabled: data !== null && tab === 'sources' && !settings && !adding && !addingSource && moving === null,
@@ -278,12 +270,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
     rt.ws.sections.restore(id)
     dismissTrashed()
   }
-  const newNote = () => {
-    const id = addNote(rt, where, t('course.untitledNote'))
-    // Empty for now: proposed once the student leaves it with something written.
-    proposeWhenWritten(id)
-    navigate(to.source(id))
-  }
+  const newNote = () => navigate(to.source(addNote(rt, where, t('course.untitledNote'))))
   const onFiles = (e: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.currentTarget.files ?? [])
     e.currentTarget.value = ''
@@ -326,12 +313,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   }
 
   const pasteText = () => {
-    const open = (text: string) => {
-      const id = addNote(rt, where, t('course.pastedNote'), text)
-      if (text === '') proposeWhenWritten(id)
-      else void proposeFor(rt, id)
-      navigate(to.source(id))
-    }
+    const open = (text: string) => navigate(to.source(addNote(rt, where, t('course.pastedNote'), text)))
     // The clipboard may be refused: the note then opens empty, ready for a long-press paste.
     navigator.clipboard.readText().then(open, (err: unknown) => {
       noteError('course.paste', err)

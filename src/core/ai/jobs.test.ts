@@ -8,7 +8,7 @@ import { virtualClock } from '../ports/clock'
 import { memoryLocks } from '../ports/locks'
 import { seededRng } from '../ports/rng'
 import { memoryStore } from '../storage/memoryStore'
-import { deckGenerator, planRun, type QuestionGenerator, type SourceContent } from './autoQuestions'
+import type { QuestionGenerator, SourceContent } from './autoQuestions'
 import type { CatalogModel } from './catalogTrim'
 import type { DeckQuestionsInput } from './features/deckQuestions'
 import type { DeckUnitInput } from './features/readDeck'
@@ -79,9 +79,6 @@ function harness(o: { model?: 'online' | 'local' | 'none'; online?: boolean; see
     netListeners: [] as (() => void)[],
     modelKind: o.model ?? 'online',
     info: ONLINE_INFO,
-    monthBase: 0,
-    /** What other devices already spent on a source (synced usage). */
-    sourceBase: new Map<string, number>(),
     /** Tokens each call reports. */
     perCall: [100, 50] as [number, number],
     calls: [] as { units: { n: number; title: string }[] }[],
@@ -156,9 +153,6 @@ function harness(o: { model?: 'online' | 'local' | 'none'; online?: boolean; see
       h.contentCalls++
       return contents.get(source.id) ?? null
     },
-    monthSpent: () => h.monthBase + usage.reduce((n, e) => n + e.cost, 0),
-    sourceSpent: (sourceId) =>
-      (h.sourceBase.get(sourceId) ?? 0) + usage.filter((e) => e.sourceId === sourceId).reduce((n, e) => n + e.cost, 0),
   }
   h.jobs = createJobs(h.deps)
   h.courseId = ws.courses.create({ title: 'Physiology' })
@@ -209,31 +203,7 @@ async function stored(store: LocalStore): Promise<AiJob[]> {
   return parseJobs(await store.read(['kv'], (tx) => tx.get<unknown>('kv', JOBS_KEY)))
 }
 
-/** The estimate the queue will compute for a source (same generator, same settings). */
-function expectedCost(h: H, sourceId: string): number {
-  const plan = planRun(h.ws, sourceId, 'manual')
-  if (typeof plan === 'string') throw new Error(plan)
-  const input: DeckQuestionsInput = { ...plan.input, units: h.contents.get(sourceId)?.units ?? [] }
-  return deckGenerator.estimate(h.info, input).cost
-}
-
 describe('auto-question jobs', () => {
-  test("'off' mode does nothing: nothing queued, stored or called", async () => {
-    const h = harness()
-    h.ws.drafts.settings.set({ mode: 'off' })
-    const s = source(h, 'Heart')
-    await h.jobs.start()
-    expect(await h.jobs.enqueue(s)).toBeNull()
-    await h.jobs.idle()
-    expect(h.calls).toEqual([])
-    expect(await stored(h.store)).toEqual([])
-    expect(h.ws.drafts.all()).toEqual([])
-    // Asked for explicitly, it runs anyway.
-    const id = await h.jobs.enqueue(s, 'manual')
-    await h.jobs.idle()
-    expect(job(h, id)).toMatchObject({ status: 'done', outcome: 'proposed', proposed: 6 })
-  })
-
   test('proposes drafts grouped by unit, in the course language, and counts them for Today', async () => {
     const h = harness()
     h.ws.courses.update(h.courseId, { language: 'de' })
@@ -263,7 +233,7 @@ describe('auto-question jobs', () => {
     expect(h.ws.cards.all()).toEqual([])
     const call = h.model.doGenerateCalls[0]
     expect(JSON.stringify(call?.prompt)).toContain('in German')
-    // Usage went to the workspace (synced): the monthly cap sees it on every device.
+    // Usage went to the workspace (synced), with the source it was spent on.
     expect(h.ws.aiUsage.list()).toHaveLength(1)
   })
 
@@ -414,7 +384,6 @@ describe('auto-question jobs', () => {
 
     const local = harness({ online: false, model: 'local' })
     const ls = source(local, 'Heart', 1)
-    local.ws.drafts.settings.set({ capPerDocument: 0, capPerMonth: 0 })
     await local.jobs.start()
     const lid = await local.jobs.enqueue(ls)
     await local.jobs.idle()
@@ -449,168 +418,7 @@ describe('auto-question jobs', () => {
     expect(job(h, id).status).toBe('done')
   })
 
-  test('cost cap per document: over-cap with the estimate, never run silently; approve runs it once', async () => {
-    const h = harness()
-    const s = source(h, 'Heart', 3)
-    const cost = expectedCost(h, s)
-    expect(cost).toBeGreaterThan(0)
-    h.ws.drafts.settings.set({ capPerDocument: cost / 2 })
-    await h.jobs.start()
-    const id = await h.jobs.enqueue(s)
-    await h.jobs.idle()
-    expect(job(h, id)).toMatchObject({
-      status: 'over-cap',
-      estimate: { cost, units: 3 },
-      cap: { scope: 'document', limit: cost / 2, spent: 0 },
-    })
-    expect(h.calls).toEqual([])
-    expect(h.ws.drafts.all()).toEqual([])
-    const est = await h.jobs.estimate(s)
-    expect(est).toMatchObject({ kind: 'ok', over: 'document', estimate: { cost }, local: false })
-    await h.jobs.approve(id as string)
-    await h.jobs.idle()
-    expect(job(h, id)).toMatchObject({ status: 'done', proposed: 9, approved: cost })
-  })
-
-  test('cost cap per month counts what was already spent this month; raising it lets the job run', async () => {
-    const h = harness()
-    const s = source(h, 'Heart', 2)
-    const cost = expectedCost(h, s)
-    h.monthBase = 2 - cost / 2
-    await h.jobs.start()
-    const id = await h.jobs.enqueue(s)
-    await h.jobs.idle()
-    expect(job(h, id)).toMatchObject({ status: 'over-cap', cap: { scope: 'month', limit: 2, spent: 2 - cost / 2 } })
-    expect(await h.jobs.estimate(s)).toMatchObject({ kind: 'ok', over: 'month', monthSpent: 2 - cost / 2 })
-    await h.jobs.kick()
-    await h.jobs.idle()
-    expect(job(h, id).status).toBe('over-cap')
-    h.ws.drafts.settings.set({ capPerMonth: 5 })
-    await h.jobs.kick({ overCap: true })
-    await h.jobs.idle()
-    expect(job(h, id).status).toBe('done')
-  })
-
-  test('spending is watched while running: a run passing its cap stops between calls', async () => {
-    const h = harness()
-    const s = source(h, 'Heart', 14)
-    const cost = expectedCost(h, s)
-    h.ws.drafts.settings.set({ capPerDocument: cost * 1.01 })
-    // Each call costs far more than estimated.
-    h.perCall = [200_000, 20_000]
-    await h.jobs.start()
-    const id = await h.jobs.enqueue(s)
-    await h.jobs.idle()
-    const j = job(h, id)
-    expect(j.status).toBe('over-cap')
-    expect(j.cap).toMatchObject({ scope: 'document', limit: cost * 1.01 })
-    expect(j.spent).toBeGreaterThan(cost)
-    expect(j.progress.done).toEqual([1, 2, 3, 4, 5, 6])
-    expect(j.estimate?.units).toBe(8)
-    expect(h.calls).toHaveLength(1)
-    expect(h.ws.drafts.all()).toHaveLength(18)
-    // The month cap is watched the same way.
-    const m = harness()
-    const ms = source(m, 'Heart', 14)
-    m.ws.drafts.settings.set({ capPerDocument: 10, capPerMonth: expectedCost(m, ms) * 1.01 })
-    m.perCall = [200_000, 20_000]
-    await m.jobs.start()
-    const mid = await m.jobs.enqueue(ms)
-    await m.jobs.idle()
-    expect(job(m, mid)).toMatchObject({ status: 'over-cap', cap: { scope: 'month' } })
-  })
-
-  test('a run whose last call passes its cap ends done but says it overspent; later runs stay held', async () => {
-    // One unit, one call: the abort the usage asks for comes after the only call, too late to stop anything.
-    const h = harness()
-    const s = source(h, 'Heart', 1)
-    const cost = expectedCost(h, s)
-    h.ws.drafts.settings.set({ capPerDocument: cost * 1.01 })
-    h.perCall = [200_000, 20_000]
-    await h.jobs.start()
-    const id = await h.jobs.enqueue(s)
-    await h.jobs.idle()
-    const j = job(h, id)
-    expect(j).toMatchObject({
-      status: 'done',
-      outcome: 'proposed',
-      overspent: { scope: 'document', limit: cost * 1.01 },
-    })
-    expect(j.overspent?.spent).toBeGreaterThan(cost * 1.01)
-    expect(j.overspent?.spent).toBeCloseTo(j.spent, 10)
-    // Asked again, the source is held by its cap: what it already cost counts.
-    const again = await h.jobs.enqueue(s, 'manual')
-    await h.jobs.idle()
-    expect(job(h, again)).toMatchObject({ status: 'over-cap', cap: { scope: 'document', spent: j.spent } })
-    expect(h.calls).toHaveLength(1)
-
-    // The month cap the same way: the job says so, and the next source waits for a higher cap.
-    const m = harness()
-    const first = source(m, 'Heart', 1)
-    const second = source(m, 'Lungs', 1)
-    m.ws.drafts.settings.set({ capPerDocument: 10, capPerMonth: expectedCost(m, first) * 1.01 })
-    m.perCall = [200_000, 20_000]
-    await m.jobs.start()
-    const mid = await m.jobs.enqueue(first)
-    await m.jobs.idle()
-    expect(job(m, mid)).toMatchObject({ status: 'done', overspent: { scope: 'month' } })
-    const next = await m.jobs.enqueue(second)
-    await m.jobs.idle()
-    expect(job(m, next)).toMatchObject({ status: 'over-cap', cap: { scope: 'month' } })
-    expect(m.calls).toHaveLength(1)
-    // A run within its caps says nothing of the kind.
-    const ok = harness()
-    const os = source(ok, 'Heart', 1)
-    await ok.jobs.start()
-    const oid = await ok.jobs.enqueue(os)
-    await ok.jobs.idle()
-    expect(job(ok, oid).status).toBe('done')
-    expect(job(ok, oid).overspent).toBeUndefined()
-  })
-
-  test('the per-document cap counts what the source already cost, in an earlier job or on another device', async () => {
-    const h = harness()
-    const s = source(h, 'Heart', 3)
-    const cost = expectedCost(h, s)
-    h.perCall = [200_000, 20_000]
-    await h.jobs.start()
-    const first = await h.jobs.enqueue(s, 'manual')
-    await h.jobs.idle()
-    const spent = job(h, first).spent
-    expect(job(h, first).status).toBe('done')
-    // The usage is synced with its source.
-    expect(h.ws.aiUsage.list().length).toBeGreaterThan(0)
-    expect(h.usage.every((e) => e.sourceId === s)).toBe(true)
-    // A cap the estimate alone fits under, but not on top of what the source already cost.
-    const cap = (spent + cost) * 0.9
-    expect(cost).toBeLessThan(cap)
-    h.ws.drafts.settings.set({ capPerDocument: cap })
-    const second = await h.jobs.enqueue(s, 'manual')
-    expect(second).not.toBe(first)
-    await h.jobs.idle()
-    expect(job(h, second)).toMatchObject({ status: 'over-cap', cap: { scope: 'document', limit: cap, spent } })
-    expect(await h.jobs.estimate(s)).toMatchObject({ kind: 'ok', over: 'document', sourceSpent: spent })
-    // Allowing it once covers what was spent and the estimate (calls costing what was estimated, this time).
-    h.perCall = [100, 50]
-    await h.jobs.approve(second as string)
-    await h.jobs.idle()
-    expect(job(h, second)).toMatchObject({ status: 'done', approved: spent + cost })
-    expect(job(h, second).overspent).toBeUndefined()
-
-    // Spent on another device (synced usage only): counted the same way.
-    const o = harness()
-    const os = source(o, 'Heart', 3)
-    const ocost = expectedCost(o, os)
-    o.ws.drafts.settings.set({ capPerDocument: ocost * 2 })
-    o.sourceBase.set(os, ocost * 1.5)
-    await o.jobs.start()
-    const oid = await o.jobs.enqueue(os)
-    await o.jobs.idle()
-    expect(job(o, oid)).toMatchObject({ status: 'over-cap', cap: { scope: 'document', spent: ocost * 1.5 } })
-    expect(o.calls).toEqual([])
-  })
-
-  test('dedupe: questions close to existing cards are dropped (unless turned off)', async () => {
+  test('questions close to existing cards are dropped', async () => {
     const h = harness()
     const s = source(h, 'Heart', 1)
     const card = h.ws.cards.create({ courseId: h.courseId, kind: 'basic' })
@@ -620,21 +428,10 @@ describe('auto-question jobs', () => {
     await h.jobs.idle()
     expect(job(h, id)).toMatchObject({ status: 'done', proposed: 2, duplicates: 1 })
     expect(h.ws.drafts.all().map((d) => d.front)).not.toContain('Heart 1 question alpha?')
-
-    const off = harness()
-    off.ws.drafts.settings.set({ dedupe: false })
-    const os = source(off, 'Heart', 1)
-    const oc = off.ws.cards.create({ courseId: off.courseId, kind: 'basic' })
-    off.ws.text({ id: oc, field: 'front' }).insert(0, 'Heart 1 question alpha?')
-    await off.jobs.start()
-    const oid = await off.jobs.enqueue(os)
-    await off.jobs.idle()
-    expect(job(off, oid)).toMatchObject({ proposed: 3, duplicates: 0 })
   })
 
   test('rejected questions are never proposed again, nor the ones already proposed', async () => {
     const h = harness()
-    h.ws.drafts.settings.set({ dedupe: false })
     const s = source(h, 'Heart', 1)
     await h.jobs.start()
     const id = await h.jobs.enqueue(s)
@@ -653,32 +450,6 @@ describe('auto-question jobs', () => {
     await h.jobs.idle()
     expect(job(h, oid)).toMatchObject({ proposed: 2, duplicates: 1 })
     expect(h.ws.drafts.list({ sourceId: other }).map((d) => d.front)).not.toContain('Heart 1 question beta?')
-  })
-
-  test("'add' mode adds the cards directly, with their provenance, within the caps", async () => {
-    const h = harness()
-    const sectionId = h.ws.sections.create({ courseId: h.courseId, name: 'Cardio' })
-    h.ws.drafts.settings.set({ mode: 'add', destination: { courseId: h.courseId, sectionId } })
-    const s = source(h, 'Heart', 2)
-    await h.jobs.start()
-    const id = await h.jobs.enqueue(s)
-    await h.jobs.idle()
-    expect(job(h, id)).toMatchObject({ status: 'done', outcome: 'added', proposed: 6, added: 6 })
-    expect(h.ws.drafts.list()).toEqual([])
-    expect(h.ws.drafts.list({ status: 'accepted' })).toHaveLength(6)
-    const cards = h.ws.cards.list()
-    expect(cards).toHaveLength(6)
-    expect(cards[0]).toMatchObject({ courseId: h.courseId, sectionId, sourceId: s, origin: 'ai' })
-    expect(cards.every((c) => c.draftId !== undefined && (c.unit === 1 || c.unit === 2))).toBe(true)
-
-    const capped = harness()
-    capped.ws.drafts.settings.set({ mode: 'add', capPerDocument: 0 })
-    const cs = source(capped, 'Heart', 2)
-    await capped.jobs.start()
-    const cid = await capped.jobs.enqueue(cs)
-    await capped.jobs.idle()
-    expect(job(capped, cid).status).toBe('over-cap')
-    expect(capped.ws.cards.all()).toEqual([])
   })
 
   test('a source trashed before its turn, or with nothing to read, finishes without a call', async () => {
@@ -719,20 +490,53 @@ describe('auto-question jobs', () => {
     expect(job(h, id).error).toBeUndefined()
   })
 
-  test('the mode is read again at run time: an added source queued before « Ne rien faire » is skipped', async () => {
+  test('only the student starts a job: what an earlier version queued on its own, or held by a cost cap, is cancelled', async () => {
     const h = harness()
-    const s = source(h, 'Heart', 1)
-    const id = await h.jobs.enqueue(s)
-    h.ws.drafts.settings.set({ mode: 'off' })
+    const added = source(h, 'Added', 1)
+    const capped = source(h, 'Capped', 1)
+    const now = h.clock.now()
+    const base = {
+      createdAt: now,
+      updatedAt: now,
+      spent: 0,
+      progress: { done: [], total: 0 },
+      proposed: 0,
+      added: 0,
+      duplicates: 0,
+    }
+    await h.store.commit([
+      {
+        put: 'kv',
+        key: JOBS_KEY,
+        value: {
+          v: 1,
+          jobs: [
+            { ...base, id: 'a', sourceId: added, reason: 'added', status: 'queued' },
+            {
+              ...base,
+              id: 'c',
+              sourceId: capped,
+              reason: 'manual',
+              status: 'over-cap',
+              cap: { scope: 'month', limit: 2, spent: 2 },
+              approved: 1,
+            },
+          ],
+        },
+      },
+    ])
     await h.jobs.start()
     await h.jobs.idle()
-    expect(job(h, id)).toMatchObject({ status: 'done', outcome: 'off' })
     expect(h.calls).toEqual([])
-    // Asked for by hand, it runs.
-    const manual = await h.jobs.enqueue(s, 'manual')
-    expect(manual).not.toBe(id)
+    expect(job(h, 'a')).toMatchObject({ status: 'cancelled', reason: 'added' })
+    expect(job(h, 'c')).toMatchObject({ status: 'cancelled' })
+    expect(Object.keys(job(h, 'c'))).not.toContain('cap')
+    expect(Object.keys(job(h, 'c'))).not.toContain('approved')
+    expect(await stored(h.store)).toMatchObject([{ status: 'cancelled' }, { status: 'cancelled' }])
+    // Asked for again, it runs, as the student's own.
+    await h.jobs.retry('a')
     await h.jobs.idle()
-    expect(job(h, manual)).toMatchObject({ status: 'done', outcome: 'proposed' })
+    expect(job(h, 'a')).toMatchObject({ status: 'done', reason: 'manual', proposed: 3 })
   })
 
   test('an adapter generates for its source kind (photos), handing questions out at the end', async () => {

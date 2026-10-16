@@ -8,7 +8,6 @@ import { useT } from '../../i18n/react.tsx'
 import { Button } from '../../ui/components/Button.tsx'
 import { Field } from '../../ui/components/Field.tsx'
 import { Sheet } from '../../ui/components/Sheet.tsx'
-import { proposeFor } from '../../ui/data/autoQuestions.ts'
 import { deckErrorMessage } from '../DeckImport/deckSource.ts'
 import { addFile, FILES_ACCEPT, fileTitle } from '../Source/importers.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
@@ -72,7 +71,7 @@ export function NewCourseSheet({ open, onClose }: { open: boolean; onClose: () =
     const errors: string[] = []
     for (const file of files) {
       try {
-        void proposeFor(rt, await addFile(rt, id, file, fallback))
+        await addFile(rt, id, file, fallback)
       } catch (err) {
         noteError('course.newFromFiles', err)
         errors.push(t('course.fileFailed', { name: file.name, reason: deckErrorMessage(t, err) }))

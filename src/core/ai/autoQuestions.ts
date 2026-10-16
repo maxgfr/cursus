@@ -1,11 +1,11 @@
 /**
- * Questions proposed automatically when a source is added (« Quand j'ajoute un document : Proposer des
- * questions · Les ajouter directement · Ne rien faire »).
+ * Questions proposed on a source when the student asks for them (« Suggest cards » on a source, its slides or a
+ * photo): never on their own when something is added.
  *
- * This module turns the synced settings (`ws.drafts.settings`) and the workspace into one run over one source
- * (`planRun`): destination, output language, questions per unit, types, difficulty, existing cards to avoid,
- * and the duplicate test that keeps rejected questions from ever coming back. `jobs.ts` runs the plans one
- * source at a time on the device.
+ * This module turns the workspace into one run over one source (`planRun`): destination (the source's own
+ * place), output language, questions per unit, types, difficulty, existing cards to avoid, and the duplicate
+ * test that keeps rejected questions from ever coming back. `jobs.ts` runs the plans one source at a time on the
+ * device. The synced `autoQuestions.*` prefs of earlier versions are no longer read.
  *
  * Generation goes through a `QuestionGenerator`: the built-in one is `deckQuestions` (slides, pages, sections,
  * notes split by heading, or a photo given as one unit with its image to a vision model). Another path plugs
@@ -13,7 +13,7 @@
  */
 import { detectLanguage } from '../content/language'
 import type { Id, StudyScope } from '../contracts/workspace'
-import type { AutoQuestionSettings, NewDraft } from '../model/drafts'
+import { AUTO_QUESTION_DEFAULTS, type NewDraft } from '../model/drafts'
 import type { CourseRecord, SourceRecord } from '../model/schema'
 import type { ModelWorkspace } from '../model/workspace'
 import type { CatalogModel } from './catalogTrim'
@@ -27,7 +27,10 @@ import {
 } from './features/deckQuestions'
 import type { DeckUnitInput } from './features/readDeck'
 
-/** Why a source is queued: added (follows the mode) or asked for by the student (runs even when the mode is off). */
+/**
+ * Why a source was queued: asked for by the student. `added` (queued on its own when a source was added) is only
+ * read from queues stored by earlier versions: such a job is cancelled, never run.
+ */
 export type JobReason = 'added' | 'manual'
 
 export interface GeneratorEstimate {
@@ -148,10 +151,8 @@ function liveCourse(ws: ModelWorkspace, id: Id): CourseRecord | undefined {
   return c && c.deletedAt === undefined ? c : undefined
 }
 
-/** The settings' destination when its course is still there, else the source's own course or subset. */
-export function destinationOf(ws: ModelWorkspace, source: SourceRecord, settings: AutoQuestionSettings): StudyScope {
-  const d = settings.destination
-  if (d && liveCourse(ws, d.courseId)) return d.sectionId === undefined ? { courseId: d.courseId } : { ...d }
+/** Where a source's questions are bound by default: its own course or subset (the inbox can send them elsewhere). */
+export function destinationOf(source: SourceRecord): StudyScope {
   return source.sectionId === undefined
     ? { courseId: source.courseId }
     : { courseId: source.courseId, sectionId: source.sectionId }
@@ -160,21 +161,18 @@ export function destinationOf(ws: ModelWorkspace, source: SourceRecord, settings
 export interface RunPlan {
   source: SourceRecord
   destination: StudyScope
-  /** `add`: accepted cards go straight to review (still within the caps). */
-  mode: 'propose' | 'add'
   /** Output language name for the model. */
   language: string
   /**
-   * Neither the settings nor the course name a language: the questions follow the language the document is
-   * written in, when it tells (`language`, the interface's, is the fallback).
+   * The course names no language: the questions follow the language the document is written in, when it tells
+   * (`language`, the interface's, is the fallback).
    */
   languageFromContent: boolean
-  settings: AutoQuestionSettings
   /** Everything `deckQuestions` needs but the units, the progress and its callback. */
   input: Omit<DeckQuestionsInput, 'units' | 'resume' | 'onProgress'>
 }
 
-export type PlanOutcome = RunPlan | 'off' | 'source-gone'
+export type PlanOutcome = RunPlan | 'source-gone'
 
 /** The language a document's units are written in, as a name for the model, when it tells. */
 export function unitsLanguage(units: readonly DeckUnitInput[], uiLocale: string): string | undefined {
@@ -182,32 +180,29 @@ export function unitsLanguage(units: readonly DeckUnitInput[], uiLocale: string)
   return code === undefined ? undefined : outputLanguage(code, uiLocale)
 }
 
-/** One run over one source, from the current settings; `off` when the mode says to do nothing for an added source. */
-export function planRun(ws: ModelWorkspace, sourceId: Id, reason: JobReason): PlanOutcome {
-  const settings = ws.drafts.settings.get()
-  if (settings.mode === 'off' && reason === 'added') return 'off'
+/** One run over one source: what to ask the model, and where its questions are bound. */
+export function planRun(ws: ModelWorkspace, sourceId: Id): PlanOutcome {
   const source = ws.sources.get(sourceId)
   if (!source || source.deletedAt !== undefined || ws.sources.list().every((s) => s.id !== sourceId)) {
     return 'source-gone'
   }
   const course = liveCourse(ws, source.courseId)
   if (!course) return 'source-gone'
-  const destination = destinationOf(ws, source, settings)
-  const target = liveCourse(ws, destination.courseId) ?? course
-  const named = settings.language === 'course' ? target.language?.trim() || undefined : settings.language
+  const destination = destinationOf(source)
+  const named = course.language?.trim() || undefined
   const language = outputLanguage(named, ws.prefs.get('locale'))
+  const d = AUTO_QUESTION_DEFAULTS
   const input: RunPlan['input'] = {
     sourceId,
-    perUnit: settings.perUnit,
-    types: settings.types,
-    difficulty: settings.difficulty,
-    courseTitle: target.title,
+    perUnit: d.perUnit,
+    types: d.types,
+    difficulty: d.difficulty,
+    courseTitle: course.title,
     deckTitle: source.title,
     isDuplicate: draftDuplicates(ws, sourceId),
+    existing: existingCardTexts(ws, destination.courseId),
   }
-  if (settings.dedupe) input.existing = existingCardTexts(ws, destination.courseId)
-  const mode = settings.mode === 'add' ? 'add' : 'propose'
-  return { source, destination, mode, language, languageFromContent: named === undefined, settings, input }
+  return { source, destination, language, languageFromContent: named === undefined, input }
 }
 
 const HAS_CLOZE = /\{\{c\d+::.+?\}\}/s

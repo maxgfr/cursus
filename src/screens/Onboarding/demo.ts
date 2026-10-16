@@ -19,7 +19,7 @@ import { bilayerDiagram, cellSketch, deckPptx, documentDocx, microscopePhoto, te
  * PDF; two photos (one attached to a note, one on a card, with its own notes); a study sheet in two subsets;
  * cards of every kind; two weeks of reviews (some due today, one being relearned); a planned counted session, a
  * cramming one and its relaunch over the missed card; two planned sessions (one a practice over a subset); and
- * questions proposed on the slides, the handout and a photo, waiting in « To review ».
+ * cards the student asked AI to suggest on the slides, the handout and a photo, waiting in « Suggested cards ».
  *
  * Its files (deck, document, PDFs, pictures, photos) are made here and stored first; then everything else is
  * written in one atomic write, so another device never sees half a demo, and a failure leaves nothing behind. It
@@ -299,7 +299,7 @@ export async function createDemoCourse(deps: DemoDeps, t: Translate, language?: 
     { at: 'mito', kind: 'cloze', front: t('today.demoQ16'), source: 'note2', history: 'long' },
   ]
   /**
-   * Proposed (as the AI would have, written here) on the slides, a section of the handout and the sketch: two
+   * Suggested when asked (as the AI would have, written here) on the slides, a section of the handout and the sketch: two
    * accepted, one rejected, the rest to review.
    */
   const drafts: DraftSpec[] = [

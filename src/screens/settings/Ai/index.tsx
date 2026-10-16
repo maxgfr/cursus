@@ -4,7 +4,7 @@ import { flushSync } from 'react-dom'
 import { useSearch } from 'wouter'
 import { replaceQuery } from '../../../app/nav.ts'
 import { paths } from '../../../app/routes.ts'
-import { useRuntime, useWorkspace } from '../../../app/workspaceContext.tsx'
+import { useWorkspace } from '../../../app/workspaceContext.tsx'
 import {
   type CatalogHit,
   findProvider,
@@ -26,7 +26,6 @@ import { Field } from '../../../ui/components/Field.tsx'
 import { ListGroup, ListRow } from '../../../ui/components/List.tsx'
 import { Segmented } from '../../../ui/components/Segmented.tsx'
 import { cx } from '../../../ui/cx.ts'
-import { resumeAutoQuestions } from '../../../ui/data/autoQuestions.ts'
 import { Screen } from '../../../ui/shell/Screen.tsx'
 import styles from '../../Understand/shared/ai.module.css'
 import {
@@ -50,7 +49,6 @@ import {
   saveKey,
   useVault,
 } from '../../Understand/shared/aiConfig.ts'
-import { AutoQuestions } from './AutoQuestions.tsx'
 import { localModelName, OnDevice } from './OnDevice.tsx'
 import { checkDevice, modelState, pickedLocalModel, releaseEngine, useOnDevice } from './onDeviceStore.ts'
 
@@ -104,7 +102,6 @@ function Editor({ initial }: { initial: Loaded }) {
   const locale = useLocale()
   const vault = useVault()
   const ws = useWorkspace()
-  const rt = useRuntime()
   const [config, setConfig] = useState<AiConfig>(initial.config)
   const [catalog, setCatalog] = useState<Catalog>(initial.catalog)
   const [checks, setChecks] = useState<DeviceChecks>(initial.checks)
@@ -200,8 +197,6 @@ function Editor({ initial }: { initial: Loaded }) {
   const update = async (next: AiConfig) => {
     setConfig(next)
     await saveConfig(vault, next)
-    // Documents waiting for a model (or for this one) get their questions proposed now.
-    void resumeAutoQuestions(rt, { model: true })
   }
 
   /** Switches the route's provider: its own key and URL, and the same model there when it has it. */
@@ -720,8 +715,6 @@ function Editor({ initial }: { initial: Loaded }) {
           {languageStatus.text}
         </p>
       )}
-
-      <AutoQuestions monthCost={monthCost} />
 
       <section className={styles.card} aria-labelledby="ai-cost-h">
         <h2 id="ai-cost-h" className={styles.label}>

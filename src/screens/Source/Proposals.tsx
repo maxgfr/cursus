@@ -44,7 +44,6 @@ export function Proposals({ sourceId }: { sourceId: Id }) {
     ? {
         cancel: act('cancel', (id) => q.cancel(id)),
         retry: act('retry', (id) => q.retry(id)),
-        approve: act('approve', (id) => q.approve(id)),
       }
     : undefined
   if (!ready && waiting === 0) return null

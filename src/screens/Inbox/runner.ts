@@ -9,31 +9,21 @@ import type { SourceRecord } from '../../core/model/schema'
 import { secretsVault } from '../../core/storage/secrets'
 import { loadDeck } from '../DeckImport/deckSource.ts'
 import { runInputs } from '../Generate/deckInputs.ts'
-import {
-  type AiSettings,
-  CUSTOM_PROVIDER,
-  loadAiSettings,
-  monthCostOf,
-  recordUsage,
-  resolveRoute,
-  sourceCostOf,
-} from '../Understand/shared/aiConfig.ts'
+import { CUSTOM_PROVIDER, loadAiSettings, recordUsage, resolveRoute } from '../Understand/shared/aiConfig.ts'
 import { PHOTO_UNIT, photoGenerator } from './photoGenerator.ts'
 
 /**
- * The device's background queue of proposed questions, wired to this app: the model of the AI settings (an
- * on-device one needs no connection), the month's spending priced with the catalog, and each source's content
- * read from this device (a note split by heading, a deck or PDF from its stored file, a photo for a vision model).
- * Loaded on demand only (it brings the AI code).
+ * The device's background queue of the cards the student asks for, wired to this app: the model of the AI
+ * settings (an on-device one needs no connection) and each source's content read from this device (a note split
+ * by heading, a deck or PDF from its stored file, a photo for a vision model). Loaded on demand only (it brings
+ * the AI code).
  */
 export function createRunner(rt: Runtime): AiJobs {
   const vault = secretsVault(rt.store)
-  let settings: AiSettings | null = null
   let last: JobModel | null = null
 
   const model = async (): Promise<JobModel | null> => {
     const s = await loadAiSettings(vault)
-    settings = s
     last = null
     const local = s.local
     const route = resolveRoute(s.config, s.catalog, CUSTOM_PROVIDER, (id) =>
@@ -118,8 +108,6 @@ export function createRunner(rt: Runtime): AiJobs {
     },
     model,
     content,
-    monthSpent: (now) => (settings ? monthCostOf(rt.ws, settings.catalog, now) : 0),
-    sourceSpent: (sourceId) => (settings ? sourceCostOf(rt.ws, settings.catalog, sourceId) : 0),
     generators: { image: photoGenerator(rt) },
   })
 }
