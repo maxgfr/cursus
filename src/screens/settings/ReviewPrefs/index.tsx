@@ -3,6 +3,7 @@ import { useLocation, useSearch } from 'wouter'
 import { paths } from '../../../app/routes.ts'
 import { useWorkspace, useWorkspaceData } from '../../../app/workspaceContext.tsx'
 import type { Id, Rating } from '../../../core/contracts/workspace'
+import { DAY_MS } from '../../../core/srs/fsrs'
 import {
   type ButtonWaits,
   formatSteps,
@@ -11,6 +12,7 @@ import {
   type NewOrder,
   parseSteps,
   previewSamples,
+  previewSources,
   REVIEW_DEFAULTS,
   REVIEW_RANGES,
   REVIEW_SETTING_KEYS,
@@ -18,6 +20,7 @@ import {
   type ReviewSettings,
   sameSetting,
   srsParamsOf,
+  type WaitSource,
 } from '../../../core/srs/settings'
 import { intlTag } from '../../../i18n/index.ts'
 import { useLocale, useT } from '../../../i18n/react.tsx'
@@ -29,6 +32,7 @@ import { Screen } from '../../../ui/shell/Screen.tsx'
 import { formatInterval } from '../../Review/interval.ts'
 import shared from '../../Understand/shared/ai.module.css'
 import styles from '../Sync/settings.module.css'
+import css from './ReviewPrefs.module.css'
 
 /** The form as typed: numbers and steps as text until they are read. */
 interface Form {
@@ -94,10 +98,18 @@ function read(f: Form): { [K in keyof ReviewSettings]: ReviewSettings[K] | null 
 const RATINGS: readonly Rating[] = [1, 2, 3, 4]
 const GRADE_KEY = { 1: 'review.again', 2: 'review.hard', 3: 'review.good', 4: 'review.easy' } as const
 
+/** Brings a setting's input into view and focuses it. */
+function goTo(id: string) {
+  const el = document.getElementById(id)
+  el?.scrollIntoView({ block: 'center' })
+  el?.focus({ preventScroll: true })
+}
+
 /**
  * « Schedule »: how reviews are scheduled and queued, Anki-style (FSRS): daily limits, the memory target, the
  * learning steps, new cards, hard cards, and the rest under Advanced, for all the cards or, as an Anki deck's
- * options, for one course (`?course=`) over them. The buttons' waits on two sample cards follow what is typed.
+ * options, for one course (`?course=`) over them. The buttons' waits on two sample cards follow what is typed,
+ * each with the settings that set it next to it, a choice away from their inputs.
  * The recommended settings are the defaults: nothing is written until Save, and then only what changed (a setting
  * put back to its recommended value, or for a course to all cards' value, gives its key up).
  */
@@ -152,6 +164,10 @@ function ScheduleForm({ course }: { course: { id: Id; title: string } | undefine
   const current = useWorkspaceData(['prefs', 'courses'], (w) => w.reviewSettings.forCourse(courseId))
   const [form, setForm] = useState<Form>(() => formOf(current))
   const [note, setNote] = useState<'saved' | 'restored' | 'inherited' | null>(null)
+  const retentionId = useId()
+  const learningId = useId()
+  const relearningId = useId()
+  const maximumId = useId()
   const change = (patch: Partial<Form>) => {
     setForm((f) => ({ ...f, ...patch }))
     setNote(null)
@@ -174,18 +190,51 @@ function ScheduleForm({ course }: { course: { id: Id; title: string } | undefine
     courseId !== undefined && inherits(k) ? <p className={styles.note}>{t('settings.sameAsAll')}</p> : null
 
   // The waits on the sample cards, with what is typed where it is valid, the saved settings elsewhere.
-  const preview = previewSamples(
-    srsParamsOf({
-      desiredRetention: typed.desiredRetention ?? current.desiredRetention,
-      learningSteps: typed.learningSteps ?? current.learningSteps,
-      relearningSteps: typed.relearningSteps ?? current.relearningSteps,
-      maximumInterval: typed.maximumInterval ?? current.maximumInterval,
-      enableFuzz: false,
-    }),
-    Date.now(),
-  )
+  const shown = {
+    desiredRetention: typed.desiredRetention ?? current.desiredRetention,
+    learningSteps: typed.learningSteps ?? current.learningSteps,
+    relearningSteps: typed.relearningSteps ?? current.relearningSteps,
+    maximumInterval: typed.maximumInterval ?? current.maximumInterval,
+  }
+  const preview = previewSamples(srsParamsOf({ ...shown, enableFuzz: false }), Date.now())
+  const sources = previewSources(shown)
   const tag = intlTag(locale)
   const waits = (w: ButtonWaits) => RATINGS.map((r) => `${t(GRADE_KEY[r])} ${formatInterval(w[r], tag)}`).join(' · ')
+  const setting = (id: string, label: string, value: string) => (
+    <>
+      <button type="button" className={css.source} onClick={() => goTo(id)}>
+        {label}
+      </button>{' '}
+      <span className={css.value}>{value}</span>
+    </>
+  )
+  const percent = new Intl.NumberFormat(tag, { style: 'percent' })
+  const settingOf = (source: WaitSource) =>
+    source === 'learningSteps' ? (
+      setting(learningId, t('settings.learningSteps'), formatSteps(shown.learningSteps))
+    ) : source === 'relearningSteps' ? (
+      setting(relearningId, t('settings.relearningSteps'), formatSteps(shown.relearningSteps))
+    ) : (
+      <>
+        {setting(retentionId, t('settings.retention'), percent.format(shown.desiredRetention))},{' '}
+        {setting(maximumId, t('settings.maximumIntervalShort'), formatInterval(shown.maximumInterval * DAY_MS, tag))}
+      </>
+    )
+  // Under a sample's waits, the buttons grouped by what sets their wait, in the buttons' order.
+  const legend = (of: Record<Rating, WaitSource>) => (
+    <ul className={css.sources}>
+      {[...new Set(RATINGS.map((r) => of[r]))].map((source) => (
+        <li key={source}>
+          {RATINGS.filter((r) => of[r] === source)
+            .map((r) => t(GRADE_KEY[r]))
+            .join(' · ')}
+          <span aria-hidden="true"> ← </span>
+          <span className="sr-only"> {t('settings.setBy')} </span>
+          {settingOf(source)}
+        </li>
+      ))}
+    </ul>
+  )
 
   const stepsError = t('settings.stepsError')
   return (
@@ -211,12 +260,85 @@ function ScheduleForm({ course }: { course: { id: Id; title: string } | undefine
         <h2 id="review-preview" className={styles.sectionTitle}>
           {t('settings.reviewPreview')}
         </h2>
+        <p className={styles.note}>{t('settings.reviewPreviewBody')}</p>
         <dl className={styles.facts} data-testid="review-preview">
           <dt>{t('settings.previewNew')}</dt>
-          <dd>{waits(preview.fresh)}</dd>
+          <dd>
+            {waits(preview.fresh)}
+            {legend(sources.fresh)}
+          </dd>
           <dt>{t('settings.previewReview')}</dt>
-          <dd>{waits(preview.review)}</dd>
+          <dd>
+            {waits(preview.review)}
+            {legend(sources.review)}
+          </dd>
         </dl>
+        <Field
+          id={retentionId}
+          label={t('settings.retentionPercent')}
+          hint={t('settings.retentionHint')}
+          type="number"
+          inputMode="numeric"
+          min={REVIEW_RANGES.desiredRetention.min * 100}
+          max={REVIEW_RANGES.desiredRetention.max * 100}
+          step={1}
+          value={form.retention}
+          onChange={(e) => change({ retention: e.target.value })}
+          error={
+            typed.desiredRetention === null
+              ? t('settings.retentionError', {
+                  min: REVIEW_RANGES.desiredRetention.min * 100,
+                  max: REVIEW_RANGES.desiredRetention.max * 100,
+                })
+              : undefined
+          }
+        />
+        {same('desiredRetention')}
+        <Field
+          id={learningId}
+          label={t('settings.learningSteps')}
+          hint={t('settings.learningStepsHint')}
+          autoCapitalize="off"
+          autoComplete="off"
+          spellCheck={false}
+          value={form.learningSteps}
+          onChange={(e) => change({ learningSteps: e.target.value })}
+          error={typed.learningSteps === null ? stepsError : undefined}
+        />
+        {same('learningSteps')}
+        <Field
+          id={relearningId}
+          label={t('settings.relearningSteps')}
+          hint={t('settings.relearningStepsHint')}
+          autoCapitalize="off"
+          autoComplete="off"
+          spellCheck={false}
+          value={form.relearningSteps}
+          onChange={(e) => change({ relearningSteps: e.target.value })}
+          error={typed.relearningSteps === null ? stepsError : undefined}
+        />
+        {same('relearningSteps')}
+        <Field
+          id={maximumId}
+          label={t('settings.maximumInterval')}
+          hint={t('settings.maximumIntervalHint')}
+          type="number"
+          inputMode="numeric"
+          min={REVIEW_RANGES.maximumInterval.min}
+          max={REVIEW_RANGES.maximumInterval.max}
+          step={1}
+          value={form.maximumInterval}
+          onChange={(e) => change({ maximumInterval: e.target.value })}
+          error={typed.maximumInterval === null ? t('settings.maximumIntervalError') : undefined}
+        />
+        {same('maximumInterval')}
+        <SwitchRow
+          label={t('settings.enableFuzz')}
+          hint={t('settings.enableFuzzHint')}
+          checked={form.enableFuzz}
+          onChange={(enableFuzz) => change({ enableFuzz })}
+        />
+        {same('enableFuzz')}
       </section>
 
       <section className={styles.card} aria-labelledby="review-limits">
@@ -250,60 +372,6 @@ function ScheduleForm({ course }: { course: { id: Id; title: string } | undefine
           error={typed.maxReviewsOk ? undefined : t('settings.dailyMaxError')}
         />
         {same('maxReviewsPerDay')}
-      </section>
-
-      <section className={styles.card} aria-labelledby="review-memory">
-        <h2 id="review-memory" className={styles.sectionTitle}>
-          {t('settings.reviewMemory')}
-        </h2>
-        <Field
-          label={t('settings.retentionPercent')}
-          hint={t('settings.retentionHint')}
-          type="number"
-          inputMode="numeric"
-          min={REVIEW_RANGES.desiredRetention.min * 100}
-          max={REVIEW_RANGES.desiredRetention.max * 100}
-          step={1}
-          value={form.retention}
-          onChange={(e) => change({ retention: e.target.value })}
-          error={
-            typed.desiredRetention === null
-              ? t('settings.retentionError', {
-                  min: REVIEW_RANGES.desiredRetention.min * 100,
-                  max: REVIEW_RANGES.desiredRetention.max * 100,
-                })
-              : undefined
-          }
-        />
-        {same('desiredRetention')}
-      </section>
-
-      <section className={styles.card} aria-labelledby="review-steps">
-        <h2 id="review-steps" className={styles.sectionTitle}>
-          {t('settings.reviewSteps')}
-        </h2>
-        <Field
-          label={t('settings.learningSteps')}
-          hint={t('settings.learningStepsHint')}
-          autoCapitalize="off"
-          autoComplete="off"
-          spellCheck={false}
-          value={form.learningSteps}
-          onChange={(e) => change({ learningSteps: e.target.value })}
-          error={typed.learningSteps === null ? stepsError : undefined}
-        />
-        {same('learningSteps')}
-        <Field
-          label={t('settings.relearningSteps')}
-          hint={t('settings.relearningStepsHint')}
-          autoCapitalize="off"
-          autoComplete="off"
-          spellCheck={false}
-          value={form.relearningSteps}
-          onChange={(e) => change({ relearningSteps: e.target.value })}
-          error={typed.relearningSteps === null ? stepsError : undefined}
-        />
-        {same('relearningSteps')}
       </section>
 
       <section className={styles.card} aria-labelledby="review-new">
@@ -361,32 +429,6 @@ function ScheduleForm({ course }: { course: { id: Id; title: string } | undefine
         />
         {same('leechAction')}
       </section>
-
-      <details className={styles.advanced}>
-        <summary>{t('sync.advanced')}</summary>
-        <div className={styles.card}>
-          <Field
-            label={t('settings.maximumInterval')}
-            hint={t('settings.maximumIntervalHint')}
-            type="number"
-            inputMode="numeric"
-            min={REVIEW_RANGES.maximumInterval.min}
-            max={REVIEW_RANGES.maximumInterval.max}
-            step={1}
-            value={form.maximumInterval}
-            onChange={(e) => change({ maximumInterval: e.target.value })}
-            error={typed.maximumInterval === null ? t('settings.maximumIntervalError') : undefined}
-          />
-          {same('maximumInterval')}
-          <SwitchRow
-            label={t('settings.enableFuzz')}
-            hint={t('settings.enableFuzzHint')}
-            checked={form.enableFuzz}
-            onChange={(enableFuzz) => change({ enableFuzz })}
-          />
-          {same('enableFuzz')}
-        </div>
-      </details>
 
       {note !== null && (
         <p className={styles.ok} role="status">

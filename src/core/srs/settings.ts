@@ -211,3 +211,29 @@ export function previewSamples(params: SrsParams, now: number): { fresh: ButtonW
   }
   return { fresh: waits(newCardState(SAMPLE_NEW)), review: waits(sampleReview(now)) }
 }
+
+/** What sets a button's wait: a learning step, a relearning step, or FSRS (the retention, within the maximum). */
+export type WaitSource = 'learningSteps' | 'relearningSteps' | 'retention'
+
+/**
+ * What sets each button's wait on the sample cards of `previewSamples`, as ts-fsrs schedules them. A new card:
+ * Again waits the first learning step, Hard between the first two (half as long again with one step), Good the
+ * second step when there is one; FSRS gives the rest, Easy always. A card due for review: Again waits the first
+ * relearning step when there is one; FSRS gives the rest.
+ */
+export function previewSources(s: Pick<ReviewSettings, 'learningSteps' | 'relearningSteps'>): {
+  fresh: Record<Rating, WaitSource>
+  review: Record<Rating, WaitSource>
+} {
+  const learning = s.learningSteps.length
+  const step = (atLeast: number): WaitSource => (learning >= atLeast ? 'learningSteps' : 'retention')
+  return {
+    fresh: { 1: step(1), 2: step(1), 3: step(2), 4: 'retention' },
+    review: {
+      1: s.relearningSteps.length > 0 ? 'relearningSteps' : 'retention',
+      2: 'retention',
+      3: 'retention',
+      4: 'retention',
+    },
+  }
+}

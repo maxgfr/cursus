@@ -1,9 +1,11 @@
 import { describe, expect, test } from 'bun:test'
+import type { StepUnit } from 'ts-fsrs'
 import { createScheduler, DAY_MS, DEFAULT_PARAMS, paramsKey } from './fsrs'
 import {
   formatSteps,
   parseSteps,
   previewSamples,
+  previewSources,
   queueLimitsOf,
   REVIEW_DEFAULTS,
   REVIEW_SETTING_KEYS,
@@ -128,5 +130,45 @@ describe('the preview', () => {
     expect(capped.fresh[4]).toBe(5 * DAY_MS)
     expect([capped.review[2], capped.review[3], capped.review[4]]).toEqual([5 * DAY_MS, 6 * DAY_MS, 7 * DAY_MS])
     expect(previewSamples({ ...DEFAULT_PARAMS, enableFuzz: true }, NOW)).toEqual(previewSamples(DEFAULT_PARAMS, NOW))
+  })
+
+  test('says what sets each wait: a step gives minutes as written, FSRS whole days', () => {
+    const cases: [StepUnit[], StepUnit[]][] = [
+      [['1m', '10m'], ['10m']],
+      [
+        ['2m', '15m', '1h'],
+        ['5m', '20m'],
+      ],
+      [['5m'], []],
+      [[], ['10m']],
+      [[], []],
+    ]
+    for (const [learningSteps, relearningSteps] of cases) {
+      const params = { ...DEFAULT_PARAMS, learningSteps, relearningSteps }
+      const waits = previewSamples(params, NOW)
+      const sources = previewSources(params)
+      for (const sample of ['fresh', 'review'] as const) {
+        for (const r of [1, 2, 3, 4] as const) {
+          const wait = waits[sample][r]
+          const fromStep = sources[sample][r] !== 'retention'
+          expect([learningSteps, relearningSteps, sample, r, wait < DAY_MS]).toEqual([
+            learningSteps,
+            relearningSteps,
+            sample,
+            r,
+            fromStep,
+          ])
+          if (!fromStep) expect(wait % DAY_MS).toBe(0)
+        }
+      }
+    }
+    expect(previewSources(DEFAULT_PARAMS)).toEqual({
+      fresh: { 1: 'learningSteps', 2: 'learningSteps', 3: 'learningSteps', 4: 'retention' },
+      review: { 1: 'relearningSteps', 2: 'retention', 3: 'retention', 4: 'retention' },
+    })
+    // One step: Hard waits half as long again, Good graduates.
+    const one = previewSamples({ ...DEFAULT_PARAMS, learningSteps: ['10m'] }, NOW)
+    expect([one.fresh[1], one.fresh[2]]).toEqual([10 * MIN, 15 * MIN])
+    expect(previewSources({ learningSteps: ['10m'], relearningSteps: [] }).fresh[3]).toBe('retention')
   })
 })
