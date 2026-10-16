@@ -24,10 +24,12 @@ import { useScopeOnce } from '../Section/scope.ts'
 import { sessionLabel } from '../Sessions/describe.ts'
 import { PracticeChip } from '../Sessions/PracticeChip.tsx'
 import { useAiModel } from '../Understand/shared/aiConfig.ts'
-import { Improve, OwnWords } from './Assist.tsx'
-import { ExplainActions } from './ExplainActions.tsx'
+import { Improve } from './Assist.tsx'
+import { Assists } from './Assists.tsx'
 import { describeFailure } from './failure.ts'
+import { ImproveSheet, type Rewritten } from './ImproveSheet.tsx'
 import styles from './Review.module.css'
+import { replaceFaces } from './replaceFaces.ts'
 import { SessionDone } from './SessionDone.tsx'
 import {
   type CardView,
@@ -316,6 +318,10 @@ function ReviewRun({ sessionId }: { sessionId: Id | null }) {
           onReveal={reveal}
           onRate={rate}
           suggested={suggested}
+          onGraded={(rating, feedback) => {
+            setSuggestion({ at: index, rating, feedback })
+            setRevealedAt(index)
+          }}
           onSuspend={() => {
             ws.cards.update(card.id, { suspended: true })
             setToast(t('review.suspended'))
@@ -374,12 +380,17 @@ interface CardStageProps {
   onReveal: () => void
   onRate: (r: Rating) => void
   suggested: Suggestion | null
+  /** A grade suggested for an answer typed in one's own words: the answer shows, the grade is offered. */
+  onGraded: (rating: Rating, feedback: string) => void
   onSuspend: () => void
   remaining: number
 }
 
-function CardStage({ card, revealed, onReveal, onRate, suggested, onSuspend, remaining }: CardStageProps) {
+function CardStage({ card, revealed, onReveal, onRate, suggested, onGraded, onSuspend, remaining }: CardStageProps) {
   const t = useT()
+  const ws = useWorkspace()
+  const [improving, setImproving] = useState(false)
+  const [rewritten, setRewritten] = useState<Rewritten | null>(null)
   const locale = useLocale()
   // Shown on the app's one readiness (as the chat button); the model's details only say whether it runs offline.
   const aiReady = useAiReady()
@@ -404,7 +415,28 @@ function CardStage({ card, revealed, onReveal, onRate, suggested, onSuspend, rem
       <p className={styles.remaining} role="status" data-testid="remaining">
         {t('review.remaining', { count: remaining })}
       </p>
-      {card.leech && <Improve ai={aiReady} onSuspend={onSuspend} />}
+      {card.leech && <Improve ai={aiReady} onImprove={() => setImproving(true)} onSuspend={onSuspend} />}
+      <ImproveSheet
+        cardId={improving ? card.id : null}
+        revealed={revealed}
+        onClose={() => setImproving(false)}
+        onUsed={setRewritten}
+      />
+      {rewritten && (
+        <Toast
+          message={t('review.improved')}
+          actions={[
+            {
+              label: t('common.undo'),
+              onClick: () => {
+                replaceFaces(ws, rewritten.cardId, rewritten.front, rewritten.back)
+                setRewritten(null)
+              },
+            },
+            { label: t('common.dismiss'), onClick: () => setRewritten(null) },
+          ]}
+        />
+      )}
       <section className={styles.stage} aria-label={card.courseTitle || t('review.title')}>
         {/* No eyebrow: the question text and the pressed answer surface carry the distinction. */}
         <section className={styles.face} aria-label={t('review.question')} data-testid="question">
@@ -430,7 +462,6 @@ function CardStage({ card, revealed, onReveal, onRate, suggested, onSuspend, rem
           </button>
         )}
       </section>
-      {!revealed && <OwnWords ai={aiReady} />}
       {revealed && (
         <>
           {suggested !== null && (
@@ -477,7 +508,7 @@ function CardStage({ card, revealed, onReveal, onRate, suggested, onSuspend, rem
           </fieldset>
         </>
       )}
-      {aiReady && <ExplainActions key={`explain-${card.id}`} card={card} revealed={revealed} ai={ai} />}
+      {aiReady && <Assists key={`assists-${card.id}`} card={card} revealed={revealed} ai={ai} onGraded={onGraded} />}
     </div>
   )
 }

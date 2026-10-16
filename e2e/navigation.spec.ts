@@ -1,8 +1,7 @@
 import { join } from 'node:path'
 import { expect, type Page, type Route, test } from '@playwright/test'
-import { chatPanel, completionReply, configureAi } from './support/ai'
+import { completionReply, configureAi } from './support/ai'
 import { createHarness } from './support/harness.ts'
-import { isPhone } from './support/page.ts'
 
 // Back and Close return to the screen the student came from (else to the screen's logical parent), the browser's
 // back button agrees with them, and leaving a screen after an action never leaves a dead or looping entry behind.
@@ -452,9 +451,9 @@ test('Sync opened from Today or from Security goes back to its opener', async ({
   await expect(page).toHaveURL(/#\/settings\/security$/)
 })
 
-test('AI actions opened from a course run in the chat beside it; the course and its Back stay as they were', async ({
+test('« Quiz me » from a course opens its screen; going back finds the course and its Back as they were', async ({
   page,
-}, info) => {
+}) => {
   const quiz = JSON.stringify({
     questions: [
       {
@@ -476,18 +475,17 @@ test('AI actions opened from a course run in the chat beside it; the course and 
   await hop(page, '/courses', 'Courses')
   await page.getByRole('main').getByRole('link', { name: /^Law/ }).click()
   await at(page, 'Law', /#\/course\//)
-  const course = page.url()
   await page
     .getByRole('main')
     .getByRole('button', { name: /Quiz me/ })
     .click()
   // Set up first (this course already chosen), then started.
   await page.getByRole('dialog', { name: 'Quiz me' }).getByRole('button', { name: 'Start the quiz' }).click()
-  // The quiz answers in the chat, on the course: no screen of its own, the course stays on screen.
-  const chat = chatPanel(page, info.project.name)
-  await expect(chat.getByRole('button', { name: 'An offer and its acceptance' })).toBeVisible()
-  await expect(page).toHaveURL(course)
-  if (isPhone(info.project.name)) await chat.getByRole('button', { name: 'Close chat' }).click()
+  // The quiz runs on its own screen; going back finds the course.
+  await at(page, 'Quiz me', /#\/quiz$/)
+  await expect(page.getByRole('button', { name: 'An offer and its acceptance' })).toBeVisible()
+  await page.goBack()
+  await at(page, 'Law', /#\/course\//)
   await page.reload()
   await at(page, 'Law', /#\/course\//)
   await back(page).click()

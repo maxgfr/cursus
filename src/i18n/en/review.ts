@@ -142,4 +142,6 @@ export const review = {
   statsCrammingShare: { one: 'incl. {count} practice only', other: 'incl. {count} practice only' },
   sessionFailed: 'The session couldn’t start. Try again.',
   cardSuggested: 'Added to Suggested cards',
+  continueInChat: 'Continue in the chat',
+  improveAgain: 'Rewrite again',
 } as const

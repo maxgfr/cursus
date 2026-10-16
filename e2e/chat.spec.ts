@@ -295,9 +295,9 @@ test('in review, before the reveal the answer never shows; after it, the same an
   expect(errors).toEqual([])
 })
 
-test('« A hint » is also among the review options: it asks the chat, then gives way to « Why? » once revealed', async ({
+test('« A hint » is also among the review options: answered below the card, then gives way to « Why? » once revealed', async ({
   page,
-}, info) => {
+}) => {
   const errors = watchErrors(page)
   await seedCourse(page)
   const prompts = await mockProvider(page)
@@ -309,18 +309,17 @@ test('« A hint » is also among the review options: it asks the chat, then give
   await expect(options).toBeVisible()
   await expect(page.getByRole('main').getByRole('button', { name: 'Why?' })).toHaveCount(0)
   await options.click()
-  const panel = chatPanel(page, info.project.name)
+  const panel = page.getByRole('main').getByRole('region', { name: 'A hint' })
   await expect(panel.getByText('Parts that would give the answer away are hidden until you reveal it.')).toBeVisible()
   await expect(panel).not.toContainText(/mitochondri/i)
   expect(prompts.at(-1)).toContain('asks for a hint')
 
-  if (isPhone(info.project.name)) await panel.getByRole('button', { name: 'Close' }).click()
   await page.getByRole('button', { name: /Show answer/ }).click()
   await expect(page.getByRole('main').getByRole('button', { name: 'A hint' })).toHaveCount(0)
   await expect(page.getByRole('main').getByRole('button', { name: 'Why?' })).toBeVisible()
-  // After the reveal, the mnemonic sits below the card too, and asks the chat.
+  // After the reveal, the mnemonic sits below the card too, answered there.
   await page.getByRole('main').getByRole('button', { name: 'A mnemonic' }).click()
-  if (isPhone(info.project.name)) await expect(panel).toBeVisible()
+  await expect(page.getByRole('main').getByRole('region', { name: 'A mnemonic' })).toBeVisible()
   await expect.poll(() => prompts.at(-1) ?? '').toContain('asks for a mnemonic')
   expect(errors).toEqual([])
 })
@@ -772,8 +771,9 @@ test('a chat action runs once: the model removed, then set up again, sends nothi
   await configureAi(page, LLM)
   await page.goto('./#/review')
   await expect(page.getByTestId('question')).toContainText('Powerhouse of the cell?')
-  await page.getByRole('button', { name: 'Explain the question' }).click()
+  await openChat(page)
   const panel = chatPanel(page, info.project.name)
+  await panel.getByRole('button', { name: 'Explain the question' }).click()
   await expect.poll(() => prompts.length).toBeGreaterThan(0)
   await page.waitForLoadState('networkidle')
   const asked = prompts.length

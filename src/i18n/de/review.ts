@@ -149,4 +149,6 @@ export const review = {
   statsCrammingShare: { one: 'davon {count} gepaukt', other: 'davon {count} gepaukt' },
   sessionFailed: 'Die Lerneinheit konnte nicht starten. Versuch es noch einmal.',
   cardSuggested: 'Zu den vorgeschlagenen Karten hinzugefügt',
+  continueInChat: 'Im Chat weitermachen',
+  improveAgain: 'Neu formulieren',
 } as const satisfies Shape<typeof en>

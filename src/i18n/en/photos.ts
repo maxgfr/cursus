@@ -85,4 +85,6 @@ export const photos = {
     one: 'Includes what AI read on {count} photo.',
     other: 'Includes what AI read on {count} photos.',
   },
+  aiAddToNotes: 'Add to my notes',
+  aiAddedToNotes: 'Added to the photo’s notes',
 } as const

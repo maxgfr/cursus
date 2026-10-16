@@ -2,7 +2,6 @@ import { Check, Copy, History, Plus, SquarePen, Trash2, X } from 'lucide-react'
 import {
   type FormEvent,
   type KeyboardEvent,
-  type ReactNode,
   useCallback,
   useEffect,
   useId,
@@ -31,7 +30,6 @@ import {
   type ChatIntent,
   type ChatMessage,
   type ChatSegment,
-  guardReply,
   isCardRich,
   keepValidCitations,
   parseCitations,
@@ -48,21 +46,16 @@ import type {
   PhotoDescription,
   QuestionExplanationDraft,
   QuizQuestion,
-  SourceRef,
   Understanding,
 } from '../../core/ai/schemas'
-import { renderPhoto } from '../../core/content/photos'
 import type { StudyScope } from '../../core/contracts/workspace'
-import { getPhoto } from '../../core/model/photos'
 import type { ModelWorkspace } from '../../core/model/workspace'
 import { formatUsd } from '../../i18n/format.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
 import { createFiche, WRITE_QUERY } from '../../screens/Fiche/create.ts'
-import { useFileLoader } from '../../screens/Photos/files.ts'
 import { newQuizRun, saveQuizRun } from '../../screens/Quiz/run.ts'
 import { describeFailure } from '../../screens/Review/failure.ts'
 import { cardText, passagesText, useAiModel } from '../../screens/Understand/shared/aiConfig.ts'
-import { Citation } from '../../screens/Understand/shared/SourcePicker.tsx'
 import { estimateCost } from '../../screens/Understand/shared/sources.ts'
 import { Button, buttonClass } from '../components/Button.tsx'
 import { IconButton } from '../components/IconButton.tsx'
@@ -72,9 +65,11 @@ import { proposeFor } from '../data/autoQuestions.ts'
 import { usePartial } from '../data/usePartial.ts'
 import { useCanCallAi } from '../ExplainLauncher.tsx'
 import { Sanitized } from '../render/Sanitized.tsx'
+import { Answer } from './Answer.tsx'
 import { actionById, actionsFor, type ChatAction, type StudyKind } from './actions.ts'
 import styles from './ChatPanel.module.css'
 import { type ScreenContext, useChat } from './context.tsx'
+import { usePhotoImages } from './photoImages.ts'
 import { ResizeHandle } from './ResizeHandle.tsx'
 import { keyed, PartialRich, RichAnswer, RichNote } from './RichAnswer.tsx'
 import {
@@ -92,7 +87,6 @@ import {
 import {
   checkExplanation,
   chunkLoader,
-  type PhotoImages,
   PhotoUnavailableError,
   type Run,
   runGrade,
@@ -211,22 +205,6 @@ function onPartialOf(on: Record<Streamed, (p: unknown) => void>, kind: RichResul
 /** The course or section of a study action's options. */
 const placeOf = (o: Pick<StudyOptions, 'courseId' | 'sectionId'>): StudyScope =>
   o.sectionId ? { courseId: o.courseId, sectionId: o.sectionId } : { courseId: o.courseId }
-
-/** A photo's pixels as sent to a model: fetched if it is not here yet, turned upright, at most 1024 px. */
-function usePhotoImages(): PhotoImages {
-  const ws = useWorkspace()
-  const loadFile = useFileLoader()
-  return useCallback(
-    async (id: string) => {
-      const photo = getPhoto(ws, id)
-      const file = photo ? await loadFile(photo.blobId) : null
-      if (!photo || !file) throw new PhotoUnavailableError(id)
-      const small = await renderPhoto(file, photo.rotation, 1024)
-      return { bytes: new Uint8Array(await small.arrayBuffer()), mediaType: small.type || 'image/jpeg' }
-    },
-    [ws, loadFile],
-  )
-}
 
 type Card = NonNullable<ScreenContext['card']>
 
@@ -1262,75 +1240,6 @@ function Message({
     <Answer segments={segments} card={card}>
       <AnswerActions segments={segments} question={question} courseId={courseId} sectionId={sectionId} card={card} />
     </Answer>
-  )
-}
-
-/** A cited passage's address: the source, at its page, slide or section when there is one. */
-const citeHref = (ref: SourceRef) =>
-  ref.page === undefined ? to.source(ref.sourceId) : `${to.source(ref.sourceId)}?page=${ref.page}`
-
-/**
- * The answer as Markdown, its citations numbered in order of first use (`[1]` links to the passage, the sources
- * are listed by name below). A streamed answer ends with a cursor.
- */
-function answerMarkdown(segments: readonly ChatSegment[], streaming: boolean): { markdown: string; refs: SourceRef[] } {
-  const order = new Map<string, number>()
-  const refs: SourceRef[] = []
-  let markdown = ''
-  for (const s of segments) {
-    if (s.kind === 'text') {
-      markdown += s.text
-      continue
-    }
-    const key = `${s.ref.sourceId}\u0000${s.ref.page ?? ''}`
-    let n = order.get(key)
-    if (n === undefined) {
-      refs.push(s.ref)
-      n = refs.length
-      order.set(key, n)
-    }
-    markdown += ` [${n}](#${citeHref(s.ref)})`
-  }
-  return { markdown: streaming && markdown !== '' ? `${markdown} ▍` : markdown, refs }
-}
-
-function Answer({
-  segments,
-  card,
-  streaming = false,
-  children,
-}: {
-  segments: ChatSegment[]
-  card: ScreenContext['card']
-  streaming?: boolean
-  children?: ReactNode
-}) {
-  const t = useT()
-  const guarded = guardReply(segments, card)
-  const { markdown, refs } = answerMarkdown(guarded.segments, streaming)
-  return (
-    <div className={styles.answer}>
-      <span className="sr-only">{t('chat.tutor')}: </span>
-      {markdown !== '' && (
-        <div className={styles.answerText}>
-          <Sanitized markdown={markdown} />
-        </div>
-      )}
-      {refs.length > 0 && (
-        <ol className={styles.sources} aria-label={t('chat.sources')}>
-          {refs.map((ref, i) => (
-            <li key={`${ref.sourceId}/${ref.page ?? ''}`} className={styles.source}>
-              <span className={styles.sourceNumber} aria-hidden="true">
-                {i + 1}
-              </span>
-              <Citation sourceRef={ref} />
-            </li>
-          ))}
-        </ol>
-      )}
-      {guarded.leaked && <p className={styles.note}>{t('chat.hidden')}</p>}
-      {children}
-    </div>
   )
 }
 

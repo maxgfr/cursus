@@ -89,4 +89,6 @@ export const photos = {
     one: 'Enthält, was die KI auf {count} Foto gelesen hat.',
     other: 'Enthält, was die KI auf {count} Fotos gelesen hat.',
   },
+  aiAddToNotes: 'Zu meinen Notizen',
+  aiAddedToNotes: 'Zu den Notizen des Fotos hinzugefügt',
 } as const satisfies Shape<typeof en>

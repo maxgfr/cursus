@@ -15,9 +15,9 @@ import {
   type WorkerEvent,
 } from '../src/core/ai/local.ts'
 import { createLocalModels } from '../src/core/ai/localModels.ts'
-import { chatPanel, openModels, providerGroup, providerPicker } from './support/ai.ts'
+import { openModels, providerGroup, providerPicker } from './support/ai.ts'
 import { createHarness } from './support/harness.ts'
-import { isPhone, seriousViolations, watchErrors } from './support/page.ts'
+import { seriousViolations, watchErrors } from './support/page.ts'
 
 /*
  * The "On this device" model with an injected engine: CI browsers have no usable GPU and the real
@@ -296,6 +296,20 @@ async function openAi(page: Page, query = '') {
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
 }
 
+/** A course with a note to quiz on, written in the app. */
+async function botanyNote(page: Page) {
+  await page.goto('./#/')
+  await page.getByRole('button', { name: 'New course' }).first().click()
+  const dialog = page.getByRole('dialog', { name: 'New course' })
+  await dialog.getByLabel('Course name').fill('Botany')
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  await page.getByRole('radio', { name: 'Sources' }).check({ force: true })
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await page.getByRole('button', { name: 'Write a note' }).click()
+  await page.getByRole('textbox', { name: 'Source' }).click()
+  await page.keyboard.type('Chlorophyll captures light; CO2 is fixed in the stroma.')
+}
+
 test.describe('on-device model, engine injected', () => {
   test.use({ serviceWorkers: 'block' })
 
@@ -311,7 +325,7 @@ test.describe('on-device model, engine injected', () => {
 
   test('recommended model and why, download with progress, default model, keyless AI, remove', async ({
     page,
-  }, info) => {
+  }, _info) => {
     const errors = watchErrors(page)
     const setup: DeviceSetup = { ...ROOMY, deviceMemory: 8 }
     const pick = await expectedPick(setup)
@@ -365,18 +379,16 @@ test.describe('on-device model, engine injected', () => {
       card(page).getByText('This is your default model: every AI feature uses it, without a key.'),
     ).toBeVisible()
 
-    // Every AI feature now works without a key: a quiz in the chat, answered by the model on this device.
+    // Every AI feature now works without a key: a quiz on its screen, answered by the model on this device.
+    await botanyNote(page)
     await page.goto('./#/quiz')
-    const chat = chatPanel(page, info.project.name)
-    await chat.getByText('Sources: none chosen').click()
-    await chat.getByLabel('Paste text (optional)').fill('Chlorophyll captures light; CO2 is fixed in the stroma.')
-    await chat.getByRole('button', { name: 'Run again', exact: true }).click()
-    await chat.getByRole('button', { name: 'Chlorophyll' }).click()
-    await chat.getByRole('button', { name: 'Next question' }).click()
-    await chat.getByRole('button', { name: 'Stroma' }).click()
-    await expect(chat.getByText('Score: 2 / 2')).toBeVisible()
+    const quiz = page.getByRole('main')
+    await quiz.getByRole('button', { name: 'Start the quiz' }).click()
+    await quiz.getByRole('button', { name: 'Chlorophyll' }).click()
+    await quiz.getByRole('button', { name: 'Next question' }).click()
+    await quiz.getByRole('button', { name: 'Stroma' }).click()
+    await expect(quiz.getByText('Score: 2 / 2')).toBeVisible()
     expect(run.prompts.some((p) => p.includes('multiple-choice'))).toBe(true)
-    if (isPhone(info.project.name)) await chat.getByRole('button', { name: 'Close chat' }).click()
     await openAi(page)
     await expect(page.getByTestId('ai-month-cost')).toHaveText('$0.00')
 
@@ -696,13 +708,15 @@ test.describe('on-device model offline, explanations', () => {
 
     // Online first, so the screens' code is loaded (the service worker is off in this run).
     await go(page, '#/review')
-    // The explanation answers in the chat, whose code loads with it; then the chat is closed.
+    // The explanation answers below the card; then the chat is opened once, so its code loads, and closed.
     await page.getByRole('main').getByRole('button', { name: 'Explain the question', exact: true }).click()
+    const explained = page.getByRole('main').getByRole('region', { name: 'Explain the question' })
+    await expect(explained.getByText('It asks which part of the cell releases most of its energy.')).toBeVisible()
+    await page.getByRole('main').getByRole('button', { name: 'Ask about this' }).first().click()
     const question =
       info.project.name === 'webkit-iphone'
         ? page.getByRole('dialog', { name: 'Ask' })
         : page.getByRole('complementary', { name: 'Ask' })
-    await expect(question.getByText('It asks which part of the cell releases most of its energy.')).toBeVisible()
     await expect(page.getByRole('textbox', { name: 'Your question' })).toBeVisible()
     await page.keyboard.press(info.project.name === 'webkit-iphone' ? 'Escape' : 'ControlOrMeta+j')
     await expect(question).toBeHidden()
@@ -758,7 +772,7 @@ test.describe('on-device model offline', () => {
   test('after the download, the model runs with no network: the engine comes from the runtime cache', async ({
     page,
     context,
-  }, info) => {
+  }, _info) => {
     test.setTimeout(120_000)
     const pick = await expectedPick(ROOMY)
     await stubDevice(page, ROOMY)
@@ -783,7 +797,8 @@ test.describe('on-device model offline', () => {
       )
       .toContain(script)
 
-    // Cut off, cold start: the quiz runs in the chat on the model here, and nothing goes out.
+    // Cut off, cold start: the quiz runs on the model here, and nothing goes out.
+    await botanyNote(page)
     await context.setOffline(true)
     await page.reload()
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
@@ -795,14 +810,12 @@ test.describe('on-device model offline', () => {
     await page.evaluate(() => {
       location.hash = '#/quiz'
     })
-    const chat = chatPanel(page, info.project.name)
-    await chat.getByText('Sources: none chosen').click()
-    await chat.getByLabel('Paste text (optional)').fill('Chlorophyll captures light; CO2 is fixed in the stroma.')
-    await chat.getByRole('button', { name: 'Run again', exact: true }).click()
-    await chat.getByRole('button', { name: 'Chlorophyll' }).click()
-    await chat.getByRole('button', { name: 'Next question' }).click()
-    await chat.getByRole('button', { name: 'Stroma' }).click()
-    await expect(chat.getByText('Score: 2 / 2')).toBeVisible()
+    const quiz = page.getByRole('main')
+    await quiz.getByRole('button', { name: 'Start the quiz' }).click()
+    await quiz.getByRole('button', { name: 'Chlorophyll' }).click()
+    await quiz.getByRole('button', { name: 'Next question' }).click()
+    await quiz.getByRole('button', { name: 'Stroma' }).click()
+    await expect(quiz.getByText('Score: 2 / 2')).toBeVisible()
     expect(outgoing).toEqual([])
 
     // The real engine script, not the injected one, starts offline from that cache and answers.

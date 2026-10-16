@@ -2,7 +2,7 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { extname, join, resolve } from 'node:path'
 import { expect, type Page, type Route, test } from '@playwright/test'
-import { chatPanel, completionReply } from './support/ai.ts'
+import { completionReply } from './support/ai.ts'
 import { seriousViolations } from './support/page.ts'
 
 // Review needs cards with a history. Instead of a test path in the app, a throwaway harness
@@ -328,18 +328,14 @@ test('own words: the AI suggests a grade to confirm; Why? explains and makes a c
     ],
   })
   await openReview(page)
-  // Answered in the chat beside the card: typed there, graded in its thread, the grade offered back on the card.
+  // Answered below the card: typed there, graded, the grade offered on the card's buttons.
   await page.getByRole('button', { name: 'Answer in your own words' }).click()
-  const chat = chatPanel(page, info.project.name)
-  const answer = chat.getByRole('textbox', { name: 'Your answer' })
-  await expect(answer).toBeFocused()
+  const own = page.getByRole('main').getByRole('region', { name: 'Answer in your own words' })
+  const answer = own.getByRole('textbox', { name: 'Your answer' })
   const front = await page.getByTestId('question').getByText(/\?$/).first().textContent()
   await answer.fill('the mitochondria, where energy is made')
-  await chat.getByRole('button', { name: 'Check' }).click()
+  await own.getByRole('button', { name: 'Check' }).click()
 
-  await expect(chat.getByText('Suggested grade: Easy')).toBeVisible()
-  await expect(chat.getByText(/Spot on/)).toBeVisible()
-  if (phone) await chat.getByRole('button', { name: 'Close chat' }).click()
   await expect(page.getByRole('main').getByText('Suggested grade: Easy')).toBeVisible()
   await expect(page.getByRole('main').getByText(/Spot on/)).toBeVisible()
   const easy = page.getByRole('button', { name: /^Easy, next review in/ })
@@ -347,15 +343,14 @@ test('own words: the AI suggests a grade to confirm; Why? explains and makes a c
   // Suggested, not preselected: focus is on the grades group.
   if (!phone) await expect(page.getByTestId('grades')).toBeFocused()
 
-  // « Why? » answers in the chat beside the card, like « Explain the question », grounded and streamed.
+  // « Why? » answers below the card, like « Explain the question », grounded and streamed.
   await page.getByRole('main').getByRole('button', { name: 'Why?' }).click()
-  const why = phone ? page.getByRole('dialog', { name: 'Ask' }) : page.getByRole('complementary', { name: 'Ask' })
+  const why = page.getByRole('main').getByRole('region', { name: 'Why?' })
   await expect(why.getByText('Mitochondria turn nutrients into ATP.')).toBeVisible()
   await expect(why.getByText('Mighty mitochondria')).toBeVisible()
   await why.getByRole('button', { name: 'Create a card on this point' }).click()
   await expect(why.getByText('Added to Suggested cards')).toBeVisible()
   await expect(why.getByRole('button', { name: 'Create a card on this point' })).toBeDisabled()
-  if (phone) await why.getByRole('button', { name: 'Close' }).click()
 
   await easy.click()
   await expect(page.getByTestId('remaining')).toHaveText('1 left')
@@ -364,10 +359,9 @@ test('own words: the AI suggests a grade to confirm; Why? explains and makes a c
   expect(errors).toEqual([])
 })
 
-test('own words in the chat: the question stays in sight, and the grade is given there to the card', async ({
+test('own words below the card: the question stays in sight, and the grade suggested is confirmed on the card', async ({
   page,
-}, info) => {
-  const phone = isPhone(info.project.name)
+}) => {
   const errors = watchErrors(page)
   const features = await fakeProvider(page)
   await seed(page, {
@@ -381,33 +375,27 @@ test('own words in the chat: the question stays in sight, and the grade is given
   await openReview(page)
   const front = (await page.getByTestId('question').getByText(/\?$/).first().textContent()) ?? ''
   await page.getByRole('button', { name: 'Answer in your own words' }).click()
-  const chat = chatPanel(page, info.project.name)
-  // The question being answered shows in the chat, above the answer box, even full screen over the card; one
-  // instruction, not the chat's own greeting too.
-  const question = chat.getByRole('region', { name: 'Question' })
-  await expect(question).toContainText(front)
-  await expect(question).toBeInViewport()
-  await expect(chat.getByText(/^Ask anything about/)).toHaveCount(0)
-  await chat.getByRole('textbox', { name: 'Your answer' }).fill('the mitochondria, where energy is made')
-  await chat.getByRole('button', { name: 'Check' }).click()
-  await expect(chat.getByText('Suggested grade: Easy')).toBeVisible()
+  const own = page.getByRole('main').getByRole('region', { name: 'Answer in your own words' })
+  const box = own.getByRole('textbox', { name: 'Your answer' })
+  // The question being answered stays in sight above the answer box.
+  await box.focus()
+  await expect(page.getByTestId('question')).toBeInViewport()
+  await expect(box).toBeInViewport()
+  await box.fill('the mitochondria, where energy is made')
+  await own.getByRole('button', { name: 'Check' }).click()
+  await expect(page.getByRole('main').getByText('Suggested grade: Easy')).toBeVisible()
 
-  // Graded from the thread: Answer, Check, Easy. The card takes it and the next card shows.
-  const grades = chat.getByRole('group', { name: 'How well did you remember?' })
-  await expect(grades.getByRole('button')).toHaveText(['Again', 'Hard', 'Good', 'Easy'])
-  await grades.getByRole('button', { name: 'Easy' }).click()
+  // Confirmed on the card: Easy, and the next card shows.
+  const easy = page.getByRole('button', { name: /^Easy, next review in/ })
+  await expect(easy).toHaveAttribute('data-suggested', 'true')
+  await easy.click()
   await expect(page.getByTestId('remaining')).toHaveText('1 left')
   await expect(page.getByTestId('question')).not.toContainText(front)
-  if (phone) await expect(chat).toBeHidden()
-  else {
-    await expect(chat.getByText('Grade given: Easy.')).toBeVisible()
-    await expect(grades).toHaveCount(0)
-  }
   expect(features).toEqual(['gradeAnswer'])
   expect(errors).toEqual([])
 })
 
-test('a leech shows its badge and can be rewritten with Improve, in the chat', async ({ page }, info) => {
+test('a leech shows its badge and can be rewritten with Improve, then undone', async ({ page }) => {
   const errors = watchErrors(page)
   const features = await fakeProvider(page)
   await seed(page, {
@@ -421,18 +409,19 @@ test('a leech shows its badge and can be rewritten with Improve, in the chat', a
   await expect(page.getByText('Hard card', { exact: true })).toBeVisible()
   await expect(page.getByText('This card keeps slipping. Try rewriting it.')).toBeVisible()
   await page.getByRole('button', { name: 'Improve' }).click()
-  const chat = chatPanel(page, info.project.name)
-  await expect(chat.getByRole('heading', { name: 'Suggested rewrite' })).toBeVisible()
-  await expect(chat.getByText('One clear question.')).toBeVisible()
-  // The card's answer is not shown yet: the proposed one waits folded, as every answer of the chat does.
-  await expect(chat.getByText('Canberra')).toBeHidden()
-  await chat.getByText('Show the proposed answer').click()
-  await expect(chat.getByText('Canberra', { exact: true })).toBeVisible()
-  await chat.getByRole('button', { name: 'Use this version' }).click()
-  await expect(chat.getByText('Card rewritten')).toBeVisible()
-  if (isPhone(info.project.name)) await chat.getByRole('button', { name: 'Close chat' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Suggested rewrite' })
+  await expect(sheet.getByText('One clear question.')).toBeVisible()
+  // The card's answer is not shown yet: the proposed one waits folded.
+  await expect(sheet.getByText('Canberra')).toBeHidden()
+  await sheet.getByText('Show the proposed answer').click()
+  await expect(sheet.getByText('Canberra', { exact: true })).toBeVisible()
+  await sheet.getByRole('button', { name: 'Use this version' }).click()
+  await expect(page.getByText('Card rewritten')).toBeVisible()
   await expect(page.getByTestId('question').getByText('Capital city of Australia?', { exact: true })).toBeVisible()
   await expect(page.getByText('Australia capital (not Sydney!!) city name?')).toHaveCount(0)
+  // One undo puts both faces back.
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect(page.getByTestId('question').getByText('Australia capital (not Sydney!!) city name?')).toBeVisible()
   expect(features).toEqual(['improveCard'])
   expect(errors).toEqual([])
 })

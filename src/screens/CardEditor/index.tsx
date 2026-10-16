@@ -1,18 +1,21 @@
-import { FolderInput, History, Share, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { FolderInput, History, Share, Trash2, Wand2 } from 'lucide-react'
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'wouter'
 import * as Y from 'yjs'
+import { lazyChunk, nothing } from '../../app/lazyChunk.tsx'
 import { backHome, goBack, leaveTo } from '../../app/nav.ts'
 import { to } from '../../app/routes.ts'
 import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import { PATH_SEPARATOR } from '../../core/model/sections'
 import { useT } from '../../i18n/react.tsx'
 import { beforeUpdate } from '../../pwa/index.ts'
+import { useAiReady } from '../../ui/ai/ready.ts'
 import { useChatContext } from '../../ui/chat/context.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { Keycap } from '../../ui/components/Keycap.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
 import { Sheet } from '../../ui/components/Sheet.tsx'
+import { Toast } from '../../ui/components/Toast.tsx'
 import { MarkdownEditor } from '../../ui/editor/MarkdownEditor.tsx'
 import { MoveSheet, moveItemTo } from '../../ui/MoveSheet.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
@@ -21,6 +24,8 @@ import { applyForward } from '../History/replay.ts'
 import NotFound from '../NotFound/index.tsx'
 import CardPhotos from '../Photos/CardPhotos.tsx'
 import { useFileLoader } from '../Photos/files.ts'
+import type { Rewritten } from '../Review/ImproveSheet.tsx'
+import { replaceFaces } from '../Review/replaceFaces.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 import styles from './CardEditor.module.css'
 import { ClozeAssistant } from './ClozeAssistant.tsx'
@@ -35,6 +40,13 @@ import {
   sameFields,
 } from './draft.ts'
 import { saveExisting } from './merge.ts'
+
+/** « Improve » a card with AI, loaded when opened (it brings the AI code). */
+const ImproveSheet = lazyChunk<Parameters<typeof import('../Review/ImproveSheet.tsx').ImproveSheet>[0]>(
+  'improve',
+  () => import('../Review/ImproveSheet.tsx').then((m) => ({ default: m.ImproveSheet })),
+  nothing,
+)
 
 type Kind = CardFields['kind']
 
@@ -60,6 +72,9 @@ export default function CardEditor() {
   const t = useT()
   const rt = useRuntime()
   const ws = rt.ws
+  const aiReady = useAiReady()
+  const [improving, setImproving] = useState(false)
+  const [rewritten, setRewritten] = useState<Rewritten | null>(null)
   const { id = '' } = useParams<{ id: string }>()
   const newCourse = newCardCourse(id)
   const newSection = newCardSection(id)
@@ -475,6 +490,15 @@ export default function CardEditor() {
             </Button>
             {newCourse === null && (
               <>
+                {aiReady && !dirty && (
+                  <Button
+                    variant="plain"
+                    icon={<Wand2 size={18} aria-hidden="true" />}
+                    onClick={() => setImproving(true)}
+                  >
+                    {t('review.improve')}
+                  </Button>
+                )}
                 <Button variant="plain" icon={<Share size={18} aria-hidden="true" />} onClick={share}>
                   {t('photos.shareCard')}
                 </Button>
@@ -497,6 +521,26 @@ export default function CardEditor() {
           </div>
         )}
         <div className={styles.bottom}>{saveButton}</div>
+        {improving && (
+          <Suspense fallback={null}>
+            <ImproveSheet cardId={id} revealed onClose={() => setImproving(false)} onUsed={setRewritten} />
+          </Suspense>
+        )}
+        {rewritten && (
+          <Toast
+            message={t('review.improved')}
+            actions={[
+              {
+                label: t('common.undo'),
+                onClick: () => {
+                  replaceFaces(rt.ws, rewritten.cardId, rewritten.front, rewritten.back)
+                  setRewritten(null)
+                },
+              },
+              { label: t('common.dismiss'), onClick: () => setRewritten(null) },
+            ]}
+          />
+        )}
       </Screen>
       {newCourse === null && (
         <MoveSheet

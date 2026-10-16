@@ -961,7 +961,7 @@ function Done({ done, label, icon, onClick }: { done: boolean; label: string; ic
 // ---------------------------------------------------------------------------------------------------------
 // A photo
 
-function Reading({ description }: { description: DeepPartial<PhotoDescription> }) {
+export function Reading({ description }: { description: DeepPartial<PhotoDescription> }) {
   const t = useT()
   const points = (description.keyPoints ?? []).filter((k): k is string => typeof k === 'string' && k !== '')
   return (

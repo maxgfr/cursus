@@ -89,4 +89,6 @@ export const photos = {
     one: 'Inclut ce que l’IA a lu sur {count} photo.',
     other: 'Inclut ce que l’IA a lu sur {count} photos.',
   },
+  aiAddToNotes: 'Ajouter à mes notes',
+  aiAddedToNotes: 'Ajouté aux notes de la photo',
 } as const satisfies Shape<typeof en>

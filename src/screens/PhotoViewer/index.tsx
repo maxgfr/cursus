@@ -15,8 +15,9 @@ import {
   ZoomIn,
   ZoomOut,
 } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useParams } from 'wouter'
+import { lazyChunk, nothing } from '../../app/lazyChunk.tsx'
 import { goBack, leaveTo } from '../../app/nav.ts'
 import { to } from '../../app/routes.ts'
 import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
@@ -26,7 +27,7 @@ import { attachableSources, attachPhoto, getPhoto, listPhotos, photoLabel, rotat
 import { useT } from '../../i18n/react.tsx'
 import { useAiReady } from '../../ui/ai/ready.ts'
 import { ChatButton } from '../../ui/chat/ChatButton.tsx'
-import { useChat, useChatContext } from '../../ui/chat/context.tsx'
+import { useChatContext } from '../../ui/chat/context.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { Field } from '../../ui/components/Field.tsx'
 import { IconButton } from '../../ui/components/IconButton.tsx'
@@ -35,12 +36,20 @@ import { Sheet } from '../../ui/components/Sheet.tsx'
 import { Toast } from '../../ui/components/Toast.tsx'
 import { MoveSheet, moveItemTo } from '../../ui/MoveSheet.tsx'
 import { EMPTY, keepDraft, newCardId, readDraft } from '../CardEditor/draft.ts'
+import { Generate } from '../Generate/open.tsx'
 import NotFound from '../NotFound/index.tsx'
 import type { PhotoNotice } from '../Photos/index.tsx'
 import { sharePhoto } from '../Photos/share.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 import styles from './PhotoViewer.module.css'
 import { clampZoom, Stage } from './Stage.tsx'
+
+/** The photo read by AI, loaded when asked for (it brings the AI code). */
+const PhotoReading = lazyChunk<{ photoId: string; onCards: () => void }>(
+  'photoReading',
+  () => import('./Reading.tsx'),
+  nothing,
+)
 
 const STEP = 1.5
 
@@ -63,7 +72,9 @@ export default function PhotoViewer() {
   const [attaching, setAttaching] = useState(false)
   const [moving, setMoving] = useState(false)
   const aiReady = useAiReady()
-  const chat = useChat()
+  // The photo read here, and « Create cards » on it.
+  const [reading, setReading] = useState<string | null>(null)
+  const [generating, setGenerating] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [working, setWorking] = useState<'card' | 'share' | null>(null)
 
@@ -295,13 +306,22 @@ export default function PhotoViewer() {
             >
               {t('photos.makeCard')}
             </Button>
-            {aiReady && chat && (
-              // Read in the chat beside the photo, with the photo attached.
-              <Button icon={<Sparkles size={18} aria-hidden="true" />} onClick={() => chat.run('explainPhoto')}>
+            {aiReady && (
+              // Read right here, under the photo.
+              <Button
+                icon={<Sparkles size={18} aria-hidden="true" />}
+                aria-expanded={reading === id}
+                onClick={() => setReading(reading === id ? null : id)}
+              >
                 {t('chat.actionExplainPhoto')}
               </Button>
             )}
           </div>
+          {aiReady && reading === id && (
+            <Suspense fallback={null}>
+              <PhotoReading key={id} photoId={id} onCards={() => setGenerating(true)} />
+            </Suspense>
+          )}
           <div className={styles.actions}>
             <Button variant="plain" icon={<Link2 size={18} aria-hidden="true" />} onClick={() => setAttaching(true)}>
               {t('photos.attach')}
@@ -320,6 +340,7 @@ export default function PhotoViewer() {
         </div>
       </div>
 
+      <Generate at={generating ? { sourceIds: [id] } : null} onClose={() => setGenerating(false)} />
       <Sheet open={attaching} title={t('photos.attach')} onClose={() => setAttaching(false)}>
         {data.attachable.length === 0 ? (
           <p className={styles.keys}>{t('photos.attachEmpty')}</p>

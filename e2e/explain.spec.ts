@@ -156,9 +156,12 @@ function chatPanel(page: Page, project: string) {
 /** The review's own buttons, not the chat's actions of the same name. */
 const reviewButton = (page: Page, name: string) => page.getByRole('main').getByRole('button', { name, exact: true })
 
-test('before the reveal the question is explained without its answer; after it, everything shows', async ({
+/** What a review button opened, right below the card. */
+const assist = (page: Page, name: string) => page.getByRole('main').getByRole('region', { name, exact: true })
+
+test('before the reveal the question is explained below the card without its answer; after it, everything shows', async ({
   page,
-}, info) => {
+}) => {
   const errors = watchErrors(page)
   await seedCourse(page)
   const prompts = await mockProvider(page)
@@ -166,7 +169,7 @@ test('before the reveal the question is explained without its answer; after it, 
   await openReview(page)
 
   await reviewButton(page, 'Explain the question').click()
-  const sheet = chatPanel(page, info.project.name)
+  const sheet = assist(page, 'Explain the question')
   await expect(sheet.getByText('It asks which part of the cell releases most of its energy.')).toBeVisible()
   // The model was told the answer only to avoid it, and was given the question alone to search the sources.
   expect(prompts.at(-1)).toContain('Answer (keep hidden): The mitochondrion')
@@ -193,10 +196,6 @@ test('before the reveal the question is explained without its answer; after it, 
 
   // After the reveal the same explanation shows in full, cited passages included, without asking again.
   const asked = prompts.length
-  if (isPhone(info.project.name)) {
-    await sheet.getByRole('button', { name: 'Close' }).click()
-    await expect(sheet).toBeHidden()
-  }
   await page.getByRole('button', { name: /Show answer/ }).click()
   await expect(page.getByTestId('answer')).toContainText('The mitochondrion')
   await reviewButton(page, 'Explain the question').click()
@@ -207,7 +206,7 @@ test('before the reveal the question is explained without its answer; after it, 
   expect(errors).toEqual([])
 })
 
-test('after the reveal, « Why? » explains the answer from the course, cited with its passage, and the thread goes on', async ({
+test('after the reveal, « Why? » explains the answer from the course below the card, cited, and goes on in the chat', async ({
   page,
 }, info) => {
   const errors = watchErrors(page)
@@ -219,7 +218,7 @@ test('after the reveal, « Why? » explains the answer from the course, cited wi
   await expect(page.getByRole('button', { name: 'Why?' })).toHaveCount(0)
   await page.getByRole('button', { name: /Show answer/ }).click()
   await reviewButton(page, 'Why?').click()
-  const why = chatPanel(page, info.project.name)
+  const why = assist(page, 'Why?')
   await expect(why.locator('strong', { hasText: 'makes the ATP' })).toBeVisible()
   await expect(why.getByText('Mighty mitochondria')).toBeVisible()
   // Grounded in the course like « Explain the question »: the card as data, the note sent and cited.
@@ -228,10 +227,10 @@ test('after the reveal, « Why? » explains the answer from the course, cited wi
   await expect(why.getByRole('link', { name: 'Open source: Cell notes' })).toBeVisible()
   await expect(why.getByRole('blockquote')).toContainText(PASSAGE)
 
-  // A follow-up in the same thread: the tutor reads the explanation back as the conversation so far.
-  await why.getByRole('textbox', { name: 'Your question' }).fill('What does “ATP” mean here?')
-  await why.getByRole('button', { name: 'Send', exact: true }).click()
-  await expect(why.getByText(/releases the cell's energy/)).toBeVisible()
+  // Continued in the chat: the tutor is given the explanation as what the student is asking about.
+  await why.getByRole('button', { name: 'Continue in the chat' }).click()
+  const chat = chatPanel(page, info.project.name)
+  await expect(chat.getByText(/releases the cell's energy/)).toBeVisible()
   expect(prompts.at(-1)).toContain('study tutor')
   expect(prompts.at(-1)).toContain('Respiration runs in the mitochondrion')
   await expect(why.locator('strong', { hasText: 'makes the ATP' })).toBeVisible()
@@ -360,8 +359,10 @@ test('a « Why? » kept in the thread is guarded again when the card comes back 
   await configureAi(page, LLM)
   await openReview(page)
   await page.getByRole('button', { name: /Show answer/ }).click()
-  await reviewButton(page, 'Why?').click()
+  // Asked in the chat beside the card, from its own actions.
+  await page.getByRole('main').getByRole('button', { name: 'Ask about this' }).first().click()
   const panel = chatPanel(page, info.project.name)
+  await panel.getByRole('button', { name: 'Why is this the answer?' }).click()
   await expect(panel.getByText('Mighty mitochondria')).toBeVisible()
   await expect(panel.getByRole('blockquote')).toContainText(PASSAGE)
 
@@ -387,7 +388,7 @@ test('a « Why? » kept in the thread is guarded again when the card comes back 
   expect(errors).toEqual([])
 })
 
-test('after the reveal, « Explain the question » still explains the question in the chat', async ({ page }, info) => {
+test('after the reveal, « Explain the question » still explains the question', async ({ page }) => {
   const errors = watchErrors(page)
   await seedCourse(page)
   const prompts = await mockProvider(page)
@@ -396,7 +397,7 @@ test('after the reveal, « Explain the question » still explains the question i
   await page.getByRole('button', { name: /Show answer/ }).click()
   await expect(page.getByTestId('answer')).toContainText('The mitochondrion')
   await reviewButton(page, 'Explain the question').click()
-  const panel = chatPanel(page, info.project.name)
+  const panel = assist(page, 'Explain the question')
   await expect(panel.getByText('It asks which part of the cell releases most of its energy.')).toBeVisible()
   expect(prompts.at(-1)).toContain('asks what the question means')
   await expect(panel.getByText('The mitochondrion is where cellular respiration happens in your notes.')).toBeVisible()
