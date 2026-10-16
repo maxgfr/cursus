@@ -59,11 +59,12 @@ export function actionsFor(t: T, c: ScreenContext): ChatAction[] {
   if (c.photoId) return [{ id: 'explainPhoto', kind: 'photo', label: t('chat.actionExplainPhoto') }]
   if (!c.courseId) return []
   if (c.sourceId) {
-    return [
-      { id: 'summarise', kind: 'guided', label: t('chat.actionSummarise'), intent: 'summarise' },
-      study(t, 'generate'),
-      study(t, 'quiz'),
-    ]
+    // A photo with nothing written about it and never read has nothing to summarise.
+    const summarise: ChatAction[] =
+      c.sourceReadable === false
+        ? []
+        : [{ id: 'summarise', kind: 'guided', label: t('chat.actionSummarise'), intent: 'summarise' }]
+    return [...summarise, study(t, 'generate'), study(t, 'quiz')]
   }
   // A study sheet on a topic, written from the sources: generic questions stay in this chat.
   return [study(t, 'generate'), study(t, 'understand'), study(t, 'quiz')]

@@ -79,9 +79,15 @@ export function chunkLoader(ws: ModelWorkspace, rt: Runtime) {
   const cache = new Map<string, Promise<Chunk[]>>()
   const blobs = blobStore(rt.store)
   const readDeck = deckReader(rt)
+  const written = (id: string): string => {
+    const s = ws.sources.get(id)
+    if (s?.kind === 'note') return String(ws.text({ id, field: 'body' }).length)
+    if (s?.kind === 'image') return `${ws.text({ id, field: 'body' }).length}:${s.caption ?? ''}`
+    return ''
+  }
   return (o: Pick<StudyOptions, 'sourceIds' | 'pasted'>): Promise<Chunk[]> => {
-    // A note written in since is read again: its length is part of the key.
-    const key = `${o.sourceIds.map((id) => `${id}:${ws.sources.get(id)?.kind === 'note' ? ws.text({ id, field: 'body' }).length : ''}`).join(',')}\u0000${o.pasted}`
+    // A note (or a photo's notes or caption) written in since is read again: its length is part of the key.
+    const key = `${o.sourceIds.map((id) => `${id}:${written(id)}`).join(',')}\u0000${o.pasted}`
     let loading = cache.get(key)
     if (!loading) {
       const photos = o.sourceIds.filter((id) => ws.sources.get(id)?.kind === 'image')

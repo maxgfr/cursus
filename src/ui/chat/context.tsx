@@ -17,6 +17,8 @@ export interface ScreenContext {
   courseId?: string
   sectionId?: string
   sourceId?: string
+  /** Whether a model has anything to read in that source (`isReadable`): « Summarise » is offered only then. */
+  sourceReadable?: boolean
   /** A photo on screen (a source of the course). */
   photoId?: string
   /**

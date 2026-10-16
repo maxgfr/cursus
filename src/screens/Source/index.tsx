@@ -19,6 +19,7 @@ import NotFound from '../NotFound/index.tsx'
 import AttachedPhotos from '../Photos/Attached.tsx'
 import { loadFile } from '../Photos/files.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
+import { isReadable, notesWritten } from '../Understand/shared/readable.ts'
 import { DeckView } from './DeckView.tsx'
 import { readPdfInApp } from './importers.ts'
 import { Proposals } from './Proposals.tsx'
@@ -169,6 +170,34 @@ function Attachment({ source, page }: { source: SourceRecord; page: number | und
   )
 }
 
+/**
+ * Whether a model has anything to read in the source (`isReadable`); for a photo, a reading kept on this device
+ * counts too, looked up when it opens.
+ */
+function useReadable(source: SourceRecord | undefined): boolean {
+  const rt = useRuntime()
+  const id = source?.id ?? ''
+  const notes = useWorkspaceData([{ id }], (w) => w.sources.get(id) !== undefined && notesWritten(w, id))
+  const image = source?.kind === 'image'
+  const [read, setRead] = useState<string | null>(null)
+  useEffect(() => {
+    if (!image) return
+    let live = true
+    import('../../core/ai/features/describePhoto')
+      .then(({ loadReadings }) => loadReadings(rt.store, [id]))
+      .then(
+        (found) => {
+          if (live && found.length > 0) setRead(id)
+        },
+        (e: unknown) => console.warn('the photo reading could not be looked up', e),
+      )
+    return () => {
+      live = false
+    }
+  }, [rt, id, image])
+  return source !== undefined && isReadable(source, { notes, read: read === id })
+}
+
 export default function Source() {
   const t = useT()
   const rt = useRuntime()
@@ -184,12 +213,14 @@ export default function Source() {
     const s = w.sources.get(id)
     return s && s.deletedAt === undefined ? { source: s, sectionId: w.sections.tree().sectionOf(s) } : null
   })
+  const readable = useReadable(found?.source)
   useChatContext(
     found === null
       ? {}
       : {
           courseId: found.source.courseId,
           sourceId: found.source.id,
+          sourceReadable: readable,
           ...(found.sectionId === null ? {} : { sectionId: found.sectionId }),
         },
   )
@@ -233,7 +264,7 @@ export default function Source() {
       )}
       <AskSelection />
       {source.kind !== 'image' && <AttachedPhotos sourceId={source.id} />}
-      <Proposals sourceId={source.id} />
+      <Proposals sourceId={source.id} readable={readable} />
       <div className={styles.actions}>
         <Link href={to.history(source.id)} className={buttonClass({ variant: 'plain' })}>
           <History size={18} aria-hidden="true" />

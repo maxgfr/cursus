@@ -7,6 +7,7 @@ import type { DeckUnit } from '../../../core/content/deck'
 import type { BlobStore } from '../../../core/contracts/log'
 import type { SourceRecord } from '../../../core/model/schema'
 import type { ModelWorkspace } from '../../../core/model/workspace'
+import { photoText } from './readable.ts'
 
 /** Source id used for text pasted straight into an AI screen (not saved, not linkable). */
 export const PASTED = 'pasted'
@@ -65,7 +66,8 @@ function unitText(unit: Pick<DeckUnit, 'title' | 'text' | 'notes'>): string {
 
 /**
  * Passages of the chosen sources: note text, PDF pages, the slides, pages or sections of a deck or document
- * (their number kept as `page` for citations: the source view opens `?page=N` at unit N). Images carry no text.
+ * (their number kept as `page` for citations: the source view opens `?page=N` at unit N), what is written about a
+ * photo (its caption and notes; what a model read on it is added by the caller, from this device).
  */
 export async function chunksFor(
   ws: ModelWorkspace,
@@ -83,6 +85,8 @@ export async function chunksFor(
       for (const unit of (await readDeck(s)) ?? []) out.push(...splitText(id, unitText(unit), unit.index))
     } else if (s.kind === 'note') {
       out.push(...splitText(id, ws.text({ id, field: 'body' }).toString()))
+    } else if (s.kind === 'image') {
+      out.push(...splitText(id, photoText(s.caption, ws.text({ id, field: 'body' }).toString())))
     } else if (s.kind === 'pdf') {
       const blobId = s.blobId ?? s.blobIds?.[0]
       const blob = blobId ? await blobs.get(blobId) : null

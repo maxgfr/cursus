@@ -53,6 +53,7 @@ import { QuizSheet } from '../Sessions/QuizSheet.tsx'
 import { addFile, addImage, addNote, FILES_ACCEPT } from '../Source/importers.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 import { ExamCountdown } from '../Today/CourseRows.tsx'
+import { isReadable, notesWritten } from '../Understand/shared/readable.ts'
 import { AddSheet } from './AddSheet.tsx'
 import styles from './Course.module.css'
 import { CourseSettings } from './CourseSettings.tsx'
@@ -192,8 +193,12 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
     (ws) => startQueue(ws, Date.now(), sectionId === undefined ? { courseId } : { courseId, sectionId }).queue.length,
   )
   const where = sectionId === undefined ? { courseId } : { courseId, sectionId }
+  // Only what a model can read counts: a photo with nothing written about it is not quizzed (a reading kept on this
+  // device is not looked up here).
   const quizzable = useWorkspaceData(['sources', 'sections', { id: sectionId ?? courseId }], (ws) =>
-    ws.courses.get(courseId) ? ws.scoped('sources', where).length > 0 : false,
+    ws.courses.get(courseId)
+      ? ws.scoped('sources', where).some((s) => isReadable(s, { notes: notesWritten(ws, s.id), read: false }))
+      : false,
   )
   // Opens on the cards when there are some, else on the sources to add the first one.
   const tab: Tab = chosenTab ?? (data !== null && data.cards.length > 0 ? 'cards' : 'sources')

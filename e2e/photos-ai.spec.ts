@@ -244,6 +244,33 @@ test('a photo is explained in the chat from a reduced copy, its cost shown, then
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
 })
 
+test('a photo with nothing written about it has nothing to summarise; once it has notes, the AI reads them', async ({
+  page,
+}, info) => {
+  const sent = await mockProvider(page)
+  await configureAi(page, LLM)
+  await courseWithPhotos(page, 'Histology', [LARGE])
+  await openFirstPhoto(page)
+  const id = decodeURIComponent(/#\/photo\/([^/?]+)/.exec(page.url())?.[1] ?? '')
+  expect(id).not.toBe('')
+  await page.goto(`./#/source/${encodeURIComponent(id)}`)
+  const main = page.getByRole('main')
+  const chat = chatPanel(page, info.project.name)
+  await main.getByRole('button', { name: 'Ask about this' }).first().click()
+  await expect(chat.getByRole('button', { name: 'Quiz me' })).toBeVisible()
+  await expect(chat.getByRole('button', { name: 'Summarise this source' })).toHaveCount(0)
+  if (isPhone(info.project.name)) await chat.getByRole('button', { name: 'Close chat' }).click()
+  await expect(main.getByRole('button', { name: 'Summarise this source' })).toHaveCount(0)
+
+  // Notes written on the photo: there is something to read now, and it is what the model is given.
+  await page.getByRole('textbox', { name: 'Notes' }).click()
+  await page.keyboard.type('Stratified squamous epithelium lines the oesophagus.')
+  await main.getByRole('button', { name: 'Summarise this source' }).click()
+  await expect.poll(() => sent.at(-1)?.text ?? '').toContain('Stratified squamous epithelium lines the oesophagus.')
+  expect(sent.at(-1)?.text).toContain(`<<<SOURCE id="${id}">>>`)
+  expect(sent).toHaveLength(1)
+})
+
 test('cards from several photos in the chat: duplicates flagged, saved only when confirmed', async ({ page }, info) => {
   const sent = await mockProvider(page)
   await configureAi(page, LLM)

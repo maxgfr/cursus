@@ -6,6 +6,7 @@ import { createWorkspace } from '../../../core/model/workspace'
 import { virtualClock } from '../../../core/ports/clock'
 import { seededRng } from '../../../core/ports/rng'
 import { memoryStore } from '../../../core/storage/memoryStore'
+import { isReadable, notesWritten, photoText } from './readable'
 import { chunksFor, type DeckReader } from './sources'
 
 function setup() {
@@ -65,5 +66,59 @@ describe('chunksFor', () => {
         throw new Error('corrupt')
       }),
     ).rejects.toThrow('corrupt')
+  })
+
+  test('a photo gives what is written about it: its caption, then its notes; nothing when nothing is', async () => {
+    const { ws, courseId, blobs } = setup()
+    const sketch = ws.sources.create({
+      courseId,
+      kind: 'image',
+      title: 'Cell sketch',
+      caption: 'Organelles, labelled A–D',
+    })
+    ws.text({ id: sketch, field: 'body' }).insert(0, 'B is the Golgi apparatus.')
+    const bare = ws.sources.create({ courseId, kind: 'image', title: 'IMG_0042' })
+    const noted = ws.sources.create({ courseId, kind: 'image', title: 'Board' })
+    ws.text({ id: noted, field: 'body' }).insert(0, '  \n\nMitosis has four phases.\n')
+    const none: DeckReader = async () => {
+      throw new Error('a photo is not a deck')
+    }
+    expect(await chunksFor(ws, blobs, [sketch, bare, noted], '', none)).toEqual([
+      { sourceId: sketch, text: 'Organelles, labelled A–D\n\nB is the Golgi apparatus.' },
+      { sourceId: noted, text: 'Mitosis has four phases.' },
+    ])
+  })
+})
+
+describe('what a model can read in a source', () => {
+  test('a photo by what is written about it or read on it; a note by its text; files always', () => {
+    const photo = { kind: 'image' as const }
+    const cases: [Parameters<typeof isReadable>[0], { notes: boolean; read: boolean }, boolean][] = [
+      [photo, { notes: false, read: false }, false],
+      [{ ...photo, caption: '   ' }, { notes: false, read: false }, false],
+      [{ ...photo, caption: 'Golgi' }, { notes: false, read: false }, true],
+      [photo, { notes: true, read: false }, true],
+      [photo, { notes: false, read: true }, true],
+      [{ kind: 'note' }, { notes: false, read: false }, false],
+      [{ kind: 'note' }, { notes: false, read: true }, false],
+      [{ kind: 'note' }, { notes: true, read: false }, true],
+      [{ kind: 'note', support: 'deck' }, { notes: false, read: false }, true],
+      [{ kind: 'note', support: 'document' }, { notes: false, read: false }, true],
+      [{ kind: 'pdf' }, { notes: false, read: false }, true],
+    ]
+    for (const [source, written, readable] of cases)
+      expect([source, written, isReadable(source, written)]).toEqual([source, written, readable])
+  })
+
+  test('notes count once something other than white space is written; a caption comes before them', () => {
+    const { ws, courseId } = setup()
+    const note = ws.sources.create({ courseId, kind: 'note', title: 'Note' })
+    expect(notesWritten(ws, note)).toBe(false)
+    ws.text({ id: note, field: 'body' }).insert(0, ' \n ')
+    expect(notesWritten(ws, note)).toBe(false)
+    ws.text({ id: note, field: 'body' }).insert(0, 'x')
+    expect(notesWritten(ws, note)).toBe(true)
+    expect(photoText(' Caption ', '\nNotes ')).toBe('Caption\n\nNotes')
+    expect(photoText(undefined, '')).toBe('')
   })
 })

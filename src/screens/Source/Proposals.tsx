@@ -15,10 +15,11 @@ import styles from './Source.module.css'
 
 /**
  * The source's AI actions, each answered in the chat beside it: « Suggest cards » (whatever the « When I add a
- * document » setting) and « Summarise this source »; then where its proposals stand, and how many wait in
- * « Suggested cards ». Without a model only the cards already suggested show.
+ * document » setting) and « Summarise this source » (when a model has something to read in it, `readable`); then
+ * where its proposals stand, and how many wait in « Suggested cards ». Without a model only the cards already
+ * suggested show.
  */
-export function Proposals({ sourceId }: { sourceId: Id }) {
+export function Proposals({ sourceId, readable }: { sourceId: Id; readable: boolean }) {
   const t = useT()
   const rt = useRuntime()
   const ready = useAiReady()
@@ -30,8 +31,6 @@ export function Proposals({ sourceId }: { sourceId: Id }) {
   const chat = useChat()
   // Slides and documents offer « Create cards » with their content (DeckView): the same queue, one button.
   const deck = useWorkspaceData([{ id: sourceId }], (ws) => ws.sources.get(sourceId)?.support !== undefined)
-  // A photo has no text of its own to summarise: it is explained instead, in the photo viewer.
-  const text = useWorkspaceData([{ id: sourceId }], (ws) => ws.sources.get(sourceId)?.kind !== 'image')
   const job = jobOf(queue.jobs, sourceId)
   const active = job !== undefined && isActiveJob(job)
   const q = liveQueue()
@@ -60,7 +59,7 @@ export function Proposals({ sourceId }: { sourceId: Id }) {
             {t('ai.sourcePropose')}
           </Button>
         )}
-        {ready && chat && text && (
+        {ready && chat && readable && (
           <Button
             variant="plain"
             icon={<ScrollText size={18} aria-hidden="true" />}

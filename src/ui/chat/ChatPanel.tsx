@@ -52,7 +52,6 @@ import type {
   Understanding,
 } from '../../core/ai/schemas'
 import { renderPhoto } from '../../core/content/photos'
-import { blobStore } from '../../core/log/blobs'
 import { getPhoto } from '../../core/model/photos'
 import type { ModelWorkspace } from '../../core/model/workspace'
 import { formatUsd } from '../../i18n/format.ts'
@@ -61,7 +60,7 @@ import { useFileLoader } from '../../screens/Photos/files.ts'
 import { describeFailure } from '../../screens/Review/failure.ts'
 import { cardText, passagesText, useAiModel } from '../../screens/Understand/shared/aiConfig.ts'
 import { Citation } from '../../screens/Understand/shared/SourcePicker.tsx'
-import { chunksFor, deckReader, estimateCost } from '../../screens/Understand/shared/sources.ts'
+import { estimateCost } from '../../screens/Understand/shared/sources.ts'
 import { Button, buttonClass } from '../components/Button.tsx'
 import { IconButton } from '../components/IconButton.tsx'
 import { Sheet } from '../components/Sheet.tsx'
@@ -294,7 +293,6 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
   const images = usePhotoImages()
   const load = useMemo(() => chunkLoader(ws, rt), [ws, rt])
   const abort = useRef<AbortController | null>(null)
-  const chunkCache = useRef(new Map<string, Promise<Chunk[]>>())
   const input = useRef<HTMLTextAreaElement>(null)
   const log = useRef<HTMLDivElement>(null)
   const actionList = useRef<HTMLUListElement>(null)
@@ -359,19 +357,8 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
     if (el) el.scrollTop = el.scrollHeight
   }, [chat?.open])
 
-  const loadChunks = useCallback(
-    (ids: string[]): Promise<Chunk[]> => {
-      const key = ids.join(',')
-      let loading = chunkCache.current.get(key)
-      if (!loading) {
-        loading = chunksFor(ws, blobStore(rt.store), ids, '', deckReader(rt))
-        chunkCache.current.set(key, loading)
-        loading.catch(() => chunkCache.current.delete(key))
-      }
-      return loading
-    },
-    [ws, rt],
-  )
+  // The same reading as the study actions: a photo's caption, notes and what a model read on it included.
+  const loadChunks = useCallback((ids: string[]): Promise<Chunk[]> => load({ sourceIds: ids, pasted: '' }), [load])
 
   // Saved one after another, in the order they happened: two quick changes (a card saved, then all the others)
   // never land the older one last.

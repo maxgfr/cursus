@@ -2,6 +2,7 @@ import type { Runtime } from '../../app/workspaceContext.tsx'
 import { noteUnits, type SourceContent } from '../../core/ai/autoQuestions'
 import { createModel } from '../../core/ai/client'
 import { routeStatus } from '../../core/ai/deviceCheck'
+import { readingChunks } from '../../core/ai/features/describePhoto'
 import { supportsImages } from '../../core/ai/features/readDeck'
 import { type AiJobs, createJobs, type JobModel } from '../../core/ai/jobs'
 import { LOCAL_PROVIDER } from '../../core/ai/local'
@@ -10,6 +11,7 @@ import { secretsVault } from '../../core/storage/secrets'
 import { loadDeck } from '../DeckImport/deckSource.ts'
 import { runInputs } from '../Generate/deckInputs.ts'
 import { CUSTOM_PROVIDER, loadAiSettings, recordUsage, resolveRoute } from '../Understand/shared/aiConfig.ts'
+import { photoText } from '../Understand/shared/readable.ts'
 import { PHOTO_UNIT, photoGenerator } from './photoGenerator.ts'
 
 /**
@@ -76,7 +78,10 @@ export function createRunner(rt: Runtime): AiJobs {
 
   const content = async (source: SourceRecord, signal: AbortSignal): Promise<SourceContent | null> => {
     if (source.kind === 'image') {
-      const text = source.caption?.trim() ?? ''
+      // What is written about it (caption, notes) and what a model read on it, kept on this device.
+      const notes = rt.ws.text({ id: source.id, field: 'body' }).toString()
+      const read = await readingChunks(rt.store, [source.id])
+      const text = [photoText(source.caption, notes), ...read.map((c) => c.text)].filter((x) => x !== '').join('\n\n')
       return {
         title: source.title,
         units: [{ index: PHOTO_UNIT, kind: 'page', label: '1', title: source.title, text }],
