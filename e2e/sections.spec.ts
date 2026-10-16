@@ -273,6 +273,8 @@ async function writeNote(page: Page, text: string) {
   await typeInto(page, 'Source', text)
   await expect(page.getByRole('textbox', { name: 'Source' })).toContainText(text)
   await page.getByRole('link', { name: 'Back' }).click()
+  // Back pops the history entry, which lands a moment later: a navigation before that would be undone by it.
+  await expect(page.getByRole('textbox', { name: 'Source' })).toBeHidden()
 }
 
 test('a study sheet from a section is grounded in that section’s sources only', async ({ page }) => {
