@@ -169,7 +169,7 @@ async function openFirstPhoto(page: Page): Promise<string> {
 /** « Explain this photo » on the photo: it is read in the chat beside it, the photo attached to the question. */
 const explainWithAi = (page: Page) => page.getByRole('main').getByRole('button', { name: 'Explain this photo' })
 
-test('a photo is explained in the chat from a reduced copy, its cost shown, then cited in a study sheet', async ({
+test('a photo is explained in the chat from a reduced copy, its cost shown, then cited in a study sheet written from it', async ({
   page,
 }, info) => {
   const sent = await mockProvider(page)
@@ -225,20 +225,19 @@ test('a photo is explained in the chat from a reduced copy, its cost shown, then
     chat.getByText('Kept on this device: study sheets can now use and cite this photo.').last(),
   ).toBeVisible()
   await chat.getByRole('button', { name: 'Write a study sheet' }).last().click()
-  const fiche = chat.getByRole('article', { name: 'Study sheet' })
-  await expect(fiche.getByRole('heading', { name: 'Krebs cycle', exact: true })).toBeVisible()
-  await chat.getByText('Sources: all of Biochemistry').click()
-  await expect(chat.getByRole('checkbox', { name: title })).toBeChecked()
-  await expect(chat.getByText('Includes what AI read on 1 photo.')).toBeVisible()
-  await chat.getByLabel('What should the sheet cover?').fill('Krebs cycle')
-  await chat.getByRole('button', { name: 'Run again', exact: true }).click()
-  await expect.poll(() => sent.at(-1)?.text ?? '').toContain('Topic: Krebs cycle\n')
-  await expect(chat.getByRole('log')).not.toHaveAttribute('aria-busy', 'true')
-  const cite = fiche.getByRole('link', { name: `Open photo: ${title}` })
-  await expect(cite).toBeVisible()
-  await expect(cite.locator('img')).toBeVisible()
+  // Written on the sheet's own screen, on the photo's topic, from what was read on it.
+  await expect(page).toHaveURL(/#\/fiche\//)
+  const panel = page.getByRole('region', { name: 'Write with AI' })
+  await expect(panel.getByText('Includes what AI read on 1 photo.')).toBeVisible()
+  const fiche = page.getByRole('textbox', { name: 'Study sheet' })
+  await expect(fiche.getByRole('heading', { name: 'Citrate' })).toBeVisible()
+  expect(sent.at(-1)?.text).toContain('Topic: Krebs cycle steps\n')
   expect(sent.at(-1)?.text).toContain('| 1 | Citrate |')
   expect(sent.at(-1)?.images).toHaveLength(0)
+  // The photo is cited by its name, the link opening it.
+  await fiche.locator('.cm-md-link', { hasText: title }).click()
+  const cite = page.getByRole('link', { name: 'Open the link' })
+  await expect(cite).toHaveAttribute('href', /#\/photo\//)
   await cite.click()
   await expect(page).toHaveURL(/#\/photo\//)
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()

@@ -424,14 +424,15 @@ for (const locale of ['en', 'de', 'fr'] as const) {
     await expect(row(t('today.demoDeckTitle'))).toContainText(t('ai.kindSlides'))
     await expect(row(t('course.pastedNote'))).toContainText(t('course.kindNote'))
     await tab('course.tabSheets')
-    await main.getByText(t('today.demoSheet1Title')).click()
-    const sheet = page.getByRole('dialog', { name: t('today.demoSheet1Title') })
+    // A study sheet opens on its own screen, its text in the editor.
+    await main.getByRole('link', { name: t('today.demoSheet1Title') }).click()
+    await expect(page.getByRole('heading', { level: 1, name: t('today.demoSheet1Title') })).toBeVisible()
+    const sheet = page.getByRole('textbox', { name: t('ai.fiche') })
     const firstPoint = /\n## (.+)\n/.exec(t('today.demoSheet1Body'))?.[1] ?? ''
     await expect(sheet.getByRole('heading', { name: firstPoint })).toBeVisible()
     await expect(sheet.getByText(t('today.demoDeckTitle')).first()).toBeVisible()
     expect(await seriousViolations(page)).toEqual([])
-    await page.keyboard.press('Escape')
-    await expect(sheet).toHaveCount(0)
+    await go(page, membranes, t('today.demoSecMembranes'))
 
     // A subset of the subset: a fill-in-the-blank card that says where it comes from, the lab handout by section.
     await open(t('today.demoSecTransport'))

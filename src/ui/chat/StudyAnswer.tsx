@@ -44,6 +44,9 @@ import {
   useScopedSources,
 } from '../../screens/Understand/shared/SourcePicker.tsx'
 import { estimateCost, PASTED } from '../../screens/Understand/shared/sources.ts'
+import { ExplainBack } from '../ai/ExplainBack.tsx'
+import { keyedChoices } from '../ai/keyed.ts'
+import { sourcesSummary } from '../ai/summary.ts'
 import { Button } from '../components/Button.tsx'
 import { Field } from '../components/Field.tsx'
 import { IconButton } from '../components/IconButton.tsx'
@@ -168,23 +171,6 @@ function withSelection(o: StudyOptions, s: Selection): StudyOptions {
     sourceIds: s.sourceIds,
     pasted: s.pasted,
   }
-}
-
-/** The summary of the sources an action uses, at a glance. */
-function sourcesSummary(t: T, s: { place: string; chosen: number; total: number; pasted: boolean }): string {
-  let sources: string
-  if (s.place === '' || (s.total > 0 && s.chosen === 0)) {
-    if (s.pasted) return t('ai.sheetSourcesPasted')
-    sources = t('ai.sheetSourcesNone')
-  } else if (s.total === 0) {
-    if (s.pasted) return t('ai.sheetSourcesPasted')
-    sources = t('ai.sheetSourcesEmpty', { place: s.place })
-  } else if (s.chosen === s.total) {
-    sources = t('ai.sheetSourcesAll', { place: s.place })
-  } else {
-    sources = t('ai.sheetSourcesSome', { count: s.chosen, total: s.total, place: s.place })
-  }
-  return s.pasted ? t('ai.sheetPlusPasted', { sources }) : sources
 }
 
 function usePlace(o: Pick<StudyOptions, 'courseId' | 'sectionId'>): string {
@@ -616,16 +602,6 @@ function QuizStep({
   )
 }
 
-/** Choices keyed by their text, repeats told apart by their rank, each with its position. */
-function keyedChoices(items: readonly string[]): { item: string; key: string; at: number }[] {
-  const seen = new Map<string, number>()
-  return items.map((item, at) => {
-    const n = (seen.get(item) ?? 0) + 1
-    seen.set(item, n)
-    return { item, key: n === 1 ? item : `${item}#${n}`, at }
-  })
-}
-
 /** Questions as they are written. */
 export function PartialQuiz({ partial }: { partial: DeepPartial<{ questions: QuizQuestion[] }> | null }) {
   const t = useT()
@@ -762,7 +738,12 @@ function SheetAnswer({ id, rich }: { id: string; rich: Extract<RichResult, { kin
         )}
       </div>
       <Options id={id} kind="understand" options={options} />
-      <ExplainBack id={id} rich={rich} />
+      <ExplainBack
+        check={(explanation, onPartial) => api.checkExplanation(options, explanation, onPartial)}
+        blocked={api.blocked}
+        review={rich.review}
+        onReview={(review) => api.update(id, { ...rich, review })}
+      />
     </div>
   )
 }
@@ -801,101 +782,6 @@ function AskInSheet({ children }: { children: ReactNode }) {
         </div>
       )}
     </>
-  )
-}
-
-/** Feynman check, folded under the sheet: the student explains the topic back and gets strengths and gaps. */
-function ExplainBack({ id, rich }: { id: string; rich: Extract<RichResult, { kind: 'sheet' }> }) {
-  const t = useT()
-  const api = useApi()
-  const field = useId()
-  const [text, setText] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-  const [partial, setPartial] = useState<DeepPartial<ExplainBackReview> | null>(null)
-  const review = rich.review
-  const submit = async (e: FormEvent) => {
-    e.preventDefault()
-    if (!text.trim()) return
-    setBusy(true)
-    setError('')
-    setPartial(null)
-    try {
-      const out = await api.checkExplanation(rich.options, text.trim(), (p) =>
-        setPartial(p as DeepPartial<ExplainBackReview>),
-      )
-      api.update(id, { ...rich, review: out })
-    } catch (err) {
-      setError(t('ai.failed', { reason: err instanceof Error ? err.message : String(err) }))
-    } finally {
-      setPartial(null)
-      setBusy(false)
-    }
-  }
-  const writing = busy ? partial : null
-  return (
-    <details className={shared.disclosure}>
-      <summary className={shared.disclosureSummary}>
-        <span className={shared.disclosureLabel}>{t('ai.checkUnderstood')}</span>
-        <ChevronDown size={18} aria-hidden="true" className={shared.chevron} />
-      </summary>
-      <div className={shared.disclosureBody}>
-        <p className={shared.muted}>{t('ai.explainBackHint')}</p>
-        <form className={shared.tight} onSubmit={submit}>
-          <label htmlFor={field} className="sr-only">
-            {t('ai.explainBackLabel')}
-          </label>
-          <textarea
-            id={field}
-            className={shared.textarea}
-            rows={5}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-          />
-          <div className={shared.row}>
-            <Button type="submit" loading={busy} disabled={!text.trim() || api.blocked}>
-              {t('ai.checkExplanation')}
-            </Button>
-          </div>
-          {error && (
-            <p className={shared.error} role="alert">
-              {error}
-            </p>
-          )}
-        </form>
-        {writing?.feedback && (
-          <div className={shared.tight} aria-busy="true">
-            {typeof writing.score === 'number' && (
-              <p className={shared.score}>{t('ai.explainScore', { score: Math.round(writing.score) })}</p>
-            )}
-            <p className={shared.body}>{writing.feedback} ▍</p>
-          </div>
-        )}
-        {review && !busy && (
-          <div className={shared.tight} role="status">
-            <p className={shared.score}>{t('ai.explainScore', { score: Math.round(review.score) })}</p>
-            <p className={shared.body}>{review.feedback}</p>
-            <ReviewList title={t('ai.strengths')} items={review.strengths} />
-            <ReviewList title={t('ai.gaps')} items={review.gaps} />
-            <ReviewList title={t('ai.misconceptions')} items={review.misconceptions} />
-          </div>
-        )}
-      </div>
-    </details>
-  )
-}
-
-function ReviewList({ title, items }: { title: string; items: string[] }) {
-  if (items.length === 0) return null
-  return (
-    <div className={shared.tight}>
-      <h3 className={shared.label}>{title}</h3>
-      <ul className={shared.bullets}>
-        {keyedChoices(items).map(({ item, key }) => (
-          <li key={key}>{item}</li>
-        ))}
-      </ul>
-    </div>
   )
 }
 

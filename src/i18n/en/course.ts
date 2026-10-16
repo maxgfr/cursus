@@ -98,7 +98,8 @@ export const course = {
   noSourcesTitle: 'No sources yet',
   noSourcesBody: 'Sources are your course material: notes, PDFs and photos. Cards and study sheets are made from them.',
   noSheetsTitle: 'No study sheets yet',
-  noSheetsBody: 'A study sheet sums up a topic on one page. The AI writes one from your sources.',
+  noSheetsBody:
+    'A study sheet sums up a topic on one page. Write one yourself, or let the AI write it from your sources.',
   sheetsBelowTitle: 'No study sheets at this level',
   sheetsBelow: {
     one: '{count} study sheet is kept in a section: open the section to read it.',
@@ -110,6 +111,9 @@ export const course = {
   },
   noSheetsBodyNoAi: 'A study sheet sums up a topic on one page.',
   newSheet: 'New study sheet',
+  untitledSheet: 'Untitled study sheet',
+  sheetTitle: 'Title',
+  sheetPlaceholder: 'Write the sheet: headings, lists, formulas, photos…',
   add: 'Add',
   addTitle: 'Add a source',
   pasteText: 'Paste text',

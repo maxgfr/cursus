@@ -11,7 +11,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Link } from 'wouter'
+import { Link, useLocation } from 'wouter'
 import { paths, to } from '../../app/routes.ts'
 import { useRuntime, useWorkspace } from '../../app/workspaceContext.tsx'
 import {
@@ -52,10 +52,12 @@ import type {
   Understanding,
 } from '../../core/ai/schemas'
 import { renderPhoto } from '../../core/content/photos'
+import type { StudyScope } from '../../core/contracts/workspace'
 import { getPhoto } from '../../core/model/photos'
 import type { ModelWorkspace } from '../../core/model/workspace'
 import { formatUsd } from '../../i18n/format.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
+import { createFiche, WRITE_QUERY } from '../../screens/Fiche/create.ts'
 import { useFileLoader } from '../../screens/Photos/files.ts'
 import { describeFailure } from '../../screens/Review/failure.ts'
 import { cardText, passagesText, useAiModel } from '../../screens/Understand/shared/aiConfig.ts'
@@ -204,6 +206,10 @@ function onPartialOf(on: Record<Streamed, (p: unknown) => void>, kind: RichResul
       return () => undefined
   }
 }
+
+/** The course or section of a study action's options. */
+const placeOf = (o: Pick<StudyOptions, 'courseId' | 'sectionId'>): StudyScope =>
+  o.sectionId ? { courseId: o.courseId, sectionId: o.sectionId } : { courseId: o.courseId }
 
 /** A photo's pixels as sent to a model: fetched if it is not here yet, turned upright, at most 1024 px. */
 function usePhotoImages(): PhotoImages {
@@ -573,8 +579,28 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
 
   const busy = live !== null || liveRich !== null || liveStudy !== null
 
+  // A study sheet is written on its own screen: made in its place, then opened to be written by AI at once. Over the
+  // page (below 1000px), the chat steps aside for it.
+  const [, navigate] = useLocation()
+  const writeSheetOn = useCallback(
+    (place: StudyScope, title: string, sources: readonly string[] = []) => {
+      const id = createFiche(ws, place, title, sources)
+      if (!docked) onClose()
+      navigate(`${to.fiche(id)}?${WRITE_QUERY}`)
+    },
+    [ws, docked, onClose, navigate],
+  )
   const perform = useCallback(
     (action: ChatAction, on: ScreenContext, chosen?: Partial<StudyOptions>) => {
+      if (action.kind === 'guided' && action.id === 'summarise' && on.sourceId) {
+        const source = ws.sources.get(on.sourceId)
+        if (!source) return
+        const sectionId = ws.sections.tree().sectionOf(source)
+        writeSheetOn(placeOf({ courseId: source.courseId, ...(sectionId ? { sectionId } : {}) }), source.title, [
+          source.id,
+        ])
+        return
+      }
       if (action.kind === 'guided') {
         void ask([...current.messages, { role: 'user', text: action.label }], { intent: action.intent })
         return
@@ -583,6 +609,10 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
         const start = startOptions(ws, action.id, on)
         if (!start) {
           setError(t('ai.needCourse'))
+          return
+        }
+        if (action.id === 'understand') {
+          writeSheetOn(placeOf({ ...start, ...chosen }), t('course.untitledSheet'))
           return
         }
         study(action.id, { ...start, ...chosen }, { label: action.label })
@@ -637,7 +667,7 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
       )
       if (!given) void explain(kind, action.label, card)
     },
-    [ask, current, explain, ws, t, study, deps, runRich, images, rt, persist],
+    [ask, current, explain, ws, t, study, deps, runRich, images, rt, persist, writeSheetOn],
   )
 
   // The answer typed in one's own words concerns the card it was asked for: another card, or its reveal, ends it.
@@ -692,7 +722,10 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
         update,
         rerun: (id, kind, options) => study(kind, options, { replacing: id }),
         rate: rateCard,
-        start: (kind, options) => study(kind, options, { label: actionById(t, {}, kind)?.label ?? '' }),
+        start: (kind, options) =>
+          kind === 'understand'
+            ? writeSheetOn(placeOf(options), options.topic.trim() || t('course.untitledSheet'))
+            : study(kind, options, { label: actionById(t, {}, kind)?.label ?? '' }),
         explainPhoto: (photoId) => {
           void runRich({
             kind: 'photo',
@@ -712,7 +745,7 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
         checkExplanation: (options, explanation, onPartial) =>
           checkExplanation(deps, options, explanation, { signal: new AbortController().signal, onPartial }),
       },
-    [deps, busy, callable, load, update, study, t, runRich, images, rateCard],
+    [deps, busy, callable, load, update, study, t, runRich, images, rateCard, writeSheetOn],
   )
 
   // Run from the screen (« Explain the question » in review): as soon as the chat can, with the screen's context.

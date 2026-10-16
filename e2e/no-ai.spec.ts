@@ -44,7 +44,7 @@ const AI_LABELS = [
   'Ask about “',
   'Generate cards',
   'Quiz me',
-  'New study sheet',
+  'Write with AI',
   'Suggest cards',
   'Create cards',
   'Explain with AI',
@@ -368,5 +368,24 @@ test('« Show AI features » off: a model set up, yet no trace of AI, suggested 
   await openCourse(page)
   await expect(page.getByRole('main').getByRole('button', { name: 'Ask about this' }).first()).toBeVisible()
   await suggested(true)
+  expect(errors).toEqual([])
+})
+
+test('without a model, a study sheet is written by hand: no AI on its screen, kept in the course', async ({ page }) => {
+  const errors = watchErrors(page)
+  await harness.seed(page, { courses: [{ title: 'Biology', notes: [{ title: 'Cell notes', body: 'Cells.' }] }] })
+  await openCourse(page)
+  await page.getByRole('radio', { name: 'Study sheets' }).check({ force: true })
+  await page.getByRole('main').getByRole('button', { name: 'New study sheet' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Untitled study sheet' })).toBeVisible()
+  await page.getByLabel('Title').fill('Mitosis')
+  await page.getByRole('textbox', { name: 'Study sheet' }).click()
+  await page.keyboard.type('Four phases.')
+  await expect(page.getByRole('heading', { level: 1, name: 'Mitosis' })).toBeVisible()
+  await noAi(page)
+  await page.getByRole('link', { name: 'Back' }).click()
+  await page.getByRole('radio', { name: 'Study sheets' }).check({ force: true })
+  await page.getByRole('main').getByRole('link', { name: 'Mitosis' }).click()
+  await expect(page.getByRole('textbox', { name: 'Study sheet' })).toContainText('Four phases.')
   expect(errors).toEqual([])
 })

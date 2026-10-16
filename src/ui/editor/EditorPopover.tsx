@@ -1,6 +1,7 @@
 import { ExternalLink, Minus, Plus, Unlink } from 'lucide-react'
 import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { Link } from 'wouter'
 import { useT } from '../../i18n/react.tsx'
 import { Button } from '../components/Button.tsx'
 import { Field } from '../components/Field.tsx'
@@ -113,11 +114,17 @@ export function LinkPopover({
   }
   return (
     <Popover anchor={anchor} label={t('common.edLink')} focus={focus} onClose={onClose}>
-      {url !== '' && (
-        <a className={styles.openLink} href={url} target="_blank" rel="noopener noreferrer">
-          <ExternalLink size={16} aria-hidden="true" /> {t('common.edLinkOpen')}
-        </a>
-      )}
+      {url !== '' &&
+        // A link of the app (a sheet's citation, `#/source/…`) opens here, Back returning; any other in a new tab.
+        (url.startsWith('#/') ? (
+          <Link className={styles.openLink} href={url.slice(1)} onClick={onClose}>
+            <ExternalLink size={16} aria-hidden="true" /> {t('common.edLinkOpen')}
+          </Link>
+        ) : (
+          <a className={styles.openLink} href={url} target="_blank" rel="noopener noreferrer">
+            <ExternalLink size={16} aria-hidden="true" /> {t('common.edLinkOpen')}
+          </a>
+        ))}
       <form
         className={styles.popoverForm}
         onSubmit={(e) => {

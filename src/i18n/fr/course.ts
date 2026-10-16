@@ -104,7 +104,8 @@ export const course = {
   noSourcesTitle: 'Aucune source',
   noSourcesBody: 'Les sources sont vos supports de cours : notes, PDF et photos. Cartes et fiches en sont tirées.',
   noSheetsTitle: 'Aucune fiche',
-  noSheetsBody: 'Une fiche résume un sujet sur une page. L’IA en rédige une à partir de vos sources.',
+  noSheetsBody:
+    'Une fiche résume un sujet sur une page. Rédigez-la vous-même, ou laissez l’IA la rédiger depuis vos sources.',
   sheetsBelowTitle: 'Aucune fiche à ce niveau',
   sheetsBelow: {
     one: '{count} fiche est rangée dans une section\u00a0: ouvrez la section pour la lire.',
@@ -116,6 +117,9 @@ export const course = {
   },
   noSheetsBodyNoAi: 'Une fiche résume un sujet sur une page.',
   newSheet: 'Nouvelle fiche',
+  untitledSheet: 'Fiche sans titre',
+  sheetTitle: 'Titre',
+  sheetPlaceholder: 'Rédigez la fiche : titres, listes, formules, photos…',
   add: 'Ajouter',
   addTitle: 'Ajouter une source',
   pasteText: 'Coller du texte',

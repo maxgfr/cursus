@@ -328,8 +328,8 @@ test('a first visit needs only a key: the provider shown and its recommended mod
   await expect(page.getByRole('button', { name: 'Test', exact: true })).toBeEnabled()
   await page.reload()
   await expect(page.getByRole('region', { name: 'Model', exact: true })).not.toContainText('Choose a model')
-  // The model is ready: a study sheet's link opens the chat on it (no course yet, so it asks for one).
-  await page.goto('./#/understand')
+  // The model is ready: the cards' link opens the chat on it (no course yet, so it asks for one).
+  await page.goto('./#/generate')
   const chat = chatPanel(page, info.project.name)
   await expect(chat.getByRole('textbox', { name: 'Your question' })).toBeVisible()
   await expect(chat.getByText('Create a course first: cards are saved into a course.')).toBeVisible()
@@ -465,7 +465,9 @@ test('AI screens ask for a model until one is set up', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1, name: 'AI' })).toBeVisible()
 })
 
-test('a new study sheet streams into the chat cited, then checks an explanation back', async ({ page }, info) => {
+test('a new study sheet is written by AI into its text, cited; one Undo takes it back; then an explanation is checked', async ({
+  page,
+}, info) => {
   const prompts = await mockProvider(page)
   await configure(page)
   const phone = isPhone(info.project.name)
@@ -487,76 +489,138 @@ test('a new study sheet streams into the chat cited, then checks an explanation 
   await page.getByLabel('Add files').setInputFiles(join(FIXTURES, 'sample.pdf'))
   await expect(page.getByRole('heading', { level: 1, name: 'sample' })).toBeVisible()
 
-  // The former screen's link opens the course with the chat beside it, the sheet started at once.
+  // The former screen's link opens the course on its study sheets, where a new one starts.
   await page.goto('./#/understand')
   await expect(page.getByRole('heading', { level: 1, name: 'Botany' })).toBeVisible()
-  const chat = chatPanel(page, info.project.name)
-  const fiche = chat.getByRole('article', { name: 'Study sheet' })
-  await expect(fiche.getByRole('heading', { name: 'Photosynthesis' })).toBeVisible()
-  // Its options sit folded under a summary of what is used; changed, the sheet is written again in place.
-  await chat.getByText('Sources: all of Botany').click()
-  await expect(chat.getByRole('checkbox', { name: 'Untitled note' })).toBeChecked()
-  await expect(chat.getByRole('checkbox', { name: 'sample' })).toBeChecked()
-  await chat.getByLabel('What should the sheet cover?').fill('photosynthesis')
-  await chat.getByRole('radio', { name: 'In depth' }).check({ force: true })
-  await expect(chat.getByText(/Estimated cost: \$/)).toBeVisible()
-  await chat.getByRole('button', { name: 'Run again', exact: true }).click()
-  await expect.poll(() => prompts.at(-1) ?? '').toContain('cover edge cases')
-  await expect(chat.getByRole('log')).not.toHaveAttribute('aria-busy', 'true')
+  await expect(page.getByRole('radio', { name: 'Study sheets' })).toBeChecked()
+  await page.getByRole('main').getByRole('button', { name: 'New study sheet' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Untitled study sheet' })).toBeVisible()
+  const panel = page.getByRole('region', { name: 'Write with AI' })
+  // Its options: the topic (the place until a title is given), how deep, the sources a model can read.
+  await expect(panel.getByLabel('What should the sheet cover?')).toHaveValue('Botany')
+  await panel.getByText('Sources: all of Botany').click()
+  await expect(panel.getByRole('checkbox', { name: 'Untitled note' })).toBeChecked()
+  await expect(panel.getByRole('checkbox', { name: 'sample' })).toBeChecked()
+  await panel.getByLabel('What should the sheet cover?').fill('photosynthesis')
+  await panel.getByRole('radio', { name: 'In depth' }).check({ force: true })
+  await expect(panel.getByText(/Estimated cost: \$/)).toBeVisible()
+  await panel.getByRole('button', { name: 'Write with AI' }).click()
 
-  await expect(fiche).toHaveCount(1)
-  await expect(fiche.getByRole('heading', { name: 'Photosynthesis' })).toBeVisible()
-  await expect(fiche.getByRole('heading', { name: 'Calvin cycle' })).toBeVisible()
-  await expect(fiche.getByRole('link', { name: 'Open source: Untitled note' })).toBeVisible()
-  await expect(fiche.getByRole('link', { name: 'Open source: sample · Slide 2' })).toBeVisible()
-  expect(prompts.at(-1)).toContain('Chlorophyll captures light')
-  expect(prompts.at(-1)).toContain('Second page mitochondria')
-  expect(prompts.at(-1)).toContain('cover edge cases')
+  // Written into the sheet's own text: headings, then the links to what each point cites; titled from it.
+  const editor = page.getByRole('textbox', { name: 'Study sheet' })
+  await expect(editor.getByRole('heading', { name: 'Calvin cycle' })).toBeVisible()
+  await expect(panel.getByText('Written. Undo in the toolbar takes it all back.')).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Photosynthesis' })).toBeVisible()
+  await expect(editor.getByRole('heading', { name: 'Light reactions' })).toBeVisible()
+  await expect(editor.locator('.cm-md-link', { hasText: 'Untitled note' })).toBeVisible()
+  await expect(editor.locator('.cm-md-link', { hasText: 'sample · Slide 2' })).toBeVisible()
+  const sent = prompts.filter((p) => p.includes('patient tutor'))
+  expect(sent).toHaveLength(1)
+  expect(sent[0]).toContain('Chlorophyll captures light')
+  expect(sent[0]).toContain('Second page mitochondria')
+  expect(sent[0]).toContain('cover edge cases')
+  expect(sent[0]).toContain('Topic: photosynthesis')
 
-  // The explain-it-back check sits folded under the sheet.
-  await chat.getByText('Check you understood it').click()
-  await chat.getByLabel('Your explanation').fill('Plants use chlorophyll to catch light.')
-  await chat.getByRole('button', { name: 'Check my explanation' }).click()
-  await expect(chat.getByText('72 / 100')).toBeVisible()
-  await expect(chat.getByText('The Calvin cycle is missing.')).toBeVisible()
+  // One Undo takes the whole text back, Redo brings it again.
+  const toolbar = page.getByRole('toolbar', { name: 'Formatting' })
+  await toolbar.getByRole('button', { name: 'Undo' }).click()
+  await expect(editor.getByRole('heading')).toHaveCount(0)
+  await expect(editor.locator('.cm-md-link')).toHaveCount(0)
+  await toolbar.getByRole('button', { name: 'Redo' }).click()
+  await expect(editor.getByRole('heading', { name: 'Calvin cycle' })).toBeVisible()
 
-  // A term selected in the sheet can be asked about, as on a source: asked here, in the thread.
-  await fiche.getByRole('heading', { name: 'Calvin cycle' }).evaluate((h) => {
+  // The explain-it-back check sits folded under it.
+  await panel.getByText('Check you understood it').click()
+  await panel.getByLabel('Your explanation').fill('Plants use chlorophyll to catch light.')
+  await panel.getByRole('button', { name: 'Check my explanation' }).click()
+  await expect(panel.getByText('72 / 100')).toBeVisible()
+  await expect(panel.getByText('The Calvin cycle is missing.')).toBeVisible()
+
+  // A term selected in the sheet can be asked about, as on a source: in the chat beside it.
+  await editor.getByRole('heading', { name: 'Calvin cycle' }).evaluate((h) => {
     const range = document.createRange()
     range.selectNodeContents(h)
     const selection = document.getSelection()
     selection?.removeAllRanges()
     selection?.addRange(range)
   })
-  await chat.getByRole('button', { name: 'Ask about “Calvin cycle”' }).click()
+  await page.getByRole('button', { name: 'Ask about “Calvin cycle”' }).click()
+  const chat = chatPanel(page, info.project.name)
   await expect(chat.getByText('What does “Calvin cycle” mean here?')).toBeVisible()
   await expect.poll(() => prompts.at(-1) ?? '').toContain('What does “Calvin cycle” mean here?')
   await expect(chat.getByRole('log')).not.toHaveAttribute('aria-busy', 'true')
+  if (phone) await chat.getByRole('button', { name: 'Close chat' }).click()
 
-  // A page citation opens the PDF at that page, in the app and in the original.
-  await fiche.getByRole('link', { name: 'Open source: sample · Slide 2' }).click()
+  // A slide citation opens the PDF at that page, in the app and in the original.
+  await editor.locator('.cm-md-link', { hasText: 'sample · Slide 2' }).click()
+  await page.getByRole('link', { name: 'Open the link' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'sample' })).toBeVisible()
   await expect(page.getByText('Cited: Slide 2')).toBeVisible()
   await expect(page.getByRole('link', { name: 'Open the original' })).toHaveAttribute('href', /^blob:.+#page=2$/)
-  // Back returns to the course, the explanation that cited it still in the chat (a phone opens it again).
+  // Back returns to the sheet, then to the course, where it is listed.
+  await page.getByRole('link', { name: 'Back' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Photosynthesis' })).toBeVisible()
   await page.getByRole('link', { name: 'Back' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Botany' })).toBeVisible()
-  if (phone) await page.getByRole('main').getByRole('button', { name: 'Ask about this' }).first().click()
-  await expect(fiche.getByRole('heading', { name: 'Calvin cycle' })).toBeVisible()
-  if (phone) await chat.getByRole('button', { name: 'Close chat' }).click()
+  await page.getByRole('radio', { name: 'Study sheets' }).check()
+  await expect(page.getByRole('main').getByRole('link', { name: 'Photosynthesis' })).toBeVisible()
   // The page belongs to that citation only: opening the source again starts from the top.
-  await page.getByRole('link', { name: 'Back' }).click()
-  await expect(page.getByRole('heading', { level: 1, name: 'Courses' })).toBeVisible()
-  await page
-    .getByRole('main')
-    .getByRole('link', { name: /^Botany/ })
-    .click()
   await page.getByRole('radio', { name: 'Sources' }).check()
   await page
     .getByRole('main')
     .getByRole('link', { name: /sample/ })
     .click()
   await expect(page.getByRole('link', { name: 'Open the original' })).toHaveAttribute('href', /^blob:[^#]+$/)
+})
+
+test('Stop leaves the study sheet as it is, editable; asked again, the AI writes it', async ({ page }) => {
+  await mockProvider(page)
+  let held: (() => void) | null = null
+  // The first request is held until Stop, then answered: the answer arrives too late to be written.
+  await page.route(`${LLM}/**`, async (route: Route) => {
+    const req = route.request()
+    if (req.method() === 'OPTIONS' || !textOf(req.postDataJSON() as Body).includes('patient tutor') || held === null)
+      return route.fallback()
+    await new Promise<void>((resolve) => {
+      const release = held
+      held = null
+      release?.()
+      setTimeout(resolve, 600)
+    })
+    return route.fallback()
+  })
+  await configure(page)
+  await page.goto('./#/')
+  await page.getByRole('button', { name: 'New course' }).first().click()
+  const dialog = page.getByRole('dialog', { name: 'New course' })
+  await dialog.getByLabel('Course name').fill('Botany')
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  await page.getByRole('radio', { name: 'Sources' }).check()
+  await page.getByRole('button', { name: 'Add', exact: true }).click()
+  await page.getByRole('button', { name: 'Write a note' }).click()
+  await page.getByRole('textbox', { name: 'Source' }).click()
+  await page.keyboard.type('Chlorophyll captures light.')
+  await page.getByRole('link', { name: 'Back' }).click()
+  await page.getByRole('radio', { name: 'Study sheets' }).check()
+  await page.getByRole('main').getByRole('button', { name: 'New study sheet' }).click()
+  const panel = page.getByRole('region', { name: 'Write with AI' })
+  const editor = page.getByRole('textbox', { name: 'Study sheet' })
+  const asked = new Promise<void>((resolve) => {
+    held = resolve
+  })
+  await panel.getByRole('button', { name: 'Write with AI' }).click()
+  await asked
+  await panel.getByRole('button', { name: 'Stop' }).click()
+  await expect(panel.getByRole('button', { name: 'Write with AI' })).toBeEnabled()
+  await expect(editor.getByRole('heading')).toHaveCount(0)
+  // Unlocked: written in by hand.
+  await editor.click()
+  await page.keyboard.type('My own line.')
+  await expect(editor).toContainText('My own line.')
+  // Written by AI after it, below what is there.
+  await panel.getByRole('button', { name: 'Write with AI' }).click()
+  await expect(editor.getByRole('heading', { name: 'Calvin cycle' })).toBeVisible()
+  await expect(editor).toContainText('My own line.')
 })
 
 test('cards generated in the chat flag duplicates, can be edited, then are saved as cards', async ({ page }, info) => {

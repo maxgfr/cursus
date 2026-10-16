@@ -21,6 +21,7 @@ const screens: Record<Exclude<RouteName, 'today'>, Screen> = {
   photos: lazyChunk('photos', () => import('../screens/Photos/index.tsx')),
   sectionPhotos: lazyChunk('photos', () => import('../screens/Photos/index.tsx')),
   photo: lazyChunk('photo', () => import('../screens/PhotoViewer/index.tsx')),
+  fiche: lazyChunk('fiche', () => import('../screens/Fiche/index.tsx')),
   inbox: lazyChunk('inbox', () => import('../screens/Inbox/index.tsx')),
   card: lazyChunk('card', () => import('../screens/CardEditor/index.tsx')),
   trash: lazyChunk('trash', () => import('../screens/Trash/index.tsx')),

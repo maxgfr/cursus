@@ -4,6 +4,7 @@ import { lazyChunk } from '../../app/lazyChunk.tsx'
 import type { Id } from '../../core/contracts/workspace'
 import { useT } from '../../i18n/react.tsx'
 import { cx } from '../cx.ts'
+import type { EditorWriter } from './aiWrite.ts'
 import styles from './MarkdownEditor.module.css'
 import { Toolbar } from './Toolbar.tsx'
 
@@ -20,6 +21,8 @@ export interface MarkdownEditorProps {
   cloze?: boolean
   /** Where a photo added from the toolbar is kept (its course, its section); no photo button without it. */
   photos?: { courseId: Id; sectionId?: Id }
+  /** Given how an AI writes into the text (one undo step in all) once the editor is there; null once it is gone. */
+  writer?: (writer: EditorWriter | null) => void
 }
 
 const Impl = lazyChunk('editor', () => import('./MarkdownEditorImpl.tsx'))

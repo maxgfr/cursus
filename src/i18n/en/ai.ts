@@ -1,5 +1,8 @@
 export const ai = {
   writeSheet: 'Write a study sheet',
+  writeWithAi: 'Write with AI',
+  sheetWritten: 'Written. Undo in the toolbar takes it all back.',
+  sheetNothingToRead: 'Nothing to read in these sources yet: choose others, or write in them first.',
   generate: 'Generate cards',
   quiz: 'Quiz me',
   quizNode: 'Course or section',

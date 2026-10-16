@@ -1,0 +1,35 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.note {
+  color: var(--ink-2);
+  font-size: var(--text-footnote);
+}
+
+/* « Write with AI »: a quiet card under the text, its options folded until wanted. */
+.panel {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-surface);
+  background: var(--surface);
+  box-shadow: var(--lift);
+}
+
+.panelTitle {
+  margin: 0;
+  font-size: var(--text-headline);
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  color: var(--ink);
+}

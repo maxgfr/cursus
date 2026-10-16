@@ -105,7 +105,8 @@ export const course = {
   noSourcesTitle: 'Noch keine Quellen',
   noSourcesBody: 'Quellen sind dein Kursmaterial: Notizen, PDFs und Fotos. Karten und Spickzettel entstehen daraus.',
   noSheetsTitle: 'Noch keine Spickzettel',
-  noSheetsBody: 'Ein Spickzettel fasst ein Thema auf einer Seite zusammen. Die KI schreibt einen aus deinen Quellen.',
+  noSheetsBody:
+    'Ein Lernblatt fasst ein Thema auf einer Seite zusammen. Schreib es selbst oder lass die KI es aus deinen Quellen schreiben.',
   sheetsBelowTitle: 'Auf dieser Ebene keine Spickzettel',
   sheetsBelow: {
     one: '{count} Spickzettel liegt in einem Abschnitt: Öffne den Abschnitt, um ihn zu lesen.',
@@ -117,6 +118,9 @@ export const course = {
   },
   noSheetsBodyNoAi: 'Ein Spickzettel fasst ein Thema auf einer Seite zusammen.',
   newSheet: 'Neuer Spickzettel',
+  untitledSheet: 'Lernblatt ohne Titel',
+  sheetTitle: 'Titel',
+  sheetPlaceholder: 'Schreib das Lernblatt: Überschriften, Listen, Formeln, Fotos…',
   add: 'Hinzufügen',
   addTitle: 'Quelle hinzufügen',
   pasteText: 'Text einfügen',

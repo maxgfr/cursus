@@ -58,7 +58,7 @@ export default function Search() {
           }
           if (h.kind === 'fiches') {
             const f = ws.fiches.get(h.id)
-            return f ? [{ id: h.id, title: f.title, href: to.course(f.courseId) }] : []
+            return f ? [{ id: h.id, title: f.title, href: to.fiche(f.id) }] : []
           }
           const c = ws.cards.get(h.id)
           if (!c) return []

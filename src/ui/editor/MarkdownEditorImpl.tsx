@@ -21,6 +21,7 @@ import { useBlobResolver } from '../../screens/Photos/files.ts'
 import { useUntitled } from '../../screens/Photos/text.ts'
 import { noteError } from '../../screens/settings/Diagnostic/recent.ts'
 import { IconButton } from '../components/IconButton.tsx'
+import { applyStep, planWrite } from './aiWrite.ts'
 import { type Anchor, LinkPopover, MathPopover, TablePopover } from './EditorPopover.tsx'
 import {
   activeFormats,
@@ -119,7 +120,20 @@ function anchorAt(v: EditorView, pos: number): Anchor {
   return { left: at.left, top: at.top, bottom: at.bottom }
 }
 
-export default function MarkdownEditorImpl({ text, label, placeholder, cloze = false, photos }: MarkdownEditorProps) {
+/** Between two writes of an AI's text, at least this long: a line at a time, not a keystroke at a time. */
+const WRITE_EVERY_MS = 100
+
+const editable = [EditorView.editable.of(true), EditorState.readOnly.of(false)]
+const locked = [EditorView.editable.of(false), EditorState.readOnly.of(true)]
+
+export default function MarkdownEditorImpl({
+  text,
+  label,
+  placeholder,
+  cloze = false,
+  photos,
+  writer,
+}: MarkdownEditorProps) {
   const t = useT()
   const rt = useRuntime()
   const untitled = useUntitled()
@@ -127,6 +141,7 @@ export default function MarkdownEditorImpl({ text, label, placeholder, cloze = f
   const picker = useRef<HTMLInputElement>(null)
   const editor = useRef<EditorView | null>(null)
   const mode = useRef(new Compartment())
+  const lock = useRef(new Compartment())
   const [source, setSource] = useState(readShowMarkdown)
   const sourceNow = useRef(source)
   sourceNow.current = source
@@ -277,6 +292,16 @@ export default function MarkdownEditorImpl({ text, label, placeholder, cloze = f
     if (!parent) return
     const undoManager = new Y.UndoManager(text)
     const run = (f: Format) => (v: EditorView) => !sourceNow.current && commandsNow.current[f](v)
+    // An AI writing into the text (see `writer` below), declared before the view that reports its edits.
+    let writing: {
+      start: number
+      written: string
+      pending: string | null
+      timer: ReturnType<typeof setTimeout> | undefined
+      last: number
+      timeout: number
+    } | null = null
+
     let shown = ''
     const v = new EditorView({
       parent,
@@ -308,10 +333,17 @@ export default function MarkdownEditorImpl({ text, label, placeholder, cloze = f
             spellcheck: 'true',
           }),
           placeholder ? placeholderExt(placeholder) : [],
+          lock.current.of(editable),
           theme,
           photoUrls,
           mode.current.of(view(sourceNow.current, labels.current, { cloze: clozeNow.current }, actions.current)),
           yCollab(text, null, { undoManager }),
+          // Another device's edit before the text being written moves where it is written.
+          EditorView.updateListener.of((u) => {
+            if (writing && u.docChanged && !u.transactions.some((tr) => tr.isUserEvent('input.ai'))) {
+              writing.start = u.changes.mapPos(writing.start, 1)
+            }
+          }),
           // The toolbar shows the formats in effect where the caret is.
           EditorView.updateListener.of((u) => {
             const waiting = u.state.field(pendingFormat, false) !== u.startState.field(pendingFormat, false)
@@ -345,13 +377,91 @@ export default function MarkdownEditorImpl({ text, label, placeholder, cloze = f
     editor.current = v
     configured.current = { taskLabel: labels.current.task, cloze: clozeNow.current }
     setUndo(undoManager)
+
+    // An AI writing into the text: at its end, a line at a time, the text locked meanwhile; every write merged
+    // into one undo step (the capture never closes while it writes).
+    const applyWrite = (next: string, final: boolean) => {
+      const w = writing
+      if (!w) return
+      // What was written is still there, as written: an edit from elsewhere inside it ends the writing.
+      if (v.state.doc.sliceString(w.start, w.start + w.written.length) !== w.written) {
+        stopWriting()
+        return
+      }
+      const step = planWrite(w.written, next, final)
+      if (step === null) return
+      v.dispatch({
+        changes: { from: w.start + step.from, to: w.start + step.to, insert: step.insert },
+        userEvent: 'input.ai',
+      })
+      w.written = applyStep(w.written, step)
+      w.last = Date.now()
+    }
+    const stopWriting = () => {
+      const w = writing
+      if (!w) return
+      clearTimeout(w.timer)
+      writing = null
+      undoManager.stopCapturing()
+      undoManager.captureTimeout = w.timeout
+      v.dispatch({ effects: lock.current.reconfigure(editable) })
+    }
+    if (writer) {
+      writer({
+        begin() {
+          if (writing) return false
+          const doc = v.state.doc.toString()
+          const gap = doc === '' || doc.endsWith('\n\n') ? '' : doc.endsWith('\n') ? '\n' : '\n\n'
+          undoManager.stopCapturing()
+          const timeout = undoManager.captureTimeout
+          undoManager.captureTimeout = Number.POSITIVE_INFINITY
+          v.dispatch({ effects: lock.current.reconfigure(locked) })
+          if (gap !== '') v.dispatch({ changes: { from: doc.length, insert: gap }, userEvent: 'input.ai' })
+          writing = { start: doc.length + gap.length, written: '', pending: null, timer: undefined, last: 0, timeout }
+          return true
+        },
+        write(next, final = false) {
+          const w = writing
+          if (!w) return
+          if (final) {
+            clearTimeout(w.timer)
+            w.timer = undefined
+            w.pending = null
+            applyWrite(next, true)
+            return
+          }
+          w.pending = next
+          if (w.timer !== undefined) return
+          w.timer = setTimeout(
+            () => {
+              const now = writing
+              if (!now) return
+              now.timer = undefined
+              const pending = now.pending
+              now.pending = null
+              if (pending !== null) applyWrite(pending, false)
+            },
+            Math.max(0, WRITE_EVERY_MS - (Date.now() - w.last)),
+          )
+        },
+        end() {
+          const w = writing
+          if (!w) return
+          // Stopped midway: the lines written so far stay.
+          if (w.pending !== null) applyWrite(w.pending, false)
+          stopWriting()
+        },
+      })
+    }
     return () => {
+      stopWriting()
+      writer?.(null)
       v.destroy()
       undoManager.destroy()
       editor.current = null
       setUndo(null)
     }
-  }, [text, label, placeholder])
+  }, [text, label, placeholder, writer])
 
   // A change of language (task names) or of card kind (cloze read or not) redraws the text, not the editor.
   useEffect(() => {

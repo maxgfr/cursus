@@ -212,9 +212,9 @@ test('slides: preview, questions for a range of slides, review by slide, saved c
   await expect(page.getByText('What is Osmosis about?')).toHaveCount(0)
 })
 
-test('a study sheet in the chat reads the slides of a deck source and cites the slide, opening it in the source', async ({
+test('a study sheet reads the slides of a deck source and cites the slide, opening it in the source', async ({
   page,
-}, info) => {
+}) => {
   await mockProvider(page)
   const prompts: string[] = []
   // Registered last, so it answers first: the explanation call, cited at slide 2; the rest falls through.
@@ -242,22 +242,22 @@ test('a study sheet in the chat reads the slides of a deck source and cites the 
   await expect(page.getByRole('heading', { level: 1, name: 'Cell Biology 101' })).toBeVisible()
 
   await page.goto('./#/understand')
-  const chat = chatPanel(page, info.project.name)
-  const fiche = chat.getByRole('article', { name: 'Study sheet' })
+  await page.getByRole('main').getByRole('button', { name: 'New study sheet' }).click()
+  const panel = page.getByRole('region', { name: 'Write with AI' })
+  await panel.getByText('Sources: all of Biology').click()
+  await expect(panel.getByRole('checkbox', { name: 'Cell Biology 101' })).toBeChecked()
+  await panel.getByLabel('What should the sheet cover?').fill('osmosis')
+  await panel.getByRole('button', { name: 'Write with AI' }).click()
+  const fiche = page.getByRole('textbox', { name: 'Study sheet' })
   await expect(fiche.getByRole('heading', { name: 'Water moves' })).toBeVisible()
-  await chat.getByText('Sources: all of Biology').click()
-  await expect(chat.getByRole('checkbox', { name: 'Cell Biology 101' })).toBeChecked()
-  await chat.getByLabel('What should the sheet cover?').fill('osmosis')
-  await chat.getByRole('button', { name: 'Run again', exact: true }).click()
-  await expect.poll(() => prompts.at(-1) ?? '').toContain('Topic: osmosis')
-  await expect(chat.getByRole('log')).not.toHaveAttribute('aria-busy', 'true')
-  await expect(fiche.getByRole('heading', { name: 'Water moves' })).toBeVisible()
+  expect(prompts.at(-1)).toContain('Topic: osmosis')
   // The model read the deck slide by slide, each slide numbered for citations.
   expect(prompts.at(-1)).toMatch(/<<<SOURCE id="[^"]+" page="2">>>\nOsmosis\n/)
   expect(prompts.at(-1)).toContain('Speaker notes: Stress that water moves, not solutes.')
-  const cite = fiche.getByRole('link', { name: 'Open source: Cell Biology 101 · Slide 2' })
-  await expect(cite).toHaveAttribute('href', /#\/source\/[^?]+\?page=2$/)
-  await cite.click()
+  await fiche.locator('.cm-md-link', { hasText: 'Cell Biology 101 · Slide 2' }).click()
+  const open = page.getByRole('link', { name: 'Open the link' })
+  await expect(open).toHaveAttribute('href', /#\/source\/[^?]+\?page=2$/)
+  await open.click()
   await expect(page.getByText('Cited: Slide 2')).toBeVisible()
   await expect(page.locator('li[aria-current="location"]')).toContainText('Osmosis')
 })

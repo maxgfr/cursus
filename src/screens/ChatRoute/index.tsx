@@ -13,8 +13,8 @@ import { NoModel } from '../Understand/shared/SourcePicker.tsx'
 
 /**
  * The former Generate, Quiz and New study sheet screens, kept as links (`#/generate?course=…`): with a model
- * ready they open the course or section asked for (else the first course) and run their action in the chat;
- * without one they say what is missing.
+ * ready they open the course or section asked for (else the first course) and run their action in the chat, or for
+ * a study sheet open its study sheets; without one they say what is missing.
  */
 function ChatRoute({ kind }: { kind: StudyKind }) {
   const t = useT()
@@ -49,9 +49,13 @@ function ChatRoute({ kind }: { kind: StudyKind }) {
       const first = ws.courses.list()[0]
       const scope = asked && ws.courses.get(asked.courseId) ? asked : first ? { courseId: first.id } : null
       // This entry becomes the place the action runs in: Back leaves it as it would leave the course.
-      navigate(scope ? to.place(scope.courseId, scope.sectionId) : kind === 'quiz' ? paths.sessions : paths.courses, {
-        replace: true,
-      })
+      const place = scope ? to.place(scope.courseId, scope.sectionId) : kind === 'quiz' ? paths.sessions : paths.courses
+      // A study sheet is written on its own screen: the place opens on its study sheets, where a new one starts.
+      if (kind === 'understand') {
+        navigate(place, { replace: true, state: scope ? { tab: 'fiches' } : undefined })
+        return
+      }
+      navigate(place, { replace: true })
       chat.run(kind, scope ?? undefined)
     })
   }, [readiness, chat, ws, rt, asked, kind, navigate])

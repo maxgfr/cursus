@@ -3,6 +3,9 @@ import type { Shape } from '../index.ts'
 
 export const ai = {
   writeSheet: 'Écrire une fiche',
+  writeWithAi: 'Rédiger avec l’IA',
+  sheetWritten: 'Rédigé. Annuler dans la barre retire tout.',
+  sheetNothingToRead: 'Rien à lire dans ces sources pour l’instant : choisissez-en d’autres, ou écrivez-y d’abord.',
   generate: 'Générer des cartes',
   quiz: 'Interrogez-moi',
   quizNode: 'Cours ou section',

@@ -1,5 +1,5 @@
 import { expect, type Page, type Route, test } from '@playwright/test'
-import { chatPanel, configureAi } from './support/ai'
+import { configureAi } from './support/ai'
 import { createCourse, isPhone, seriousViolations, typeInto, watchErrors } from './support/page.ts'
 
 test.use({ serviceWorkers: 'block' })
@@ -275,9 +275,7 @@ async function writeNote(page: Page, text: string) {
   await page.getByRole('link', { name: 'Back' }).click()
 }
 
-test('a study sheet from a section, written in the chat, is grounded in that section’s sources only', async ({
-  page,
-}, info) => {
+test('a study sheet from a section is grounded in that section’s sources only', async ({ page }) => {
   const errors = watchErrors(page)
   const prompts = await mockProvider(page)
   await configureAi(page, LLM)
@@ -292,56 +290,59 @@ test('a study sheet from a section, written in the chat, is grounded in that sec
 
   await page.getByRole('radio', { name: 'Study sheets' }).check()
   await page.getByRole('main').getByRole('button', { name: 'New study sheet' }).click()
-  const chat = chatPanel(page, info.project.name)
-  const sheet = chat.getByRole('article', { name: 'Study sheet' })
-  const asked = () => prompts.filter((p) => p.includes('patient tutor'))
-  // Started at once, on the section.
-  await expect(sheet.getByRole('heading', { name: 'Leaves' })).toBeVisible()
-  await chat.getByText('Sources: all of Leaves').click()
-  await expect(chat.getByLabel('Section', { exact: true })).toHaveValue(/.+/)
-  await expect(chat.getByLabel('Section', { exact: true }).locator('option:checked')).toHaveText('Leaves')
-  // Leaves itself has no note; its child Cells has one: descendants count, the course root's note doesn't.
-  await expect(chat.getByRole('checkbox')).toHaveCount(1)
-  await expect(chat.getByRole('checkbox', { name: 'Untitled note' })).toBeChecked()
-  await chat.getByLabel('What should the sheet cover?').fill('photosynthesis')
-  await chat.getByRole('button', { name: 'Run again', exact: true }).click()
-  await expect.poll(() => asked().length).toBe(2)
-  await expect(chat.getByRole('log')).not.toHaveAttribute('aria-busy', 'true')
-  await expect(sheet.getByRole('heading', { name: 'Leaves' })).toBeVisible()
-  for (const prompt of asked()) {
-    expect(prompt).toContain('Chlorophyll captures light in leaf cells.')
-    expect(prompt).not.toContain('ZEBRA')
-  }
-  expect(asked().at(-1)).toContain('Topic: photosynthesis')
+  const panel = page.getByRole('region', { name: 'Write with AI' })
+  // On the section: Leaves has no note of its own, its child Cells has one; the course root's note doesn't count.
+  await expect(panel.getByLabel('What should the sheet cover?')).toHaveValue('Leaves')
+  await panel.getByText('Sources: all of Leaves').click()
+  await expect(panel.getByRole('checkbox')).toHaveCount(1)
+  await expect(panel.getByRole('checkbox', { name: 'Untitled note' })).toBeChecked()
+  await panel.getByLabel('What should the sheet cover?').fill('photosynthesis')
+  await panel.getByRole('button', { name: 'Write with AI' }).click()
+  await expect(
+    page.getByRole('textbox', { name: 'Study sheet' }).getByRole('heading', { name: 'Chlorophyll' }),
+  ).toBeVisible()
+  const asked = prompts.filter((p) => p.includes('patient tutor'))
+  expect(asked).toHaveLength(1)
+  expect(asked[0]).toContain('Chlorophyll captures light in leaf cells.')
+  expect(asked[0]).not.toContain('ZEBRA')
+  expect(asked[0]).toContain('Topic: photosynthesis')
   expect(errors.filter((e) => !/models\.dev|catalog/i.test(e))).toEqual([])
 })
 
-test('an old link to New study sheet with a course and a section opens the chat on that section and runs there', async ({
+/** « New study sheet » on the Study sheets tab, then « Write with AI » with `topic`; the sheet's text once written. */
+async function writeSheet(page: Page, topic?: string) {
+  await page.getByRole('radio', { name: 'Study sheets' }).check()
+  await page.getByRole('main').getByRole('button', { name: 'New study sheet' }).click()
+  const panel = page.getByRole('region', { name: 'Write with AI' })
+  if (topic !== undefined) await panel.getByLabel('What should the sheet cover?').fill(topic)
+  await panel.getByRole('button', { name: 'Write with AI' }).click()
+  await expect(panel.getByText('Written. Undo in the toolbar takes it all back.')).toBeVisible()
+  return page.getByRole('textbox', { name: 'Study sheet' })
+}
+
+test('an old link to New study sheet with a course and a section opens that section on its study sheets', async ({
   page,
-}, info) => {
+}) => {
   const errors = watchErrors(page)
   const prompts = await mockProvider(page)
   await configureAi(page, LLM)
   await openToday(page)
   await createCourse(page, 'Botany')
   await writeNote(page, 'Roots drink water ZEBRA.')
-  await expect(page.getByRole('heading', { level: 1, name: 'Botany' })).toBeVisible()
   await newSection(page, 'Leaves')
   const [, courseId = '', sectionId = ''] = /#\/course\/([^/?]+)\/s\/([^/?]+)/.exec(page.url()) ?? []
   expect(sectionId).not.toBe('')
   await newSection(page, 'Cells')
   await writeNote(page, 'Chlorophyll captures light in leaf cells.')
-  // Somewhere else first: the link alone says where to go.
   await openToday(page)
 
   await page.goto(`./#/understand?course=${courseId}&section=${sectionId}`)
   await expect(page.getByRole('heading', { level: 1, name: 'Leaves' })).toBeVisible()
   await expect(page).toHaveURL(new RegExp(`#/course/${courseId}/s/${sectionId}$`))
-  const chat = chatPanel(page, info.project.name)
-  const sheet = chat.getByRole('article', { name: 'Study sheet' })
-  await expect(sheet.getByRole('heading', { name: 'Leaves' })).toBeVisible()
-  await expect(chat.getByText('About: Leaves')).toBeVisible()
-  await expect(chat.getByText('Sources: all of Leaves')).toBeVisible()
+  await expect(page.getByRole('radio', { name: 'Study sheets' })).toBeChecked()
+  // Nothing is asked before the student asks.
+  expect(prompts.filter((p) => p.includes('patient tutor'))).toHaveLength(0)
+  await writeSheet(page)
   const asked = prompts.filter((p) => p.includes('patient tutor'))
   expect(asked).toHaveLength(1)
   expect(asked[0]).toContain('Chlorophyll captures light in leaf cells.')
@@ -349,9 +350,9 @@ test('an old link to New study sheet with a course and a section opens the chat 
   expect(errors.filter((e) => !/models\.dev|catalog/i.test(e))).toEqual([])
 })
 
-test('a new study sheet starts from the Study sheets tab, not the header, and is saved to the course', async ({
+test('a new study sheet starts from the Study sheets tab, not the header, and is kept in the course', async ({
   page,
-}, info) => {
+}) => {
   const errors = watchErrors(page)
   const prompts = await mockProvider(page)
   await configureAi(page, LLM)
@@ -374,56 +375,19 @@ test('a new study sheet starts from the Study sheets tab, not the header, and is
   await crumb(page, 'Biology')
   await expect(toSheet).toHaveCount(0)
 
-  // The Study sheets tab does: the chat writes one on the course at once.
-  await page.getByRole('radio', { name: 'Study sheets' }).check()
-  await toSheet.click()
-  const chat = chatPanel(page, info.project.name)
-  const sheet = chat.getByRole('article', { name: 'Study sheet' })
-  const asked = () => prompts.filter((p) => p.includes('patient tutor')).length
-  await expect(sheet.getByRole('heading', { name: 'Leaves' })).toBeVisible()
-  await expect.poll(asked).toBe(1)
-
-  // Its options start folded, their summary saying what the sheet used.
-  const summary = chat.getByText('Sources: all of Biology')
-  await expect(summary).toBeVisible()
-  await expect(chat.locator('details').filter({ has: page.getByText('Sources: all of Biology') })).not.toHaveAttribute(
-    'open',
-  )
-  await expect(chat.getByRole('combobox', { name: 'Course', exact: true })).toBeHidden()
-  await expect(chat.getByRole('checkbox')).toHaveCount(0)
-  await summary.click()
-  await expect(chat.getByLabel('Course', { exact: true }).locator('option:checked')).toHaveText('Biology')
-  await expect(chat.getByRole('checkbox', { name: 'Untitled note' })).toBeChecked()
-
-  await chat.getByLabel('What should the sheet cover?').fill('leaves')
-  await chat.getByRole('button', { name: 'Run again', exact: true }).click()
-  await expect.poll(asked).toBe(2)
-  await expect(chat.getByRole('log')).not.toHaveAttribute('aria-busy', 'true')
-  await expect(sheet.getByRole('heading', { name: 'Leaves' })).toBeVisible()
+  // The Study sheets tab does: written by AI into its text, cited, titled from what was written.
+  const sheet = await writeSheet(page, 'leaves')
   await expect(sheet.getByRole('heading', { name: 'Chlorophyll' })).toBeVisible()
-  await expect(sheet.getByRole('link', { name: 'Open source: Untitled note' })).toBeVisible()
-
-  // « Run again » asks again, once.
-  await chat.getByRole('button', { name: 'Run again', exact: true }).click()
-  await expect.poll(asked).toBe(3)
-  await expect(chat.getByRole('log')).not.toHaveAttribute('aria-busy', 'true')
-  await expect(sheet.getByRole('heading', { name: 'Chlorophyll' })).toBeVisible()
-
-  const save = chat.getByRole('button', { name: 'Save to Biology' })
-  await save.click()
-  await expect(chat.getByRole('status').filter({ hasText: 'Saved in the study sheets of Biology.' })).toBeVisible()
-  await expect(save).toBeDisabled()
-  await chat.getByRole('link', { name: 'Open study sheets' }).click()
+  await expect(sheet.locator('.cm-md-link', { hasText: 'Untitled note' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Leaves' })).toBeVisible()
+  expect(prompts.filter((p) => p.includes('patient tutor')).at(-1)).toContain('Topic: leaves')
 
   // Back in the course, on its study sheets: the sheet is there, and reads as written.
+  await page.getByRole('link', { name: 'Back' }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'Biology' })).toBeVisible()
-  await expect(page.getByRole('radio', { name: 'Study sheets' })).toBeChecked()
-  await expect(main.getByRole('button', { name: 'New study sheet' })).toBeVisible()
-  await main.getByRole('button', { name: /^Leaves/ }).click()
-  const read = page.getByRole('dialog', { name: 'Leaves' })
-  await expect(read.getByRole('heading', { name: 'Chlorophyll' })).toBeVisible()
-  await expect(read.getByText('It captures light.')).toBeVisible()
-  await expect(read.getByText('Untitled note')).toBeVisible()
+  await page.getByRole('radio', { name: 'Study sheets' }).check()
+  await main.getByRole('link', { name: /^Leaves/ }).click()
+  await expect(page.getByRole('textbox', { name: 'Study sheet' })).toContainText('It captures light.')
   expect(errors.filter((e) => !/models\.dev|catalog/i.test(e))).toEqual([])
 })
 

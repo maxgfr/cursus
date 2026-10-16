@@ -18,9 +18,8 @@ import {
   Settings2,
   Sparkles,
 } from 'lucide-react'
-import { type ChangeEvent, Suspense, useRef, useState } from 'react'
+import { type ChangeEvent, useRef, useState } from 'react'
 import { Link, useLocation } from 'wouter'
-import { lazyChunk } from '../../app/lazyChunk.tsx'
 import { clearEntryState, leaveTo } from '../../app/nav.ts'
 import { type Captured, usePasteCapture } from '../../app/paste.ts'
 import { paths, to, withScope } from '../../app/routes.ts'
@@ -45,6 +44,7 @@ import { MoveSheet, moveItemTo, type Place } from '../../ui/MoveSheet.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { newCardId } from '../CardEditor/draft.ts'
 import { deckErrorMessage } from '../DeckImport/deckSource.ts'
+import { createFiche } from '../Fiche/create.ts'
 import NotFound from '../NotFound/index.tsx'
 import { startQueue } from '../Review/session.ts'
 import { NewSectionSheet, SectionSettings } from '../Section/SectionSheets.tsx'
@@ -58,12 +58,6 @@ import { AddSheet } from './AddSheet.tsx'
 import styles from './Course.module.css'
 import { CourseSettings } from './CourseSettings.tsx'
 import { DraftsLine } from './DraftsLine.tsx'
-
-// A study sheet opens read only; its renderer loads with it.
-const LazyFicheSheet = lazyChunk<import('../../ui/FicheSheet.tsx').FicheSheetProps>(
-  'course.ficheSheet',
-  () => import('../../ui/FicheSheet.tsx'),
-)
 
 type Tab = 'cards' | 'sources' | 'fiches'
 
@@ -134,14 +128,13 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   const filesInput = useRef<HTMLInputElement>(null)
   const photoInput = useRef<HTMLInputElement>(null)
   const csvInput = useRef<HTMLInputElement>(null)
-  const [reading, setReading] = useState<Id | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const here = sectionId ?? null
   // AI only explains, improves or gets a start: its actions show once a model is ready, never a setup link here.
   const aiReady = useAiReady()
   const chat = useChat()
   // Each AI action opens the chat beside the course and starts there at once.
-  const ask = (id: 'generate' | 'quiz' | 'understand') => chat?.run(id)
+  const ask = (id: 'generate' | 'quiz') => chat?.run(id)
   useChatContext(sectionId === undefined ? { courseId } : { courseId, sectionId })
   const data = useWorkspaceData(
     ['courses', 'sections', 'cards', 'sources', 'fiches', { id: sectionId ?? courseId }],
@@ -367,8 +360,13 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
     </>
   )
 
+  // A study sheet of this place, empty: written by hand, or by AI on its screen.
   const newSheet = (
-    <Button variant="primary" icon={<NotebookPen size={18} aria-hidden="true" />} onClick={() => ask('understand')}>
+    <Button
+      variant="primary"
+      icon={<NotebookPen size={18} aria-hidden="true" />}
+      onClick={() => navigate(to.fiche(createFiche(rt.ws, scope, t('course.untitledSheet'))))}
+    >
       {t('course.newSheet')}
     </Button>
   )
@@ -626,8 +624,8 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
           )}
         </>
       )}
-      {/* A study sheet is written from the sources on a topic: offered here, where sheets are read, once AI is ready. */}
-      {aiReady && tab === 'fiches' && fiches.length > 0 && <div className={styles.actions}>{newSheet}</div>}
+      {/* A study sheet sums up a topic: offered here, where sheets are read, written by hand or by AI. */}
+      {tab === 'fiches' && fiches.length > 0 && <div className={styles.actions}>{newSheet}</div>}
       {tab === 'fiches' &&
         (fiches.length === 0 ? (
           <EmptyState
@@ -640,16 +638,16 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
                   ? t('course.noSheetsBody')
                   : t('course.noSheetsBodyNoAi')
             }
-            action={aiReady ? newSheet : undefined}
+            action={newSheet}
           />
         ) : (
           <ListGroup title={t('course.tabSheets')} hideTitle>
             {fiches.map((f) => (
               <ListRow
                 key={f.id}
+                href={to.fiche(f.id)}
                 leading={<NotebookText size={20} />}
                 title={f.title}
-                onClick={() => setReading(f.id)}
                 trailing={
                   <IconButton
                     icon={FolderInput}
@@ -674,11 +672,6 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
       <Sheet open={moreCards} title={t('course.moreCardWays')} onClose={() => setMoreCards(false)}>
         <div className={styles.actions}>{cardImports}</div>
       </Sheet>
-      {reading !== null && (
-        <Suspense fallback={null}>
-          <LazyFicheSheet ficheId={reading} onClose={() => setReading(null)} />
-        </Suspense>
-      )}
       {notice !== null && error === null && (
         <Toast message={notice} actions={[{ label: t('common.dismiss'), onClick: () => setNotice(null) }]} />
       )}

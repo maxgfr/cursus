@@ -12,6 +12,8 @@ export const paths = {
   photos: '/course/:id/photos',
   sectionPhotos: '/course/:id/s/:sectionId/photos',
   photo: '/photo/:id',
+  /** A study sheet, written by hand or by AI (`?write=1`: by AI at once). */
+  fiche: '/fiche/:id',
   /** « To review »: questions proposed on the documents added. */
   inbox: '/inbox',
   card: '/card/:id',
@@ -60,6 +62,7 @@ export const to = {
       ? `/course/${encodeURIComponent(courseId)}/s/${encodeURIComponent(sectionId)}/photos`
       : `/course/${encodeURIComponent(courseId)}/photos`,
   photo: (id: string) => `/photo/${encodeURIComponent(id)}`,
+  fiche: (id: string) => `/fiche/${encodeURIComponent(id)}`,
   card: (id: string) => `/card/${encodeURIComponent(id)}`,
   history: (id: string) => `/history/${encodeURIComponent(id)}`,
   /** A planned session's editor; `new` creates one. */

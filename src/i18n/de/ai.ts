@@ -3,6 +3,9 @@ import type { Shape } from '../index.ts'
 
 export const ai = {
   writeSheet: 'Spickzettel schreiben',
+  writeWithAi: 'Mit KI schreiben',
+  sheetWritten: 'Geschrieben. Rückgängig in der Leiste nimmt alles zurück.',
+  sheetNothingToRead: 'In diesen Quellen gibt es noch nichts zu lesen: Wähl andere oder schreib zuerst etwas hinein.',
   generate: 'Karten erstellen',
   quiz: 'Frag mich ab',
   quizNode: 'Kurs oder Abschnitt',

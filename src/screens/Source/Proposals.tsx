@@ -1,6 +1,6 @@
 import { ScrollText, Sparkles } from 'lucide-react'
-import { Link } from 'wouter'
-import { paths } from '../../app/routes.ts'
+import { Link, useLocation } from 'wouter'
+import { paths, to } from '../../app/routes.ts'
 import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { Id } from '../../core/contracts/workspace'
 import { useT } from '../../i18n/react.tsx'
@@ -8,16 +8,17 @@ import { useAiReady, useDraftsShown } from '../../ui/ai/ready.ts'
 import { useChat } from '../../ui/chat/context.tsx'
 import { Button } from '../../ui/components/Button.tsx'
 import { isActiveJob, jobOf, liveQueue, useAutoJobs } from '../../ui/data/autoQuestions.ts'
+import { createFiche, WRITE_QUERY } from '../Fiche/create.ts'
 import inbox from '../Inbox/Inbox.module.css'
 import { type JobActions, JobLine } from '../Inbox/JobLine.tsx'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 import styles from './Source.module.css'
 
 /**
- * The source's AI actions, each answered in the chat beside it: « Suggest cards » (whatever the « When I add a
- * document » setting) and « Summarise this source » (when a model has something to read in it, `readable`); then
- * where its proposals stand, and how many wait in « Suggested cards ». Without a model only the cards already
- * suggested show.
+ * The source's AI actions: « Suggest cards » (whatever the « When I add a document » setting), followed in the chat
+ * beside it, and « Summarise this source » (when a model has something to read in it, `readable`), a study sheet of
+ * the source written by AI on its own screen; then where its proposals stand, and how many wait in « Suggested
+ * cards ». Without a model only the cards already suggested show.
  */
 export function Proposals({ sourceId, readable }: { sourceId: Id; readable: boolean }) {
   const t = useT()
@@ -30,6 +31,14 @@ export function Proposals({ sourceId, readable }: { sourceId: Id; readable: bool
     (ws) => ws.drafts.list({ sourceId }).length,
   )
   const chat = useChat()
+  const [, navigate] = useLocation()
+  const summarise = () => {
+    const source = rt.ws.sources.get(sourceId)
+    if (!source) return
+    const sectionId = rt.ws.sections.tree().sectionOf(source)
+    const place = sectionId === null ? { courseId: source.courseId } : { courseId: source.courseId, sectionId }
+    navigate(`${to.fiche(createFiche(rt.ws, place, source.title, [source.id]))}?${WRITE_QUERY}`)
+  }
   // Slides and documents offer « Create cards » with their content (DeckView): the same queue, one button.
   const deck = useWorkspaceData([{ id: sourceId }], (ws) => ws.sources.get(sourceId)?.support !== undefined)
   const job = jobOf(queue.jobs, sourceId)
@@ -60,12 +69,8 @@ export function Proposals({ sourceId, readable }: { sourceId: Id; readable: bool
             {t('ai.sourcePropose')}
           </Button>
         )}
-        {ready && chat && readable && (
-          <Button
-            variant="plain"
-            icon={<ScrollText size={18} aria-hidden="true" />}
-            onClick={() => chat.run('summarise')}
-          >
+        {ready && readable && (
+          <Button variant="plain" icon={<ScrollText size={18} aria-hidden="true" />} onClick={summarise}>
             {t('chat.actionSummarise')}
           </Button>
         )}

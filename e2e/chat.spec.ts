@@ -77,32 +77,40 @@ async function mockProvider(page: Page): Promise<string[]> {
     const text = textOf(body)
     prompts.push(text)
     // The study actions answer in structure: cards drafted from the sources (one already in the course), a quiz.
-    const structured = text.includes('flashcards')
+    const structured = text.includes('patient tutor')
       ? JSON.stringify({
-          cards: [
-            { kind: 'basic', front: 'Which organelle makes ATP?', back: 'The mitochondrion' },
-            { kind: 'basic', front: 'Powerhouse of the cell?', back: 'The mitochondrion' },
-            { kind: 'basic', front: 'What do ribosomes build?', back: 'Proteins' },
+          title: 'Cells',
+          summary: 'The mitochondrion makes the cell’s energy.',
+          points: [
+            { heading: 'Energy', explanation: 'ATP comes from respiration.', sourceRef: { sourceId: noteId(text) } },
           ],
         })
-      : text.includes('multiple-choice')
+      : text.includes('flashcards')
         ? JSON.stringify({
-            questions: [
-              {
-                question: 'Which organelle makes ATP?',
-                choices: ['The mitochondrion', 'The ribosome'],
-                answerIndex: 0,
-                explanation: 'Respiration runs there.',
-              },
-              {
-                question: 'What do ribosomes build?',
-                choices: ['Lipids', 'Proteins'],
-                answerIndex: 1,
-                explanation: 'Proteins.',
-              },
+            cards: [
+              { kind: 'basic', front: 'Which organelle makes ATP?', back: 'The mitochondrion' },
+              { kind: 'basic', front: 'Powerhouse of the cell?', back: 'The mitochondrion' },
+              { kind: 'basic', front: 'What do ribosomes build?', back: 'Proteins' },
             ],
           })
-        : null
+        : text.includes('multiple-choice')
+          ? JSON.stringify({
+              questions: [
+                {
+                  question: 'Which organelle makes ATP?',
+                  choices: ['The mitochondrion', 'The ribosome'],
+                  answerIndex: 0,
+                  explanation: 'Respiration runs there.',
+                },
+                {
+                  question: 'What do ribosomes build?',
+                  choices: ['Lipids', 'Proteins'],
+                  answerIndex: 1,
+                  explanation: 'Proteins.',
+                },
+              ],
+            })
+          : null
     if (structured !== null) {
       if (body.stream === true) {
         return route.fulfill({ status: 200, headers: CORS, contentType: 'text/event-stream', body: sse([structured]) })
@@ -386,25 +394,24 @@ test('the panel offers actions suited to the screen: a card before and after the
   expect(errors).toEqual([])
 })
 
-test('« Summarise this source » streams a cited summary of the source open', async ({ page }, info) => {
+test('« Summarise this source » writes a study sheet of the source, cited, on its own screen', async ({
+  page,
+}, info) => {
   const errors = watchErrors(page)
   await seedCourse(page)
   const prompts = await mockProvider(page)
   await configureAi(page, LLM)
   await openNote(page)
   await openChat(page)
-  const panel = chatPanel(page, info.project.name)
-  await panel.getByRole('button', { name: 'Summarise this source' }).click()
-  // The action is the student's turn; the tutor's answer streams in after it.
-  await expect(panel.getByText('Summarise this source', { exact: true }).last()).toBeVisible()
-  await expect(panel.getByText(/Your notes say the mitochondrion produces ATP/)).toBeVisible()
-  const sent = prompts.at(-1) ?? ''
-  expect(sent).toContain('asks for a summary of the source open')
-  expect(sent).toContain('Source open: Cell notes')
-  expect(sent).toContain('<<<SOURCE id=')
-  await expect(panel.getByRole('link', { name: 'Open source: Cell notes' })).toHaveCount(1)
-  await expect(panel).not.toContainText('INVENTED')
-  await expect(panel.getByRole('log')).not.toHaveAttribute('aria-busy', 'true')
+  await chatPanel(page, info.project.name).getByRole('button', { name: 'Summarise this source' }).click()
+  await expect(page).toHaveURL(/#\/fiche\//)
+  const sheet = page.getByRole('textbox', { name: 'Study sheet' })
+  await expect(sheet.getByRole('heading', { name: 'Energy' })).toBeVisible()
+  await expect(sheet.locator('.cm-md-link', { hasText: 'Cell notes' })).toBeVisible()
+  const sent = prompts.filter((p) => p.includes('patient tutor'))
+  expect(sent).toHaveLength(1)
+  expect(sent[0]).toContain('Topic: Cell notes')
+  expect(sent[0]).toContain('The mitochondrion produces ATP')
   expect(errors).toEqual([])
 })
 
