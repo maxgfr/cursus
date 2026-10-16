@@ -313,7 +313,7 @@ export const ai = {
   inboxTitle: 'Suggested cards',
   inboxEmptyTitle: 'No suggested cards',
   inboxEmptyBody:
-    'Ask for cards on a source (« Suggest cards ») or in the chat: they wait here until you add, edit or reject them. Nothing enters your reviews without you.',
+    'Ask for cards on a course or a source: they wait here until you add, edit or reject them. Nothing enters your reviews without you.',
   inboxEmptyNoAi: 'No card is waiting for your approval.',
   inboxInCourse: 'In {course}',
   inboxStopped: 'Stopped after {done} of {total}.',
@@ -377,6 +377,9 @@ export const ai = {
   missingDownload: 'The model on this device isn’t downloaded yet. Download it in Settings › AI.',
   missingMoved: 'Your provider moved to a new address. Test it again in Settings › AI before using it.',
   howTitle: 'How AI runs',
+  groupModel: 'Model & connection',
+  groupAnswers: 'Answers',
+  groupUsage: 'Usage',
   showFeatures: 'Show AI features',
   showFeaturesOn: 'The chat, card suggestions and quizzes show across the app.',
   showFeaturesOff: 'Hidden everywhere, as with no model. Your model and key stay set up here.',

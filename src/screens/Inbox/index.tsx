@@ -8,7 +8,7 @@ import type { Id, StudyScope } from '../../core/contracts/workspace'
 import type { Draft, DraftSourceGroup, DraftUnitGroup } from '../../core/model/drafts'
 import type { SourceRecord } from '../../core/model/schema'
 import { useT } from '../../i18n/react.tsx'
-import { useAiReady } from '../../ui/ai/ready.ts'
+import { useAiReady, useDraftsShown } from '../../ui/ai/ready.ts'
 import { useChat } from '../../ui/chat/context.tsx'
 import { Button } from '../../ui/components/Button.tsx'
 import { EmptyState } from '../../ui/components/EmptyState.tsx'
@@ -132,16 +132,18 @@ interface Entry {
  * « Suggested cards »: the cards AI suggested on the sources the student asked about, grouped by source, then by
  * slide, page or section. Each card is added (to the place chosen for its source), edited then added, or rejected
  * at once, with a moment to undo; a whole group at once too. Jobs still running show first. Without a model, only
- * the cards already suggested show: no job, nothing about AI.
+ * the cards already suggested show: no job, nothing about AI. With the AI's features hidden, none shows.
  */
 export default function Inbox() {
   const t = useT()
   const rt = useRuntime()
   const ready = useAiReady()
+  const shown = useDraftsShown()
   const chat = useChat()
   // Without a model the queue's code is never loaded: nothing could run.
   const queue = useAutoJobs(rt, { start: ready })
-  const groups = useWorkspaceData(['drafts', 'sources', 'courses', 'sections'], (ws) => ws.drafts.groups())
+  const all = useWorkspaceData(['drafts', 'sources', 'courses', 'sections'], (ws) => ws.drafts.groups())
+  const groups = shown ? all : []
   const summary = useWorkspaceData(['drafts', 'sources', 'courses', 'sections'], (ws) => ws.drafts.summary())
   const places = useWorkspaceData(['courses', 'sections'], scopeOptions)
   const [error, setError] = useState<string | null>(null)

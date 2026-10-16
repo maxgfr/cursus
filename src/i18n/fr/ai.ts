@@ -332,7 +332,7 @@ export const ai = {
   inboxTitle: 'Cartes suggérées',
   inboxEmptyTitle: 'Aucune carte suggérée',
   inboxEmptyBody:
-    'Demandez des cartes sur une source (« Suggérer des cartes ») ou dans le chat : elles attendent ici que vous les ajoutiez, les modifiiez ou les rejetiez. Rien n’entre dans vos révisions sans vous.',
+    'Demandez des cartes sur un cours ou une source : elles attendent ici que vous les ajoutiez, les modifiiez ou les rejetiez. Rien n’entre dans vos révisions sans vous.',
   inboxEmptyNoAi: 'Aucune carte n’attend votre accord.',
   inboxInCourse: 'Dans {course}',
   inboxStopped: 'Arrêté après {done} sur {total}.',
@@ -396,6 +396,9 @@ export const ai = {
   missingDownload: 'Le modèle sur cet appareil n’est pas encore téléchargé. Téléchargez-le dans Réglages › IA.',
   missingMoved: 'Votre fournisseur a changé d’adresse. Testez-le à nouveau dans Réglages › IA avant de l’utiliser.',
   howTitle: 'Comment l’IA fonctionne',
+  groupModel: 'Modèle et connexion',
+  groupAnswers: 'Réponses',
+  groupUsage: 'Utilisation',
   showFeatures: 'Afficher les fonctions IA',
   showFeaturesOn: 'Le chat, les cartes suggérées et les quiz apparaissent dans toute l’app.',
   showFeaturesOff: 'Masquées partout, comme sans modèle. Votre modèle et votre clé restent configurés ici.',

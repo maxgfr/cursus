@@ -12,7 +12,7 @@ import { livePlans, nextPlanned, planSession } from '../../core/model/sessions'
 import { formatDuration } from '../../i18n/format.ts'
 import { intlTag } from '../../i18n/index.ts'
 import { useLocale, useT } from '../../i18n/react.tsx'
-import { useAiReady } from '../../ui/ai/ready.ts'
+import { useAiReady, useDraftsShown } from '../../ui/ai/ready.ts'
 import { SyncBadge } from '../../ui/components/Badges.tsx'
 import { Banner } from '../../ui/components/Banner.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
@@ -115,6 +115,7 @@ export default function Today() {
   const locale = useLocale()
   const study = useStudy()
   const aiReady = useAiReady()
+  const draftsShown = useDraftsShown()
   const { summary, status } = useSync()
   const start = useStartReview()
   // Synced review events this version cannot read: kept in the library, left out of the schedule, said here.
@@ -243,7 +244,7 @@ export default function Today() {
                   <Keycap>{t('today.startKey')}</Keycap>
                 </Button>
               </>
-            ) : drafts !== null ? (
+            ) : drafts !== null && draftsShown ? (
               <div data-testid="drafts-hero" className={styles.draftsHero}>
                 <h2 id="today-hero" className={styles.caughtUp}>
                   {drafts.courses === 1

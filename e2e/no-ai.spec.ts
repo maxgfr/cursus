@@ -292,14 +292,54 @@ test('without a model: a whole journey with no trace of AI, ⌘J does nothing, n
   expect(await storedJobs(page)).toBe(0)
 })
 
-test('« Show AI features » off: a model set up, yet no trace of AI; on again, it is all back', async ({ page }) => {
+test('« Show AI features » off: a model set up, yet no trace of AI, suggested cards included; on again, it is all back', async ({
+  page,
+}) => {
   const errors = watchErrors(page)
   await harness.seed(page, {
-    courses: [{ title: 'Biology', notes: [{ title: 'Cell notes', body: 'The mitochondrion produces ATP.' }] }],
+    courses: [
+      {
+        title: 'Biology',
+        notes: [
+          {
+            title: 'Cell notes',
+            body: 'The mitochondrion produces ATP.',
+            drafts: [{ front: 'What does the mitochondrion produce?', back: 'ATP' }],
+          },
+        ],
+      },
+    ],
   })
   await configureAi(page, LLM)
   await openCourse(page)
   await expect(page.getByRole('main').getByRole('button', { name: 'Ask about this' }).first()).toBeVisible()
+  await expect(page.getByTestId('course-drafts')).toContainText('1 suggested card')
+  const suggested = async (shown: boolean) => {
+    const count = shown ? 1 : 0
+    await page.goto('./#/')
+    await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible()
+    await expect(page.getByTestId('drafts-hero').or(page.getByTestId('drafts-line'))).toHaveCount(count)
+    await openCourse(page)
+    await expect(page.getByTestId('course-drafts')).toHaveCount(count)
+    await page.getByRole('main').getByRole('radio', { name: 'Sources' }).check()
+    await page
+      .getByRole('main')
+      .getByRole('link', { name: /^Cell notes/ })
+      .click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Cell notes' })).toBeVisible()
+    await expect(page.getByText('1 suggested card')).toHaveCount(count)
+    await page.goto('./#/inbox')
+    await expect(page.getByRole('heading', { level: 1, name: 'Suggested cards' })).toBeVisible()
+    await expect(page.getByText('What does the mitochondrion produce?')).toHaveCount(count)
+    if (!shown) await expect(page.getByText('No card is waiting for your approval.')).toBeVisible()
+    await page.keyboard.press('ControlOrMeta+k')
+    const palette = page.getByRole('dialog', { name: 'Command palette' })
+    await expect(palette).toBeVisible()
+    await palette.getByRole('combobox').fill('Suggested')
+    await expect(palette.getByRole('option', { name: /Suggested cards/ })).toHaveCount(count)
+    await page.keyboard.press('Escape')
+  }
+  await suggested(true)
 
   await page.goto('./#/settings/ai')
   const show = page.getByRole('switch', { name: 'Show AI features' })
@@ -321,9 +361,12 @@ test('« Show AI features » off: a model set up, yet no trace of AI; on again, 
   await expect(page.getByRole('heading', { level: 1, name: 'Biology' })).toBeVisible()
   await noAi(page)
 
+  await suggested(false)
+  // Hidden, nothing was deleted: on again, the suggestion is back where it was.
   await page.goto('./#/settings/ai')
   await page.getByRole('switch', { name: 'Show AI features' }).click()
   await openCourse(page)
   await expect(page.getByRole('main').getByRole('button', { name: 'Ask about this' }).first()).toBeVisible()
+  await suggested(true)
   expect(errors).toEqual([])
 })

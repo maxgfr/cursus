@@ -96,6 +96,15 @@ export function useAiShown(): boolean {
 }
 
 /**
+ * Whether the suggested cards show (Today's line and hero, the course's line, a source's count, « Suggested cards »,
+ * the palette): with the AI's features kept in view, model or not, so suggestions already made stay reachable
+ * without a model. Turned off, none of it shows and the queue does not resume; nothing is deleted.
+ */
+export function useDraftsShown(): boolean {
+  return useAiShown()
+}
+
+/**
  * True only when a model is ready and the AI's features are kept in view: every AI entry point outside the AI
  * settings shows on this alone, so turned off the app looks as it does with no model (the model stays set up).
  */

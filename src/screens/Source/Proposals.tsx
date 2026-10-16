@@ -4,7 +4,7 @@ import { paths } from '../../app/routes.ts'
 import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { Id } from '../../core/contracts/workspace'
 import { useT } from '../../i18n/react.tsx'
-import { useAiReady } from '../../ui/ai/ready.ts'
+import { useAiReady, useDraftsShown } from '../../ui/ai/ready.ts'
 import { useChat } from '../../ui/chat/context.tsx'
 import { Button } from '../../ui/components/Button.tsx'
 import { isActiveJob, jobOf, liveQueue, useAutoJobs } from '../../ui/data/autoQuestions.ts'
@@ -23,6 +23,7 @@ export function Proposals({ sourceId, readable }: { sourceId: Id; readable: bool
   const t = useT()
   const rt = useRuntime()
   const ready = useAiReady()
+  const shown = useDraftsShown()
   const queue = useAutoJobs(rt)
   const waiting = useWorkspaceData(
     ['drafts', 'sources', 'courses', 'sections'],
@@ -45,7 +46,7 @@ export function Proposals({ sourceId, readable }: { sourceId: Id; readable: bool
         retry: act('retry', (id) => q.retry(id)),
       }
     : undefined
-  if (!ready && waiting === 0) return null
+  if (!ready && (waiting === 0 || !shown)) return null
   return (
     <div className={styles.proposals}>
       <div className={styles.proposalsRow}>
@@ -68,7 +69,7 @@ export function Proposals({ sourceId, readable }: { sourceId: Id; readable: bool
             {t('chat.actionSummarise')}
           </Button>
         )}
-        {waiting > 0 && (
+        {waiting > 0 && shown && (
           <p className={inbox.line}>
             {t('ai.sourceProposed', { count: waiting })} ·{' '}
             <Link href={paths.inbox} className={inbox.link}>

@@ -3,6 +3,7 @@ import { Link } from 'wouter'
 import { paths } from '../../app/routes.ts'
 import { useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import { useT } from '../../i18n/react.tsx'
+import { useDraftsShown } from '../../ui/ai/ready.ts'
 import { resumeAutoQuestions } from '../../ui/data/autoQuestions.ts'
 import styles from './Today.module.css'
 
@@ -11,11 +12,13 @@ const RESUME_AFTER_MS = 1500
 
 /**
  * Questions proposed on the documents added, as one calm line under the hero (« 12 questions proposed from
- * Physiology · Review »); nothing when there are none. Counts come from the synced drafts, not the AI code.
+ * Physiology · Review »); nothing when there are none, or with the AI's features hidden (the queue then waits
+ * too). Counts come from the synced drafts, not the AI code.
  */
 export function DraftsLine({ hidden = false }: { hidden?: boolean }) {
   const t = useT()
   const rt = useRuntime()
+  const shown = useDraftsShown()
   const line = useWorkspaceData(['drafts', 'sources', 'courses', 'sections'], (ws) => {
     const { total, sources } = ws.drafts.summary()
     if (total === 0) return null
@@ -24,11 +27,12 @@ export function DraftsLine({ hidden = false }: { hidden?: boolean }) {
     return { total, courses: courses.size, course: first ? (ws.courses.get(first.courseId)?.title ?? '') : '' }
   })
   useEffect(() => {
+    if (!shown) return
     const timer = setTimeout(() => void resumeAutoQuestions(rt), RESUME_AFTER_MS)
     return () => clearTimeout(timer)
-  }, [rt])
+  }, [rt, shown])
   // The hero says it already when nothing is due: the line stays away, the pending proposals still resume.
-  if (line === null || hidden) return null
+  if (line === null || hidden || !shown) return null
   return (
     <p className={styles.backup} data-testid="drafts-line">
       {line.courses === 1

@@ -330,7 +330,7 @@ export const ai = {
   inboxTitle: 'Vorgeschlagene Karten',
   inboxEmptyTitle: 'Keine vorgeschlagenen Karten',
   inboxEmptyBody:
-    'Bitte bei einer Quelle (« Karten vorschlagen ») oder im Chat um Karten: Sie warten hier, bis du sie hinzufügst, bearbeitest oder ablehnst. Ohne dich kommt nichts in deine Wiederholungen.',
+    'Bitte bei einem Kurs oder einer Quelle um Karten: Sie warten hier, bis du sie hinzufügst, bearbeitest oder ablehnst. Ohne dich kommt nichts in deine Wiederholungen.',
   inboxEmptyNoAi: 'Keine Karte wartet auf deine Zustimmung.',
   inboxInCourse: 'In {course}',
   inboxStopped: 'Angehalten nach {done} von {total}.',
@@ -395,6 +395,9 @@ export const ai = {
   missingDownload: 'Das Modell auf diesem Gerät ist noch nicht geladen. Lade es unter Einstellungen › KI herunter.',
   missingMoved: 'Dein Anbieter hat eine neue Adresse. Teste ihn unter Einstellungen › KI erneut, bevor du ihn nutzt.',
   howTitle: 'So läuft die KI',
+  groupModel: 'Modell und Verbindung',
+  groupAnswers: 'Antworten',
+  groupUsage: 'Nutzung',
   showFeatures: 'KI-Funktionen anzeigen',
   showFeaturesOn: 'Chat, Kartenvorschläge und Abfragen erscheinen in der ganzen App.',
   showFeaturesOff: 'Überall ausgeblendet, wie ohne Modell. Dein Modell und dein Schlüssel bleiben hier eingerichtet.',

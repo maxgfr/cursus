@@ -24,6 +24,7 @@ import { useLocale, useT } from '../../../i18n/react.tsx'
 import { useAiShown } from '../../../ui/ai/ready.ts'
 import { Button } from '../../../ui/components/Button.tsx'
 import { Field } from '../../../ui/components/Field.tsx'
+import list from '../../../ui/components/List.module.css'
 import { ListGroup, ListRow } from '../../../ui/components/List.tsx'
 import { Segmented } from '../../../ui/components/Segmented.tsx'
 import { SwitchRow } from '../../../ui/components/Switch.tsx'
@@ -372,236 +373,252 @@ function Editor({ initial }: { initial: Loaded }) {
     <OnDevice snap={local} configuredId={isLocal ? config.modelId : undefined} onUseAsDefault={chooseLocal} />
   )
 
+  // In groups, most used first: which model and how it is reached, how it answers, what it cost, then every model.
   return (
     <div className={styles.stack}>
-      <ListGroup title={t('ai.model')}>
-        {isLocal ? (
-          <ListRow
-            title={selected ? <span translate="no">{selected.info.name}</span> : t('ai.chooseModel')}
-            subtitle={selected ? t('ai.localFree') : undefined}
-            trailing={
-              selected ? (
-                selectedLocalReady ? (
-                  <span className={cx(styles.badge, styles.badgeGood)}>{t('ai.localBadgeReady')}</span>
-                ) : (
-                  <span className={styles.badge}>{t('ai.localBadgeMissing')}</span>
-                )
-              ) : undefined
-            }
-          />
-        ) : (
-          <ListRow
-            title={selected ? <span translate="no">{selected.info.name}</span> : t('ai.chooseModel')}
-            subtitle={
-              selected && provider
-                ? t('ai.through', { provider: provider.name }) +
-                  (selected.info.cost ? ` · ${priceText(t, locale, selected.info.cost)}` : '')
-                : undefined
-            }
-            trailing={selectedStatus ? <StatusBadge status={selectedStatus} /> : undefined}
-          />
-        )}
-      </ListGroup>
-
-      <fieldset className={styles.how}>
-        <legend className={styles.heading}>{t('ai.howTitle')}</legend>
-        <div className={styles.howChoices}>
-          <button
-            type="button"
-            className={styles.howChoice}
-            aria-pressed={isLocal}
-            onClick={() => {
-              if (!isLocal) void switchProvider(LOCAL_PROVIDER)
-            }}
-          >
-            <strong>{t('ai.howLocal')}</strong>
-            <span>{t('ai.howLocalBody')}</span>
-          </button>
-          <button
-            type="button"
-            className={styles.howChoice}
-            aria-pressed={!isLocal}
-            onClick={() => {
-              if (isLocal) void switchProvider(DEFAULT_PROVIDER)
-            }}
-          >
-            <strong>{t('ai.howKey')}</strong>
-            <span>{t('ai.howKeyBody')}</span>
-          </button>
-        </div>
-      </fieldset>
-
-      <div className={styles.field}>
-        <label className={styles.label} htmlFor={providerSelectId}>
-          {t('ai.provider')}
-        </label>
-        <select
-          id={providerSelectId}
-          className={styles.select}
-          value={orphan ? '' : providerId}
-          onChange={(e) => void switchProvider(e.target.value)}
-        >
-          {orphan && (
-            <option value="" disabled>
-              {t('ai.chooseProvider')}
-            </option>
-          )}
-          <optgroup label={t('ai.recommendedProviders')}>
-            {providerOptions.recommended.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </optgroup>
-          <optgroup label={t('ai.otherProviders')}>
-            {providerOptions.others.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </optgroup>
-          <option value={LOCAL_PROVIDER}>{t('ai.localProvider')}</option>
-          <option value={CUSTOM_PROVIDER}>{customName}</option>
-        </select>
-        <p className={styles.hint}>{t('ai.providerHint')}</p>
-        {orphan && (
-          <p className={styles.error} role="alert">
-            {t('ai.orphan', { provider: providerId })}
-          </p>
-        )}
-      </div>
-
-      {isLocal && onDevice}
-
-      {provider && !orphan && !isLocal && (
-        <form className={styles.stack} onSubmit={saveConnection} aria-labelledby="ai-conn-h">
-          <h2 id="ai-conn-h" className={styles.heading}>
-            {t('ai.connection', { provider: provider.name })}
-          </h2>
-          {isCustom && (
-            <>
-              <p className={styles.hint}>{t('ai.customHint')}</p>
-              <fieldset className={styles.fieldset}>
-                <legend className={styles.label}>{t('ai.presets')}</legend>
-                <div className={styles.row}>
-                  {PRESETS.map((p) => (
-                    <Button key={p.id} onClick={() => applyPreset(p)}>
-                      {p.label}
-                    </Button>
-                  ))}
-                </div>
-              </fieldset>
-            </>
-          )}
-          <Field
-            label={isCustom ? t('ai.apiKeyOptional') : t('ai.apiKey')}
-            type="password"
-            autoComplete="off"
-            spellCheck={false}
-            value={apiKey}
-            onFocus={() => {
-              keyTyped.current = true
-            }}
-            onChange={(e) => {
-              keyTyped.current = true
-              setApiKey(e.target.value)
-            }}
-            hint={t('ai.apiKeyHint')}
-          />
-          {selectedStatus && <p className={styles.hint}>{statusText(t, locale, selectedStatus)}</p>}
-          <details className={styles.advanced} open={isCustom || baseUrl.trim() !== '' || undefined}>
-            <summary className={styles.summary}>{t('ai.advancedConnection')}</summary>
-            {provider.browser.headers && (
-              <p className={styles.hint}>
-                {t('ai.headerNote', {
-                  provider: provider.name,
-                  header: Object.keys(provider.browser.headers).join(', '),
-                })}
-              </p>
-            )}
-            {provider.browser.limits === 'unreadable_errors' && (
-              <p className={styles.hint}>{t('ai.limitUnreadable')}</p>
-            )}
-            <Field
-              label={t('ai.baseUrl')}
-              type="url"
-              inputMode="url"
-              spellCheck={false}
-              value={baseUrl}
-              placeholder={catalogProvider?.api ?? ''}
-              onChange={(e) => setBaseUrl(e.target.value)}
-              hint={isCustom ? t('ai.corsHint') : t('ai.baseUrlHint')}
-              error={
-                endpoint === 'insecure'
-                  ? t('ai.endpointInsecure')
-                  : endpoint === 'invalid'
-                    ? t('ai.endpointInvalid')
-                    : undefined
+      <section className={styles.stack} aria-labelledby="ai-group-model">
+        <h2 id="ai-group-model" className={list.groupTitle}>
+          {t('ai.groupModel')}
+        </h2>
+        <ListGroup title={t('ai.model')}>
+          {isLocal ? (
+            <ListRow
+              title={selected ? <span translate="no">{selected.info.name}</span> : t('ai.chooseModel')}
+              subtitle={selected ? t('ai.localFree') : undefined}
+              trailing={
+                selected ? (
+                  selectedLocalReady ? (
+                    <span className={cx(styles.badge, styles.badgeGood)}>{t('ai.localBadgeReady')}</span>
+                  ) : (
+                    <span className={styles.badge}>{t('ai.localBadgeMissing')}</span>
+                  )
+                ) : undefined
               }
             />
-          </details>
-          {isCustom && (
-            <Field
-              label={t('ai.modelName')}
-              spellCheck={false}
-              autoCapitalize="off"
-              value={customModel}
-              onChange={(e) => setCustomModel(e.target.value)}
+          ) : (
+            <ListRow
+              title={selected ? <span translate="no">{selected.info.name}</span> : t('ai.chooseModel')}
+              subtitle={
+                selected && provider
+                  ? t('ai.through', { provider: provider.name }) +
+                    (selected.info.cost ? ` · ${priceText(t, locale, selected.info.cost)}` : '')
+                  : undefined
+              }
+              trailing={selectedStatus ? <StatusBadge status={selectedStatus} /> : undefined}
             />
           )}
-          <div className={styles.row}>
-            <Button type="submit" variant="primary">
-              {t('ai.saveConnection')}
-            </Button>
-            <Button
-              loading={testing}
-              disabled={!selected || endpoint !== 'ok' || (!isCustom && !apiKey.trim())}
-              onClick={() => void test()}
+        </ListGroup>
+
+        <fieldset className={styles.how}>
+          <legend className={styles.heading}>{t('ai.howTitle')}</legend>
+          <div className={styles.howChoices}>
+            <button
+              type="button"
+              className={styles.howChoice}
+              aria-pressed={isLocal}
+              onClick={() => {
+                if (!isLocal) void switchProvider(LOCAL_PROVIDER)
+              }}
             >
-              {t('ai.test')}
-            </Button>
+              <strong>{t('ai.howLocal')}</strong>
+              <span>{t('ai.howLocalBody')}</span>
+            </button>
+            <button
+              type="button"
+              className={styles.howChoice}
+              aria-pressed={!isLocal}
+              onClick={() => {
+                if (isLocal) void switchProvider(DEFAULT_PROVIDER)
+              }}
+            >
+              <strong>{t('ai.howKey')}</strong>
+              <span>{t('ai.howKeyBody')}</span>
+            </button>
           </div>
-          {status && (
-            <p className={status.kind === 'ok' ? styles.success : styles.error} role="status">
-              {status.text}
+        </fieldset>
+
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor={providerSelectId}>
+            {t('ai.provider')}
+          </label>
+          <select
+            id={providerSelectId}
+            className={styles.select}
+            value={orphan ? '' : providerId}
+            onChange={(e) => void switchProvider(e.target.value)}
+          >
+            {orphan && (
+              <option value="" disabled>
+                {t('ai.chooseProvider')}
+              </option>
+            )}
+            <optgroup label={t('ai.recommendedProviders')}>
+              {providerOptions.recommended.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label={t('ai.otherProviders')}>
+              {providerOptions.others.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </optgroup>
+            <option value={LOCAL_PROVIDER}>{t('ai.localProvider')}</option>
+            <option value={CUSTOM_PROVIDER}>{customName}</option>
+          </select>
+          <p className={styles.hint}>{t('ai.providerHint')}</p>
+          {orphan && (
+            <p className={styles.error} role="alert">
+              {t('ai.orphan', { provider: providerId })}
             </p>
           )}
-        </form>
-      )}
+        </div>
 
-      {!isLocal && onDevice}
+        {isLocal && onDevice}
 
-      <Segmented<AiLanguage>
-        label={t('ai.outputLanguage')}
-        value={config.language}
-        onChange={(v) => {
-          setLanguageStatus(null)
-          update({ ...config, language: v }).then(
-            () => setLanguageStatus({ kind: 'ok', text: t('ai.languageSaved') }),
-            (err: unknown) => setLanguageStatus({ kind: 'error', text: t('ai.failed', { reason: errorText(err) }) }),
-          )
-        }}
-        options={[
-          { value: 'auto', label: t('ai.languageAuto') },
-          { value: 'en', label: 'English', lang: 'en' },
-          { value: 'de', label: 'Deutsch', lang: 'de' },
-          { value: 'fr', label: 'Français', lang: 'fr' },
-        ]}
-      />
-      {languageStatus && (
-        <p className={languageStatus.kind === 'ok' ? styles.success : styles.error} role="status">
-          {languageStatus.text}
-        </p>
-      )}
+        {provider && !orphan && !isLocal && (
+          <form className={styles.stack} onSubmit={saveConnection} aria-labelledby="ai-conn-h">
+            <h2 id="ai-conn-h" className={styles.heading}>
+              {t('ai.connection', { provider: provider.name })}
+            </h2>
+            {isCustom && (
+              <>
+                <p className={styles.hint}>{t('ai.customHint')}</p>
+                <fieldset className={styles.fieldset}>
+                  <legend className={styles.label}>{t('ai.presets')}</legend>
+                  <div className={styles.row}>
+                    {PRESETS.map((p) => (
+                      <Button key={p.id} onClick={() => applyPreset(p)}>
+                        {p.label}
+                      </Button>
+                    ))}
+                  </div>
+                </fieldset>
+              </>
+            )}
+            <Field
+              label={isCustom ? t('ai.apiKeyOptional') : t('ai.apiKey')}
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              value={apiKey}
+              onFocus={() => {
+                keyTyped.current = true
+              }}
+              onChange={(e) => {
+                keyTyped.current = true
+                setApiKey(e.target.value)
+              }}
+              hint={t('ai.apiKeyHint')}
+            />
+            {selectedStatus && <p className={styles.hint}>{statusText(t, locale, selectedStatus)}</p>}
+            <details className={styles.advanced} open={isCustom || baseUrl.trim() !== '' || undefined}>
+              <summary className={styles.summary}>{t('ai.advancedConnection')}</summary>
+              {provider.browser.headers && (
+                <p className={styles.hint}>
+                  {t('ai.headerNote', {
+                    provider: provider.name,
+                    header: Object.keys(provider.browser.headers).join(', '),
+                  })}
+                </p>
+              )}
+              {provider.browser.limits === 'unreadable_errors' && (
+                <p className={styles.hint}>{t('ai.limitUnreadable')}</p>
+              )}
+              <Field
+                label={t('ai.baseUrl')}
+                type="url"
+                inputMode="url"
+                spellCheck={false}
+                value={baseUrl}
+                placeholder={catalogProvider?.api ?? ''}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                hint={isCustom ? t('ai.corsHint') : t('ai.baseUrlHint')}
+                error={
+                  endpoint === 'insecure'
+                    ? t('ai.endpointInsecure')
+                    : endpoint === 'invalid'
+                      ? t('ai.endpointInvalid')
+                      : undefined
+                }
+              />
+            </details>
+            {isCustom && (
+              <Field
+                label={t('ai.modelName')}
+                spellCheck={false}
+                autoCapitalize="off"
+                value={customModel}
+                onChange={(e) => setCustomModel(e.target.value)}
+              />
+            )}
+            <div className={styles.row}>
+              <Button type="submit" variant="primary">
+                {t('ai.saveConnection')}
+              </Button>
+              <Button
+                loading={testing}
+                disabled={!selected || endpoint !== 'ok' || (!isCustom && !apiKey.trim())}
+                onClick={() => void test()}
+              >
+                {t('ai.test')}
+              </Button>
+            </div>
+            {status && (
+              <p className={status.kind === 'ok' ? styles.success : styles.error} role="status">
+                {status.text}
+              </p>
+            )}
+          </form>
+        )}
 
-      <section className={styles.card} aria-labelledby="ai-cost-h">
-        <h2 id="ai-cost-h" className={styles.label}>
-          {t('ai.monthCost')}
+        {!isLocal && onDevice}
+      </section>
+
+      <section className={styles.stack} aria-labelledby="ai-group-answers">
+        <h2 id="ai-group-answers" className={list.groupTitle}>
+          {t('ai.groupAnswers')}
         </h2>
-        <p className={styles.stat} data-testid="ai-month-cost">
-          {formatUsd(locale, monthCost)}
-        </p>
-        <p className={styles.hint}>{t('ai.monthCostHint')}</p>
+        <Segmented<AiLanguage>
+          label={t('ai.outputLanguage')}
+          value={config.language}
+          onChange={(v) => {
+            setLanguageStatus(null)
+            update({ ...config, language: v }).then(
+              () => setLanguageStatus({ kind: 'ok', text: t('ai.languageSaved') }),
+              (err: unknown) => setLanguageStatus({ kind: 'error', text: t('ai.failed', { reason: errorText(err) }) }),
+            )
+          }}
+          options={[
+            { value: 'auto', label: t('ai.languageAuto') },
+            { value: 'en', label: 'English', lang: 'en' },
+            { value: 'de', label: 'Deutsch', lang: 'de' },
+            { value: 'fr', label: 'Français', lang: 'fr' },
+          ]}
+        />
+        {languageStatus && (
+          <p className={languageStatus.kind === 'ok' ? styles.success : styles.error} role="status">
+            {languageStatus.text}
+          </p>
+        )}
+      </section>
+
+      <section className={styles.stack} aria-labelledby="ai-group-usage">
+        <h2 id="ai-group-usage" className={list.groupTitle}>
+          {t('ai.groupUsage')}
+        </h2>
+        <section className={styles.card} aria-labelledby="ai-cost-h">
+          <h2 id="ai-cost-h" className={styles.label}>
+            {t('ai.monthCost')}
+          </h2>
+          <p className={styles.stat} data-testid="ai-month-cost">
+            {formatUsd(locale, monthCost)}
+          </p>
+          <p className={styles.hint}>{t('ai.monthCostHint')}</p>
+        </section>
       </section>
 
       <details className={styles.advanced}>

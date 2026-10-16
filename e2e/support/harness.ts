@@ -37,6 +37,10 @@ async function seed(spec) {
     for (const n of c.notes ?? []) {
       const id = ws.sources.create({ ...where, kind: 'note', title: n.title })
       ws.text({ id, field: 'body' }).insert(0, n.body)
+      // Cards suggested on the note, waiting in « Suggested cards ».
+      ws.drafts.propose(
+        (n.drafts ?? []).map((d) => ({ ...where, sourceId: id, unit: 1, kind: 'basic', type: 'qa', front: d.front, back: d.back })),
+      )
     }
     for (const card of c.cards ?? []) {
       const id = ws.batch(() => {
@@ -105,12 +109,18 @@ export interface SeedCard {
   back: string
   reviews?: { rating: 1 | 2 | 3 | 4; at: number }[]
 }
+export interface SeedNote {
+  title: string
+  body: string
+  /** Cards suggested on the note, waiting in « Suggested cards ». */
+  drafts?: { front: string; back: string }[]
+}
 export interface SeedCourse {
   title: string
-  notes?: { title: string; body: string }[]
+  notes?: SeedNote[]
   cards?: SeedCard[]
   /** Sections of the course (one level), each with its own notes and cards. */
-  sections?: { name: string; notes?: { title: string; body: string }[]; cards?: SeedCard[] }[]
+  sections?: { name: string; notes?: SeedNote[]; cards?: SeedCard[] }[]
   /** Sessions planned over the course, every day at `time` (`HH:MM`). */
   plans?: { name: string; time: string }[]
   /** A past session over the course, started at `at`: each of its cards answered Good once. */

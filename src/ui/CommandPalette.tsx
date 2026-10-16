@@ -27,7 +27,7 @@ import { fold, type SearchHit } from '../core/model/search'
 import type { ModelWorkspace } from '../core/model/workspace'
 import { useT } from '../i18n/react.tsx'
 import { noteError } from '../screens/settings/Diagnostic/recent.ts'
-import { useAiReady } from './ai/ready.ts'
+import { useAiReady, useDraftsShown } from './ai/ready.ts'
 import styles from './CommandPalette.module.css'
 import { useChat } from './chat/context.tsx'
 import { Sheet } from './components/Sheet.tsx'
@@ -109,6 +109,8 @@ export function CommandPalette() {
   // Without a model the palette offers nothing of the AI: the suggested cards only while some wait.
   const aiReady = useAiReady()
   const hasDrafts = useWorkspaceData(['drafts'], (w) => w.drafts.summary().total > 0)
+  // Suggested cards are reachable without a model, not with the AI's features hidden.
+  const draftsShown = useDraftsShown()
   useDueBadge(study.due)
   const courses = useWorkspaceData(['courses'], (w) => w.courses.list())
   // Search hits arrive asynchronously (the first search loads the engine), for the query they answer.
@@ -225,7 +227,7 @@ export function CommandPalette() {
       { id: 'sessions', group: 'go', title: t('review.practice'), icon: CalendarClock, run: () => go(paths.sessions) },
       { id: 'newSession', group: 'go', title: t('review.newSession'), icon: Play, run: () => go(paths.sessionNew) },
       { id: 'stats', group: 'go', title: t('common.cmdStats'), icon: ChartColumn, run: () => go(paths.stats) },
-      ...(aiReady || hasDrafts
+      ...(aiReady || (hasDrafts && draftsShown)
         ? [{ id: 'inbox', group: 'go' as const, title: t('ai.inboxTitle'), icon: Inbox, run: () => go(paths.inbox) }]
         : []),
       { id: 'settings', group: 'go', title: t('common.cmdSettings'), icon: Settings, run: () => go(paths.settings) },
@@ -268,7 +270,7 @@ export function CommandPalette() {
     ]
     const results = q === '' || found.q !== q ? [] : searchItems(ws, found.hits, t('common.cardTitle'), go)
     return [...nav.filter((i) => match(i.title)), ...actions.filter((i) => match(i.title)), ...results]
-  }, [open, query, captured, courses, ws, t, go, close, addNote, found, chat, aiReady, hasDrafts])
+  }, [open, query, captured, courses, ws, t, go, close, addNote, found, chat, aiReady, hasDrafts, draftsShown])
 
   const current = Math.min(active, Math.max(0, items.length - 1))
   const optionId = (i: number) => `${listId}-${i}`
