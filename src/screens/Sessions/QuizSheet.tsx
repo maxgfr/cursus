@@ -93,7 +93,7 @@ function Setup({ at, onClose }: { at?: StudyScope; onClose: () => void }) {
   const t = useT()
   const ws = useWorkspace()
   const chat = useChat()
-  const [, navigate] = useLocation()
+  const [location, navigate] = useLocation()
   const nodeId = useId()
   const nodes = useWorkspaceData(['courses', 'sections', 'sources'], nodesOf)
   // Worked out once, when the sheet opens: what the student then changes stays.
@@ -132,7 +132,9 @@ function Setup({ at, onClose }: { at?: StudyScope; onClose: () => void }) {
     const { courseId, sectionId } = current.scope as { courseId: Id; sectionId?: Id }
     writeLastQuiz(current.value)
     onClose()
-    navigate(to.place(courseId, sectionId))
+    // Already on that place (opened from the course or section itself): no second entry for Back to land on.
+    const place = to.place(courseId, sectionId)
+    if (location !== place) navigate(place)
     chat.run('quiz', sectionId ? { courseId, sectionId } : { courseId }, {
       courseId,
       ...(sectionId ? { sectionId } : {}),

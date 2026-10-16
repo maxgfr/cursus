@@ -481,6 +481,8 @@ test('AI actions opened from a course run in the chat beside it; the course and 
     .getByRole('main')
     .getByRole('button', { name: /Quiz me/ })
     .click()
+  // Set up first (this course already chosen), then started.
+  await page.getByRole('dialog', { name: 'Quiz me' }).getByRole('button', { name: 'Start the quiz' }).click()
   // The quiz answers in the chat, on the course: no screen of its own, the course stays on screen.
   const chat = chatPanel(page, info.project.name)
   await expect(chat.getByRole('button', { name: 'An offer and its acceptance' })).toBeVisible()
