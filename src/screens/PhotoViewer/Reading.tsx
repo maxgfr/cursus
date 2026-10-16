@@ -56,6 +56,13 @@ export default function Reading({ photoId, onCards }: { photoId: Id; onCards: ()
   // What the last request cost (none when the reading kept on this device showed again).
   const [cost, setCost] = useState<number | null>(null)
   const result = useRef<HTMLDivElement>(null)
+  // Read for the student: focus goes to the result once it is shown, so a screen reader reads it next.
+  const focusResult = useRef(false)
+  useEffect(() => {
+    if (!focusResult.current || !result.current) return
+    focusResult.current = false
+    result.current.focus()
+  })
   const abort = useRef<AbortController | null>(null)
   const ready = ai.status === 'ready' ? ai : null
   const { reset, onPartial } = stream
@@ -76,8 +83,7 @@ export default function Reading({ photoId, onCards }: { photoId: Id; onCards: ()
           if (rich?.kind !== 'photo') return
           setDescription(rich.description as PhotoDescription)
           setCost(rich.cost ?? null)
-          // Read for the student: focus goes to the result, so a screen reader reads it next.
-          requestAnimationFrame(() => result.current?.focus())
+          focusResult.current = true
         })
         .catch((e: unknown) => {
           if (ctl.signal.aborted) return

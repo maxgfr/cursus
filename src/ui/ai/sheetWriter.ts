@@ -86,8 +86,13 @@ export async function writeSheet(
   const cite = sheetCiter(d.ws, d.t, names, new Set(s.grounded.map((c) => c.sourceId)))
   if (!writer.begin()) throw new Error('the editor is not ready')
   try {
-    for await (const part of s.partial) writer.write(sheetMarkdown(part, cite, false))
+    // Stopped, nothing more is written: not the parts already received, nor the answer if it was complete.
+    for await (const part of s.partial) {
+      if (signal.aborted) break
+      writer.write(sheetMarkdown(part, cite, false))
+    }
     const out = await s.output
+    signal.throwIfAborted()
     writer.write(sheetMarkdown(out, cite, true), true)
     return out
   } finally {

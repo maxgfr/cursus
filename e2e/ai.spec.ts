@@ -579,17 +579,19 @@ test('a new study sheet is written by AI into its text, cited; one Undo takes it
 test('Stop leaves the study sheet as it is, editable; asked again, the AI writes it', async ({ page }) => {
   await mockProvider(page)
   let held: (() => void) | null = null
-  // The first request is held until Stop, then answered: the answer arrives too late to be written.
+  let release = () => {}
+  const stopped = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  // The first request is held until Stop has taken effect, then answered: the answer arrives too late to be written.
   await page.route(`${LLM}/**`, async (route: Route) => {
     const req = route.request()
     if (req.method() === 'OPTIONS' || !textOf(req.postDataJSON() as Body).includes('patient tutor') || held === null)
       return route.fallback()
-    await new Promise<void>((resolve) => {
-      const release = held
-      held = null
-      release?.()
-      setTimeout(resolve, 600)
-    })
+    const announce = held
+    held = null
+    announce()
+    await stopped
     return route.fallback()
   })
   await configure(page)
@@ -615,6 +617,7 @@ test('Stop leaves the study sheet as it is, editable; asked again, the AI writes
   await asked
   await panel.getByRole('button', { name: 'Stop' }).click()
   await expect(panel.getByRole('button', { name: 'Write with AI' })).toBeEnabled()
+  release()
   await expect(editor.getByRole('heading')).toHaveCount(0)
   // Unlocked: written in by hand.
   await editor.click()
