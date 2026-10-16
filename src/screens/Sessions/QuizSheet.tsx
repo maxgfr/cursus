@@ -5,7 +5,7 @@ import { to } from '../../app/routes.ts'
 import { useWorkspace, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import type { StudyOptions } from '../../core/ai/features/tutorChat'
 import type { Id, StudyScope } from '../../core/contracts/workspace'
-import { defaultQuizCount, failedLately, passagesOf, weakCards } from '../../core/model/quizPlan'
+import { failedLately, QUIZ_DEFAULT_COUNT, weakCards } from '../../core/model/quizPlan'
 import type { ModelWorkspace } from '../../core/model/workspace'
 import { useT } from '../../i18n/react.tsx'
 import { useAiReady } from '../../ui/ai/ready.ts'
@@ -72,7 +72,7 @@ function defaultNode(
 
 /**
  * « Quiz me », set up before it runs: the course or section (its sources, some of them only if wished), how many
- * questions — by default what its material is worth —, how hard, and whether its weak points come first (on when
+ * questions — by default all its material covers —, how hard, and whether its weak points come first (on when
  * a card there was forgotten lately). The quiz then runs in the chat, beside that place. Offered only with a
  * model ready: it closes if the model goes away.
  */
@@ -105,9 +105,9 @@ function Setup({ at, onClose }: { at?: StudyScope; onClose: () => void }) {
   const weak = useWorkspaceData(['cards', 'reviews', 'sections', 'prefs', { id: node }], (w) =>
     current ? weakCards(w, current.scope, Date.now()) : [],
   )
-  // The defaults of the place it opens on; a new place brings its own (`pick`), what the student changes stays.
+  // Everything the place covers by default; a new place brings its own weak points (`pick`), the count chosen stays.
   const [choice, setChoice] = useState<Pick<StudyOptions, 'count' | 'difficulty' | 'focusWeak'>>(() => ({
-    count: current ? defaultQuizCount(passagesOf(ws, current.scope)) : 5,
+    count: QUIZ_DEFAULT_COUNT,
     focusWeak: failedLately(weak, Date.now()),
     difficulty: 'standard',
   }))
@@ -122,7 +122,6 @@ function Setup({ at, onClose }: { at?: StudyScope; onClose: () => void }) {
     const nextWeak = next ? weakCards(ws, next.scope, Date.now()) : []
     setChoice((c) => ({
       ...c,
-      count: next ? defaultQuizCount(passagesOf(ws, next.scope)) : c.count,
       focusWeak: failedLately(nextWeak, Date.now()),
     }))
   }

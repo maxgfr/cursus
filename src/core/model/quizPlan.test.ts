@@ -2,7 +2,16 @@ import { describe, expect, test } from 'bun:test'
 import * as Y from 'yjs'
 import { virtualClock } from '../ports/clock'
 import { seededRng } from '../ports/rng'
-import { defaultQuizCount, failedLately, passagesOf, RECENT_LAPSE_MS, WEAK_MAX, weakCards } from './quizPlan'
+import {
+  defaultQuizCount,
+  failedLately,
+  passagesOf,
+  QUIZ_COUNTS,
+  QUIZ_DEFAULT_COUNT,
+  RECENT_LAPSE_MS,
+  WEAK_MAX,
+  weakCards,
+} from './quizPlan'
 import { createWorkspace } from './workspace'
 
 const DAY = 24 * 3600_000
@@ -69,6 +78,11 @@ describe('weak points of a course or a section', () => {
 })
 
 describe('how many questions by default', () => {
+  test('a quiz asks everything its material covers unless the student picks a number', () => {
+    expect(QUIZ_DEFAULT_COUNT).toBe('all')
+    expect(QUIZ_COUNTS).toContain(QUIZ_DEFAULT_COUNT)
+  })
+
   test('from the material: a short note asks a few, a thick course more', () => {
     expect([0, 2, 3, 6, 7, 15, 16, 80].map(defaultQuizCount)).toEqual([3, 3, 5, 5, 10, 10, 20, 20])
     const { ws, courseId, sectionId } = setup()

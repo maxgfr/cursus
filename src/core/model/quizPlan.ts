@@ -57,7 +57,10 @@ export function failedLately(weak: readonly WeakCard[], now: number): boolean {
 export const QUIZ_COUNTS = [3, 5, 10, 20, 'all'] as const
 export type QuizCount = (typeof QUIZ_COUNTS)[number]
 
-/** How many questions a place's material is worth by default, from its number of passages. */
+/** What a quiz asks by default: everything its material covers, up to the quiz's own maximum. */
+export const QUIZ_DEFAULT_COUNT: QuizCount = 'all'
+
+/** How many questions a place's material is worth, from its number of passages. */
 export function defaultQuizCount(passages: number): 3 | 5 | 10 | 20 {
   if (passages <= 2) return 3
   if (passages <= 6) return 5

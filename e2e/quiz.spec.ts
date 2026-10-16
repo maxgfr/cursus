@@ -168,7 +168,7 @@ test('on a course, « Quiz me » opens set up on it; the place quizzed last come
   page,
 }, info) => {
   await seed(page)
-  await mockProvider(page)
+  const quizzes = await mockProvider(page)
   await configureAi(page, LLM)
   await page.goto('./#/courses')
   await page
@@ -182,9 +182,13 @@ test('on a course, « Quiz me » opens set up on it; the place quizzed last come
   await expect(sheet.getByLabel('Course or section').locator('option:checked')).toHaveText('Anatomy · 1 source')
   // A course without cards has no weak point: nothing to focus on.
   await expect(sheet.getByRole('checkbox', { name: 'Focus on my weak points' })).toBeDisabled()
+  // By default the quiz covers everything the place holds, up to the quiz's own maximum.
+  await expect(sheet.getByRole('radio', { name: 'All', exact: true })).toBeChecked()
   await sheet.getByRole('button', { name: 'Start the quiz' }).click()
   const chat = chatPanel(page, info.project.name)
   await expect(chat.getByText('What does the heart pump?').first()).toBeVisible()
+  expect(quizzes).toHaveLength(1)
+  expect(quizzes[0] ?? '').toContain('at most 20')
   // On a phone the chat covers the screen: closed, to see Practice.
   if (isPhone(info.project.name)) await chat.getByRole('button', { name: 'Close chat' }).click()
   await page.goto('./#/sessions')
