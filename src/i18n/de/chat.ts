@@ -3,6 +3,7 @@ import type { Shape } from '../index.ts'
 
 export const chat = {
   title: 'Fragen',
+  resize: 'Breite des Chats',
   open: 'Dazu fragen',
   closePanel: 'Chat schließen',
   about: 'Zu: {what}',

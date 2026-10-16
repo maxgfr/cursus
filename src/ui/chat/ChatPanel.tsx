@@ -73,6 +73,7 @@ import { Sanitized } from '../render/Sanitized.tsx'
 import { actionById, actionsFor, type ChatAction, type StudyKind } from './actions.ts'
 import styles from './ChatPanel.module.css'
 import { type ScreenContext, useChat } from './context.tsx'
+import { ResizeHandle } from './ResizeHandle.tsx'
 import { keyed, PartialRich, RichAnswer, RichNote } from './RichAnswer.tsx'
 import {
   AttachedPhoto,
@@ -129,12 +130,14 @@ export default function ChatPanel() {
     // Closed, it stays mounted (hidden): the conversation is still there when it opens again.
     return (
       <aside className={styles.docked} aria-label={t('chat.title')} hidden={!chat.open}>
+        <ResizeHandle />
         <ChatBody docked onClose={chat.close} />
       </aside>
     )
   }
   return (
     <Sheet open={chat.open} title={t('chat.title')} onClose={chat.close} fill>
+      <ResizeHandle />
       <ChatBody docked={false} onClose={chat.close} />
     </Sheet>
   )

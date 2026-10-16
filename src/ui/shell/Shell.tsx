@@ -1,9 +1,10 @@
 import { BookOpen, CalendarCheck, CalendarClock, type LucideIcon, MessageCircle, Search, Settings } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { type CSSProperties, type ReactNode, useEffect, useState } from 'react'
 import { Link, useLocation } from 'wouter'
 import { paths, to } from '../../app/routes.ts'
 import { useT } from '../../i18n/react.tsx'
 import { useAiReady } from '../ai/ready.ts'
+import { clampWidth, currentBounds, useChatWidth } from '../chat/chatWidth.ts'
 import { useChat } from '../chat/context.tsx'
 import { CourseDot, type CourseHue } from '../components/Badges.tsx'
 import { cx } from '../cx.ts'
@@ -61,6 +62,19 @@ function isApple(): boolean {
   return typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform || navigator.userAgent)
 }
 
+/** The chat width chosen on this device, kept inside the window as it is resized; null for the default. */
+function useFittedChatWidth(): number | null {
+  const chosen = useChatWidth()
+  const [fitted, setFitted] = useState<number | null>(null)
+  useEffect(() => {
+    const fit = () => setFitted(chosen === null ? null : clampWidth(chosen, currentBounds()))
+    fit()
+    addEventListener('resize', fit)
+    return () => removeEventListener('resize', fit)
+  }, [chosen])
+  return fitted
+}
+
 /** Phone and iPad portrait: content + bottom tab bar. iPad landscape and Mac: sidebar + content. */
 export function Shell({ children, focus, courses, aside }: ShellProps) {
   const t = useT()
@@ -70,8 +84,12 @@ export function Shell({ children, focus, courses, aside }: ShellProps) {
   const courseRowCurrent = courses.some((c) => to.course(c.id) === location)
   const chat = useChat()
   const aiReady = useAiReady()
+  const chatPx = useFittedChatWidth()
   return (
-    <div className={cx(styles.shell, focus && styles.focus, chat?.open && styles.withChat)}>
+    <div
+      className={cx(styles.shell, focus && styles.focus, chat?.open && styles.withChat)}
+      style={chatPx === null ? undefined : ({ '--chat-width': `${chatPx}px` } as CSSProperties)}
+    >
       <a className={styles.skip} href="#main">
         {t('common.skipToContent')}
       </a>

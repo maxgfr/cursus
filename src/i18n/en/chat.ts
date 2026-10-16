@@ -1,5 +1,6 @@
 export const chat = {
   title: 'Ask',
+  resize: 'Chat width',
   open: 'Ask about this',
   closePanel: 'Close chat',
   about: 'About: {what}',

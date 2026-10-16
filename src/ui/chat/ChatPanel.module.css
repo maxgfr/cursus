@@ -430,3 +430,51 @@ a.suggestion {
 .docked[hidden] {
   display: none;
 }
+
+/*
+ * The chat's left edge, dragged (or moved with the arrows) to make it wider or narrower: a thin line that shows on
+ * hover and focus. Not on a phone, where the chat takes the whole screen.
+ */
+.resize {
+  position: absolute;
+  z-index: 2;
+  margin: 0;
+  border: 0;
+  top: 0;
+  bottom: 0;
+  left: -6px;
+  width: 12px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.resize::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 5px;
+  width: 2px;
+  background: transparent;
+  content: "";
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.resize:hover::after,
+.resize[data-dragging]::after {
+  background: var(--accent);
+}
+
+.resize:focus-visible {
+  outline: none;
+}
+
+.resize:focus-visible::after {
+  width: 3px;
+  background: var(--focus);
+}
+
+@media (max-width: 599px) {
+  .resize {
+    display: none;
+  }
+}
