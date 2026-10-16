@@ -44,6 +44,11 @@ export interface Runtime {
   readonly versionChanged: () => boolean
   /** Called after each seal that produced a segment (the sync scheduler listens). */
   onSealed(fn: () => void): () => void
+  /**
+   * Stops writing to this device's library, for good (« Erase everything »): no more seals (timers, page hidden or
+   * left), no more capture of edits, and the store disposed so nothing reopens the database.
+   */
+  shutdown(): void
 }
 
 export interface ReplicaDeps {
@@ -99,7 +104,9 @@ async function openRuntime(): Promise<Runtime> {
   let quietTimer: ReturnType<typeof setTimeout> | undefined
   let firstUnsealedAt: number | undefined
   let sealing: Promise<void> = Promise.resolve()
+  let down = false
   const seal = (): Promise<void> => {
+    if (down) return Promise.resolve()
     clearTimeout(quietTimer)
     quietTimer = undefined
     firstUnsealedAt = undefined
@@ -113,6 +120,7 @@ async function openRuntime(): Promise<Runtime> {
     return sealing
   }
   const scheduleSeal = () => {
+    if (down) return
     const now = clock.now()
     firstUnsealedAt ??= now
     clearTimeout(quietTimer)
@@ -128,8 +136,9 @@ async function openRuntime(): Promise<Runtime> {
   const sealNow = () => {
     if (document.visibilityState === 'hidden') void seal()
   }
+  const sealOnLeave = () => void seal()
   document.addEventListener('visibilitychange', sealNow)
-  window.addEventListener('pagehide', () => void seal())
+  window.addEventListener('pagehide', sealOnLeave)
 
   return {
     ws,
@@ -150,6 +159,15 @@ async function openRuntime(): Promise<Runtime> {
     onSealed: (fn) => {
       sealedListeners.add(fn)
       return () => sealedListeners.delete(fn)
+    },
+    shutdown: () => {
+      down = true
+      clearTimeout(quietTimer)
+      quietTimer = undefined
+      document.removeEventListener('visibilitychange', sealNow)
+      window.removeEventListener('pagehide', sealOnLeave)
+      capture.stop()
+      store.dispose()
     },
   }
 }

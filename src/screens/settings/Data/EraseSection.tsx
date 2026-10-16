@@ -1,6 +1,5 @@
 import { Trash2 } from 'lucide-react'
 import { useId, useState } from 'react'
-import { useRuntime } from '../../../app/workspaceContext.tsx'
 import { useT } from '../../../i18n/react.tsx'
 import { Button } from '../../../ui/components/Button.tsx'
 import { Sheet } from '../../../ui/components/Sheet.tsx'
@@ -8,6 +7,7 @@ import { useGuard } from '../../../ui/PasswordGate.tsx'
 import { noteError } from '../Diagnostic/recent.ts'
 import styles from '../Sync/settings.module.css'
 import { eraseThisDevice } from './erase.ts'
+import { useStopWriting } from './stopWriting.ts'
 
 const GOES = [
   'settings.eraseCourses',
@@ -22,7 +22,7 @@ type Phase = 'idle' | 'erasing' | 'blocked' | 'failed'
 /** « Erase everything on this device »: a danger zone, confirmed in two steps; remote copies are never touched. */
 export function EraseSection({ onBackup, backingUp }: { onBackup: () => void; backingUp: boolean }) {
   const t = useT()
-  const rt = useRuntime()
+  const stop = useStopWriting()
   const [open, setOpen] = useState(false)
   const [understood, setUnderstood] = useState(false)
   const [phase, setPhase] = useState<Phase>('idle')
@@ -39,7 +39,7 @@ export function EraseSection({ onBackup, backingUp }: { onBackup: () => void; ba
   const erase = async () => {
     setPhase('erasing')
     try {
-      await eraseThisDevice({ close: () => rt.store.close(), onBlocked: () => setPhase('blocked') })
+      await eraseThisDevice({ stop, onBlocked: () => setPhase('blocked') })
     } catch (e) {
       noteError('data.erase', e)
       setPhase('failed')

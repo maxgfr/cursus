@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test'
-import { DB_NAME, idbStore, LocalQuotaError, toStoreError } from './idbStore'
+import { DB_NAME, idbStore, LocalQuotaError, StoreDisposedError, toStoreError } from './idbStore'
 import { localStoreContract } from './localStore.contract'
 import { estimate, persisted, requestPersistence } from './persist'
 
@@ -28,6 +28,30 @@ test('a closed connection is reopened transparently', async () => {
   s.close()
   await s.commit([{ put: 'kv', key: 'b', value: 2 }])
   expect(await s.read(['kv'], (tx) => tx.count('kv'))).toBe(2)
+})
+
+test('a disposed store reads and writes nothing, and never brings its database back once deleted', async () => {
+  const name = `cursus-test-dispose-${n++}`
+  const s = idbStore({ name })
+  await s.commit([{ put: 'kv', key: 'a', value: 1 }])
+  // A read in flight when it is disposed still settles.
+  const inFlight = s.read(['kv'], (tx) => tx.get('kv', 'a')).catch((e: unknown) => e)
+  s.dispose()
+  const settled = await inFlight
+  expect(settled === 1 || settled instanceof StoreDisposedError).toBe(true)
+  await new Promise<void>((resolve, reject) => {
+    const req = indexedDB.deleteDatabase(name)
+    req.onsuccess = () => resolve()
+    req.onerror = () => reject(req.error)
+    req.onblocked = () => reject(new Error('the disposed store still holds the database'))
+  })
+  await expect(s.read(['kv'], (tx) => tx.get('kv', 'a'))).rejects.toBeInstanceOf(StoreDisposedError)
+  await expect(s.commit([{ put: 'kv', key: 'b', value: 2 }])).rejects.toBeInstanceOf(StoreDisposedError)
+  await expect(s.commit([])).rejects.toBeInstanceOf(StoreDisposedError)
+  s.close()
+  s.dispose()
+  await expect(s.read(['kv'], (tx) => tx.count('kv'))).rejects.toBeInstanceOf(StoreDisposedError)
+  expect((await indexedDB.databases()).map((d) => d.name)).not.toContain(name)
 })
 
 test('a newer schema elsewhere closes us and reports versionchange; open is retried', async () => {

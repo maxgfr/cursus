@@ -32,6 +32,14 @@ export function toStoreError(e: unknown): unknown {
   return e
 }
 
+/** The store was disposed (« Erase everything »): nothing is read or written any more, nothing reopens it. */
+export class StoreDisposedError extends Error {
+  constructor() {
+    super('The local library was closed for good')
+    this.name = 'StoreDisposedError'
+  }
+}
+
 function isClosedError(e: unknown): boolean {
   return e instanceof Error && e.name === 'InvalidStateError'
 }
@@ -55,13 +63,20 @@ export interface IdbStoreOptions {
 
 export interface IdbStore extends LocalStore {
   close(): void
+  /**
+   * Closes the connection for good: every later read or commit rejects with `StoreDisposedError` and the database
+   * is never opened again, so a database deleted next stays deleted.
+   */
+  dispose(): void
 }
 
 export function idbStore(o: IdbStoreOptions = {}): IdbStore {
   const name = o.name ?? DB_NAME
   let conn: Promise<IDBPDatabase> | null = null
+  let disposed = false
 
   const open = (): Promise<IDBPDatabase> => {
+    if (disposed) return Promise.reject(new StoreDisposedError())
     if (conn) return conn
     const p = openDB(name, DB_VERSION, {
       upgrade(db) {
@@ -79,9 +94,15 @@ export function idbStore(o: IdbStoreOptions = {}): IdbStore {
       },
     })
     conn = p
-    p.catch(() => {
-      if (conn === p) conn = null
-    })
+    p.then(
+      // Opened while it was being disposed: let go of it at once.
+      (db) => {
+        if (disposed) db.close()
+      },
+      () => {
+        if (conn === p) conn = null
+      },
+    )
     return p
   }
 
@@ -90,6 +111,7 @@ export function idbStore(o: IdbStoreOptions = {}): IdbStore {
     try {
       return await op(await open())
     } catch (e) {
+      if (disposed) throw new StoreDisposedError()
       if (!isClosedError(e)) throw toStoreError(e)
       conn = null
       try {
@@ -117,6 +139,7 @@ export function idbStore(o: IdbStoreOptions = {}): IdbStore {
       })
     },
     commit(ops: WriteOp[]): Promise<void> {
+      if (disposed) return Promise.reject(new StoreDisposedError())
       if (ops.length === 0) return Promise.resolve()
       return withDb(async (db) => {
         const names = new Set<StoreName>()
@@ -140,6 +163,16 @@ export function idbStore(o: IdbStoreOptions = {}): IdbStore {
       const p = conn
       conn = null
       if (p) void p.then((db) => db.close())
+    },
+    dispose() {
+      disposed = true
+      const p = conn
+      conn = null
+      if (p)
+        void p.then(
+          (db) => db.close(),
+          () => undefined,
+        )
     },
   }
 }

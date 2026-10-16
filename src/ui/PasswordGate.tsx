@@ -4,6 +4,7 @@ import { useRuntime } from '../app/workspaceContext.tsx'
 import { type Guard, guardOf } from '../core/storage/guard'
 import { useT } from '../i18n/react.tsx'
 import { eraseThisDevice } from '../screens/settings/Data/erase.ts'
+import { useStopWriting } from '../screens/settings/Data/stopWriting.ts'
 import { noteError } from '../screens/settings/Diagnostic/recent.ts'
 import styles from '../screens/settings/Sync/settings.module.css'
 import { Button } from './components/Button.tsx'
@@ -26,7 +27,7 @@ export function useGuardStore(): Guard {
  */
 export function useGuard(): { guard: (run: Run) => void; sheet: ReactNode } {
   const t = useT()
-  const rt = useRuntime()
+  const stop = useStopWriting()
   const store = useGuardStore()
   const pending = useRef<Run | null>(null)
   const [open, setOpen] = useState(false)
@@ -90,7 +91,7 @@ export function useGuard(): { guard: (run: Run) => void; sheet: ReactNode } {
   const eraseAll = async () => {
     setErase('erasing')
     try {
-      await eraseThisDevice({ close: () => rt.store.close(), onBlocked: () => setErase('blocked') })
+      await eraseThisDevice({ stop, onBlocked: () => setErase('blocked') })
     } catch (err) {
       noteError('guard.erase', err)
       setErase('failed')
