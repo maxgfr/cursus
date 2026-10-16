@@ -373,12 +373,12 @@ test('the palette: Search returns to its opener, other screens to their logical 
   await at(page, 'Law', /#\/course\//)
 })
 
-test('Course → Data (Import from Anki) → Back returns to the course', async ({ page }) => {
+test('Course → Import & export (Import from Anki) → Back returns to the course', async ({ page }) => {
   await openLaw(page)
   await page.getByRole('radio', { name: 'Cards' }).check()
   await page.getByRole('button', { name: 'More ways to add cards' }).click()
   await page.getByRole('link', { name: 'Import from Anki' }).click()
-  await at(page, 'Data', /#\/settings\/data$/)
+  await at(page, 'Import & export', /#\/settings\/data$/)
   await back(page).click()
   await at(page, 'Law', /#\/course\//)
 })

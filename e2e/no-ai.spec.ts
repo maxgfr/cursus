@@ -291,3 +291,39 @@ test('without a model: a whole journey with no trace of AI, ⌘J does nothing, n
   await expect(page.getByRole('region', { name: 'Cell Biology slides', exact: true })).toHaveCount(0)
   expect(await storedJobs(page)).toBe(0)
 })
+
+test('« Show AI features » off: a model set up, yet no trace of AI; on again, it is all back', async ({ page }) => {
+  const errors = watchErrors(page)
+  await harness.seed(page, {
+    courses: [{ title: 'Biology', notes: [{ title: 'Cell notes', body: 'The mitochondrion produces ATP.' }] }],
+  })
+  await configureAi(page, LLM)
+  await openCourse(page)
+  await expect(page.getByRole('main').getByRole('button', { name: 'Ask about this' }).first()).toBeVisible()
+
+  await page.goto('./#/settings/ai')
+  const show = page.getByRole('switch', { name: 'Show AI features' })
+  await expect(show).toBeChecked()
+  await show.click()
+  await expect(show).not.toBeChecked()
+  await expect(page.getByText('Hidden everywhere, as with no model.')).toBeVisible()
+  // The model stays set up: its settings are all still here.
+  await expect(page.getByText('How AI runs')).toBeVisible()
+
+  await page.goto('./#/settings')
+  await expect(page.getByRole('main').getByRole('link', { name: /^AI/ })).toContainText('Hidden in the app')
+  await openCourse(page)
+  await noAi(page)
+  await page.keyboard.press('ControlOrMeta+j')
+  await expect(chat(page)).toHaveCount(0)
+  // Kept after a reload: a setting, synced like the others.
+  await page.reload()
+  await expect(page.getByRole('heading', { level: 1, name: 'Biology' })).toBeVisible()
+  await noAi(page)
+
+  await page.goto('./#/settings/ai')
+  await page.getByRole('switch', { name: 'Show AI features' }).click()
+  await openCourse(page)
+  await expect(page.getByRole('main').getByRole('button', { name: 'Ask about this' }).first()).toBeVisible()
+  expect(errors).toEqual([])
+})

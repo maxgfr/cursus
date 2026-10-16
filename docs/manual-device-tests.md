@@ -11,7 +11,7 @@ destinations. Record the date, devices and OS versions with each run.
 - [ ] **Safari tab vs installed app.** Create a course in the installed app, then open the same URL in a
   Safari tab. Expected: the tab does not show the course (separate replica) until both sync through the
   same destination; after a sync in both, both show it.
-- [ ] **Persistent storage.** In the installed app, *Settings > Data > Protect storage*. Expected: the
+- [ ] **Persistent storage.** In the installed app, *Settings > Import & export > Protect storage*. Expected: the
   status reads that protected storage is on. In a plain Safari tab, if refused, the refusal message
   suggests installing.
 - [ ] **Data present after 8 days.** Leave the installed app unopened for 8 days on iPhone and iPad.
@@ -104,7 +104,7 @@ Record the model picked, its download size and how long a quiz takes.
   answers come, nothing asks for a key. The tab is not killed for memory during a quiz.
 - [ ] **iPad: space refusal and removal.** On an iPad with little free space, try the download. Expected:
   refused with the figures (needed, free, kept for the library), the library untouched. After freeing space,
-  download, then *Remove*: the confirmation names the size, and *Settings > Data* shows the space back.
+  download, then *Remove*: the confirmation names the size, and *Settings > Import & export* shows the space back.
 - [ ] **Mac: Safari and Chrome.** On a Mac, in Safari and in Chrome. Expected: Chrome's memory line cites
   the RAM the browser reports, Safari's says it is an estimate; both download, run offline after a restart
   of the browser, and the cost line reads *Free, on this device*.

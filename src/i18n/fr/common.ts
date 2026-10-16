@@ -76,9 +76,12 @@ export const common = {
   setReview: 'Planification',
   setAi: 'IA',
   setSeal: 'Chiffrement',
-  setData: 'Données',
+  setData: 'Import et export',
   setRecovery: 'Récupération',
   setDiagnostic: 'Diagnostic',
+  setSecurity: 'Mot de passe et effacement',
+  securityBody:
+    'Un mot de passe qui protège les actions irréversibles, et l’effacement de tout ce que garde cet appareil. Vos sauvegardes ne sont jamais touchées.',
   syncEmpty:
     'Aucune sauvegarde pour l’instant. Ajoutez-en une pour garder une copie de votre bibliothèque hors de cet appareil.',
   sealBody:

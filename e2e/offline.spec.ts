@@ -80,7 +80,7 @@ test('after the first load the app works fully offline, and edits are saved on t
     ['#/stats', 'Statistics'],
     ['#/understand', 'New study sheet'],
     ['#/settings', 'Settings'],
-    ['#/settings/data', 'Data'],
+    ['#/settings/data', 'Import & export'],
     ['#/review', 'Review'],
   ] as const)
     await go(page, hash, heading)

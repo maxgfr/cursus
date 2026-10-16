@@ -22,8 +22,8 @@ async function seed(page: Page) {
 }
 
 async function setPassword(page: Page) {
-  await page.goto('./#/settings/data')
-  await expect(page.getByRole('heading', { level: 1, name: 'Data' })).toBeVisible()
+  await page.goto('./#/settings/security')
+  await expect(page.getByRole('heading', { level: 1, name: 'Password & erasing' })).toBeVisible()
   const section = page.getByRole('region', { name: 'Protect destructive actions' })
   await expect(section.getByText(/not encryption/)).toBeVisible()
   await expect(section.getByText('No password is set.')).toBeVisible()
@@ -88,7 +88,7 @@ test('a set password guards « Delete forever » and « Erase everything », and
   await expect(page.getByRole('heading', { name: 'The trash is empty' })).toBeVisible({ timeout: 15_000 })
 
   // « Erase everything » asks too, after its own confirmation.
-  await page.goto('./#/settings/data')
+  await page.goto('./#/settings/security')
   await page.getByRole('button', { name: 'Erase everything on this device' }).click()
   const erase = page.getByRole('dialog', { name: 'Erase everything on this device' })
   await erase.getByRole('checkbox', { name: 'I understand this can’t be undone' }).check()
@@ -139,7 +139,7 @@ test('a forgotten password: erasing this device is the way out, after typing the
   await page.goto('./#/courses')
   await expect(page.getByRole('main').getByRole('link', { name: /Biology/ })).toHaveCount(0)
   // The password went with the device's data.
-  await page.goto('./#/settings/data')
+  await page.goto('./#/settings/security')
   await expect(
     page.getByRole('region', { name: 'Protect destructive actions' }).getByText('No password is set.'),
   ).toBeVisible()
@@ -152,7 +152,7 @@ test('in German at 375 px the password prompt fits the screen', async ({ page })
   await seed(page)
   await setPassword(page)
   await page.setViewportSize({ width: 375, height: 740 })
-  await page.goto('./?locale=de#/settings/data')
+  await page.goto('./?locale=de#/settings/security')
   await page.getByRole('button', { name: 'Alles auf diesem Gerät löschen' }).click()
   const erase = page.getByRole('dialog', { name: 'Alles auf diesem Gerät löschen' })
   await erase.getByRole('checkbox').check()

@@ -97,7 +97,8 @@ test('Settings shows this build, says it is up to date, finds a new version and 
   await waitForController(page)
   await createCourse(page, 'Histology')
 
-  await go(page, '#/settings/general', 'General')
+  // Version and updates are with the diagnostics.
+  await go(page, '#/settings/diagnostic', 'Diagnostics')
   const version = page.getByTestId('app-version')
   await expect(version).toHaveText(/^Cursus \d+\.\d+\.\d+\S* · ([0-9a-f]{7,40}|dev) · built .*\d{4}$/)
   expect(await version.textContent()).not.toContain('fedcba9')
@@ -115,12 +116,14 @@ test('Settings shows this build, says it is up to date, finds a new version and 
   await expect(status).toHaveText('A new version is ready. Your edits are saved before it opens.')
   const updateNow = page.getByRole('button', { name: 'Update now' })
   // An edit made just before updating is still unsealed when Update now is pressed.
+  await go(page, '#/settings/general', 'General')
   await page.getByRole('radio', { name: 'Dark' }).check()
+  await go(page, '#/settings/diagnostic', 'Diagnostics')
   await expect.poll(() => unsealed(page)).toBeGreaterThan(0)
   await Promise.all([page.waitForEvent('load'), updateNow.click()])
 
   // Reloaded into the new build, with every edit.
-  await expect(page.getByRole('heading', { level: 1, name: 'General' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Diagnostics' })).toBeVisible()
   await expect(version).toHaveText(/^Cursus \d+\.\d+\.\d+\S* · fedcba9 · built /)
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   await expect(page.getByText('A new version of Cursus is ready.')).toHaveCount(0)
@@ -132,8 +135,8 @@ test('Settings shows this build, says it is up to date, finds a new version and 
 })
 
 test('offline, Settings explains why it cannot check; back online, it checks', async ({ page, context }) => {
-  await page.goto('./#/settings/general')
-  await expect(page.getByRole('heading', { level: 1, name: 'General' })).toBeVisible()
+  await page.goto('./#/settings/diagnostic')
+  await expect(page.getByRole('heading', { level: 1, name: 'Diagnostics' })).toBeVisible()
   await waitForController(page)
   const status = page.getByTestId('update-status')
   const check = page.getByRole('button', { name: 'Check for updates' })
@@ -150,16 +153,18 @@ test('offline, Settings explains why it cannot check; back online, it checks', a
 test('without a service worker, Settings explains it and Reload keeps every edit', async ({ browser, ownApp }) => {
   const context = await browser.newContext({ serviceWorkers: 'block', baseURL: ownApp.url })
   const page = await context.newPage()
-  await page.goto('./#/settings/general')
-  await expect(page.getByRole('heading', { level: 1, name: 'General' })).toBeVisible()
+  await page.goto('./#/settings/diagnostic')
+  await expect(page.getByRole('heading', { level: 1, name: 'Diagnostics' })).toBeVisible()
   await expect(page.getByTestId('update-status')).toHaveText(
     'Updates can’t be checked in this window (development or private browsing). Reload to get the latest version.',
   )
   await expect(page.getByRole('button', { name: 'Check for updates' })).toHaveCount(0)
+  await go(page, '#/settings/general', 'General')
   await page.getByRole('radio', { name: 'Dark' }).check()
+  await go(page, '#/settings/diagnostic', 'Diagnostics')
   await expect.poll(() => unsealed(page)).toBeGreaterThan(0)
   await Promise.all([page.waitForEvent('load'), page.getByRole('button', { name: 'Reload' }).click()])
-  await expect(page.getByRole('heading', { level: 1, name: 'General' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Diagnostics' })).toBeVisible()
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   await context.close()
 })

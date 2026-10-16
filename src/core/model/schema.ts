@@ -194,4 +194,5 @@ export const PREF_DEFAULTS: Prefs = {
   theme: 'system',
   dailyNewCards: 20,
   desiredRetention: 0.9,
+  aiFeatures: true,
 }

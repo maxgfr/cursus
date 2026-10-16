@@ -32,9 +32,11 @@ export const paths = {
   settingsReview: '/settings/review',
   settingsAi: '/settings/ai',
   settingsSync: '/settings/sync',
+  /** Former Encryption page: redirects to its section of the Sync page. */
   settingsSeal: '/settings/seal',
   settingsPair: '/settings/pair',
   settingsData: '/settings/data',
+  settingsSecurity: '/settings/security',
   settingsRecovery: '/settings/recovery',
   settingsDiagnostic: '/settings/diagnostic',
 } as const

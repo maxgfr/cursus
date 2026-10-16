@@ -139,6 +139,9 @@ test('S3: the connection test says what is wrong, then verify, restore drill and
   await expect(page.getByText(`${S3.endpoint} · ${bucket}/cursus`)).toBeVisible()
   await expect(page.getByText(S3.secretAccessKey)).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Print recovery sheet' })).toBeVisible()
+  // The raw databases wait behind Advanced, for support.
+  await expect(page.getByText('cursus-v1')).toBeHidden()
+  await page.locator('summary', { hasText: 'Advanced' }).click()
   await expect(page.getByText('cursus-v1')).toBeVisible()
 })
 
@@ -318,7 +321,7 @@ test('Backup file: Save backup… hands the file to the share sheet, and Today r
   await expect(page.getByRole('heading', { level: 2, name: '1 card due today' })).toBeVisible()
   await expect(page.getByTestId('backup-line')).toContainText('No backup yet')
 
-  await within(page, '#/settings/data', 'Data')
+  await within(page, '#/settings/data', 'Import & export')
   await page.getByRole('button', { name: 'Save backup…' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Backup file saved.' })).toBeVisible({ timeout: 20_000 })
   const shared = await page.evaluate(
@@ -352,7 +355,7 @@ test('Backup file: Save backup… hands the file to the share sheet, and Today r
   await within(page, '#/', /Today/)
   await expect(page.getByTestId('backup-line')).toContainText('Last backup 8 days ago')
   await page.getByRole('link', { name: 'Save a backup' }).click()
-  await expect(page.getByRole('heading', { level: 1, name: 'Data' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Import & export' })).toBeVisible()
   await page.getByRole('button', { name: 'Save backup…' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Backup file saved.' })).toBeVisible({ timeout: 20_000 })
   await within(page, '#/', /Today/)
@@ -383,7 +386,7 @@ test('Data: storage health, backup to a file and back on another device, Anki im
 }) => {
   test.setTimeout(90_000)
   await createCourse(page, 'Histology')
-  await open(page, '#/settings/data', 'Data')
+  await open(page, '#/settings/data', 'Import & export')
   await expect(page.getByRole('heading', { name: 'Storage on this device' })).toBeVisible()
   await expect(page.getByText(/Protected storage is on|Storage is not protected/)).toBeVisible()
 
@@ -396,7 +399,7 @@ test('Data: storage health, backup to a file and back on another device, Anki im
   // Another device (a fresh browser context) imports the file and gets the course.
   const other = await browser.newContext({ serviceWorkers: 'block' })
   const page2 = await other.newPage()
-  await open(page2, '#/settings/data', 'Data')
+  await open(page2, '#/settings/data', 'Import & export')
   await page2.getByLabel('Import a backup file (.cursus)').setInputFiles(backupPath)
   await expect(page2.getByText(/new items? merged into this library/)).toBeVisible({ timeout: 20_000 })
   await open(page2, '#/courses', 'Courses')
@@ -418,7 +421,7 @@ test('Data: storage health, backup to a file and back on another device, Anki im
   await expect(page.getByText('Section moved to the trash.')).toBeVisible()
 
   // Anki: a preview first, then the import on confirmation.
-  await open(page, '#/settings/data', 'Data')
+  await open(page, '#/settings/data', 'Import & export')
   await page.getByLabel('Choose an .apkg or .colpkg file').setInputFiles(ANKI)
   const confirm = page.getByRole('button', { name: /^Import \d+ cards?$/ })
   await expect(confirm).toBeVisible({ timeout: 20_000 })
@@ -431,7 +434,7 @@ test('Data: storage health, backup to a file and back on another device, Anki im
   await expect(page.getByRole('main').getByText(/Cells/).first()).toBeVisible()
 
   // Export one course to Anki.
-  await open(page, '#/settings/data', 'Data')
+  await open(page, '#/settings/data', 'Import & export')
   const apkg = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Export “Histology” to Anki' }).click()
   expect((await apkg).suggestedFilename()).toBe('Histology.apkg')
@@ -460,8 +463,19 @@ test('sealing copies a backup encrypted and says the old copy stays', async ({ p
   const bucket = await newBucket()
   await createCourse(page, 'Toxicology')
   await addS3(page, bucket)
-  await open(page, '#/settings/seal', 'Encryption')
-  await expect(page.getByText('The old unencrypted copy stays there until you delete it yourself.')).toBeVisible()
+  // Encryption is a section of the Sync page, under the backups it protects; the former page's link lands there.
+  await open(page, '#/settings/seal', 'Sync & backup')
+  await expect(page).toHaveURL(/#\/settings\/sync\?at=encryption$/)
+  const section = page.getByRole('region', { name: 'Encryption' })
+  await expect(section).toBeInViewport()
+  await expect(
+    page
+      .getByRole('listitem')
+      .filter({ hasText: `${bucket}` })
+      .filter({ hasText: 'Not encrypted' })
+      .first(),
+  ).toBeVisible()
+  await expect(section.getByText('The old unencrypted copy stays there until you delete it yourself.')).toBeVisible()
   await page.getByLabel('Encryption passphrase').fill('correct horse battery')
   await page.getByLabel('Repeat passphrase').fill('correct horse battery')
   // Submitted from the keyboard: on phones a bottom prompt may cover the button.
@@ -493,15 +507,18 @@ test('Sync: three everyday backups say where they work, one is recommended, the 
     await expect(page.getByRole('button', { name })).toBeHidden()
   await openAdvanced(page)
   await expect(page.getByRole('button', { name: /^CloudKit/ })).toBeVisible()
-  await expect(page.getByRole('link', { name: /^Nearby device/ })).toBeVisible()
   await expect(page.getByRole('link', { name: /^Backup file/ })).toBeVisible()
+  // Pairing is offered once, outside Advanced, even with no backup yet (a new device receives them that way).
+  await expect(page.getByRole('main').getByRole('link', { name: /^Pair a device/ })).toHaveCount(1)
   // Drive and Dropbox say they need the student's own app key.
   await expect(page.getByRole('button', { name: /^Google Drive/ })).toContainText('Needs your own app key.')
   await expect(page.getByRole('button', { name: /^Dropbox/ })).toContainText('Needs your own app key.')
   // The Recommended row opens the recommended backup: iCloud Drive where it can be kept, else the backup file.
   await page.getByRole('main').getByText('Recommended', { exact: true }).click()
   await expect(
-    page.getByRole('dialog', { name: /iCloud Drive/ }).or(page.getByRole('heading', { level: 1, name: 'Data' })),
+    page
+      .getByRole('dialog', { name: /iCloud Drive/ })
+      .or(page.getByRole('heading', { level: 1, name: 'Import & export' })),
   ).toBeVisible()
 })
 
@@ -518,16 +535,33 @@ test('Sync: the protection chip sits with the summary under the title, in French
   expect(Math.abs(c.y - p.y)).toBeLessThanOrEqual(p.height)
 })
 
-test('Settings: four honest groups, no Search row, Sync & backup only once', async ({ page }) => {
+test('Settings: most used first, no Search row, Sync & backup only once, Pair once there is a backup', async ({
+  page,
+}) => {
   await open(page, '#/settings', 'Settings')
-  await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toHaveText([
-    'Keep your library safe',
-    'Preferences',
+  const main = page.getByRole('main')
+  await expect(main.getByRole('heading', { level: 2 })).toHaveText([
+    'Study',
+    'Sync & devices',
     'Your data',
+    'Security',
     'Help',
   ])
-  await expect(page.getByRole('main').getByRole('link', { name: 'Search' })).toHaveCount(0)
-  await expect(page.getByRole('main').getByText('Sync & backup', { exact: true })).toHaveCount(1)
+  await expect(main.getByRole('link', { name: 'Search' })).toHaveCount(0)
+  await expect(main.getByText('Sync & backup', { exact: true })).toHaveCount(1)
+  // No backup yet: pairing is offered from the Sync page, not here.
+  await expect(main.getByRole('link', { name: 'Pair a device' })).toHaveCount(0)
+  // Version and updates are with the diagnostics, the password and erasing on their own page.
+  await expect(main.getByRole('link', { name: /^Diagnostics/ })).toContainText('Version, updates')
+  await main.getByRole('link', { name: 'Password & erasing' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Password & erasing' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Protect destructive actions' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Erase everything on this device' })).toBeVisible()
+  await open(page, '#/settings/data', 'Import & export')
+  await expect(page.getByRole('button', { name: 'Erase everything on this device' })).toHaveCount(0)
+  // Storage, for experts, comes last.
+  const h2s = await page.getByRole('main').getByRole('heading', { level: 2 }).allTextContents()
+  expect(h2s.slice(-2)).toEqual(['Storage on this device', 'Photos on this device'])
 })
 
 test('Course: empty states teach and offer the next action; Back returns to Today; a trashed card can be undone', async ({

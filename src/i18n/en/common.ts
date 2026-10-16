@@ -72,9 +72,12 @@ export const common = {
   setReview: 'Schedule',
   setAi: 'AI',
   setSeal: 'Encryption',
-  setData: 'Data',
+  setData: 'Import & export',
   setRecovery: 'Recovery',
   setDiagnostic: 'Diagnostics',
+  setSecurity: 'Password & erasing',
+  securityBody:
+    'A password that guards destructive actions, and erasing everything this device holds. Your backups are never touched.',
   syncEmpty: 'No backups yet. Add one to keep a copy of your library beyond this device.',
   sealBody: 'Encryption locks everything sent to a backup with a passphrase only you know.',
   dataBody: 'Export your library in open formats, or import from a file or from Anki.',

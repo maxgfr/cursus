@@ -5,6 +5,7 @@ import { useSaveState } from '../../../app/workspaceContext.tsx'
 import { useT } from '../../../i18n/react.tsx'
 import { Button } from '../../../ui/components/Button.tsx'
 import { Screen } from '../../../ui/shell/Screen.tsx'
+import { VersionSection } from '../General/Version.tsx'
 import { localDatabases } from '../Recovery/rawExport.ts'
 import { useAction, useDestinations } from '../Sync/hooks.tsx'
 import { download, fileStamp } from '../Sync/registry.ts'
@@ -88,6 +89,7 @@ export default function DiagnosticSettings() {
   return (
     <Screen title={t('common.setDiagnostic')} back={paths.settings}>
       <div className={styles.stack}>
+        <VersionSection />
         <p className={styles.prose}>{t('common.diagnosticBody')}</p>
         <p className={styles.note}>{t('settings.diagNoSecrets')}</p>
         <div className={styles.actions}>

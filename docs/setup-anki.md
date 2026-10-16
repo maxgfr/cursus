@@ -5,7 +5,7 @@ move the files yourself (Files, AirDrop, a synced folder).
 
 ## Import
 
-*Settings > Data > Import from Anki*, then choose an `.apkg` (deck package) or `.colpkg` (collection
+*Settings > Import & export > Import from Anki*, then choose an `.apkg` (deck package) or `.colpkg` (collection
 package). Export it from Anki with *File > Export*; both the current format and the legacy formats work.
 
 1. Cursus reads the package and shows its decks, notes, cards, reviews and media files.
@@ -35,7 +35,7 @@ Limits:
 
 ## Export
 
-Use the Anki button next to a course in *Settings > Data* to export that course as an `.apkg`.
+Use the Anki button next to a course in *Settings > Import & export* to export that course as an `.apkg`.
 
 - Notetypes *Cursus Basic* and *Cursus Cloze*, one deck `Cursus::<course>` per course.
 - Card text is converted from Markdown to Anki HTML, with media files included.

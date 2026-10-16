@@ -17,7 +17,7 @@ through a sync destination.
   Home Screen icon from then on.
 - **Mac**: in Safari, *File > Add to Dock*; in Chrome or Edge, the install icon in the address bar.
 
-After installing, open *Settings > Data* and use *Protect storage* so the browser does not evict the library
+After installing, open *Settings > Import & export* and use *Protect storage* so the browser does not evict the library
 when space runs low. Keep at least one destination configured either way.
 
 ### Custom subdomain (recommended)
@@ -66,7 +66,8 @@ can use a language model, in one of two ways:
   Studio work from Chrome on the same Mac, not from an iPad (mixed content is blocked).
 
 Without a model set up, no AI feature shows anywhere (Settings › AI and the welcome's AI step aside): no chat and
-no AI buttons. Nothing is ever generated on its own: adding a note, a PDF, slides or a photo asks no model.
+no AI buttons. « Show AI features » (Settings › AI, synced) hides them the same way while keeping the model set
+up. Nothing is ever generated on its own: adding a note, a PDF, slides or a photo asks no model.
 
 The chat opens beside any screen (its icon, ⌘J / Ctrl+J, or « Ask about this » in the command palette). It
 knows what the screen shows (a course, a section, a source, a card, a quiz question), answers from the
@@ -138,7 +139,7 @@ Every push to `main` runs the blocking gates (`check`, coverage, S3, Anki); only
 ([Conventional Commits](https://www.conventionalcommits.org): `fix:` → patch, `feat:` → minor,
 `BREAKING CHANGE:` → major), tag `vX.Y.Z`, publish a GitHub release with its notes, and deploy that
 version to GitHub Pages (`.github/workflows/release.yml`). Nothing is committed back: the build takes its
-version from the tag, and Settings › General shows it with the commit, the build date and the sync data
+version from the tag, and Settings › Diagnostics shows it with the commit, the build date and the sync data
 format, plus a check for updates. The Playwright suite runs alongside in `e2e.yml`, one job per device
 class: a red run is reported and fixed, but it does not hold back a release.
 

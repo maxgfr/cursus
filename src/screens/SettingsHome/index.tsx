@@ -5,7 +5,7 @@ import {
   FileText,
   Info,
   LifeBuoy,
-  ShieldCheck,
+  LockKeyhole,
   SlidersHorizontal,
   Smartphone,
   Sparkles,
@@ -16,6 +16,7 @@ import { paths } from '../../app/routes.ts'
 import { useSync } from '../../app/syncContext.tsx'
 import { useRuntime } from '../../app/workspaceContext.tsx'
 import { useT } from '../../i18n/react.tsx'
+import { useAiShown } from '../../ui/ai/ready.ts'
 import { SyncBadge } from '../../ui/components/Badges.tsx'
 import { ListGroup, ListRow } from '../../ui/components/List.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
@@ -23,43 +24,61 @@ import { restoreDestinations } from '../settings/Sync/registry.ts'
 
 const ICON = 20
 
+/** The settings, most used first: studying, then backups and devices, the data, its safety, and help. */
 export default function Settings() {
   const t = useT()
   const rt = useRuntime()
-  const { summary, engine, scheduler } = useSync()
+  const { summary, status, engine, scheduler } = useSync()
+  const aiShown = useAiShown()
   // Remembered destinations rejoin the engine as soon as settings open.
   useEffect(() => {
     if (engine && scheduler) void restoreDestinations(rt, engine, scheduler)
   }, [rt, engine, scheduler])
+  // Pairing hands backups over: until there is one, the Sync page offers it (to receive them on a new device).
+  const hasBackup = (status?.dests.length ?? 0) > 0
   return (
     <Screen title={t('settings.title')}>
-      <ListGroup title={t('settings.groupSafe')}>
+      <ListGroup title={t('settings.groupStudy')}>
+        <ListRow href={paths.settingsReview} leading={<CalendarCheck size={ICON} />} title={t('common.setReview')} />
+        <ListRow
+          href={paths.settingsAi}
+          leading={<Sparkles size={ICON} />}
+          title={t('common.setAi')}
+          subtitle={aiShown ? undefined : t('settings.aiHidden')}
+        />
+        <ListRow
+          href={paths.settingsGeneral}
+          leading={<SlidersHorizontal size={ICON} />}
+          title={t('common.setGeneral')}
+        />
+      </ListGroup>
+      <ListGroup title={t('settings.groupDevices')}>
         <ListRow
           href={paths.settingsSync}
           leading={<Cloud size={ICON} />}
           title={t('settings.sync')}
           trailing={<SyncBadge summary={summary} />}
         />
-        <ListRow href={paths.settingsPair} leading={<Smartphone size={ICON} />} title={t('sync.pairDevice')} />
-        <ListRow href={paths.settingsSeal} leading={<ShieldCheck size={ICON} />} title={t('common.setSeal')} />
-        <ListRow href={paths.settingsRecovery} leading={<LifeBuoy size={ICON} />} title={t('common.setRecovery')} />
-      </ListGroup>
-      <ListGroup title={t('settings.groupPrefs')}>
-        <ListRow
-          href={paths.settingsGeneral}
-          leading={<SlidersHorizontal size={ICON} />}
-          title={t('common.setGeneral')}
-        />
-        <ListRow href={paths.settingsReview} leading={<CalendarCheck size={ICON} />} title={t('common.setReview')} />
-        <ListRow href={paths.settingsAi} leading={<Sparkles size={ICON} />} title={t('common.setAi')} />
+        {hasBackup && (
+          <ListRow href={paths.settingsPair} leading={<Smartphone size={ICON} />} title={t('sync.pairDevice')} />
+        )}
       </ListGroup>
       <ListGroup title={t('settings.groupData')}>
         <ListRow href={paths.settingsData} leading={<Database size={ICON} />} title={t('common.setData')} />
         <ListRow href={paths.trash} leading={<Trash2 size={ICON} />} title={t('common.trashTitle')} />
       </ListGroup>
+      <ListGroup title={t('settings.groupSecurity')}>
+        <ListRow href={paths.settingsSecurity} leading={<LockKeyhole size={ICON} />} title={t('common.setSecurity')} />
+        <ListRow href={paths.settingsRecovery} leading={<LifeBuoy size={ICON} />} title={t('common.setRecovery')} />
+      </ListGroup>
       <ListGroup title={t('settings.groupHelp')}>
         <ListRow href={paths.onboarding} leading={<Info size={ICON} />} title={t('common.welcomeTitle')} />
-        <ListRow href={paths.settingsDiagnostic} leading={<FileText size={ICON} />} title={t('common.setDiagnostic')} />
+        <ListRow
+          href={paths.settingsDiagnostic}
+          leading={<FileText size={ICON} />}
+          title={t('common.setDiagnostic')}
+          subtitle={t('settings.diagnosticSub')}
+        />
       </ListGroup>
     </Screen>
   )

@@ -21,8 +21,8 @@ test('erasing this device leaves a fresh app on the welcome, with no course and 
   })
   await configureAi(page, 'https://llm.mock.test/v1')
 
-  await page.goto('./#/settings/data')
-  await expect(page.getByRole('heading', { level: 1, name: 'Data' })).toBeVisible()
+  await page.goto('./#/settings/security')
+  await expect(page.getByRole('heading', { level: 1, name: 'Password & erasing' })).toBeVisible()
   await page.getByRole('button', { name: 'Erase everything on this device' }).click()
   const sheet = page.getByRole('dialog', { name: 'Erase everything on this device' })
   await expect(sheet).toBeVisible()

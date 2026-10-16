@@ -50,7 +50,12 @@ export function completionReply(
 async function openDisclosure(page: Page, summary: string): Promise<void> {
   const s = page.locator('summary', { hasText: summary })
   await expect(s).toBeVisible()
-  if (!(await s.evaluate((el) => (el.parentElement as HTMLDetailsElement).open))) await s.click()
+  // The page above may still be settling (the on-device section measures this device): a click that a shift
+  // sent elsewhere is tried again until the disclosure is open.
+  await expect(async () => {
+    if (!(await s.evaluate((el) => (el.parentElement as HTMLDetailsElement).open))) await s.click()
+    expect(await s.evaluate((el) => (el.parentElement as HTMLDetailsElement).open)).toBe(true)
+  }).toPass({ timeout: 10_000 })
 }
 
 /** Every provider and model (the catalog, its search and filters) sits behind Advanced. */

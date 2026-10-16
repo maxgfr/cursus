@@ -73,6 +73,8 @@ export interface Prefs {
   theme: 'system' | 'light' | 'dark'
   dailyNewCards: number
   desiredRetention: number
+  /** Whether the AI's entry points show at all: off, the app looks as it does with no model (its settings kept). */
+  aiFeatures: boolean
 }
 export type Scope =
   | 'courses'

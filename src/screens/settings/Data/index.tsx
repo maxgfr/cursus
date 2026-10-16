@@ -1,6 +1,5 @@
 import { type ChangeEvent, useCallback, useEffect, useState } from 'react'
 import { noteLoadFailure } from '../../../app/chunkGuard.ts'
-import { noteBackup } from '../../../app/lastBackup.ts'
 import { paths } from '../../../app/routes.ts'
 import { useWorkspaceData } from '../../../app/workspaceContext.tsx'
 import { formatNumber } from '../../../i18n/format.ts'
@@ -12,12 +11,11 @@ import { PhotoDeviceSetting } from '../../Photos/DeviceSetting.tsx'
 import { loadFile } from '../../Photos/files.ts'
 import { noteError } from '../Diagnostic/recent.ts'
 import { useAction, useDestinations, useWorkspaceConfirm } from '../Sync/hooks.tsx'
-import { absorb, download, exportBackup, fileStamp } from '../Sync/registry.ts'
+import { absorb, download, fileStamp } from '../Sync/registry.ts'
 import styles from '../Sync/settings.module.css'
 import { AnkiImport } from './AnkiImport.tsx'
-import { EraseSection } from './EraseSection.tsx'
-import { GuardSection } from './GuardSection.tsx'
-import { canShareFiles, saveFile } from './saveFile.ts'
+import { saveBackupFile } from './backupFile.ts'
+import { canShareFiles } from './saveFile.ts'
 
 const MB = 1024 * 1024
 
@@ -74,18 +72,13 @@ export default function DataSettings() {
   const backup = (share = false) =>
     run(share ? 'share' : 'backup', async () => {
       if (!engine) return
-      const { CURSUS_EXT, CURSUS_MIME } = await import('../../../core/sync/providers/zip')
-      const { bytes, missingFiles } = await exportBackup(rt, engine)
-      const name = `cursus-${stamp()}${CURSUS_EXT}`
-      if (share) {
-        if ((await saveFile(bytes, name, CURSUS_MIME)) === 'cancelled') return
-      } else download(bytes, name, CURSUS_MIME)
-      await noteBackup(rt.store, rt.clock.now())
+      const saved = await saveBackupFile(rt, engine, share)
+      if (saved === null) return
       // Complete only when nothing the library refers to was left out.
-      if (missingFiles === 0) done(t('settings.backupDone'))
+      if (saved.missingFiles === 0) done(t('settings.backupDone'))
       else {
         setMessage(null)
-        setPartial(t('sync.backupPartial', { count: missingFiles }))
+        setPartial(t('sync.backupPartial', { count: saved.missingFiles }))
       }
     })
 
@@ -182,39 +175,6 @@ export default function DataSettings() {
           </p>
         )}
 
-        <section className={styles.card} aria-labelledby="data-storage">
-          <h2 id="data-storage" className={styles.sectionTitle}>
-            {t('settings.storageTitle')}
-          </h2>
-          <p className={persist ? styles.ok : styles.warn}>
-            {persist === null ? t('common.loading') : persist ? t('settings.persistOn') : t('settings.persistOff')}
-          </p>
-          {usage ? (
-            <>
-              <progress
-                className={styles.meter}
-                max={usage.quota}
-                value={usage.usage}
-                aria-label={t('settings.storageUsed', { used: fmt(usage.usage), quota: fmt(usage.quota) })}
-              />
-              <p className={styles.note}>
-                {t('settings.storageUsed', { used: fmt(usage.usage), quota: fmt(usage.quota) })}
-              </p>
-            </>
-          ) : (
-            <p className={styles.note}>{t('settings.storageUnknown')}</p>
-          )}
-          {persist === false && (
-            <div className={styles.actions}>
-              <Button onClick={askPersist} loading={busy === 'persist'}>
-                {t('settings.persistAsk')}
-              </Button>
-            </div>
-          )}
-        </section>
-
-        <PhotoDeviceSetting />
-
         <section className={styles.card} aria-labelledby="data-backup">
           <h2 id="data-backup" className={styles.sectionTitle}>
             {t('settings.backupTitle')}
@@ -308,9 +268,38 @@ export default function DataSettings() {
 
         <AnkiImport />
 
-        <GuardSection />
+        <section className={styles.card} aria-labelledby="data-storage">
+          <h2 id="data-storage" className={styles.sectionTitle}>
+            {t('settings.storageTitle')}
+          </h2>
+          <p className={persist ? styles.ok : styles.warn}>
+            {persist === null ? t('common.loading') : persist ? t('settings.persistOn') : t('settings.persistOff')}
+          </p>
+          {usage ? (
+            <>
+              <progress
+                className={styles.meter}
+                max={usage.quota}
+                value={usage.usage}
+                aria-label={t('settings.storageUsed', { used: fmt(usage.usage), quota: fmt(usage.quota) })}
+              />
+              <p className={styles.note}>
+                {t('settings.storageUsed', { used: fmt(usage.usage), quota: fmt(usage.quota) })}
+              </p>
+            </>
+          ) : (
+            <p className={styles.note}>{t('settings.storageUnknown')}</p>
+          )}
+          {persist === false && (
+            <div className={styles.actions}>
+              <Button onClick={askPersist} loading={busy === 'persist'}>
+                {t('settings.persistAsk')}
+              </Button>
+            </div>
+          )}
+        </section>
 
-        <EraseSection onBackup={() => backup()} backingUp={busy === 'backup'} />
+        <PhotoDeviceSetting />
       </div>
       {confirmSheet}
     </Screen>

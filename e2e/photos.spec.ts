@@ -214,7 +214,7 @@ test('a shared then imported course keeps its photos', async ({ browser, baseURL
     const path = await file.path()
 
     // Another device: the package brings the photo's file, not just its name.
-    await go(b.page, '#/settings/data', 'Data')
+    await go(b.page, '#/settings/data', 'Import & export')
     await b.page.locator('input[type="file"][aria-labelledby="data-course-import"]').setInputFiles(path)
     await expect(b.page.getByRole('status').filter({ hasText: 'Course imported.' })).toBeVisible()
     await openCourse(b.page, 'Botany')
@@ -294,7 +294,7 @@ test('two devices through S3: a photo taken on one appears on the other; on dema
     await syncUntilTile(b.page, 'Histology', /^large$/, 'ready')
 
     // B keeps photos on demand: the next one is listed at once, and downloads only when opened.
-    await go(b.page, '#/settings/data', 'Data')
+    await go(b.page, '#/settings/data', 'Import & export')
     await b.page.getByTestId('photo-mode').getByRole('radio', { name: 'On demand' }).check()
     await expect(b.page.getByText('Photos stay listed and download when you open them')).toBeVisible()
     await openCourse(a.page, 'Histology')

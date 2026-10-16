@@ -66,7 +66,7 @@ export async function mainScreens(page: Page, query = ''): Promise<string[]> {
     '#/settings/review',
     '#/settings/ai',
     '#/settings/sync',
-    '#/settings/seal',
+    '#/settings/security',
     '#/settings/pair',
     '#/settings/data',
     '#/settings/recovery',

@@ -76,9 +76,12 @@ export const common = {
   setReview: 'Planung',
   setAi: 'KI',
   setSeal: 'Verschlüsselung',
-  setData: 'Daten',
+  setData: 'Import und Export',
   setRecovery: 'Wiederherstellung',
   setDiagnostic: 'Diagnose',
+  setSecurity: 'Passwort und Löschen',
+  securityBody:
+    'Ein Passwort, das folgenreiche Aktionen schützt, und das Löschen von allem auf diesem Gerät. Deine Sicherungen bleiben unberührt.',
   syncEmpty: 'Noch keine Ziele. Füge eines hinzu, um eine Kopie deiner Bibliothek außerhalb dieses Geräts zu behalten.',
   sealBody:
     'Verschlüsseln verschlüsselt alles, was an einen Speicherort gesendet wird, mit einer Passphrase, die nur du kennst.',

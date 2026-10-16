@@ -88,39 +88,6 @@ export default function RecoverySettings() {
           </div>
         </section>
 
-        <ListGroup title={t('settings.recDatabases')} footer={t('settings.recDatabasesFooter')}>
-          {(dbs ?? []).map((name) => (
-            <ListRow
-              key={name}
-              title={<span translate="no">{name}</span>}
-              subtitle={name === 'cursus-v1' ? t('settings.recCurrent') : t('settings.recKept')}
-              trailing={
-                <Button
-                  variant="plain"
-                  loading={busy === name}
-                  aria-label={t('settings.recExportOf', { name })}
-                  onClick={() =>
-                    void run(name, async () => {
-                      download(
-                        await dumpDatabase(name),
-                        `${name}-${fileStamp(rt.clock.now())}.json`,
-                        'application/json',
-                      )
-                    })
-                  }
-                >
-                  {t('settings.recExport')}
-                </Button>
-              }
-            />
-          ))}
-        </ListGroup>
-        {error && (
-          <p className={styles.bad} role="alert">
-            {error}
-          </p>
-        )}
-
         <section className={styles.card} aria-labelledby="rec-sheet">
           <div className={styles.printable}>
             <h2 id="rec-sheet" className={styles.sectionTitle}>
@@ -161,6 +128,43 @@ export default function RecoverySettings() {
             </Button>
           </div>
         </section>
+
+        {/* For experts and support: the raw databases this browser keeps. */}
+        <details className={styles.advanced}>
+          <summary>{t('sync.advanced')}</summary>
+          <ListGroup title={t('settings.recDatabases')} footer={t('settings.recDatabasesFooter')}>
+            {(dbs ?? []).map((name) => (
+              <ListRow
+                key={name}
+                title={<span translate="no">{name}</span>}
+                subtitle={name === 'cursus-v1' ? t('settings.recCurrent') : t('settings.recKept')}
+                trailing={
+                  <Button
+                    variant="plain"
+                    loading={busy === name}
+                    aria-label={t('settings.recExportOf', { name })}
+                    onClick={() =>
+                      void run(name, async () => {
+                        download(
+                          await dumpDatabase(name),
+                          `${name}-${fileStamp(rt.clock.now())}.json`,
+                          'application/json',
+                        )
+                      })
+                    }
+                  >
+                    {t('settings.recExport')}
+                  </Button>
+                }
+              />
+            ))}
+          </ListGroup>
+        </details>
+        {error && (
+          <p className={styles.bad} role="alert">
+            {error}
+          </p>
+        )}
       </div>
     </Screen>
   )

@@ -48,6 +48,7 @@ const screens: Record<Exclude<RouteName, 'today'>, Screen> = {
   settingsSeal: lazyChunk('settingsSeal', () => import('../screens/settings/Seal/index.tsx')),
   settingsPair: lazyChunk('settingsPair', () => import('../screens/settings/Pair/index.tsx')),
   settingsData: lazyChunk('settingsData', () => import('../screens/settings/Data/index.tsx')),
+  settingsSecurity: lazyChunk('settingsSecurity', () => import('../screens/settings/Security/index.tsx')),
   settingsRecovery: lazyChunk('settingsRecovery', () => import('../screens/settings/Recovery/index.tsx')),
   settingsDiagnostic: lazyChunk('settingsDiagnostic', () => import('../screens/settings/Diagnostic/index.tsx')),
 }

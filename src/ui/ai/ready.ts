@@ -1,7 +1,7 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react'
 import { useLocation } from 'wouter'
 import { paths } from '../../app/routes.ts'
-import { type Runtime, useRuntime } from '../../app/workspaceContext.tsx'
+import { type Runtime, useRuntime, useWorkspaceData } from '../../app/workspaceContext.tsx'
 import { secretsVault } from '../../core/storage/secrets'
 import { noteError } from '../../screens/settings/Diagnostic/recent.ts'
 
@@ -90,9 +90,18 @@ export function useAiReadiness(): AiReadiness {
   return useSyncExternalStore(subscribe, current)
 }
 
-/** True only when a model is ready: every AI entry point outside the AI settings shows on this alone. */
+/** Whether the student keeps the AI's features in view: a synced preference, on unless turned off. */
+export function useAiShown(): boolean {
+  return useWorkspaceData(['prefs'], (ws) => ws.prefs.get('aiFeatures') !== false)
+}
+
+/**
+ * True only when a model is ready and the AI's features are kept in view: every AI entry point outside the AI
+ * settings shows on this alone, so turned off the app looks as it does with no model (the model stays set up).
+ */
 export function useAiReady(): boolean {
-  return useAiReadiness() === 'ready'
+  const shown = useAiShown()
+  return useAiReadiness() === 'ready' && shown
 }
 
 const inAiSettings = (location: string) => location.startsWith(paths.settingsAi)

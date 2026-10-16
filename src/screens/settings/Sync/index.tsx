@@ -11,9 +11,10 @@ import {
   Triangle,
 } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
+import { useSearch } from 'wouter'
 import { paths } from '../../../app/routes.ts'
 import { useT } from '../../../i18n/react.tsx'
-import { SyncBadge } from '../../../ui/components/Badges.tsx'
+import { ProtectionBadge, SyncBadge } from '../../../ui/components/Badges.tsx'
 import { Banner } from '../../../ui/components/Banner.tsx'
 import { Button } from '../../../ui/components/Button.tsx'
 import { ListGroup, ListRow } from '../../../ui/components/List.tsx'
@@ -24,6 +25,7 @@ import { UpdateControl } from '../General/update.tsx'
 import { oneClickDraft } from './builtIn.ts'
 import { beginOAuth, cloudkitSignIn, commit, folderSupported, isOAuth, pickFolder } from './connect.ts'
 import { DestSheet, stateText } from './DestSheet.tsx'
+import { EncryptionSection } from './Encryption.tsx'
 import { GitHubForm } from './GitHubForm.tsx'
 import { errorText, useAction, useDestinations, useWorkspaceConfirm } from './hooks.tsx'
 import { CloudKitForm, DriveForm, DropboxForm, FolderForm, OneDriveForm } from './ProviderForms.tsx'
@@ -55,6 +57,12 @@ export default function SyncSettings() {
   const [open, setOpen] = useState<string | null>(null)
   const [connected, setConnected] = useState<string | null>(null)
   const dests = status?.dests ?? []
+  // An older link to the Encryption page lands here (`?at=encryption`): the section is brought into view.
+  const at = new URLSearchParams(useSearch()).get('at')
+  const hasDests = dests.length > 0
+  useEffect(() => {
+    if (at === 'encryption' && hasDests) document.getElementById('encryption')?.scrollIntoView({ block: 'start' })
+  }, [at, hasDests])
 
   const ready = engine !== null && scheduler !== null
 
@@ -215,10 +223,29 @@ export default function SyncSettings() {
         {dests.length > 0 && (
           <ListGroup title={t('sync.destinations')}>
             {dests.map((d) => (
-              <ListRow key={d.id} title={d.label} subtitle={stateText(t, d)} onClick={() => setOpen(d.id)} chevron />
+              <ListRow
+                key={d.id}
+                title={d.label}
+                subtitle={stateText(t, d)}
+                trailing={
+                  records ? <ProtectionBadge sealed={records.find((r) => r.id === d.id)?.sealed === true} /> : undefined
+                }
+                onClick={() => setOpen(d.id)}
+                chevron
+              />
             ))}
           </ListGroup>
         )}
+
+        {/* Sends the backups to another device, or receives them on a new one: offered with or without backups. */}
+        <ListGroup title={t('sync.otherDevices')}>
+          <ListRow
+            leading={<Smartphone size={ICON} />}
+            title={t('sync.pairDevice')}
+            subtitle={t('sync.nearbySub')}
+            href={paths.settingsPair}
+          />
+        </ListGroup>
 
         <ListGroup title={t('sync.addDestination')} footer={t('sync.addFooter')}>
           {everyday.map(row)}
@@ -235,14 +262,10 @@ export default function SyncSettings() {
           <summary>{t('sync.advanced')}</summary>
           <ListGroup title={t('sync.advanced')} hideTitle>
             {advanced.map(row)}
-            <ListRow
-              leading={<Smartphone size={ICON} />}
-              title={t('sync.nearby')}
-              subtitle={t('sync.nearbySub')}
-              href={paths.settingsPair}
-            />
           </ListGroup>
         </details>
+
+        {dests.length > 0 && <EncryptionSection rt={rt} engine={engine} records={records} reload={reload} />}
       </div>
 
       <Sheet open={adding !== null} title={addingTitle} onClose={() => setAdding(null)}>
