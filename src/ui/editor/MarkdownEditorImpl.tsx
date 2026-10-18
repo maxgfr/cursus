@@ -484,6 +484,9 @@ export default function MarkdownEditorImpl({
       const url = resolveBlob?.(id)
       if (url) urls.set(id, url)
     }
+    // Most keystrokes leave the photos as they were: the text is then redrawn once, not twice.
+    const shown = v.state.field(photoUrls)
+    if (shown.size === urls.size && [...urls].every(([id, url]) => shown.get(id) === url)) return
     v.dispatch({ effects: setPhotoUrls.of(urls) })
   }, [current, resolveBlob])
 
