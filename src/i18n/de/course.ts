@@ -122,6 +122,7 @@ export const course = {
   cardTrashed: 'Karte in den Papierkorb verschoben.',
   undo: 'Rückgängig',
   save: 'Sichern',
+  saveAndNext: 'Sichern und nächste Karte',
   cancel: 'Abbrechen',
   unsaved: 'Ungesicherte Änderungen',
   saved: 'Gesichert',

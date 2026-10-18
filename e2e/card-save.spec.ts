@@ -189,3 +189,61 @@ test('the editor offers its actions only where they stay: a tap on Cancel cannot
   await cancel.click()
   await expect(page.getByRole('heading', { level: 1, name: 'Ecology' })).toBeVisible()
 })
+
+test('« Save and add another » writes cards on the fly: each one saved, the next one empty in the same section', async ({
+  page,
+}) => {
+  await createCourse(page, 'Anatomy')
+  const course = page.url()
+  await page.getByRole('button', { name: 'New section' }).click()
+  const dialog = page.getByRole('dialog', { name: 'New section' })
+  await dialog.getByLabel('Section name').fill('Bones')
+  await dialog.getByRole('button', { name: 'Save' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Bones' })).toBeVisible()
+  const section = page.url()
+  await page.getByRole('radio', { name: 'Cards' }).check()
+  await page.getByRole('button', { name: 'New card' }).first().click()
+  // A new card's route is its place: the next card stays on it, and no entry is pushed for it.
+  await expect(page).toHaveURL(/#\/card\/new\.[^.]+\.[^.]+$/)
+  const editor = page.url()
+  const front = page.getByRole('textbox', { name: 'Front' })
+  const saveNext = page.getByRole('button', { name: 'Save and add another', exact: true })
+  await expect(saveNext).toHaveAttribute('aria-keyshortcuts', 'Meta+Shift+Enter Control+Shift+Enter')
+  await expect(saveNext).toBeDisabled()
+
+  const fronts = ['Femur is in the?', 'Tibia is in the?', 'Ulna is in the?']
+  for (const [i, text] of fronts.entries()) {
+    await typeInto(page, 'Front', text)
+    await typeInto(page, 'Back', 'Answer')
+    await expect(page.getByRole('status').filter({ hasText: 'Unsaved changes' })).toBeVisible()
+    // The button, then the shortcut, then the button again.
+    if (i === 1) await page.keyboard.press('ControlOrMeta+Shift+Enter')
+    else await saveNext.click()
+    // Still the editor: the next card, empty, the cursor in its front, the last one said added.
+    await expect(page.getByRole('status').filter({ hasText: 'Card added.' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: 'Card' })).toBeVisible()
+    expect(page.url()).toBe(editor)
+    await expect(front).toHaveText('')
+    await expect(page.getByRole('textbox', { name: 'Back' })).toHaveText('')
+    await expect(front).toBeFocused()
+    await expect(saveNext).toBeDisabled()
+    await expect(save(page)).toBeDisabled()
+  }
+
+  // Saved for good, and no draft left of them: a reload starts the next card empty too.
+  await page.reload()
+  await expect(front).toHaveText('')
+  await expect(page.getByText('Unsaved draft restored.')).toHaveCount(0)
+
+  // Back lands on the section, with the three cards; the browser's back then goes to the course.
+  await page.getByRole('link', { name: 'Back' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Bones' })).toBeVisible()
+  expect(page.url()).toBe(section)
+  await page.getByRole('radio', { name: 'Cards' }).check()
+  await expect(page.getByRole('main').getByRole('link', { name: / is in the\?/ })).toHaveText(
+    fronts.map((f) => new RegExp(f.replace('?', '\\?'))),
+  )
+  await page.goBack()
+  await expect(page.getByRole('heading', { level: 1, name: 'Anatomy' })).toBeVisible()
+  expect(page.url()).toBe(course)
+})

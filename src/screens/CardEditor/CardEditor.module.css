@@ -76,6 +76,11 @@
 }
 
 /* Save: top right on iPad and Mac, in the thumb zone at the bottom on iPhone. */
+.top {
+  display: flex;
+  gap: var(--space-2);
+}
+
 .bottom {
   display: none;
 }
@@ -89,10 +94,19 @@
     position: sticky;
     bottom: calc(var(--tabbar-height) + env(safe-area-inset-bottom) + var(--space-3));
     z-index: 2;
-    display: grid;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
   }
 
+  /* Side by side when both fit, else « Save and add another » under Save, nearest the thumb. */
   .bottom > button {
-    width: 100%;
+    flex: 1 1 auto;
+  }
+
+  /* Two buttons: one block, the text scrolling under it never shows between them. */
+  .pair {
+    border-radius: var(--radius-control);
+    background: var(--bg);
   }
 }

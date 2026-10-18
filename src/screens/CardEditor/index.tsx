@@ -16,6 +16,7 @@ import { Keycap } from '../../ui/components/Keycap.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
 import { Sheet } from '../../ui/components/Sheet.tsx'
 import { Toast } from '../../ui/components/Toast.tsx'
+import { cx } from '../../ui/cx.ts'
 import { MarkdownEditor } from '../../ui/editor/MarkdownEditor.tsx'
 import { MoveSheet, moveItemTo } from '../../ui/MoveSheet.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
@@ -68,14 +69,36 @@ function scratch(f: CardFields): Draft {
 
 const MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
 
+/** The next new card after « Save and add another »: written in the same place, of the same kind. */
+interface Next {
+  /** The new-card route it follows on: another screen (or another place) starts afresh. */
+  id: string
+  round: number
+  kind: Kind
+}
+
+/**
+ * « Save and add another » keeps the route (a new card's id is its place) and starts the editor afresh, so the next
+ * card begins as one opened from the course does: empty, no draft, the cursor in the front.
+ */
 export default function CardEditor() {
+  const { id = '' } = useParams<{ id: string }>()
+  const [next, setNext] = useState<Next | null>(null)
+  const following = next?.id === id ? next : null
+  const onNext = useCallback(
+    (kind: Kind) => setNext((n) => ({ id, round: (n?.id === id ? n.round : 0) + 1, kind })),
+    [id],
+  )
+  return <Editor key={following?.round ?? 0} id={id} next={following} onNext={onNext} />
+}
+
+function Editor({ id, next, onNext }: { id: string; next: Next | null; onNext: (kind: Kind) => void }) {
   const t = useT()
   const rt = useRuntime()
   const ws = rt.ws
   const aiReady = useAiReady()
   const [improving, setImproving] = useState(false)
   const [rewritten, setRewritten] = useState<Rewritten | null>(null)
-  const { id = '' } = useParams<{ id: string }>()
   const newCourse = newCardCourse(id)
   const newSection = newCardSection(id)
   const card = useWorkspaceData(['cards', 'courses', 'sections', 'sources', { id }], (w) => {
@@ -153,7 +176,16 @@ export default function CardEditor() {
   const pageRef = useRef<HTMLDivElement>(null)
   const formRef = useRef<HTMLDivElement>(null)
   const exists = card !== null
-  // Opened to write the next card (« Card added · New card »): the cursor waits in the front, as it did after a save.
+  /** The card before this one was just added (« Save and add another »): said once the editor is in place, until
+   *  this one is being written. */
+  const [added, setAdded] = useState(false)
+  useEffect(() => setAdded(next !== null), [next])
+  /** What the editor starts from when no draft is kept: the saved card, or the next one's kind. */
+  const nextKind = next?.kind
+  const fresh = useCallback(
+    (): CardFields => (nextKind === undefined ? savedRef.current : { ...EMPTY, kind: nextKind }),
+    [nextKind],
+  )
 
   // Seed the draft once per card: an unsaved draft kept on this device wins over the saved card.
   useEffect(() => {
@@ -162,8 +194,8 @@ export default function CardEditor() {
     readDraft(rt.store, id).then(
       (kept) => {
         if (!live) return
-        const b = kept?.base ?? savedRef.current
-        const seed = kept?.fields ?? savedRef.current
+        const b = kept?.base ?? fresh()
+        const seed = kept?.fields ?? fresh()
         setRestored(kept !== null && !sameFields(kept.fields, b))
         setBase(b)
         setKind(seed.kind)
@@ -173,17 +205,18 @@ export default function CardEditor() {
       (e: unknown) => {
         noteError('card.draft', e)
         if (live) {
-          setBase(savedRef.current)
-          setKind(savedRef.current.kind)
-          setFields(savedRef.current)
-          setDraft(scratch(savedRef.current))
+          const seed = fresh()
+          setBase(seed)
+          setKind(seed.kind)
+          setFields(seed)
+          setDraft(scratch(seed))
         }
       },
     )
     return () => {
       live = false
     }
-  }, [rt, id, exists])
+  }, [rt, id, exists, fresh])
 
   // Every keystroke updates the draft (and its copy on this device), never the card.
   useEffect(() => {
@@ -197,6 +230,9 @@ export default function CardEditor() {
   const current = useMemo<CardFields>(() => ({ ...fields, kind }), [fields, kind])
   const dirty =
     draft !== null && (newCourse !== null ? current.front !== '' || current.back !== '' : !sameFields(current, base))
+  useEffect(() => {
+    if (dirty) setAdded(false)
+  }, [dirty])
 
   // A field left untouched here follows edits made elsewhere, so the draft never holds a stale copy.
   const { front: savedFront, back: savedBack, kind: savedKind } = saved
@@ -275,35 +311,44 @@ export default function CardEditor() {
     setSaving(false)
   }, [])
 
-  const save = useCallback(() => {
-    if (!dirty || !card || !draft || !hold()) return
-    if (newCourse !== null) {
-      if (createdRef.current === null) createdRef.current = create(current, newCourse)
-    } else {
-      const conflicts = saveExisting(ws, id, base, current)
-      if (conflicts.length > 0) {
-        // Merged fields are saved; the others keep the remote text, and the user's version stays as the draft.
-        const now: CardFields = {
-          kind: ws.cards.get(id)?.kind ?? current.kind,
-          front: ws.text({ id, field: 'front' }).toString(),
-          back: ws.text({ id, field: 'back' }).toString(),
+  /** Saves the draft; `andNext` (a new card only) then opens the next new card in the same place instead of leaving. */
+  const save = useCallback(
+    (andNext = false) => {
+      if (!dirty || !card || !draft || !hold()) return
+      if (newCourse !== null) {
+        if (createdRef.current === null) createdRef.current = create(current, newCourse)
+      } else {
+        const conflicts = saveExisting(ws, id, base, current)
+        if (conflicts.length > 0) {
+          // Merged fields are saved; the others keep the remote text, and the user's version stays as the draft.
+          const now: CardFields = {
+            kind: ws.cards.get(id)?.kind ?? current.kind,
+            front: ws.text({ id, field: 'front' }).toString(),
+            back: ws.text({ id, field: 'back' }).toString(),
+          }
+          for (const field of ['front', 'back'] as const) {
+            if (!conflicts.includes(field)) applyForward(draft[field], now[field])
+          }
+          setBase(now)
+          setConflict(true)
+          rt.seal()
+            .catch((e: unknown) => noteError('card.save', e))
+            .finally(release)
+          return
         }
-        for (const field of ['front', 'back'] as const) {
-          if (!conflicts.includes(field)) applyForward(draft[field], now[field])
-        }
-        setBase(now)
-        setConflict(true)
-        rt.seal()
-          .catch((e: unknown) => noteError('card.save', e))
-          .finally(release)
-        return
       }
-    }
-    // Saved means on disk before leaving, not at the next idle seal. A new card's place offers the next one.
-    void Promise.all([rt.seal(), dropDraft(rt.store, id)])
-      .catch((e: unknown) => noteError('card.save', e))
-      .finally(() => leave(newCourse !== null ? { cardSaved: true, cardAdded: true } : { cardSaved: true }))
-  }, [dirty, card, draft, hold, release, newCourse, create, current, ws, id, base, rt, leave])
+      // Saved means on disk before leaving, not at the next idle seal. A new card's place offers the next one; the
+      // next card itself starts once its draft is gone, so it starts empty.
+      void Promise.all([rt.seal(), dropDraft(rt.store, id)])
+        .catch((e: unknown) => noteError('card.save', e))
+        .finally(() => {
+          if (newCourse === null) leave({ cardSaved: true })
+          else if (andNext) onNext(current.kind)
+          else leave({ cardSaved: true, cardAdded: true })
+        })
+    },
+    [dirty, card, draft, hold, release, newCourse, create, current, ws, id, base, rt, leave, onNext],
+  )
 
   // A new card: the cursor waits in the front, ready to type (the next card after « New card » too).
   useEffect(() => {
@@ -326,14 +371,15 @@ export default function CardEditor() {
     return () => page.removeEventListener('click', guard, true)
   })
 
-  // ⌘S / Ctrl+S and ⌘Enter save from anywhere in the editor.
+  // ⌘S / Ctrl+S and ⌘Enter save from anywhere in the editor; ⇧⌘Enter / Ctrl+Shift+Enter saves a new card and opens
+  // the next one.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey)) return
       if (e.key === 's' || e.key === 'S' || e.key === 'Enter') {
         e.preventDefault()
         // A held key repeats: one press is one Save.
-        if (!e.repeat) save()
+        if (!e.repeat) save(e.key === 'Enter' && e.shiftKey)
       }
     }
     addEventListener('keydown', onKey)
@@ -379,19 +425,41 @@ export default function CardEditor() {
       )
   }
   const shortcut = MAC ? '⌘S' : 'Ctrl+S'
-  const saveButton = (
-    <Button
-      variant="primary"
-      onClick={save}
-      disabled={!dirty || saving}
-      aria-keyshortcuts="Meta+S Control+S Meta+Enter"
-      title={`${t('course.save')} (${shortcut})`}
-    >
-      {t('course.save')}
-      <Keycap>{shortcut}</Keycap>
-    </Button>
+  const nextShortcut = MAC ? '⇧⌘↩' : 'Ctrl+Shift+Enter'
+  // A new card: writing cards on the fly, the main action saves this one and starts the next one in the same place.
+  const saveButtons = (
+    <>
+      <Button
+        variant={newCourse === null ? 'primary' : 'secondary'}
+        onClick={() => save()}
+        disabled={!dirty || saving}
+        aria-keyshortcuts="Meta+S Control+S Meta+Enter"
+        title={`${t('course.save')} (${shortcut})`}
+      >
+        {t('course.save')}
+        <Keycap>{shortcut}</Keycap>
+      </Button>
+      {newCourse !== null && (
+        <Button
+          variant="primary"
+          onClick={() => save(true)}
+          disabled={!dirty || saving}
+          aria-keyshortcuts="Meta+Shift+Enter Control+Shift+Enter"
+          title={`${t('course.saveAndNext')} (${nextShortcut})`}
+        >
+          {t('course.saveAndNext')}
+          <Keycap>{nextShortcut}</Keycap>
+        </Button>
+      )}
+    </>
   )
-  const status = dirty ? t('course.unsaved') : newCourse === null ? t('course.saved') : ''
+  const status = dirty
+    ? t('course.unsaved')
+    : newCourse === null
+      ? t('course.saved')
+      : added
+        ? t('course.cardAdded')
+        : ''
 
   return (
     <div ref={pageRef} className={styles.page}>
@@ -399,7 +467,7 @@ export default function CardEditor() {
         title={t('common.cardTitle')}
         back={home}
         backOptions={backHome(home)}
-        trailing={<div className={styles.top}>{saveButton}</div>}
+        trailing={<div className={styles.top}>{saveButtons}</div>}
       >
         <p className={styles.status} role="status">
           {card.relocated ? `${t('course.sectionGoneSaveIn', { place: card.relocated })} ` : ''}
@@ -520,7 +588,7 @@ export default function CardEditor() {
             )}
           </div>
         )}
-        <div className={styles.bottom}>{saveButton}</div>
+        <div className={cx(styles.bottom, newCourse !== null && styles.pair)}>{saveButtons}</div>
         {improving && (
           <Suspense fallback={null}>
             <ImproveSheet cardId={id} revealed onClose={() => setImproving(false)} onUsed={setRewritten} />

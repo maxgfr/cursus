@@ -122,6 +122,7 @@ export const course = {
   cardTrashed: 'Carte mise à la corbeille.',
   undo: 'Annuler',
   save: 'Enregistrer',
+  saveAndNext: 'Enregistrer et nouvelle carte',
   cancel: 'Annuler',
   unsaved: 'Modifications non enregistrées',
   saved: 'Enregistré',

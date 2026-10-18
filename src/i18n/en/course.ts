@@ -116,6 +116,7 @@ export const course = {
   cardTrashed: 'Card moved to the trash.',
   undo: 'Undo',
   save: 'Save',
+  saveAndNext: 'Save and add another',
   cancel: 'Cancel',
   unsaved: 'Unsaved changes',
   saved: 'Saved',
