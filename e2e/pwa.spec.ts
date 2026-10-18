@@ -50,6 +50,18 @@ test('the manifest is installable and relative to the base', async ({ page, requ
   const touch = await page.locator('link[rel="apple-touch-icon"]').getAttribute('href')
   expect((await request.get(new URL(touch ?? '', page.url()).toString())).ok()).toBe(true)
   expect(await page.locator('link[rel="apple-touch-startup-image"]').count()).toBeGreaterThan(10)
+  // iPad Pro 12.9" and 11", both orientations, light and dark.
+  for (const name of [
+    'portrait-light-2048x2732',
+    'landscape-dark-2732x2048',
+    'portrait-dark-1668x2388',
+    'landscape-light-2388x1668',
+  ]) {
+    const splash = await page
+      .locator(`link[rel="apple-touch-startup-image"][href$="apple-splash-${name}.png"]`)
+      .getAttribute('href')
+    expect((await request.get(new URL(splash ?? '', page.url()).toString())).ok()).toBe(true)
+  }
   const csp = await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content')
   expect(csp).toContain("default-src 'self'")
   expect(csp).toContain("object-src 'none'")
