@@ -80,3 +80,30 @@ const subscribe = (l: () => void) => {
 export function useChatWidth(): number | null {
   return useSyncExternalStore(subscribe, chatWidth, () => null)
 }
+
+/**
+ * Docked, whether the chat opens across the page's room (expanded) or as its column: the last choice made on this
+ * device with « Expand » / « Restore », expanded until one is made or whenever the browser keeps nothing.
+ */
+export const CHAT_EXPANDED_KEY = 'cursus:chat:expanded'
+
+/** What the stored value means: only « 0 » (restored) opens the column; anything else, expanded. */
+export function parseExpanded(stored: string | null): boolean {
+  return stored !== '0'
+}
+
+export function chatExpanded(): boolean {
+  try {
+    return parseExpanded(localStorage.getItem(CHAT_EXPANDED_KEY))
+  } catch {
+    return true
+  }
+}
+
+export function setChatExpanded(expanded: boolean): void {
+  try {
+    localStorage.setItem(CHAT_EXPANDED_KEY, expanded ? '1' : '0')
+  } catch {
+    // Storage refused (private mode): the choice holds until the chat is closed.
+  }
+}

@@ -75,7 +75,8 @@ function useDocked(): boolean {
 
 /**
  * The chat beside the screens, to talk about what is on them: from 1000px it opens across the page's whole room
- * (expanded), restored a column docked on the right; below it the whole screen over the page. It only converses, cited, with
+ * (expanded) or as a column docked on the right (restored), as last chosen on this device; below it the whole
+ * screen over the page. It only converses, cited, with
  * « Copy » and « Make a card » (a suggested card); each AI feature has its own place on its screen. Earlier threads
  * keep their structured answers, read only. Loaded on first opening.
  */
@@ -404,14 +405,14 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
   }
 
   // Below 1000px the sheet covers the page: following a citation or a link closes it. Docked and expanded, the
-  // page is out of sight: the link gives it back its room.
+  // page is out of sight: the link gives it back its room, for this opening only (not a choice to remember).
   const body = useRef<HTMLDivElement>(null)
   useEffect(() => {
     const el = body.current
     if (!el || (docked && !chat?.expanded)) return
     const onClick = (e: Event) => {
       if (!(e.target instanceof Element && e.target.closest('a'))) return
-      if (docked) chat?.toggleExpanded()
+      if (docked) chat?.showPage()
       else onClose()
     }
     el.addEventListener('click', onClick)

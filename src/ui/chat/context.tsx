@@ -9,6 +9,7 @@ import {
   useSyncExternalStore,
 } from 'react'
 import { useAiReady } from '../ai/ready.ts'
+import { chatExpanded, setChatExpanded } from './chatWidth.ts'
 
 /** What a screen shows, for the chat beside it. Ids only: the panel reads titles and passages itself. */
 export interface ScreenContext {
@@ -39,7 +40,7 @@ export interface ChatSnapshot {
   /** The most specific context the screens on display publish. */
   context: ScreenContext
   asked: ChatAsk | null
-  /** Docked, the chat takes the page's whole room instead of its column: so on every opening, until restored. */
+  /** Docked, the chat takes the page's whole room instead of its column: each opening as last chosen on this device. */
   expanded: boolean
 }
 
@@ -80,12 +81,14 @@ class ChatHub {
     this.emit({ context: this.merged() })
   }
 
-  /** Each opening starts expanded; « Restore » gives the page its column back for that opening only. */
+  /** Each opening starts expanded or as the column, as « Expand » / « Restore » were last chosen on this device. */
   setOpen(open: boolean) {
-    if (open !== this.snapshot.open) this.emit(open ? { open, expanded: true } : { open })
+    if (open !== this.snapshot.open) this.emit(open ? { open, expanded: chatExpanded() } : { open })
   }
 
-  setExpanded(expanded: boolean) {
+  /** `remember`: the student's own choice, kept for the next openings; otherwise for this opening only. */
+  setExpanded(expanded: boolean, remember: boolean) {
+    if (remember) setChatExpanded(expanded)
     if (expanded !== this.snapshot.expanded) this.emit({ expanded })
   }
 
@@ -93,7 +96,7 @@ class ChatHub {
     this.seq += 1
     this.emit({
       open: true,
-      ...(this.snapshot.open ? {} : { expanded: true }),
+      ...(this.snapshot.open ? {} : { expanded: chatExpanded() }),
       asked: { text, ...(excerpt ? { excerpt } : {}), seq: this.seq },
     })
   }
@@ -117,8 +120,13 @@ const Hub = createContext<ChatHub | null>(null)
 export interface ChatApi extends ChatSnapshot {
   toggle(): void
   close(): void
-  /** Docked, takes the page's whole room, or gives it back (the column at its chosen width). */
+  /**
+   * Docked, takes the page's whole room, or gives it back (the column at its chosen width): the choice the next
+   * openings start with on this device.
+   */
   toggleExpanded(): void
+  /** Docked and expanded, gives the page its column back for this opening only (a link followed from the chat). */
+  showPage(): void
   /**
    * Opens the chat and asks `text` there, `excerpt` going along as context: a term selected on screen (with the
    * passage it was read in), or what a feature answered, to go on about it (« Continue in the chat »).
@@ -141,7 +149,8 @@ export function useChat(): ChatApi | null {
         ...snap,
         toggle: () => hub.setOpen(!hub.snapshot.open),
         close: () => hub.setOpen(false),
-        toggleExpanded: () => hub.setExpanded(!hub.snapshot.expanded),
+        toggleExpanded: () => hub.setExpanded(!hub.snapshot.expanded, true),
+        showPage: () => hub.setExpanded(false, false),
         ask: (text: string, excerpt?: string) => hub.ask(text, excerpt),
         settle: (seq: number) => hub.settle(seq),
       },

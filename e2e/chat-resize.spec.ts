@@ -4,8 +4,9 @@ import { createHarness } from './support/harness.ts'
 import { isPhone, seriousViolations, watchErrors } from './support/page.ts'
 
 // The chat opens across the page's room; restored, it is as wide as the student makes it: its left edge is dragged
-// (or moved with the keyboard), the page beside it narrows, and the width is kept on this device. On a phone the
-// chat takes the whole screen. Whatever its size, its close button stays on screen.
+// (or moved with the keyboard), the page beside it narrows, and the width is kept on this device, as is the last
+// choice between expanded and restored. On a phone the chat takes the whole screen. Whatever its size, its close
+// button stays on screen.
 
 test.use({ serviceWorkers: 'block' })
 
@@ -71,10 +72,10 @@ test('dragging the chat’s edge widens it and narrows the page; kept after a re
     .toBeGreaterThanOrEqual(panelBefore + gained - 2)
   if (docked) expect(await width(page, 'main')).toBeLessThanOrEqual(mainBefore - gained + 2)
 
-  // Remembered on this device.
+  // Remembered on this device, the width and the column it was left as.
   await page.reload()
   const again = await openChatOnCourse(page, info.project.name)
-  await restoreChat(page, info.project.name)
+  await expect(again.getByRole('button', { name: 'Expand chat' })).toBeVisible()
   await expect(page.getByRole('separator', { name: 'Chat width' })).toHaveAttribute('aria-valuenow', String(wider))
   await expect
     .poll(async () => Math.round((await again.boundingBox())?.width ?? 0))
@@ -148,7 +149,7 @@ const inVisualViewport = (el: Element) => {
   )
 }
 
-test('on a wide screen the chat opens across the page’s room, its close button on screen; restored, it opens expanded again', async ({
+test('on a wide screen the chat opens across the page’s room, its close button on screen; it opens again as last left, expanded or restored', async ({
   page,
 }, info) => {
   test.skip(isPhone(info.project.name), 'on a phone the chat takes the whole screen')
@@ -181,18 +182,50 @@ test('on a wide screen the chat opens across the page’s room, its close button
   await close.click()
   await expect(panel).toBeHidden()
 
-  // Restored last time, it still opens expanded, from the page or with the shortcut.
+  // Restored last time, it opens as the column again, from the page, with the shortcut or after a reload.
+  const opensRestored = async () => {
+    await expect(panel.getByRole('button', { name: 'Expand chat' })).toBeVisible()
+    await expect(heading).toBeVisible()
+    await expect(page.getByRole('separator', { name: 'Chat width' })).toBeVisible()
+    await expect(close).toBeInViewport({ ratio: 1 })
+  }
   await page.getByRole('button', { name: 'Ask about this' }).first().click()
-  await expect(panel.getByRole('button', { name: 'Restore chat width' })).toBeVisible()
-  await expect(heading).toBeHidden()
-  await expect(close).toBeInViewport({ ratio: 1 })
+  await opensRestored()
+  await close.click()
+  await expect(panel).toBeHidden()
+  await page.keyboard.press('ControlOrMeta+j')
+  await expect(panel).toBeVisible()
+  await opensRestored()
+  await close.click()
+  await expect(panel).toBeHidden()
+  await page.reload()
+  await openChatOnCourse(page, info.project.name)
+  await opensRestored()
+
+  // Expanded again, it opens expanded again, from the page, with the shortcut or after a reload.
+  const opensExpanded = async () => {
+    await expect(panel.getByRole('button', { name: 'Restore chat width' })).toBeVisible()
+    await expect(heading).toBeHidden()
+    await expect(page.getByRole('separator', { name: 'Chat width' })).toBeHidden()
+    await expect(close).toBeInViewport({ ratio: 1 })
+  }
+  await panel.getByRole('button', { name: 'Expand chat' }).click()
+  await opensExpanded()
   await close.click()
   await expect(panel).toBeHidden()
   await expect(heading).toBeVisible()
+  await page.getByRole('button', { name: 'Ask about this' }).first().click()
+  await opensExpanded()
+  await close.click()
+  await expect(panel).toBeHidden()
   await page.keyboard.press('ControlOrMeta+j')
   await expect(panel).toBeVisible()
-  await expect(panel.getByRole('button', { name: 'Restore chat width' })).toBeVisible()
-  await expect(close).toBeInViewport({ ratio: 1 })
+  await opensExpanded()
+  await close.click()
+  await expect(panel).toBeHidden()
+  await page.reload()
+  await openChatOnCourse(page, info.project.name)
+  await opensExpanded()
   await close.click()
   await expect(panel).toBeHidden()
   expect(errors).toEqual([])
