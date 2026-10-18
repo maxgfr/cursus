@@ -6,7 +6,10 @@ import { type PwaUpdate, requestPersistence, startPwa, subscribeUpdate, toastUpd
 import { Toast } from '../../ui/components/Toast.tsx'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 
-/** Starts the PWA layer and offers a waiting update (sealing first), unless a screen offers it in place. */
+/**
+ * Starts the PWA layer and offers a waiting update (sealing first), or a reload once another window applied it,
+ * unless a screen offers it in place.
+ */
 export default function UpdateToast() {
   const t = useT()
   const rt = useRuntime()
@@ -23,14 +26,14 @@ export default function UpdateToast() {
   if (pending && pending !== dismissed) {
     return (
       <Toast
-        message={applying ? t('common.updating') : t('common.updateReady')}
+        message={applying ? t('common.updating') : pending.active ? t('common.updateActive') : t('common.updateReady')}
         actions={
           applying
             ? []
             : [
                 { label: t('common.dismiss'), onClick: () => setDismissed(pending) },
                 {
-                  label: t('common.updateNow'),
+                  label: pending.active ? t('common.reload') : t('common.updateNow'),
                   onClick: () => {
                     setApplying(true)
                     pending.apply().catch((e: unknown) => {

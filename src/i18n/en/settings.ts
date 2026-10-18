@@ -158,6 +158,7 @@ export const settings = {
   updateChecking: 'Checking for updates…',
   updateCurrent: 'Cursus is up to date. Last checked at {time}.',
   updateAvailable: 'A new version is ready. Your edits are saved before it opens.',
+  updateActive: 'A new version was opened in another window. Reload when you’re ready: your edits are saved first.',
   updateNow: 'Update now',
   updateOffline: 'You’re offline. Connect to the internet to check for updates.',
   updateUnsupported:

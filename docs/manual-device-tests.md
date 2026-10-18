@@ -64,6 +64,9 @@ destinations. Record the date, devices and OS versions with each run.
   once space is freed.
 - [ ] **Update while typing.** Deploy a new version while typing in a card on iPad. Expected: an update
   notice appears; the text being typed is kept before and after accepting the update.
+- [ ] **Update in another window.** With the installed app and a browser tab open, type in one and accept
+  an update in the other. Expected: only the window that accepted it reloads; the one being typed in keeps
+  its text and caret and offers a reload.
 
 ## Content and input
 

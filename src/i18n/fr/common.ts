@@ -91,6 +91,7 @@ export const common = {
   diagnosticBody: 'Le journal de diagnostic reste sur cet appareil jusqu’à ce que vous l’exportiez.',
   updateReady: 'Une nouvelle version de Cursus est prête.',
   updateNow: 'Mettre à jour',
+  updateActive: 'Une nouvelle version de Cursus a été ouverte dans une autre fenêtre. Rechargez quand vous voulez.',
   dismiss: 'Masquer',
   edFormatting: 'Mise en forme',
   edBold: 'Gras',

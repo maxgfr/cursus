@@ -85,6 +85,7 @@ export const common = {
   diagnosticBody: 'The diagnostic log stays on this device until you export it.',
   updateReady: 'A new version of Cursus is ready.',
   updateNow: 'Update',
+  updateActive: 'A new version of Cursus was opened in another window. Reload when you’re ready.',
   dismiss: 'Dismiss',
   edFormatting: 'Formatting',
   edBold: 'Bold',

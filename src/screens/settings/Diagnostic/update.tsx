@@ -8,18 +8,25 @@ import { Button } from '../../../ui/components/Button.tsx'
 import styles from '../Sync/settings.module.css'
 import { noteError } from './recent.ts'
 
-/** What the update control shows. `available` comes from the shared waiting worker, the toast's too. */
+/**
+ * What the update control shows. `available` (a waiting worker) and `active` (applied in another window) come from
+ * the shared pending update, the toast's too.
+ */
 export type UpdateView =
   | { kind: 'idle' }
   | { kind: 'checking' }
   | { kind: 'current'; at: number }
   | { kind: 'available' }
+  | { kind: 'active' }
   | { kind: 'applying' }
   | { kind: 'offline' }
   | { kind: 'unsupported' }
   | { kind: 'failed'; reason: 'check' | 'download' | 'apply' }
 
-type Local = Exclude<UpdateView, { kind: 'available' } | { kind: 'offline' } | { kind: 'unsupported' }>
+type Local = Exclude<
+  UpdateView,
+  { kind: 'available' } | { kind: 'active' } | { kind: 'offline' } | { kind: 'unsupported' }
+>
 
 /** The last check that found nothing, for this page's life: Settings and Sync show the same time. */
 let lastCurrent: number | null = null
@@ -63,7 +70,7 @@ export function useAppUpdate() {
     local.kind === 'applying'
       ? local
       : pending
-        ? { kind: 'available' }
+        ? { kind: pending.active ? 'active' : 'available' }
         : supported === false
           ? { kind: 'unsupported' }
           : !online
@@ -131,21 +138,23 @@ export function UpdateControl({ waitingChanges = false }: { waitingChanges?: boo
         ? `${t('settings.updateCurrent', { time: time(view.at) })}${waitingChanges ? ` ${t('settings.updateNoneYet')}` : ''}`
         : view.kind === 'available'
           ? t('settings.updateAvailable')
-          : view.kind === 'applying'
-            ? t('common.updating')
-            : view.kind === 'offline'
-              ? t('settings.updateOffline')
-              : view.kind === 'unsupported'
-                ? t('settings.updateUnsupported')
-                : view.kind === 'failed'
-                  ? t(
-                      view.reason === 'download'
-                        ? 'settings.updateDownloadFailed'
-                        : view.reason === 'apply'
-                          ? 'settings.updateApplyFailed'
-                          : 'settings.updateFailed',
-                    )
-                  : ''
+          : view.kind === 'active'
+            ? t('settings.updateActive')
+            : view.kind === 'applying'
+              ? t('common.updating')
+              : view.kind === 'offline'
+                ? t('settings.updateOffline')
+                : view.kind === 'unsupported'
+                  ? t('settings.updateUnsupported')
+                  : view.kind === 'failed'
+                    ? t(
+                        view.reason === 'download'
+                          ? 'settings.updateDownloadFailed'
+                          : view.reason === 'apply'
+                            ? 'settings.updateApplyFailed'
+                            : 'settings.updateFailed',
+                      )
+                    : ''
 
   return (
     <div className={styles.section}>
@@ -153,9 +162,9 @@ export function UpdateControl({ waitingChanges = false }: { waitingChanges?: boo
         {status}
       </p>
       <div className={styles.actions}>
-        {view.kind === 'available' || (view.kind === 'applying' && pendingUpdate()) ? (
+        {view.kind === 'available' || view.kind === 'active' || (view.kind === 'applying' && pendingUpdate()) ? (
           <Button variant="primary" loading={view.kind === 'applying'} onClick={() => void apply()}>
-            {t('settings.updateNow')}
+            {pendingUpdate()?.active ? t('common.reload') : t('settings.updateNow')}
           </Button>
         ) : view.kind === 'unsupported' || view.kind === 'applying' ? (
           <Button loading={view.kind === 'applying'} disabled={!online} onClick={() => void reload()}>

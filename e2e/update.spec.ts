@@ -195,3 +195,67 @@ test('an update applied mid-draft in the card editor brings the draft back after
   await expect(page.getByText('Unsaved draft restored.')).toBeVisible()
   await expect(page.getByRole('textbox', { name: 'Front' })).toContainText('Xylem carries?')
 })
+
+test('an update applied in one window leaves another window being typed in as it is, and offers it a reload', async ({
+  page,
+  context,
+  ownApp,
+}) => {
+  test.setTimeout(120_000)
+  const errors = watchErrors(page)
+  await page.goto('./#/')
+  await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible()
+  await waitForController(page)
+
+  // A second window of the app, mid-sentence in a note.
+  const other = await context.newPage()
+  const otherErrors = watchErrors(other)
+  await other.goto('./#/')
+  await expect(other.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible()
+  await expect.poll(() => other.evaluate(() => navigator.serviceWorker.controller !== null)).toBe(true)
+  await createCourse(other, 'Cardiology')
+  await other.getByRole('radio', { name: 'Sources' }).check()
+  await other.getByRole('button', { name: 'Add', exact: true }).click()
+  await other.getByRole('button', { name: 'Write a note' }).click()
+  const editor = other.getByRole('textbox', { name: 'Source' })
+  await editor.click()
+  await other.keyboard.type('Beta blockers slow ', { delay: 20 })
+  // Any reload or navigation of that window from now on is seen.
+  await other.evaluate(() => {
+    ;(window as Window & { __sameWindow?: boolean }).__sameWindow = true
+  })
+  let navigations = 0
+  other.on('framenavigated', (frame) => {
+    if (frame === other.mainFrame()) navigations++
+  })
+  other.on('load', () => navigations++)
+
+  // A new version is found in the first window and applied there: it reloads into it.
+  await ownApp.publishNewVersion()
+  const toast = page.getByRole('status').filter({ hasText: 'A new version of Cursus is ready.' })
+  await expect(async () => {
+    await foreground(page)
+    await expect(toast).toBeVisible({ timeout: 1_000 })
+  }).toPass({ timeout: 20_000 })
+  await Promise.all([page.waitForEvent('load'), toast.getByRole('button', { name: 'Update' }).click()])
+  await expect(page.getByRole('heading', { level: 1, name: 'Today' })).toBeVisible()
+
+  // The other window goes on as it was, the caret where it was, and says a reload brings the new version.
+  const notice = other
+    .getByRole('status')
+    .filter({ hasText: 'A new version of Cursus was opened in another window. Reload when you’re ready.' })
+  await expect(notice).toBeVisible()
+  await other.bringToFront()
+  await expect(editor).toBeFocused()
+  await other.keyboard.type('the heart.', { delay: 20 })
+  await expect(editor).toHaveText('Beta blockers slow the heart.')
+  expect(await other.evaluate(() => (window as Window & { __sameWindow?: boolean }).__sameWindow)).toBe(true)
+  expect(navigations).toBe(0)
+
+  // Reloading when ready keeps every keystroke.
+  await Promise.all([other.waitForEvent('load'), notice.getByRole('button', { name: 'Reload' }).click()])
+  await expect(other.getByRole('heading', { level: 1, name: 'Untitled note' })).toBeVisible()
+  await expect(other.getByRole('textbox', { name: 'Source' })).toHaveText('Beta blockers slow the heart.')
+  expect(errors).toEqual([])
+  expect(otherErrors).toEqual([])
+})

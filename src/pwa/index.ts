@@ -4,7 +4,12 @@ import { probeWorker } from './worker.ts'
 
 /** The PWA layer: service worker registration, the waiting update, storage persistence. */
 export interface PwaUpdate {
-  /** Finishes pending writes and seals pending edits, then activates the waiting worker and reloads. */
+  /**
+   * True once the new version already runs this origin's worker (applied in another window): this page keeps
+   * the old build until the user reloads it.
+   */
+  readonly active: boolean
+  /** Finishes pending writes and seals pending edits, then activates the waiting worker (unless active) and reloads. */
   apply(): Promise<void>
 }
 
@@ -96,26 +101,38 @@ async function register(opts: PwaOptions): Promise<void> {
   const { registerSW } = await import('virtual:pwa-register')
   // workbox-window assumes `register()` hands back a registration; where it is blocked, stop here.
   if (!(await probeWorker(navigator.serviceWorker, WORKER_URL, SCOPE))) return
+  /** An update that saves every pending edit, then `reload`s into the new version; on failure the page goes on. */
+  const update = (active: boolean, reload: () => Promise<void> | void): PwaUpdate => ({
+    active,
+    async apply() {
+      applying = true
+      try {
+        await flushPending()
+        await opts.seal()
+        await reload()
+      } catch (e) {
+        // No reload is coming: the page goes on as before.
+        applying = false
+        throw e
+      }
+    },
+  })
   await new Promise<void>((resolve, reject) => {
     const updateSW = registerSW({
       // The page has long loaded by the time this lazy chunk runs: register now, not on `load`.
       immediate: true,
       onNeedRefresh() {
-        waiting = {
-          async apply() {
-            applying = true
-            try {
-              await flushPending()
-              await opts.seal()
-              await updateSW(true)
-            } catch (e) {
-              // No reload is coming: the page goes on as before.
-              applying = false
-              throw e
-            }
-          },
-        }
+        waiting = update(false, () => updateSW(true))
         notify()
+      },
+      // The new worker took control. Left to the plugin, every open window would reload on the spot, one being
+      // typed in included: only the window that applied the update reloads, the others offer a reload instead.
+      onNeedReload() {
+        if (applying) window.location.reload()
+        else if (!waiting?.active) {
+          waiting = update(true, () => window.location.reload())
+          notify()
+        }
       },
       onRegisteredSW(_url, reg) {
         registration = reg ?? null

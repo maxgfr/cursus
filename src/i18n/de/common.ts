@@ -90,6 +90,7 @@ export const common = {
   diagnosticBody: 'Das Diagnoseprotokoll bleibt auf diesem Gerät, bis du es exportierst.',
   updateReady: 'Eine neue Version von Cursus ist bereit.',
   updateNow: 'Aktualisieren',
+  updateActive: 'Eine neue Version von Cursus wurde in einem anderen Fenster geöffnet. Lade neu, wenn es dir passt.',
   dismiss: 'Ausblenden',
   edFormatting: 'Formatierung',
   edBold: 'Fett',

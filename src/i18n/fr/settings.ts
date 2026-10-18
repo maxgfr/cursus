@@ -164,6 +164,8 @@ export const settings = {
   updateChecking: 'Recherche de mises à jour…',
   updateCurrent: 'Cursus est à jour. Dernière vérification à {time}.',
   updateAvailable: 'Une nouvelle version est prête. Vos modifications sont enregistrées avant son ouverture.',
+  updateActive:
+    'Une nouvelle version a été ouverte dans une autre fenêtre. Rechargez quand vous voulez : vos modifications sont enregistrées avant.',
   updateNow: 'Mettre à jour maintenant',
   updateOffline: 'Vous êtes hors ligne. Connectez-vous à Internet pour rechercher des mises à jour.',
   updateUnsupported:
