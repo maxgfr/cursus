@@ -1,4 +1,4 @@
-import { expect, type Page, test } from '@playwright/test'
+import { type BrowserContext, expect, type Page, test } from '@playwright/test'
 
 // The card editor edits a draft: nothing reaches the card until Save.
 test.use({ serviceWorkers: 'block' })
@@ -188,6 +188,98 @@ test('the editor offers its actions only where they stay: a tap on Cancel cannot
   expect(await cancel.boundingBox()).toEqual(shown)
   await cancel.click()
   await expect(page.getByRole('heading', { level: 1, name: 'Ecology' })).toBeVisible()
+})
+
+/**
+ * Opens `url` in a page of its own whose editor code is held back until `release`: the editor arrives after the
+ * screen. A page of its own, as WebKit reloading a page takes the code it already has without asking for it again.
+ */
+async function openLate(context: BrowserContext, url: string) {
+  let release = () => {}
+  const released = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  const page = await context.newPage()
+  await page.route(/\/assets\/MarkdownEditorImpl-[\w-]+\.js$/, async (route) => {
+    await released
+    await route.continue()
+  })
+  await page.goto(url)
+  await expect(page.getByText('Opening the editor…').first()).toBeVisible()
+  return { page, release }
+}
+
+test('a new card has the cursor in its front however late the editor arrives; an existing card leaves it be', async ({
+  page,
+  context,
+}) => {
+  await createCourse(page, 'Optics')
+  const front = page.getByRole('textbox', { name: 'Front' })
+  // A fresh page: the editor's code comes with the first card opened.
+  await page.getByRole('radio', { name: 'Cards' }).check()
+  await newCard(page).click()
+  await expect(front).toBeFocused()
+  const editor = page.url()
+  await page.keyboard.type('Light bends in?')
+  await expect(front).toHaveText('Light bends in?')
+  await page.keyboard.press('ControlOrMeta+s')
+  await expect(page.getByRole('heading', { level: 1, name: 'Optics' })).toBeVisible()
+
+  // Opened by its address, the page loading with it.
+  await page.goto(editor)
+  await page.reload()
+  await expect(front).toBeFocused()
+  await page.keyboard.type('A lens has a?')
+  await expect(front).toHaveText('A lens has a?')
+  await page.keyboard.press('ControlOrMeta+s')
+  await expect(page.getByRole('heading', { level: 1, name: 'Optics' })).toBeVisible()
+
+  // The editor's code arrives well after the screen: the cursor still lands in the front once it is there.
+  const late = await openLate(context, editor)
+  late.release()
+  const lateFront = late.page.getByRole('textbox', { name: 'Front' })
+  await expect(lateFront).toBeFocused()
+  await late.page.keyboard.type('Prisms split?')
+  await expect(lateFront).toHaveText('Prisms split?')
+  await late.page.getByRole('button', { name: 'Cancel' }).click()
+  await late.page.getByRole('dialog', { name: 'Discard changes?' }).getByRole('button', { name: 'Discard' }).click()
+  await expect(late.page.getByRole('heading', { level: 1, name: 'Optics' })).toBeVisible()
+  await late.page.close()
+
+  // Meanwhile focused elsewhere, the focus stays there.
+  const busy = await openLate(context, editor)
+  const cancel = busy.page.getByRole('button', { name: 'Cancel' })
+  await cancel.focus()
+  busy.release()
+  await expect(busy.page.getByRole('textbox', { name: 'Front' })).toBeVisible()
+  await expect(cancel).toBeFocused()
+  await expect(busy.page.getByRole('textbox', { name: 'Front' })).not.toBeFocused()
+  await busy.page.close()
+
+  // « New card », Cancel, then « New card » again: the cursor is back in the front each time.
+  await page.getByRole('radio', { name: 'Cards' }).check()
+  await expect(cardRows(page)).toHaveText([/Light bends in\?/, /A lens has a\?/])
+  await newCard(page).click()
+  await expect(front).toBeFocused()
+  await page.getByRole('button', { name: 'Cancel' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Optics' })).toBeVisible()
+  await page.getByRole('radio', { name: 'Cards' }).check()
+  await newCard(page).click()
+  await expect(front).toBeFocused()
+  await expect(front).toHaveText('')
+  await page.getByRole('button', { name: 'Cancel' }).click()
+
+  // An existing card opens without taking the focus: typing changes nothing.
+  await page.getByRole('radio', { name: 'Cards' }).check()
+  await page
+    .getByRole('main')
+    .getByRole('link', { name: /Light bends in\?/ })
+    .click()
+  await expect(front).toHaveText('Light bends in?')
+  await expect(front).not.toBeFocused()
+  await page.keyboard.type('x')
+  await expect(front).toHaveText('Light bends in?')
+  await expect(save(page)).toBeDisabled()
 })
 
 test('« Save and add another » writes cards on the fly: each one saved, the next one empty in the same section', async ({

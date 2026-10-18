@@ -174,7 +174,6 @@ function Editor({ id, next, onNext }: { id: string; next: Next | null; onNext: (
   const [shareStatus, setShareStatus] = useState<string | null>(null)
   const loadFile = useFileLoader()
   const pageRef = useRef<HTMLDivElement>(null)
-  const formRef = useRef<HTMLDivElement>(null)
   const exists = card !== null
   /** The card before this one was just added (« Save and add another »): said once the editor is in place, until
    *  this one is being written. */
@@ -350,12 +349,6 @@ function Editor({ id, next, onNext }: { id: string; next: Next | null; onNext: (
     [dirty, card, draft, hold, release, newCourse, create, current, ws, id, base, rt, leave, onNext],
   )
 
-  // A new card: the cursor waits in the front, ready to type (the next card after « New card » too).
-  useEffect(() => {
-    if (newCourse === null || draft === null) return
-    formRef.current?.querySelector<HTMLElement>('[contenteditable="true"], textarea')?.focus()
-  }, [newCourse, draft])
-
   // Back with unsaved changes asks once instead of leaving (the header's Back stays a plain link).
   useEffect(() => {
     const page = pageRef.current
@@ -501,7 +494,7 @@ function Editor({ id, next, onNext }: { id: string; next: Next | null; onNext: (
         {draft === null ? (
           <p className={styles.status}>{t('common.loading')}</p>
         ) : (
-          <div ref={formRef} className={styles.form}>
+          <div className={styles.form}>
             <Segmented<Kind>
               label={t('course.cardKind')}
               value={kind}
@@ -520,6 +513,9 @@ function Editor({ id, next, onNext }: { id: string; next: Next | null; onNext: (
                 label={kind === 'cloze' ? t('course.clozeText') : t('course.front')}
                 cloze={kind === 'cloze'}
                 photos={{ courseId: card.courseId, sectionId: card.sectionId ?? undefined }}
+                // A new card: the cursor waits in the front, ready to type (the next one after « Save and add
+                // another » too).
+                autoFocus={newCourse !== null}
               />
               <CardPhotos
                 text={draft.front}

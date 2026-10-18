@@ -134,6 +134,7 @@ export default function MarkdownEditorImpl({
   cloze = false,
   photos,
   writer,
+  autoFocus = false,
 }: MarkdownEditorProps) {
   const t = useT()
   const rt = useRuntime()
@@ -158,6 +159,8 @@ export default function MarkdownEditorImpl({
   labels.current = { task: taskLabel }
   const clozeNow = useRef(cloze)
   clozeNow.current = cloze
+  const autoFocusNow = useRef(autoFocus)
+  autoFocusNow.current = autoFocus
   /** What the live view was last configured with. */
   const configured = useRef({ taskLabel, cloze })
   // The text as it stands, so its photos can be loaded and shown in the editor.
@@ -378,6 +381,10 @@ export default function MarkdownEditorImpl({
     })
     editor.current = v
     configured.current = { taskLabel: labels.current.task, cloze: clozeNow.current }
+    // Focused when asked, unless something else took the focus while the editor was on its way: the page, or the
+    // area around the editor (where WebKit leaves the focus after a click on a button), is nothing taken.
+    const focused = document.activeElement
+    if (autoFocusNow.current && (focused === null || focused.contains(parent) || parent.contains(focused))) v.focus()
     setUndo(undoManager)
 
     // An AI writing into the text: at its end, a line at a time, the text locked meanwhile; every write merged

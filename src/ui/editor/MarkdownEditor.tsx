@@ -23,6 +23,11 @@ export interface MarkdownEditorProps {
   photos?: { courseId: Id; sectionId?: Id }
   /** Given how an AI writes into the text (one undo step in all) once the editor is there; null once it is gone. */
   writer?: (writer: EditorWriter | null) => void
+  /**
+   * The cursor waits in the text as soon as the editor is there (it may arrive after the screen), unless the focus
+   * went elsewhere meanwhile.
+   */
+  autoFocus?: boolean
 }
 
 const Impl = lazyChunk('editor', () => import('./MarkdownEditorImpl.tsx'))
