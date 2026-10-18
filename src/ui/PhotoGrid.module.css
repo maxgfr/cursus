@@ -31,7 +31,8 @@
   transform: scale(0.98);
 }
 
-.tile:focus-visible {
+.tile:focus-visible,
+.tile:has(.check:focus-visible) {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
 }
@@ -75,6 +76,35 @@
   font-size: var(--text-caption);
   font-weight: 600;
   line-height: var(--leading-tight);
+}
+
+/* Picking: a checkbox in the corner; a checked tile is ringed and its photo dimmed a little. */
+.check {
+  position: absolute;
+  z-index: 1;
+  top: var(--space-1);
+  right: var(--space-1);
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.check:focus-visible {
+  outline: none;
+}
+
+.tile:has(.check:checked)::after {
+  position: absolute;
+  inset: 0;
+  border: 3px solid var(--accent);
+  border-radius: inherit;
+  content: "";
+  pointer-events: none;
+}
+
+.tile:has(.check:checked) .img {
+  opacity: 0.8;
 }
 
 @media (min-width: 600px) {

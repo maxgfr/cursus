@@ -49,8 +49,8 @@ export interface MoveSheetProps {
   open: boolean
   title: string
   onClose: () => void
-  /** Where the thing is now: marked in the tree. */
-  current: Place
+  /** Where the thing is now: marked in the tree; null when the things are in several places (none marked). */
+  current: Place | null
   /** Only this course is offered (a section never changes course). */
   courseOnly?: boolean
   /** Performs the move; a `SectionMoveError` is explained instead of thrown. */
@@ -73,14 +73,14 @@ export function MoveSheet({ open, title, onClose, current, courseOnly = false, o
       children: sectionNodes(tree, c.id, null, c.title),
     }))
   })
-  const shown = courseOnly ? roots.filter((r) => r.place.courseId === current.courseId) : roots
+  const shown = courseOnly ? roots.filter((r) => r.place.courseId === current?.courseId) : roots
 
   useEffect(() => {
     if (open) setError(null)
   }, [open])
 
   const pick = (n: Node) => {
-    if (n.place.courseId === current.courseId && n.place.sectionId === current.sectionId) return onClose()
+    if (n.place.courseId === current?.courseId && n.place.sectionId === current.sectionId) return onClose()
     try {
       onMove(n.place)
     } catch (e) {
@@ -103,7 +103,7 @@ export function MoveSheet({ open, title, onClose, current, courseOnly = false, o
   const render = (nodes: readonly Node[], label?: string) => (
     <ul className={styles.tree} aria-label={label}>
       {nodes.map((n) => {
-        const here = n.place.courseId === current.courseId && n.place.sectionId === current.sectionId
+        const here = n.place.courseId === current?.courseId && n.place.sectionId === current.sectionId
         return (
           <li key={n.place.sectionId ?? n.place.courseId}>
             <button

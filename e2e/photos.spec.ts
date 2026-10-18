@@ -1,6 +1,7 @@
 import { join } from 'node:path'
 import { type Browser, type BrowserContext, expect, type Locator, type Page, test } from '@playwright/test'
 import { AwsClient } from 'aws4fetch'
+import { seriousViolations } from './support/page.ts'
 
 // Photos everywhere: capture through the file chooser, the gallery and full-screen viewer, a photo on a card in
 // Review, two devices through the S3 emulator (run under `bun scripts/with-s3.ts`), "on demand", and a course
@@ -185,6 +186,86 @@ test('capture through the file chooser, the full-screen viewer, and a photo on a
     await save(page).click()
     await expect(page.getByRole('heading', { level: 1, name: 'Card' })).toBeHidden()
     await expectPhotoInReview(page, 'Skeleton')
+    expect(errors).toEqual([])
+  } finally {
+    await context.close()
+  }
+})
+
+test('photos picked together in the course gallery move to a section in one move', async ({ browser, baseURL }) => {
+  const { context, page } = await newDevice(browser, baseURL)
+  try {
+    const errors = watchErrors(page)
+    await createCourse(page, 'Anatomy')
+    await page.getByRole('button', { name: 'New section' }).click()
+    const dialog = page.getByRole('dialog', { name: 'New section' })
+    await dialog.getByLabel('Section name').fill('Bones')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Bones' })).toBeVisible()
+    await openCourse(page, 'Anatomy')
+    await openPhotos(page)
+    // One at a time: the camera of a phone or tablet takes a single photo.
+    for (const [name, width, height] of [
+      ['slide', 800, 600],
+      ['board', 640, 480],
+      ['notes', 480, 640],
+    ] as const) {
+      await choosePhoto(page, {
+        name: `${name}.png`,
+        mimeType: 'image/png',
+        buffer: await drawnPng(page, width, height),
+      })
+      await expect(page.getByRole('main').getByRole('link', { name })).toBeVisible()
+    }
+    await expect(page.getByTestId('photo-tile')).toHaveCount(3)
+
+    // Picking: tiles are checkboxes, the button counts what goes.
+    await page.getByRole('button', { name: 'Select', exact: true }).click()
+    const main = page.getByRole('main')
+    await expect(main.getByRole('link', { name: 'slide' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Move 0 photos to…' })).toBeDisabled()
+    await main.getByRole('checkbox', { name: 'slide' }).check()
+    await main.getByRole('checkbox', { name: 'board' }).check()
+    expect(await seriousViolations(page, 'main')).toEqual([])
+    await page.getByRole('button', { name: 'Move 2 photos to…' }).click()
+    const sheet = page.getByRole('dialog', { name: 'Move 2 photos to…' })
+    await expect(sheet.getByRole('button', { name: 'Anatomy (current)' })).toHaveAttribute('aria-current', 'location')
+    await sheet.getByRole('button', { name: 'Anatomy › Bones', exact: true }).click()
+    await expect(sheet).toBeHidden()
+    await expect(page.getByRole('status').filter({ hasText: '2 photos moved to Anatomy › Bones.' })).toBeVisible()
+
+    // Back to the plain gallery (it lists the sections' photos too); the section's own has just the two moved.
+    await expect(main.getByRole('checkbox')).toHaveCount(0)
+    await expect(main.getByRole('link', { name: 'notes' })).toBeVisible()
+    await openCourse(page, 'Anatomy')
+    await main.getByRole('link', { name: /^Bones/ }).click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Bones' })).toBeVisible()
+    await openPhotos(page)
+    await expect(page.getByTestId('photo-tile')).toHaveCount(2)
+    await expect(main.getByRole('link', { name: 'slide' })).toBeVisible()
+    await expect(main.getByRole('link', { name: 'board' })).toBeVisible()
+
+    // The course gallery lists the section's photos too: one picked there goes back up to the course itself.
+    await openCourse(page, 'Anatomy')
+    await openPhotos(page)
+    await page.getByRole('button', { name: 'Select', exact: true }).click()
+    await main.getByRole('checkbox', { name: 'slide' }).check()
+    await page.getByRole('button', { name: 'Move 1 photo to…' }).click()
+    const back = page.getByRole('dialog', { name: 'Move 1 photo to…' })
+    await expect(back.getByRole('button', { name: 'Anatomy › Bones (current)' })).toHaveAttribute(
+      'aria-current',
+      'location',
+    )
+    await back.getByRole('button', { name: 'Anatomy', exact: true }).click()
+    await expect(back).toBeHidden()
+    await expect(page.getByRole('status').filter({ hasText: '1 photo moved to Anatomy.' })).toBeVisible()
+    await expect(page.getByTestId('photo-tile')).toHaveCount(3)
+    await openCourse(page, 'Anatomy')
+    await main.getByRole('link', { name: /^Bones/ }).click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Bones' })).toBeVisible()
+    await openPhotos(page)
+    await expect(page.getByTestId('photo-tile')).toHaveCount(1)
+    await expect(main.getByRole('link', { name: 'board' })).toBeVisible()
     expect(errors).toEqual([])
   } finally {
     await context.close()

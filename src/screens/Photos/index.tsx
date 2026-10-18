@@ -1,4 +1,4 @@
-import { Images } from 'lucide-react'
+import { FolderInput, Images, ListChecks } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useParams } from 'wouter'
 import { clearEntryState } from '../../app/nav.ts'
@@ -9,8 +9,10 @@ import type { Id, StudyScope } from '../../core/contracts/workspace'
 import { listPhotos, photoLabel } from '../../core/model/photos'
 import { useT } from '../../i18n/react.tsx'
 import { Breadcrumb } from '../../ui/Breadcrumb.tsx'
+import { Button } from '../../ui/components/Button.tsx'
 import { EmptyState } from '../../ui/components/EmptyState.tsx'
 import { Toast } from '../../ui/components/Toast.tsx'
+import { MoveSheet, moveItemTo, type Place } from '../../ui/MoveSheet.tsx'
 import { PhotoGrid, type PhotoTile } from '../../ui/PhotoGrid.tsx'
 import { PhotoPicker } from '../../ui/PhotoPicker.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
@@ -41,6 +43,10 @@ export default function Photos() {
   const [added, setAdded] = useState<number | null>(null)
   const [failed, setFailed] = useState<CaptureFailure[]>([])
   const [trashed, setTrashed] = useState<string | null>(() => trashedFrom(history.state))
+  // Picking photos to move them together: `null` when not picking.
+  const [picked, setPicked] = useState<ReadonlySet<Id> | null>(null)
+  const [movingPhotos, setMovingPhotos] = useState(false)
+  const [moved, setMoved] = useState<string | null>(null)
   const untitled = useUntitled()
 
   const data = useWorkspaceData(['courses', 'sections', 'sources'], (ws) => {
@@ -65,6 +71,7 @@ export default function Photos() {
     if (files.length === 0 || busy !== null) return
     setBusy(files.length)
     setAdded(null)
+    setMoved(null)
     setFailed([])
     const where: { courseId: Id; sectionId?: Id } = sectionId === undefined ? { courseId } : { courseId, sectionId }
     capturePhotos(rt, where, files, untitled)
@@ -99,6 +106,33 @@ export default function Photos() {
     thumb: thumbs.get(p.blobId) ?? { kind: 'loading' },
     href: to.photo(p.id),
   }))
+  // Only the picked photos still listed here: one synced away meanwhile stays where it went.
+  const pickedList = picked === null ? [] : photos.filter((p) => picked.has(p.id))
+  const pickedPhotos = pickedList.map((p) => p.id)
+  // The gallery lists its sections' photos too: « here » is where the picked ones are, none when they are spread.
+  const pickedAt = new Set(pickedList.map((p) => p.sectionId ?? null))
+  const pickedHere: Place | null =
+    pickedAt.size === 0
+      ? { courseId, sectionId: sectionId ?? null }
+      : pickedAt.size === 1
+        ? { courseId, sectionId: [...pickedAt][0] ?? null }
+        : null
+  // The « Photos added » notice would sit over the last tiles to pick: it has been read.
+  const startPicking = () => {
+    setAdded(null)
+    setPicked(new Set())
+  }
+  const pick = (id: Id, on: boolean) =>
+    setPicked((p) => {
+      const next = new Set(p)
+      if (on) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  const movePhotos = (dest: Place) =>
+    rt.ws.atomic(() => {
+      for (const id of pickedPhotos) moveItemTo(rt.ws, 'sources', id, dest)
+    })
   const dismissTrashed = () => {
     setTrashed(null)
     clearEntryState()
@@ -115,7 +149,39 @@ export default function Photos() {
         ]}
         current={t('photos.title')}
       />
-      {photos.length > 0 && picker}
+      {photos.length > 0 && picked === null && (
+        <div className={styles.actions}>
+          {picker}
+          <Button variant="plain" icon={<ListChecks size={18} aria-hidden="true" />} onClick={startPicking}>
+            {t('photos.pick')}
+          </Button>
+        </div>
+      )}
+      {photos.length > 0 && picked !== null && (
+        <div className={styles.actions}>
+          <Button
+            variant="primary"
+            icon={<FolderInput size={18} aria-hidden="true" />}
+            disabled={pickedPhotos.length === 0}
+            aria-haspopup="dialog"
+            onClick={() => setMovingPhotos(true)}
+          >
+            {t('photos.movePhotos', { count: pickedPhotos.length })}
+          </Button>
+          {pickedPhotos.length < photos.length ? (
+            <Button variant="plain" onClick={() => setPicked(new Set(photos.map((p) => p.id)))}>
+              {t('course.pickAll')}
+            </Button>
+          ) : (
+            <Button variant="plain" onClick={() => setPicked(new Set())}>
+              {t('course.pickNone')}
+            </Button>
+          )}
+          <Button variant="plain" onClick={() => setPicked(null)}>
+            {t('common.done')}
+          </Button>
+        </div>
+      )}
       <p className={styles.hint}>{t('photos.dropHint')}</p>
       {busy !== null && (
         <p className={styles.note} role="status">
@@ -130,10 +196,29 @@ export default function Photos() {
           <h2 id="photos-count" className={styles.count}>
             {t('photos.count', { count: photos.length })}
           </h2>
-          <PhotoGrid label={t('photos.galleryOf', { place })} items={tiles} />
+          {picked === null ? (
+            <PhotoGrid label={t('photos.galleryOf', { place })} items={tiles} />
+          ) : (
+            <PhotoGrid label={t('photos.galleryOf', { place })} items={tiles} picked={picked} onPickedChange={pick} />
+          )}
         </section>
       )}
-      {added !== null && trashed === null && (
+      <MoveSheet
+        open={movingPhotos}
+        title={t('photos.movePhotos', { count: pickedPhotos.length })}
+        onClose={() => setMovingPhotos(false)}
+        current={pickedHere}
+        onMove={movePhotos}
+        onMoved={(path) => {
+          setAdded(null)
+          setMoved(t('photos.photosMoved', { count: pickedPhotos.length, place: path }))
+          setPicked(null)
+        }}
+      />
+      {moved !== null && trashed === null && (
+        <Toast message={moved} actions={[{ label: t('common.dismiss'), onClick: () => setMoved(null) }]} />
+      )}
+      {added !== null && trashed === null && moved === null && (
         <Toast
           message={t('photos.added', { count: added })}
           actions={[{ label: t('common.dismiss'), onClick: () => setAdded(null) }]}

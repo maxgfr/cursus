@@ -20,6 +20,9 @@ export interface PhotoGridProps {
   items: readonly PhotoTile[]
   /** …or a choice (picking a photo for a card): tiles become buttons. */
   onSelect?: (id: string) => void
+  /** …or picking several (to move them together): tiles become checkboxes, these ids checked. */
+  picked?: ReadonlySet<string>
+  onPickedChange?: (id: string, on: boolean) => void
 }
 
 function TileBody({ tile }: { tile: PhotoTile }) {
@@ -41,12 +44,23 @@ function TileBody({ tile }: { tile: PhotoTile }) {
 }
 
 /** Square thumbnails, as many per row as fit (three on a phone, more on iPad and Mac). */
-export function PhotoGrid({ label, items, onSelect }: PhotoGridProps) {
+export function PhotoGrid({ label, items, onSelect, picked, onPickedChange }: PhotoGridProps) {
   return (
     <ul className={styles.grid} aria-label={label}>
       {items.map((tile) => (
         <li key={tile.id} className={styles.item} data-state={tile.thumb.kind} data-testid="photo-tile">
-          {onSelect ? (
+          {onPickedChange ? (
+            <label className={styles.tile}>
+              <input
+                type="checkbox"
+                className={styles.check}
+                aria-label={tile.label}
+                checked={picked?.has(tile.id) ?? false}
+                onChange={(e) => onPickedChange(tile.id, e.currentTarget.checked)}
+              />
+              <TileBody tile={tile} />
+            </label>
+          ) : onSelect ? (
             <button type="button" className={styles.tile} onClick={() => onSelect(tile.id)}>
               <TileBody tile={tile} />
             </button>
