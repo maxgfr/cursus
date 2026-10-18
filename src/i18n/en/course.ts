@@ -155,6 +155,8 @@ export const course = {
   pickNone: 'Deselect all',
   moveCards: { one: 'Move {count} card to…', other: 'Move {count} cards to…' },
   cardsMoved: { one: '{count} card moved to {place}.', other: '{count} cards moved to {place}.' },
+  moveSources: { one: 'Move {count} source to…', other: 'Move {count} sources to…' },
+  sourcesMoved: { one: '{count} source moved to {place}.', other: '{count} sources moved to {place}.' },
   moveSheets: { one: 'Move {count} study sheet to…', other: 'Move {count} study sheets to…' },
   sheetsMoved: { one: '{count} study sheet moved to {place}.', other: '{count} study sheets moved to {place}.' },
   sectionGoneSaveIn: 'The section was moved to the trash; the card will be saved in {place}.',

@@ -162,6 +162,8 @@ export const course = {
   pickNone: 'Auswahl aufheben',
   moveCards: { one: '{count} Karte verschieben nach…', other: '{count} Karten verschieben nach…' },
   cardsMoved: { one: '{count} Karte verschoben nach {place}.', other: '{count} Karten verschoben nach {place}.' },
+  moveSources: { one: '{count} Quelle verschieben nach…', other: '{count} Quellen verschieben nach…' },
+  sourcesMoved: { one: '{count} Quelle verschoben nach {place}.', other: '{count} Quellen verschoben nach {place}.' },
   moveSheets: { one: '{count} Spickzettel verschieben nach…', other: '{count} Spickzettel verschieben nach…' },
   sheetsMoved: {
     one: '{count} Spickzettel verschoben nach {place}.',

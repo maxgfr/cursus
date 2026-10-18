@@ -162,6 +162,8 @@ export const course = {
   pickNone: 'Tout désélectionner',
   moveCards: { one: 'Déplacer {count} carte vers…', other: 'Déplacer {count} cartes vers…' },
   cardsMoved: { one: '{count} carte déplacée vers {place}.', other: '{count} cartes déplacées vers {place}.' },
+  moveSources: { one: 'Déplacer {count} source vers…', other: 'Déplacer {count} sources vers…' },
+  sourcesMoved: { one: '{count} source déplacée vers {place}.', other: '{count} sources déplacées vers {place}.' },
   moveSheets: { one: 'Déplacer {count} fiche vers…', other: 'Déplacer {count} fiches vers…' },
   sheetsMoved: { one: '{count} fiche déplacée vers {place}.', other: '{count} fiches déplacées vers {place}.' },
   sectionGoneSaveIn: 'La section a été mise à la corbeille ; la carte sera enregistrée dans {place}.',

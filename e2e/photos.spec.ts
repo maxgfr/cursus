@@ -272,6 +272,78 @@ test('photos picked together in the course gallery move to a section in one move
   }
 })
 
+test('photos picked together in the course Sources tab move to a section in one move', async ({ browser, baseURL }) => {
+  const { context, page } = await newDevice(browser, baseURL)
+  try {
+    const errors = watchErrors(page)
+    await createCourse(page, 'Anatomy')
+    await page.getByRole('button', { name: 'New section' }).click()
+    const dialog = page.getByRole('dialog', { name: 'New section' })
+    await dialog.getByLabel('Section name').fill('Bones')
+    await dialog.getByRole('button', { name: 'Save' }).click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Bones' })).toBeVisible()
+    await openCourse(page, 'Anatomy')
+    const main = page.getByRole('main')
+    // One at a time from the course's Sources tab: each photo opens, Back returns to the course.
+    for (const [name, width, height] of [
+      ['slide', 800, 600],
+      ['board', 640, 480],
+      ['notes', 480, 640],
+    ] as const) {
+      await page.getByRole('radio', { name: 'Sources' }).check({ force: true })
+      await main.getByRole('button', { name: 'Add', exact: true }).click()
+      const add = page.getByRole('dialog', { name: 'Add a source' })
+      const [chooser] = await Promise.all([
+        page.waitForEvent('filechooser'),
+        add.getByRole('button', { name: 'Take a photo' }).click(),
+      ])
+      await chooser.setFiles({
+        name: `${name}.png`,
+        mimeType: 'image/png',
+        buffer: await drawnPng(page, width, height),
+      })
+      await expect(page.getByRole('heading', { level: 1, name })).toBeVisible()
+      await page.getByRole('link', { name: 'Back' }).click()
+      await expect(page.getByRole('heading', { level: 1, name: 'Anatomy' })).toBeVisible()
+    }
+    await page.getByRole('radio', { name: 'Sources' }).check({ force: true })
+    for (const name of ['slide', 'board', 'notes']) await expect(main.getByRole('link', { name })).toBeVisible()
+
+    // Picking: rows are checkboxes, the button counts what goes.
+    await page.getByRole('button', { name: 'Select', exact: true }).click()
+    await expect(main.getByRole('link', { name: 'slide' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Move 0 sources to…' })).toBeDisabled()
+    await main.getByRole('checkbox', { name: 'slide' }).check()
+    await main.getByRole('checkbox', { name: 'board' }).check()
+    expect(await seriousViolations(page, 'main')).toEqual([])
+    await page.getByRole('button', { name: 'Move 2 sources to…' }).click()
+    const sheet = page.getByRole('dialog', { name: 'Move 2 sources to…' })
+    await expect(sheet.getByRole('button', { name: 'Anatomy (current)' })).toHaveAttribute('aria-current', 'location')
+    await sheet.getByRole('button', { name: 'Anatomy › Bones', exact: true }).click()
+    await expect(sheet).toBeHidden()
+    await expect(page.getByRole('status').filter({ hasText: '2 sources moved to Anatomy › Bones.' })).toBeVisible()
+
+    // Back to the plain list: the one left out stays here, the two others are in Bones.
+    await expect(main.getByRole('checkbox')).toHaveCount(0)
+    await expect(main.getByRole('link', { name: 'notes' })).toBeVisible()
+    await expect(main.getByRole('link', { name: 'slide' })).toHaveCount(0)
+    await expect(main.getByRole('link', { name: 'board' })).toHaveCount(0)
+    await main.getByRole('link', { name: /^Bones/ }).click()
+    await expect(page.getByRole('heading', { level: 1, name: 'Bones' })).toBeVisible()
+    await page.getByRole('radio', { name: 'Sources' }).check({ force: true })
+    await expect(main.getByRole('link', { name: 'slide' })).toBeVisible()
+    await expect(main.getByRole('link', { name: 'board' })).toBeVisible()
+    await expect(main.getByRole('link', { name: 'notes' })).toHaveCount(0)
+    await openPhotos(page)
+    await expect(page.getByTestId('photo-tile')).toHaveCount(2)
+    await expect(main.getByRole('link', { name: 'slide' })).toBeVisible()
+    await expect(main.getByRole('link', { name: 'board' })).toBeVisible()
+    expect(errors).toEqual([])
+  } finally {
+    await context.close()
+  }
+})
+
 test('a shared then imported course keeps its photos', async ({ browser, baseURL }) => {
   const a = await newDevice(browser, baseURL)
   const b = await newDevice(browser, baseURL)

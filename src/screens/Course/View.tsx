@@ -120,9 +120,10 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   const [quizzing, setQuizzing] = useState(false)
   const [moving, setMoving] = useState<{ kind: 'section' | 'fiches'; id: Id; name: string } | null>(null)
   const [moved, setMoved] = useState<string | null>(null)
-  // Picking cards, or study sheets, to move them together: `null` when not picking.
+  // Picking cards, sources or study sheets, to move them together: `null` when not picking.
   const [picked, setPicked] = useState<ReadonlySet<Id> | null>(null)
   const [movingCards, setMovingCards] = useState(false)
+  const [movingSources, setMovingSources] = useState(false)
   const [movingSheets, setMovingSheets] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -260,7 +261,15 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
     },
     {
       enabled:
-        data !== null && tab === 'sources' && !settings && !adding && !addingSource && moving === null && !movingCards,
+        data !== null &&
+        tab === 'sources' &&
+        picked === null &&
+        !settings &&
+        !adding &&
+        !addingSource &&
+        moving === null &&
+        !movingCards &&
+        !movingSources,
       onFiles: (files) => void addFiles(files),
     },
   )
@@ -347,6 +356,11 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
     rt.ws.atomic(() => {
       for (const id of pickedCards) moveItemTo(rt.ws, 'cards', id, place)
     })
+  const pickedSources = picked === null ? [] : sources.filter((s) => picked.has(s.id)).map((s) => s.id)
+  const moveSources = (place: Place) =>
+    rt.ws.atomic(() => {
+      for (const id of pickedSources) moveItemTo(rt.ws, 'sources', id, place)
+    })
   const pickedSheets = picked === null ? [] : fiches.filter((f) => picked.has(f.id)).map((f) => f.id)
   const moveSheets = (place: Place) =>
     rt.ws.atomic(() => {
@@ -377,6 +391,11 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
         <Images size={18} aria-hidden="true" />
         {t('photos.title')}
       </Link>
+      {sources.length > 0 && (
+        <Button variant="plain" icon={<ListChecks size={18} aria-hidden="true" />} onClick={startPicking}>
+          {t('course.pickCards')}
+        </Button>
+      )}
     </div>
   )
   const cardImports = (
@@ -665,8 +684,33 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
             tabIndex={-1}
             onChange={onPhoto}
           />
-          {sources.length > 0 && sourceActions}
-          <p className={styles.hint}>{t('course.pasteHint')}</p>
+          {sources.length > 0 && picked !== null && (
+            <div className={styles.actions}>
+              <Button
+                variant="primary"
+                icon={<FolderInput size={18} aria-hidden="true" />}
+                disabled={pickedSources.length === 0}
+                aria-haspopup="dialog"
+                onClick={() => setMovingSources(true)}
+              >
+                {t('course.moveSources', { count: pickedSources.length })}
+              </Button>
+              {pickedSources.length < sources.length ? (
+                <Button variant="plain" onClick={() => setPicked(new Set(sources.map((s) => s.id)))}>
+                  {t('course.pickAll')}
+                </Button>
+              ) : (
+                <Button variant="plain" onClick={() => setPicked(new Set())}>
+                  {t('course.pickNone')}
+                </Button>
+              )}
+              <Button variant="plain" onClick={() => setPicked(null)}>
+                {t('common.done')}
+              </Button>
+            </div>
+          )}
+          {sources.length > 0 && picked === null && sourceActions}
+          {picked === null && <p className={styles.hint}>{t('course.pasteHint')}</p>}
           {sources.length === 0 ? (
             <EmptyState
               icon={FileText}
@@ -678,13 +722,22 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
             <ListGroup title={t('course.tabSources')} hideTitle>
               {sources.map((s) => {
                 const { icon: Icon, label } = sourceKind(t, s)
-                return (
+                return picked === null ? (
                   <ListRow
                     key={s.id}
                     href={to.source(s.id)}
                     leading={<Icon size={20} />}
                     title={s.title}
                     subtitle={label}
+                  />
+                ) : (
+                  <ListRow
+                    key={s.id}
+                    leading={<Icon size={20} />}
+                    title={s.title}
+                    subtitle={label}
+                    checked={picked.has(s.id)}
+                    onCheckedChange={(on) => pick(s.id, on)}
                   />
                 )
               })}
@@ -813,6 +866,17 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
         onMove={moveCards}
         onMoved={(path) => {
           setMoved(t('course.cardsMoved', { count: pickedCards.length, place: path }))
+          setPicked(null)
+        }}
+      />
+      <MoveSheet
+        open={movingSources}
+        title={t('course.moveSources', { count: pickedSources.length })}
+        onClose={() => setMovingSources(false)}
+        current={{ courseId, sectionId: here }}
+        onMove={moveSources}
+        onMoved={(path) => {
+          setMoved(t('course.sourcesMoved', { count: pickedSources.length, place: path }))
           setPicked(null)
         }}
       />
