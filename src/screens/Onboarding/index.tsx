@@ -1,5 +1,5 @@
 import { CircleCheck, HardDrive, Smartphone, Sparkles, TriangleAlert, Wand2 } from 'lucide-react'
-import { Suspense, useCallback, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useLayoutEffect, useState } from 'react'
 import { Link, useLocation } from 'wouter'
 import { ChunkFailed, lazyChunk } from '../../app/lazyChunk.tsx'
 import { canGoBack } from '../../app/nav.ts'
@@ -71,7 +71,8 @@ export default function Onboarding() {
   const [asking, setAsking] = useState(false)
   const [adding, setAdding] = useState(false)
 
-  useEffect(markOnboarded, [])
+  // Seen from the commit, before it paints: a welcome on screen is always one already marked as seen.
+  useLayoutEffect(markOnboarded, [])
 
   const [demoState, setDemoState] = useState<'idle' | 'creating' | 'failed'>('idle')
 

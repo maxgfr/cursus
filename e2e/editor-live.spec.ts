@@ -521,7 +521,10 @@ for (const via of ['button', 'shortcut'] as const) {
     const errors = watchErrors(page)
     const editor = await newNote(page, `Bold ${via}`)
     const button = page.getByRole('toolbar', { name: 'Formatting' }).getByRole('button', { name: 'Bold' })
-    const bold = () => (via === 'button' ? button.click() : page.keyboard.press('ControlOrMeta+b'))
+    // The shortcut its button announces (⌘B on an iPhone or an iPad, whatever the machine running the test).
+    const shortcut = await button.getAttribute('aria-keyshortcuts')
+    expect(shortcut).toMatch(/^(Meta|Control)\+B$/)
+    const bold = () => (via === 'button' ? button.click() : page.keyboard.press(`${shortcut?.split('+')[0]}+b`))
     await editor.click()
     await bold()
     await page.keyboard.type('abc')
