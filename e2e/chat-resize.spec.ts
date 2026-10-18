@@ -92,6 +92,34 @@ test('dragging the chat’s edge widens it and narrows the page; kept after a re
   expect(errors).toEqual([])
 })
 
+test('made as wide as it goes, then expanded, the chat still shows its close button, which closes it', async ({
+  page,
+}, info) => {
+  test.skip(isPhone(info.project.name), 'on a phone the chat takes the whole screen')
+  await harness.seed(page, { courses: [{ title: 'Biology', notes: [{ title: 'Cells', body: 'A cell.' }] }] })
+  await configureAi(page, 'https://llm.mock.test/v1')
+  const panel = await openChatOnCourse(page, info.project.name)
+  const close = panel.getByRole('button', { name: 'Close chat' })
+  const edge = page.getByRole('separator', { name: 'Chat width' })
+  // The question box takes the focus once the chat is ready: only then is the edge focused, or End would go there.
+  await expect(panel.getByRole('textbox', { name: 'Your question' })).toBeFocused()
+  await edge.focus()
+  await page.keyboard.press('End')
+  await expect(edge).toHaveAttribute('aria-valuenow', (await edge.getAttribute('aria-valuemax')) ?? '')
+  await expect(close).toBeInViewport({ ratio: 1 })
+
+  // Expanded across the page's room (from 1000px; below, the chat is already the whole screen).
+  const expand = panel.getByRole('button', { name: 'Expand chat' })
+  if (await expand.isVisible()) {
+    await expand.click()
+    await expect(panel.getByRole('button', { name: 'Restore chat width' })).toBeVisible()
+  }
+  await expect(close).toBeInViewport({ ratio: 1 })
+  await close.click()
+  await expect(panel).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Ask about this' }).first()).toHaveAttribute('aria-pressed', 'false')
+})
+
 test('on a phone the chat takes the whole screen, with no edge to drag', async ({ page }, info) => {
   test.skip(!isPhone(info.project.name), 'phones only')
   await harness.seed(page, { courses: [{ title: 'Biology', notes: [{ title: 'Cells', body: 'A cell.' }] }] })
