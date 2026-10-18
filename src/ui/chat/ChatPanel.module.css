@@ -1,12 +1,15 @@
-/* Docked from 1000px: a column on the right, the page beside it narrows. */
+/*
+ * Docked from 1000px: a column on the right, the page beside it narrows. It spans the part of the screen left
+ * visible: above the on-screen keyboard (an iPad in landscape), like the sheet below 1000px, and from wherever iOS
+ * has moved the screen's top to, so its toolbar (and its close button) never leaves the screen.
+ */
 .docked {
   position: sticky;
-  top: 0;
+  top: var(--vv-top);
   display: flex;
   flex-direction: column;
   width: var(--chat-width);
-  /* Above the on-screen keyboard (an iPad in landscape), like the sheet below 1000px. */
-  height: calc(100dvh - var(--kb-inset));
+  height: calc(100dvh - var(--kb-inset) - var(--vv-top));
   padding-top: env(safe-area-inset-top);
   padding-right: env(safe-area-inset-right);
   border-left: var(--hairline-width) solid var(--hairline);
@@ -49,8 +52,17 @@
 }
 
 .title {
+  min-width: 0;
+  overflow: hidden;
   font-size: var(--text-headline);
   font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Whatever else the row holds, the close button keeps its size. */
+.close {
+  flex-shrink: 0;
 }
 
 .heading {

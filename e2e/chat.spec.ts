@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page, type Route, test } from '@playwright/test'
-import { configureAi } from './support/ai'
+import { configureAi, restoreChat } from './support/ai'
 import { createHarness } from './support/harness.ts'
 import { isPhone, putKv, seriousViolations } from './support/page.ts'
 
@@ -271,6 +271,7 @@ test('in review, × and the chat button sit at the two ends of the bar, the chat
   if (!isPhone(info.project.name)) {
     await chat.click()
     await expect(chatPanel(page, info.project.name)).toBeVisible()
+    await restoreChat(page, info.project.name)
     expect(await edges()).toEqual({ left: 0, right: 0 })
   }
 })
@@ -287,6 +288,7 @@ test('in review, before the reveal the answer never shows; after it, the same an
 
   await openChat(page)
   const panel = chatPanel(page, info.project.name)
+  await restoreChat(page, info.project.name)
   await expect(panel.getByText('About: this card')).toBeVisible()
   await ask(panel, 'Can you give me a hint?')
   await expect(panel.getByText('Parts that would give the answer away are hidden until you reveal it.')).toBeVisible()
@@ -375,6 +377,7 @@ test('the panel suggests a start for what is on screen: none in review, one on a
   await page.goto('./#/review')
   await expect(page.getByTestId('question')).toContainText('Powerhouse of the cell?')
   await openChat(page)
+  await restoreChat(page, info.project.name)
   await expect(panel.getByText('About: this card')).toBeVisible()
   await expect(row).toHaveCount(0)
   if (phone) await panel.getByRole('button', { name: 'Close' }).click()

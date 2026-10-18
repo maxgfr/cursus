@@ -32,9 +32,11 @@ function scrollerOf(el: HTMLElement): Element {
 
 /**
  * Publishes the on-screen keyboard height as `--kb-inset` on <html> (iOS shrinks only the visual
- * viewport), and `data-keyboard` while it is open so the tab bar can step aside. Once the keyboard has
- * settled, the caret is brought into the part of the screen it leaves free: iOS scrolls while the keyboard
- * is still rising, against the full height, and often leaves the caret under it (on iPad above all).
+ * viewport), how far iOS has moved the visible part of the page down as `--vv-top` (what is pinned to the
+ * screen's top follows it, or leaves the screen), and `data-keyboard` while the keyboard is open so the tab bar
+ * can step aside. Once the keyboard has settled, the caret is brought into the part of the screen it leaves
+ * free: iOS scrolls while the keyboard is still rising, against the full height, and often leaves the caret
+ * under it (on iPad above all).
  */
 export function useKeyboardInset(): void {
   useEffect(() => {
@@ -61,6 +63,7 @@ export function useKeyboardInset(): void {
     const update = () => {
       const inset = Math.max(0, Math.round(window.innerHeight - vv.height - vv.offsetTop))
       root.style.setProperty('--kb-inset', `${inset}px`)
+      root.style.setProperty('--vv-top', `${Math.max(0, Math.round(vv.offsetTop))}px`)
       if (inset > 80) root.dataset.keyboard = 'open'
       else delete root.dataset.keyboard
       // Only when the keyboard rose or grew: a scroll of the page itself must not pull the caret back.

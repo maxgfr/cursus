@@ -65,12 +65,14 @@
 
 /*
  * Filled: the whole screen on phones, down to the keyboard's top edge, inside the safe areas. Its body fills it and
- * scrolls its own parts; the sheet itself never scrolls.
+ * scrolls its own parts; the sheet itself never scrolls. Its top follows the screen's when iOS moves it down for the
+ * keyboard: the body's first row (a close button) stays on screen.
  */
 .sheet.fill {
+  top: var(--vv-top);
   width: 100%;
   max-width: none;
-  height: calc(100dvh - var(--kb-inset));
+  height: calc(100dvh - var(--kb-inset) - var(--vv-top));
   max-height: none;
   margin: 0;
   padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);

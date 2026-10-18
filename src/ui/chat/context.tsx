@@ -39,7 +39,7 @@ export interface ChatSnapshot {
   /** The most specific context the screens on display publish. */
   context: ScreenContext
   asked: ChatAsk | null
-  /** Docked, the chat takes the page's whole room instead of its column. */
+  /** Docked, the chat takes the page's whole room instead of its column: so on every opening, until restored. */
   expanded: boolean
 }
 
@@ -80,8 +80,9 @@ class ChatHub {
     this.emit({ context: this.merged() })
   }
 
+  /** Each opening starts expanded; « Restore » gives the page its column back for that opening only. */
   setOpen(open: boolean) {
-    if (open !== this.snapshot.open) this.emit({ open })
+    if (open !== this.snapshot.open) this.emit(open ? { open, expanded: true } : { open })
   }
 
   setExpanded(expanded: boolean) {
@@ -90,7 +91,11 @@ class ChatHub {
 
   ask(text: string, excerpt?: string) {
     this.seq += 1
-    this.emit({ open: true, asked: { text, ...(excerpt ? { excerpt } : {}), seq: this.seq } })
+    this.emit({
+      open: true,
+      ...(this.snapshot.open ? {} : { expanded: true }),
+      asked: { text, ...(excerpt ? { excerpt } : {}), seq: this.seq },
+    })
   }
 
   /**

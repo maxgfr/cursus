@@ -15,7 +15,7 @@ import {
   type WorkerEvent,
 } from '../src/core/ai/local.ts'
 import { createLocalModels } from '../src/core/ai/localModels.ts'
-import { openModels, providerGroup, providerPicker } from './support/ai.ts'
+import { openModels, providerGroup, providerPicker, restoreChat } from './support/ai.ts'
 import { createHarness } from './support/harness.ts'
 import { seriousViolations, watchErrors } from './support/page.ts'
 
@@ -743,6 +743,7 @@ test.describe('on-device model offline, explanations', () => {
     await expect(chat.getByText('You are offline. Asking needs a connection, or a model on this device.')).toHaveCount(
       0,
     )
+    await restoreChat(page, info.project.name)
     if (info.project.name === 'webkit-iphone') await chat.getByRole('button', { name: 'Close' }).click()
 
     await go(page, '#/review')

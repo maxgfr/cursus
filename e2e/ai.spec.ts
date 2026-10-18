@@ -8,6 +8,7 @@ import {
   openConnection,
   openModels,
   providerGroup,
+  restoreChat,
 } from './support/ai'
 import { isPhone } from './support/page'
 
@@ -549,6 +550,7 @@ test('a new study sheet is written by AI into its text, cited; one Undo takes it
   })
   await page.getByRole('button', { name: 'Ask about “Calvin cycle”' }).click()
   const chat = chatPanel(page, info.project.name)
+  await restoreChat(page, info.project.name)
   await expect(chat.getByText('What does “Calvin cycle” mean here?')).toBeVisible()
   await expect.poll(() => prompts.at(-1) ?? '').toContain('What does “Calvin cycle” mean here?')
   await expect(chat.getByRole('log')).not.toHaveAttribute('aria-busy', 'true')

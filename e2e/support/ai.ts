@@ -6,6 +6,17 @@ export function chatPanel(page: Page, project: string): Locator {
   return isPhone(project) ? page.getByRole('dialog', { name: 'Ask' }) : page.getByRole('complementary', { name: 'Ask' })
 }
 
+/**
+ * Docked (from 1000px), the chat opens across the page's whole room: « Restore » gives the page back its column
+ * beside the chat, for this opening. On a phone the chat is always the whole screen: nothing to restore.
+ */
+export async function restoreChat(page: Page, project: string): Promise<void> {
+  if (isPhone(project)) return
+  const panel = chatPanel(page, project)
+  await panel.getByRole('button', { name: 'Restore chat width' }).click()
+  await expect(panel.getByRole('button', { name: 'Expand chat' })).toBeVisible()
+}
+
 /** The AI settings' provider picker, its per-provider result lists and its one search field. */
 export const providerPicker = (page: Page) => page.getByLabel('Provider', { exact: true })
 export const providerGroup = (page: Page, provider: string) => page.getByRole('list', { name: provider, exact: true })

@@ -1,5 +1,5 @@
 import { expect, type Page, type Route, test } from '@playwright/test'
-import { completionReply, configureAi } from './support/ai'
+import { completionReply, configureAi, restoreChat } from './support/ai'
 import { createHarness } from './support/harness.ts'
 import { isPhone, putKv } from './support/page.ts'
 
@@ -234,6 +234,7 @@ test('after the reveal, « Why? » explains the answer from the course below the
   // Continued in the chat: the tutor is given the explanation as what the student is asking about.
   await why.getByRole('button', { name: 'Continue in the chat' }).click()
   const chat = chatPanel(page, info.project.name)
+  await restoreChat(page, info.project.name)
   await expect(chat.getByText(/releases the cell's energy/)).toBeVisible()
   expect(prompts.at(-1)).toContain('study tutor')
   expect(prompts.at(-1)).toContain('Respiration runs in the mitochondrion')
@@ -255,6 +256,7 @@ test('a term selected in the question is asked about in the chat, without the an
   await selectText(page, '[data-testid="question"]', 'cell')
   await page.getByRole('button', { name: 'Ask about “cell”' }).click()
   const panel = chatPanel(page, info.project.name)
+  await restoreChat(page, info.project.name)
   await expect(panel.getByText('What does “cell” mean here?')).toBeVisible()
   await expect(panel.getByText(/releases the cell's energy/)).toBeVisible()
   // The chat knew the card and the line the term was read in, and was told to keep the answer.
@@ -296,6 +298,7 @@ test('a term selected in a source is asked about in the chat, cited, and becomes
 
   await panel.getByRole('button', { name: 'Make a card' }).click()
   await expect(panel.getByText('Added to Suggested cards.')).toBeVisible()
+  await restoreChat(page, info.project.name)
   if (isPhone(info.project.name)) await panel.getByRole('button', { name: 'Close' }).click()
   await page.goto('./#/inbox')
   await expect(page.getByRole('main').getByText('What does “ATP” mean here?')).toBeVisible()
@@ -405,6 +408,7 @@ test('a « Why? » kept in an earlier thread is guarded again when the card come
   await expect(page.getByRole('button', { name: /Show answer/ })).toBeVisible()
   await page.getByRole('main').getByRole('button', { name: 'Ask about this' }).first().click()
   const panel = chatPanel(page, info.project.name)
+  await restoreChat(page, info.project.name)
   await panel.getByRole('button', { name: 'Earlier chats' }).click()
   await panel.getByRole('button', { name: 'Open “Why is this the answer?”' }).click()
   // The stored explanation names the answer: redacted, with « Show anyway »; citations without their passage.

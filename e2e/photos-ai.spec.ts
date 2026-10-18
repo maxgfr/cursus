@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { expect, type Page, type Route, test } from '@playwright/test'
-import { aiSearch, chatPanel, configureAi, openModels, providerGroup, providerPicker } from './support/ai'
+import { aiSearch, chatPanel, configureAi, openModels, providerGroup, providerPicker, restoreChat } from './support/ai'
 import { createCourse, isPhone } from './support/page'
 
 test.use({ serviceWorkers: 'block' })
@@ -252,6 +252,7 @@ test('a photo with nothing written about it has nothing to summarise; once it ha
   await main.getByRole('button', { name: 'Ask about this' }).first().click()
   await expect(chat.getByRole('textbox', { name: 'Your question' })).toBeVisible()
   await expect(chat.getByRole('button', { name: 'Summarise this source' })).toHaveCount(0)
+  await restoreChat(page, info.project.name)
   if (isPhone(info.project.name)) await chat.getByRole('button', { name: 'Close chat' }).click()
   await expect(main.getByRole('button', { name: 'Summarise this source' })).toHaveCount(0)
 
@@ -393,6 +394,7 @@ test('a course whose only source is a photo: the chat never says there is none, 
   await expect(chat).not.toContainText(/no source/i)
 
   // Read on its own screen meanwhile: the chat, still open, grounds in the reading at once, no image sent.
+  await restoreChat(page, info.project.name)
   if (isPhone(info.project.name)) await chat.getByRole('button', { name: 'Close chat' }).click()
   await page.goto(`${course}/photos`)
   await openFirstPhoto(page)

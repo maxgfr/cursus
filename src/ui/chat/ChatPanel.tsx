@@ -74,8 +74,8 @@ function useDocked(): boolean {
 }
 
 /**
- * The chat beside the screens, to talk about what is on them: docked on the right from 1000px (or across the page's
- * whole room, expanded), below it the whole screen over the page. It only converses, cited, with
+ * The chat beside the screens, to talk about what is on them: from 1000px it opens across the page's whole room
+ * (expanded), restored a column docked on the right; below it the whole screen over the page. It only converses, cited, with
  * « Copy » and « Make a card » (a suggested card); each AI feature has its own place on its screen. Earlier threads
  * keep their structured answers, read only. Loaded on first opening.
  */
@@ -494,12 +494,12 @@ function ChatBody({ docked, onClose }: { docked: boolean; onClose: () => void })
           label={t(chat?.expanded ? 'chat.restore' : 'chat.expand')}
           onClick={chat?.toggleExpanded}
         />
-        <IconButton icon={X} label={t('chat.closePanel')} onClick={onClose} />
+        <IconButton icon={X} label={t('chat.closePanel')} onClick={onClose} className={styles.close} />
       </div>
     </div>
   ) : (
     <div className={cx(styles.toolbar, styles.compact)}>
-      <IconButton icon={X} label={t('chat.closePanel')} onClick={onClose} />
+      <IconButton icon={X} label={t('chat.closePanel')} onClick={onClose} className={styles.close} />
       <div className={styles.context}>
         {showHistory ? (
           <span className={styles.heading}>{t('chat.history')}</span>

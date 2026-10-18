@@ -1,10 +1,11 @@
 import { expect, type Page, test } from '@playwright/test'
-import { chatPanel, configureAi } from './support/ai'
+import { chatPanel, configureAi, restoreChat } from './support/ai'
 import { createHarness } from './support/harness.ts'
 import { isPhone, seriousViolations, watchErrors } from './support/page.ts'
 
-// The chat is as wide as the student makes it: its left edge is dragged (or moved with the keyboard), the page
-// beside it narrows, and the width is kept on this device. On a phone the chat takes the whole screen.
+// The chat opens across the page's room; restored, it is as wide as the student makes it: its left edge is dragged
+// (or moved with the keyboard), the page beside it narrows, and the width is kept on this device. On a phone the
+// chat takes the whole screen. Whatever its size, its close button stays on screen.
 
 test.use({ serviceWorkers: 'block' })
 
@@ -45,6 +46,7 @@ test('dragging the chat’s edge widens it and narrows the page; kept after a re
   await harness.seed(page, { courses: [{ title: 'Biology', notes: [{ title: 'Cells', body: 'A cell.' }] }] })
   await configureAi(page, 'https://llm.mock.test/v1')
   const panel = await openChatOnCourse(page, info.project.name)
+  await restoreChat(page, info.project.name)
   const edge = page.getByRole('separator', { name: 'Chat width' })
   await expect(edge).toBeVisible()
   const before = Number(await edge.getAttribute('aria-valuenow'))
@@ -72,6 +74,7 @@ test('dragging the chat’s edge widens it and narrows the page; kept after a re
   // Remembered on this device.
   await page.reload()
   const again = await openChatOnCourse(page, info.project.name)
+  await restoreChat(page, info.project.name)
   await expect(page.getByRole('separator', { name: 'Chat width' })).toHaveAttribute('aria-valuenow', String(wider))
   await expect
     .poll(async () => Math.round((await again.boundingBox())?.width ?? 0))
@@ -103,6 +106,7 @@ test('made as wide as it goes, then expanded, the chat still shows its close but
   const edge = page.getByRole('separator', { name: 'Chat width' })
   // The question box takes the focus once the chat is ready: only then is the edge focused, or End would go there.
   await expect(panel.getByRole('textbox', { name: 'Your question' })).toBeFocused()
+  await restoreChat(page, info.project.name)
   await edge.focus()
   await page.keyboard.press('End')
   await expect(edge).toHaveAttribute('aria-valuenow', (await edge.getAttribute('aria-valuemax')) ?? '')
@@ -128,4 +132,125 @@ test('on a phone the chat takes the whole screen, with no edge to drag', async (
   const viewport = page.viewportSize()?.width ?? 0
   expect(Math.round((await panel.boundingBox())?.width ?? 0)).toBe(viewport)
   await expect(page.getByRole('separator', { name: 'Chat width' })).toBeHidden()
+})
+
+/** The element's box lies whole inside the part of the screen visible (the visual viewport). */
+const inVisualViewport = (el: Element) => {
+  const r = el.getBoundingClientRect()
+  const vv = window.visualViewport
+  if (!vv) return false
+  return (
+    r.width > 0 &&
+    r.top >= vv.offsetTop &&
+    r.left >= vv.offsetLeft &&
+    r.bottom <= vv.offsetTop + vv.height &&
+    r.right <= vv.offsetLeft + vv.width
+  )
+}
+
+test('on a wide screen the chat opens across the page’s room, its close button on screen; restored, it opens expanded again', async ({
+  page,
+}, info) => {
+  test.skip(isPhone(info.project.name), 'on a phone the chat takes the whole screen')
+  const errors = watchErrors(page)
+  await harness.seed(page, { courses: [{ title: 'Biology', notes: [{ title: 'Cells', body: 'A cell.' }] }] })
+  await configureAi(page, 'https://llm.mock.test/v1')
+  const panel = await openChatOnCourse(page, info.project.name)
+  const close = panel.getByRole('button', { name: 'Close chat' })
+  const heading = page.getByRole('heading', { level: 1, name: 'Biology' })
+  // Expanded: the page is set aside, no edge to drag, the close button whole on screen, even while typing.
+  await expect(panel.getByRole('button', { name: 'Restore chat width' })).toBeVisible()
+  await expect(heading).toBeHidden()
+  await expect(page.getByRole('separator', { name: 'Chat width' })).toBeHidden()
+  await expect(close).toBeInViewport({ ratio: 1 })
+  await panel.getByRole('textbox', { name: 'Your question' }).fill('What is a cell?')
+  await expect(close).toBeInViewport({ ratio: 1 })
+  expect(await close.evaluate(inVisualViewport)).toBe(true)
+  await close.click()
+  await expect(panel).toBeHidden()
+  await expect(heading).toBeVisible()
+
+  // Opened again: expanded again. Restored, the page comes back beside it, the close button still on screen.
+  await page.getByRole('button', { name: 'Ask about this' }).first().click()
+  await expect(panel.getByRole('button', { name: 'Restore chat width' })).toBeVisible()
+  await expect(heading).toBeHidden()
+  await restoreChat(page, info.project.name)
+  await expect(heading).toBeVisible()
+  await expect(page.getByRole('separator', { name: 'Chat width' })).toBeVisible()
+  await expect(close).toBeInViewport({ ratio: 1 })
+  await close.click()
+  await expect(panel).toBeHidden()
+
+  // Restored last time, it still opens expanded, from the page or with the shortcut.
+  await page.getByRole('button', { name: 'Ask about this' }).first().click()
+  await expect(panel.getByRole('button', { name: 'Restore chat width' })).toBeVisible()
+  await expect(heading).toBeHidden()
+  await expect(close).toBeInViewport({ ratio: 1 })
+  await close.click()
+  await expect(panel).toBeHidden()
+  await expect(heading).toBeVisible()
+  await page.keyboard.press('ControlOrMeta+j')
+  await expect(panel).toBeVisible()
+  await expect(panel.getByRole('button', { name: 'Restore chat width' })).toBeVisible()
+  await expect(close).toBeInViewport({ ratio: 1 })
+  await close.click()
+  await expect(panel).toBeHidden()
+  expect(errors).toEqual([])
+})
+
+test('on a phone, the question box focused and typed in, the close button stays on the visible screen and closes the chat', async ({
+  page,
+}, info) => {
+  test.skip(!isPhone(info.project.name), 'phones only')
+  const errors = watchErrors(page)
+  await harness.seed(page, { courses: [{ title: 'Biology', notes: [{ title: 'Cells', body: 'A cell.' }] }] })
+  await configureAi(page, 'https://llm.mock.test/v1')
+  const panel = await openChatOnCourse(page, info.project.name)
+  const close = panel.getByRole('button', { name: 'Close chat' })
+  const box = panel.getByRole('textbox', { name: 'Your question' })
+  await expect(box).toBeFocused()
+  await box.pressSequentially('What is a cell, and where is it found?')
+  await expect(box).toHaveValue('What is a cell, and where is it found?')
+  await expect(close).toBeInViewport({ ratio: 1 })
+  expect(await close.evaluate(inVisualViewport)).toBe(true)
+  await close.click()
+  await expect(panel).toBeHidden()
+  await expect(page.getByRole('button', { name: 'Ask about this' }).first()).toHaveAttribute('aria-pressed', 'false')
+  expect(errors).toEqual([])
+})
+
+test('with the keyboard up and the screen’s top moved down, the chat’s close button and composer stay on screen', async ({
+  page,
+}, info) => {
+  await harness.seed(page, { courses: [{ title: 'Biology', notes: [{ title: 'Cells', body: 'A cell.' }] }] })
+  await configureAi(page, 'https://llm.mock.test/v1')
+  const panel = await openChatOnCourse(page, info.project.name)
+  const close = panel.getByRole('button', { name: 'Close chat' })
+  const box = panel.getByRole('textbox', { name: 'Your question' })
+  await expect(box).toBeFocused()
+  await box.fill('What is a cell?')
+
+  // As iOS reports it (useKeyboardInset): a 300 px keyboard, and the visible part of the screen moved 120 px down.
+  const KEYBOARD = 300
+  const TOP = 120
+  await page.evaluate(
+    ([inset, top]) => {
+      document.documentElement.style.setProperty('--kb-inset', `${inset}px`)
+      document.documentElement.style.setProperty('--vv-top', `${top}px`)
+      document.documentElement.dataset.keyboard = 'open'
+    },
+    [KEYBOARD, TOP],
+  )
+  const viewport = page.viewportSize()
+  if (!viewport) throw new Error('no viewport')
+  const visible = { top: TOP, bottom: viewport.height - KEYBOARD }
+  await expect.poll(async () => Math.round((await close.boundingBox())?.y ?? -1)).toBeGreaterThanOrEqual(visible.top)
+  const x = await close.boundingBox()
+  const composer = await box.boundingBox()
+  if (!x || !composer) throw new Error('not laid out')
+  expect(x.y + x.height).toBeLessThanOrEqual(visible.bottom)
+  expect(composer.y).toBeGreaterThanOrEqual(visible.top)
+  expect(composer.y + composer.height).toBeLessThanOrEqual(visible.bottom + 1)
+  await close.click()
+  await expect(panel).toBeHidden()
 })
