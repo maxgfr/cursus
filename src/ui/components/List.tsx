@@ -39,12 +39,36 @@ export interface ListRowProps {
   chevron?: boolean
   /** The trailing controls go below the title when both do not fit side by side (long titles, wide buttons). */
   wrap?: boolean
+  /** Set with `onCheckedChange`: the row is a checkbox named by its title (for picking several rows). */
+  checked?: boolean
+  onCheckedChange?: (checked: boolean) => void
 }
 
-export function ListRow({ title, subtitle, leading, trailing, href, onClick, chevron, wrap }: ListRowProps) {
+export function ListRow({
+  title,
+  subtitle,
+  leading,
+  trailing,
+  href,
+  onClick,
+  chevron,
+  wrap,
+  checked,
+  onCheckedChange,
+}: ListRowProps) {
   const showChevron = chevron ?? href !== undefined
+  const checkId = useId()
   const body = (
     <>
+      {onCheckedChange && (
+        <input
+          id={checkId}
+          type="checkbox"
+          className={styles.check}
+          checked={checked ?? false}
+          onChange={(e) => onCheckedChange(e.currentTarget.checked)}
+        />
+      )}
       {leading && (
         <span className={styles.leading} aria-hidden="true">
           {leading}
@@ -62,10 +86,18 @@ export function ListRow({ title, subtitle, leading, trailing, href, onClick, che
       )}
     </>
   )
-  const cls = cx(styles.row, leading !== undefined && styles.withLeading, wrap === true && styles.wrap)
+  const cls = cx(
+    styles.row,
+    (leading !== undefined || onCheckedChange !== undefined) && styles.withLeading,
+    wrap === true && styles.wrap,
+  )
   return (
     <li className={styles.item}>
-      {href !== undefined ? (
+      {onCheckedChange ? (
+        <label htmlFor={checkId} className={cls}>
+          {body}
+        </label>
+      ) : href !== undefined ? (
         <Link href={href} className={cls}>
           {body}
         </Link>

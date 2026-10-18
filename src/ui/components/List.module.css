@@ -57,13 +57,15 @@
 }
 
 a.row,
-button.row {
+button.row,
+label.row {
   cursor: pointer;
   transition: background-color var(--dur-fast) var(--ease-out);
 }
 
 a.row:hover,
-button.row:hover {
+button.row:hover,
+label.row:hover {
   background: var(--surface-pressed);
 }
 
@@ -71,6 +73,19 @@ a.row:focus-visible,
 button.row:focus-visible {
   outline-offset: -2px;
   border-radius: var(--radius-surface);
+}
+
+.check {
+  flex: none;
+  width: 1.125rem;
+  height: 1.125rem;
+  margin: 0 0.3125rem;
+  accent-color: var(--accent);
+}
+
+.check:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .leading {

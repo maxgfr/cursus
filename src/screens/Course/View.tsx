@@ -9,6 +9,7 @@ import {
   Image,
   Images,
   Layers,
+  ListChecks,
   MessageCircleQuestion,
   NotebookPen,
   NotebookText,
@@ -119,6 +120,9 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   const [quizzing, setQuizzing] = useState(false)
   const [moving, setMoving] = useState<{ kind: 'section' | 'fiches'; id: Id; name: string } | null>(null)
   const [moved, setMoved] = useState<string | null>(null)
+  // Picking cards to move them together: `null` when not picking.
+  const [picked, setPicked] = useState<ReadonlySet<Id> | null>(null)
+  const [movingCards, setMovingCards] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [trashed, setTrashed] = useState<string | null>(() => stateString(history.state, 'trashedCard'))
@@ -249,7 +253,8 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
       else navigate(to.source(addNote(rt, where, t('course.pastedNote'), c.text)))
     },
     {
-      enabled: data !== null && tab === 'sources' && !settings && !adding && !addingSource && moving === null,
+      enabled:
+        data !== null && tab === 'sources' && !settings && !adding && !addingSource && moving === null && !movingCards,
       onFiles: (files) => void addFiles(files),
     },
   )
@@ -315,6 +320,27 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
     if (moving.kind === 'section') rt.ws.sections.move(moving.id, place.sectionId)
     else moveItemTo(rt.ws, moving.kind, moving.id, place)
   }
+  // Only the picked cards still listed here: one synced away meanwhile stays where it went.
+  const pickedCards = picked === null ? [] : cards.filter((c) => picked.has(c.id)).map((c) => c.id)
+  // The « Card added » notice would sit over the last rows to pick: it has been read.
+  const startPicking = () => {
+    if (saved !== null) {
+      setSaved(null)
+      clearEntryState()
+    }
+    setPicked(new Set())
+  }
+  const pick = (id: Id, on: boolean) =>
+    setPicked((p) => {
+      const next = new Set(p)
+      if (on) next.add(id)
+      else next.delete(id)
+      return next
+    })
+  const moveCards = (place: Place) =>
+    rt.ws.atomic(() => {
+      for (const id of pickedCards) moveItemTo(rt.ws, 'cards', id, place)
+    })
 
   const pasteText = () => {
     const open = (text: string) => navigate(to.source(addNote(rt, where, t('course.pastedNote'), text)))
@@ -509,7 +535,32 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
             tabIndex={-1}
             onChange={onCsv}
           />
-          {cards.length > 0 && (
+          {cards.length > 0 && picked !== null && (
+            <div className={styles.actions}>
+              <Button
+                variant="primary"
+                icon={<FolderInput size={18} aria-hidden="true" />}
+                disabled={pickedCards.length === 0}
+                aria-haspopup="dialog"
+                onClick={() => setMovingCards(true)}
+              >
+                {t('course.moveCards', { count: pickedCards.length })}
+              </Button>
+              {pickedCards.length < cards.length ? (
+                <Button variant="plain" onClick={() => setPicked(new Set(cards.map((c) => c.id)))}>
+                  {t('course.pickAll')}
+                </Button>
+              ) : (
+                <Button variant="plain" onClick={() => setPicked(new Set())}>
+                  {t('course.pickNone')}
+                </Button>
+              )}
+              <Button variant="plain" onClick={() => setPicked(null)}>
+                {t('common.done')}
+              </Button>
+            </div>
+          )}
+          {cards.length > 0 && picked === null && (
             <div className={styles.actions}>
               <Button variant="primary" icon={<Plus size={18} aria-hidden="true" />} onClick={newCard}>
                 {t('course.addCard')}
@@ -519,6 +570,9 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
                   {t('ai.generate')}
                 </Button>
               )}
+              <Button variant="plain" icon={<ListChecks size={18} aria-hidden="true" />} onClick={startPicking}>
+                {t('course.pickCards')}
+              </Button>
               <IconButton icon={Ellipsis} label={t('course.moreCardWays')} onClick={() => setMoreCards(true)} />
             </div>
           )}
@@ -556,14 +610,24 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
                   : t('course.cardCount', { count: cards.length })
               }
             >
-              {cards.map((c) => (
-                <ListRow
-                  key={c.id}
-                  href={to.card(c.id)}
-                  title={c.front || t('course.emptyCard')}
-                  subtitle={c.kind === 'cloze' ? t('course.kindCloze') : undefined}
-                />
-              ))}
+              {cards.map((c) =>
+                picked === null ? (
+                  <ListRow
+                    key={c.id}
+                    href={to.card(c.id)}
+                    title={c.front || t('course.emptyCard')}
+                    subtitle={c.kind === 'cloze' ? t('course.kindCloze') : undefined}
+                  />
+                ) : (
+                  <ListRow
+                    key={c.id}
+                    title={c.front || t('course.emptyCard')}
+                    subtitle={c.kind === 'cloze' ? t('course.kindCloze') : undefined}
+                    checked={picked.has(c.id)}
+                    onCheckedChange={(on) => pick(c.id, on)}
+                  />
+                ),
+              )}
             </ListGroup>
           )}
         </>
@@ -687,6 +751,17 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
         courseOnly={moving?.kind === 'section'}
         onMove={move}
         onMoved={(path) => setMoved(t('course.moved', { place: path }))}
+      />
+      <MoveSheet
+        open={movingCards}
+        title={t('course.moveCards', { count: pickedCards.length })}
+        onClose={() => setMovingCards(false)}
+        current={{ courseId, sectionId: here }}
+        onMove={moveCards}
+        onMoved={(path) => {
+          setMoved(t('course.cardsMoved', { count: pickedCards.length, place: path }))
+          setPicked(null)
+        }}
       />
       {trashed !== null && error === null && (
         <Toast

@@ -148,6 +148,42 @@ test('Move: a note to another section, a section under another, and a cycle refu
   expect(errors).toEqual([])
 })
 
+test('Move: cards picked together go to another section in one move', async ({ page }) => {
+  const errors = watchErrors(page)
+  await openToday(page)
+  await createCourse(page, 'Law')
+  await newSection(page, 'Torts')
+  await crumb(page, 'Law')
+  await newCard(page, 'Duty of care')
+  await newCard(page, 'Negligence')
+  await newCard(page, 'Offer and acceptance')
+
+  // Select all, then leave one out: the button counts what goes.
+  await page.getByRole('button', { name: 'Select', exact: true }).click()
+  const main = page.getByRole('main')
+  await expect(main.getByRole('link', { name: /Negligence/ })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Select all' }).click()
+  await expect(page.getByRole('button', { name: 'Deselect all' })).toBeVisible()
+  await main.getByRole('checkbox', { name: /Offer and acceptance/ }).uncheck()
+  await page.getByRole('button', { name: 'Move 2 cards to…' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Move 2 cards to…' })
+  await expect(sheet.getByRole('button', { name: 'Law (current)' })).toHaveAttribute('aria-current', 'location')
+  expect(await seriousViolations(page, 'dialog[open]')).toEqual([])
+  await sheet.getByRole('button', { name: 'Law › Torts', exact: true }).click()
+  await expect(sheet).toBeHidden()
+  await expect(page.getByRole('status').filter({ hasText: '2 cards moved to Law › Torts.' })).toBeVisible()
+
+  // Back to the plain list: the one left out stays here, the two others are in Torts.
+  await expect(main.getByRole('checkbox')).toHaveCount(0)
+  await expect(main.getByRole('link', { name: /Offer and acceptance/ })).toBeVisible()
+  await expect(main.getByRole('link', { name: /Negligence/ })).toHaveCount(0)
+  await openSection(page, 'Torts')
+  await page.getByRole('radio', { name: 'Cards' }).check()
+  await expect(main.getByRole('link', { name: /Duty of care/ })).toBeVisible()
+  await expect(main.getByRole('link', { name: /Negligence/ })).toBeVisible()
+  expect(errors).toEqual([])
+})
+
 test('Start on a section reviews only that section and its descendants', async ({ page }) => {
   const errors = watchErrors(page)
   await openToday(page)
