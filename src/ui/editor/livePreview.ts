@@ -22,7 +22,7 @@ import {
 import { ySyncAnnotation } from 'y-codemirror.next'
 import proseStyles from '../render/Sanitized.module.css'
 import { fillSanitized } from '../render/Sanitized.tsx'
-import { inputRule, leaveEmptyItem, pendingFormats, unformatLine } from './format.ts'
+import { inputRule, leaveEmptyItem, leaveInlineEdge, pendingFormats, unformatLine } from './format.ts'
 import {
   hiddenPrefix,
   linkAt,
@@ -633,6 +633,8 @@ export function livePreview(labels: LiveLabels, options: LiveOptions, actions: L
         {
           key: 'Enter',
           run: (view) => {
+            const out = leaveInlineEdge(view.state)
+            if (out !== null) view.dispatch(out, { userEvent: 'select' })
             leavePair(view)
             const spec = leaveEmptyItem(view.state)
             if (spec === null) return false

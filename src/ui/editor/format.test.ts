@@ -5,6 +5,7 @@ import {
   activeFormats,
   inputRule,
   leaveEmptyItem,
+  leaveInlineEdge,
   linkAddress,
   linkMarkdown,
   type Marker,
@@ -370,5 +371,89 @@ describe('a format at the caret', () => {
     const off = s.update(toggleMarker(s, '**')).state
     expect(activeFormats(off).has('bold')).toBe(false)
     expect(type(off, 'x').doc.toString()).toBe('**bo**x**ld**')
+  })
+
+  test('on, typed, off, typed: the format ends where it was turned off', () => {
+    for (const [marker, format] of [
+      ['**', 'bold'],
+      ['*', 'italic'],
+      ['~~', 'strike'],
+    ] as const) {
+      const s = live('', 0)
+      const typed = type(s.update(toggleMarker(s, marker)).state, 'abc')
+      const off = typed.update(toggleMarker(typed, marker)).state
+      expect(activeFormats(off).has(format)).toBe(false)
+      expect(shown(type(off, ' def'))).toBe(`${marker}abc${marker} def|`)
+    }
+  })
+
+  test('right after an element of the format, or right before it, the toggle steps back in: no run of markers', () => {
+    // A behaviour change: the format used to wait there, and what was typed made `**abc****x**`, read as stars.
+    const end = live('**abc** d', 7)
+    const on = end.update(toggleMarker(end, '**')).state
+    expect(shown(on)).toBe('**abc|** d')
+    expect(activeFormats(on).has('bold')).toBe(true)
+    expect(type(on, 'x').doc.toString()).toBe('**abcx** d')
+    const start = live('d **abc**', 2)
+    expect(shown(start.update(toggleMarker(start, '**')).state)).toBe('d **|abc**')
+    const italic = live('*it*', 4)
+    expect(type(italic.update(toggleMarker(italic, '*')).state, 'q').doc.toString()).toBe('*itq*')
+    // Toggled twice, the caret is back where it was.
+    const back = on.update(toggleMarker(on, '**')).state
+    expect(shown(back)).toBe('**abc**| d')
+  })
+})
+
+describe('Enter at the edge of an inline element', () => {
+  const enter = (doc: string, pos: number) => {
+    const s = parsed(doc, pos)
+    return after(s, leaveInlineEdge(s))
+  }
+
+  test('right before the closing marker, or right after the opening one, the caret steps out first', () => {
+    // The new line would otherwise take the marker away from its text: `**line\n**`, what follows in bold.
+    expect(enter('**line**', 6)).toBe('**line**|')
+    expect(enter('a **line** b', 8)).toBe('a **line**| b')
+    expect(enter('**line**', 2)).toBe('|**line**')
+    expect(enter('~~gone~~', 6)).toBe('~~gone~~|')
+    expect(enter('***both***', 7)).toBe('***both***|')
+    expect(enter('- **item**', 8)).toBe('- **item**|')
+  })
+
+  test('elsewhere Enter is Enter', () => {
+    expect(enter('**line**', 4)).toBe('null')
+    expect(enter('**line** b', 8)).toBe('null')
+    expect(enter('plain', 5)).toBe('null')
+  })
+})
+
+describe('bold on a selection, by the parsed text', () => {
+  const sel = (doc: string, from: number, to: number, m: Marker = '**') =>
+    after(parsed(doc, from, to), toggleMarker(parsed(doc, from, to), m))
+
+  test('a part of a bold text comes out of it, white space outside the markers', () => {
+    // A behaviour change: the markers used to be added around it, `**two **words****`, read as stars.
+    expect(sel('**two words**', 6, 11)).toBe('**two** [words]')
+    expect(sel('**two words**', 2, 5)).toBe('[two] **words**')
+    expect(sel('**abc**', 3, 4)).toBe('**a**[b]**c**')
+    expect(sel('*two words*', 5, 10, '*')).toBe('*two* [words]')
+    // Its hidden markers taken along by the selection.
+    expect(sel('**abc**', 3, 7)).toBe('**a**[bc]')
+    expect(sel('**abc**', 0, 4)).toBe('[ab]**c**')
+  })
+
+  test('next to bold, or overlapping it, the bold grows over the selection', () => {
+    expect(sel('**two words**x', 13, 14)).toBe('**two words[x]**')
+    expect(sel('x**two**', 0, 1)).toBe('**[x]two**')
+    expect(sel('**ab** cd', 3, 9)).toBe('**a[b cd]**')
+    expect(sel('ab **cd**', 0, 7)).toBe('**[ab cd]**')
+  })
+
+  test('wrapped, then unwrapped', () => {
+    const on = parsed('a word b', 2, 6)
+    const bold = on.update(toggleMarker(on, '**')).state
+    ensureSyntaxTree(bold, bold.doc.length, 5000)
+    expect(after(bold, {})).toBe('a **[word]** b')
+    expect(after(bold, toggleMarker(bold, '**'))).toBe('a [word] b')
   })
 })

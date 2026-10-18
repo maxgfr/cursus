@@ -514,6 +514,59 @@ test('bold on an empty line is neither a rule nor stars; asked again at its end,
   expect(errors).toEqual([])
 })
 
+for (const via of ['button', 'shortcut'] as const) {
+  test(`bold by its ${via}: on, typed, off, typed; twice in a row, Enter, a selection; never a star in sight`, async ({
+    page,
+  }) => {
+    const errors = watchErrors(page)
+    const editor = await newNote(page, `Bold ${via}`)
+    const button = page.getByRole('toolbar', { name: 'Formatting' }).getByRole('button', { name: 'Bold' })
+    const bold = () => (via === 'button' ? button.click() : page.keyboard.press('ControlOrMeta+b'))
+    await editor.click()
+    await bold()
+    await page.keyboard.type('abc')
+    await bold()
+    await expect(button).toHaveAttribute('aria-pressed', 'false')
+    await page.keyboard.type(' def')
+    await expect(editor.locator('.cm-md-strong')).toHaveText('abc')
+    expect(await sourceText(page, editor)).toBe('**abc** def')
+
+    // Off then on again right after the bold word: what is typed adds to it.
+    await editor.click()
+    await page.keyboard.press('ControlOrMeta+End')
+    await page.keyboard.type(' ')
+    await bold()
+    await page.keyboard.type('gh')
+    await bold()
+    await bold()
+    await expect(button).toHaveAttribute('aria-pressed', 'true')
+    await page.keyboard.type('i')
+    // Enter at the end of the bold word ends it there: the next line is plain.
+    await page.keyboard.press('Enter')
+    await page.keyboard.type('plain')
+    await expect(editor).not.toContainText('*')
+    await expect(editor.locator('.cm-md-strong')).toHaveText(['abc', 'ghi'])
+    expect(await sourceText(page, editor)).toBe('**abc** def **ghi**\nplain')
+
+    // A selection: wrapped, then unwrapped; a part of a bold word comes out of it.
+    await editor.click()
+    await page.keyboard.press('ControlOrMeta+End')
+    await page.keyboard.press('Shift+Home')
+    await bold()
+    await expect(editor.locator('.cm-md-strong')).toHaveText(['abc', 'ghi', 'plain'])
+    await bold()
+    await expect(editor.locator('.cm-md-strong')).toHaveText(['abc', 'ghi'])
+    await page.keyboard.press('ControlOrMeta+Home')
+    await page.keyboard.press('End')
+    await page.keyboard.press('Shift+ArrowLeft')
+    await bold()
+    await expect(editor).not.toContainText('*')
+    await expect(editor.locator('.cm-md-strong')).toHaveText(['abc', 'gh'])
+    expect(await sourceText(page, editor)).toBe('**abc** def **gh**i\nplain')
+    expect(errors).toEqual([])
+  })
+}
+
 test('a task checkbox is named after its task and ticks with Alt+Enter; an item continues under its text', async ({
   page,
 }) => {

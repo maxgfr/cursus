@@ -1,5 +1,6 @@
 import { syntaxTree } from '@codemirror/language'
 import {
+  type ChangeSpec,
   EditorSelection,
   type EditorState,
   type Extension,
@@ -10,7 +11,7 @@ import {
 import { EditorView } from '@codemirror/view'
 import type { SyntaxNode } from '@lezer/common'
 import { clozeIndexes, clozeSpans } from '../../core/model/cloze'
-import { pendingPair, tidyPair } from './livePlan.ts'
+import { pendingPair, type Span, tidyPair } from './livePlan.ts'
 
 /** Inline formats the toolbar toggles, by their Markdown marker. */
 export type Marker = '**' | '*' | '~~' | '`' | '$'
@@ -107,11 +108,64 @@ function edgeOf(state: EditorState, head: number, marker: Marker, side: 'end' | 
   return null
 }
 
+/** A parsed element of a marker's kind: where it is, and its opening and closing markers. */
+interface Element {
+  from: number
+  to: number
+  open: Span
+  close: Span
+}
+
+/** The element of `marker`'s kind around `pos` (or right next to it) that `fits`, innermost first. */
+function elementAt(state: EditorState, pos: number, marker: Marker, fits: (e: Element) => boolean): Element | null {
+  const { node, mark } = NODE_OF[marker]
+  const tree = syntaxTree(state)
+  for (const side of [-1, 1] as const) {
+    for (let n: SyntaxNode | null = tree.resolveInner(pos, side); n; n = n.parent) {
+      if (n.name !== node) continue
+      const marks = n.getChildren(mark)
+      const open = marks[0]
+      const close = marks.at(-1)
+      if (marks.length < 2 || !open || !close) continue
+      const e = {
+        from: n.from,
+        to: n.to,
+        open: { from: open.from, to: open.to },
+        close: { from: close.from, to: close.to },
+      }
+      if (fits(e)) return e
+    }
+  }
+  return null
+}
+
+/**
+ * Enter right before an inline element's closing marker (or right after its opening one): the caret steps out of
+ * it first, so the new line does not take the marker away from its text, leaving it unclosed and what follows in
+ * its format. Null elsewhere: Enter goes on as usual.
+ */
+export function leaveInlineEdge(state: EditorState): TransactionSpec | null {
+  const { main } = state.selection
+  if (state.selection.ranges.length > 1 || !main.empty) return null
+  const markers = Object.keys(NODE_OF) as Marker[]
+  const step = (pos: number, end: boolean): number => {
+    for (const m of markers) {
+      const e = elementAt(state, pos, m, (x) => (end ? x.close.from === pos : x.open.to === pos))
+      if (e) return step(end ? e.to : e.from, end)
+    }
+    return pos
+  }
+  const out = step(main.head, true)
+  const at = out === main.head ? step(main.head, false) : out
+  return at === main.head ? null : { selection: EditorSelection.cursor(at) }
+}
+
 /**
  * The format turned on or off at a caret, word-processor style. At the end of an element of that format the caret
- * steps out of it, as it does before one at its start; in a pair being typed into, it steps out and the pair is
- * tidied (`tidyPair`). Elsewhere nothing is written: the format waits for what is typed next (`pendingFormat`),
- * and asking again takes it back. Null for a selection, or several carets.
+ * steps out of it, as it does before one at its start; right after one (or right before it), it steps back in, so
+ * what is typed adds to it. In a pair being typed into, it steps out and the pair is tidied (`tidyPair`).
+ * Elsewhere nothing is written: the format waits for what is typed next (`pendingFormat`), and asking again takes
+ * it back. Null for a selection, or several carets.
  */
 export function toggleAtCaret(state: EditorState, marker: Marker): TransactionSpec | null {
   const { main } = state.selection
@@ -121,6 +175,11 @@ export function toggleAtCaret(state: EditorState, marker: Marker): TransactionSp
   if (end) return { selection: EditorSelection.cursor(end.to) }
   const start = edgeOf(state, head, marker, 'start')
   if (start) return { selection: EditorSelection.cursor(start.from) }
+  // Written next to it, the format would make a run of markers (`**bold****x**`) that reads as stars.
+  const past = elementAt(state, head, marker, (e) => e.to === head)
+  if (past) return { selection: EditorSelection.cursor(past.close.from) }
+  const ahead = elementAt(state, head, marker, (e) => e.from === head)
+  if (ahead) return { selection: EditorSelection.cursor(ahead.open.to) }
   const pair = pendingPair(state, head)
   if (pair && state.doc.sliceString(pair.open.from, pair.open.to) === marker) {
     const tidy = tidyPair(state, pair) ?? []
@@ -177,7 +236,8 @@ export function pendingFormats(): Extension {
 /**
  * Bold, italic, code or maths on the selection: applied by wrapping it, or taken off when it is already there, the
  * markers being around the selection or its first and last characters. A star run counts once for each: italic on
- * bold text makes it bold and italic. At a caret, see `toggleAtCaret`; an empty pair there is taken off.
+ * bold text makes it bold and italic. Inside an element of that format, the selection comes out of it; next to
+ * one, the element grows over it. At a caret, see `toggleAtCaret`; an empty pair there is taken off.
  */
 export function toggleMarker(state: EditorState, marker: Marker): TransactionSpec {
   const c = marker.charAt(0)
@@ -213,13 +273,51 @@ export function toggleMarker(state: EditorState, marker: Marker): TransactionSpe
         }
       }
     }
-    return {
-      changes: [
-        { from: range.from, insert: marker },
-        { from: range.to, insert: marker },
-      ],
-      range: EditorSelection.range(range.from + k, range.to + k),
+    if (range.empty) {
+      return {
+        changes: [
+          { from: range.from, insert: marker },
+          { from: range.to, insert: marker },
+        ],
+        range: EditorSelection.cursor(range.from + k),
+      }
     }
+    // Within an element of that format (its hidden markers taken along, maybe): the format comes off the text
+    // selected only, the element closed before it and opened again after it, white space kept outside the markers.
+    const held = elementAt(
+      state,
+      range.from,
+      marker,
+      (e) =>
+        e.from <= range.from && range.to <= e.to && Math.max(range.from, e.open.to) < Math.min(range.to, e.close.from),
+    )
+    // Next to one, or overlapping it: it grows over the selection instead of a second element touching it.
+    const left = held
+      ? null
+      : elementAt(state, range.from, marker, (e) => e.open.to <= range.from && range.from <= e.to && range.to > e.to)
+    const right = held
+      ? null
+      : elementAt(state, range.to, marker, (e) => range.from < e.from && e.from <= range.to && range.to <= e.close.from)
+    const changes: ChangeSpec[] = []
+    if (held) {
+      const before = state.doc.sliceString(held.open.to, Math.max(range.from, held.open.to))
+      const after = state.doc.sliceString(Math.min(range.to, held.close.from), held.close.from)
+      changes.push(
+        before.trim() === ''
+          ? { from: held.open.from, to: held.open.to }
+          : { from: held.open.to + before.trimEnd().length, insert: marker },
+        after.trim() === ''
+          ? { from: held.close.from, to: held.close.to }
+          : { from: held.close.from - after.trimStart().length, insert: marker },
+      )
+    } else {
+      changes.push(
+        left ? { from: left.close.from, to: left.close.to } : { from: range.from, insert: marker },
+        right ? { from: right.open.from, to: right.open.to } : { from: range.to, insert: marker },
+      )
+    }
+    const set = state.changes(changes)
+    return { changes: set, range: EditorSelection.range(set.mapPos(range.from, 1), set.mapPos(range.to, -1)) }
   })
 }
 
