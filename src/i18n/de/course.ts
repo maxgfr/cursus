@@ -162,6 +162,11 @@ export const course = {
   pickNone: 'Auswahl aufheben',
   moveCards: { one: '{count} Karte verschieben nach…', other: '{count} Karten verschieben nach…' },
   cardsMoved: { one: '{count} Karte verschoben nach {place}.', other: '{count} Karten verschoben nach {place}.' },
+  moveSheets: { one: '{count} Spickzettel verschieben nach…', other: '{count} Spickzettel verschieben nach…' },
+  sheetsMoved: {
+    one: '{count} Spickzettel verschoben nach {place}.',
+    other: '{count} Spickzettel verschoben nach {place}.',
+  },
   sectionGoneSaveIn: 'Der Abschnitt wurde in den Papierkorb verschoben; die Karte wird in {place} gespeichert.',
   sheetCount: { one: '{count} Lernblatt', other: '{count} Lernblätter' },
   sectionEmpty: 'leer',

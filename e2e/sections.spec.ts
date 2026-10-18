@@ -184,6 +184,67 @@ test('Move: cards picked together go to another section in one move', async ({ p
   expect(errors).toEqual([])
 })
 
+/** Writes a study sheet by hand in the course or section on screen, and comes back to its study sheets. */
+async function newSheet(page: Page, title: string) {
+  await page.getByRole('radio', { name: 'Study sheets' }).check()
+  await page.getByRole('main').getByRole('button', { name: 'New study sheet' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Untitled study sheet' })).toBeVisible()
+  await page.getByLabel('Title').fill(title)
+  // The title is kept once the field is left: Enter does that.
+  await page.getByLabel('Title').press('Enter')
+  await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
+  await page.getByRole('link', { name: 'Back' }).click()
+  await page.getByRole('radio', { name: 'Study sheets' }).check()
+  await expect(page.getByRole('main').getByRole('link', { name: title })).toBeVisible()
+}
+
+test('Move: study sheets picked together go to another section in one move', async ({ page }) => {
+  const errors = watchErrors(page)
+  await openToday(page)
+  await createCourse(page, 'Law')
+  await newSection(page, 'Torts')
+  await crumb(page, 'Law')
+  await newSheet(page, 'Duty of care')
+  await newSheet(page, 'Negligence')
+  await newSheet(page, 'Offer and acceptance')
+
+  // Another tab ends picking: back on the sheets, nothing is left half-picked.
+  const main = page.getByRole('main')
+  await page.getByRole('button', { name: 'Select', exact: true }).click()
+  await main.getByRole('checkbox', { name: 'Negligence' }).check()
+  await page.getByRole('radio', { name: 'Cards' }).check()
+  await page.getByRole('radio', { name: 'Study sheets' }).check()
+  await expect(main.getByRole('checkbox')).toHaveCount(0)
+  await expect(main.getByRole('link', { name: 'Negligence' })).toBeVisible()
+
+  // Picking: rows are checkboxes, the button counts what goes.
+  await page.getByRole('button', { name: 'Select', exact: true }).click()
+  await expect(main.getByRole('link', { name: 'Negligence' })).toHaveCount(0)
+  await expect(main.getByRole('button', { name: /^Move “/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Move 0 study sheets to…' })).toBeDisabled()
+  await main.getByRole('checkbox', { name: 'Duty of care' }).check()
+  await main.getByRole('checkbox', { name: 'Negligence' }).check()
+  expect(await seriousViolations(page, 'main')).toEqual([])
+  await page.getByRole('button', { name: 'Move 2 study sheets to…' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Move 2 study sheets to…' })
+  await expect(sheet.getByRole('button', { name: 'Law (current)' })).toHaveAttribute('aria-current', 'location')
+  await sheet.getByRole('button', { name: 'Law › Torts', exact: true }).click()
+  await expect(sheet).toBeHidden()
+  await expect(page.getByRole('status').filter({ hasText: '2 study sheets moved to Law › Torts.' })).toBeVisible()
+
+  // Back to the plain list: the one left out stays here, the two others are in Torts.
+  await expect(main.getByRole('checkbox')).toHaveCount(0)
+  await expect(main.getByRole('link', { name: 'Offer and acceptance' })).toBeVisible()
+  await expect(main.getByRole('link', { name: 'Duty of care' })).toHaveCount(0)
+  await expect(main.getByRole('link', { name: 'Negligence' })).toHaveCount(0)
+  await openSection(page, 'Torts')
+  await page.getByRole('radio', { name: 'Study sheets' }).check()
+  await expect(main.getByRole('link', { name: 'Duty of care' })).toBeVisible()
+  await expect(main.getByRole('link', { name: 'Negligence' })).toBeVisible()
+  await expect(main.getByRole('link', { name: 'Offer and acceptance' })).toHaveCount(0)
+  expect(errors).toEqual([])
+})
+
 test('Start on a section reviews only that section and its descendants', async ({ page }) => {
   const errors = watchErrors(page)
   await openToday(page)

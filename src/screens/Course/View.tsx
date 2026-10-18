@@ -111,7 +111,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   const t = useT()
   const rt = useRuntime()
   const [, navigate] = useLocation()
-  const [chosenTab, setTab] = useState<Tab | null>(() => tabFrom(history.state))
+  const [chosenTab, setChosenTab] = useState<Tab | null>(() => tabFrom(history.state))
   const [addingSource, setAddingSource] = useState(false)
   const [moreCards, setMoreCards] = useState(false)
   const [settings, setSettings] = useState(false)
@@ -120,9 +120,10 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   const [quizzing, setQuizzing] = useState(false)
   const [moving, setMoving] = useState<{ kind: 'section' | 'fiches'; id: Id; name: string } | null>(null)
   const [moved, setMoved] = useState<string | null>(null)
-  // Picking cards to move them together: `null` when not picking.
+  // Picking cards, or study sheets, to move them together: `null` when not picking.
   const [picked, setPicked] = useState<ReadonlySet<Id> | null>(null)
   const [movingCards, setMovingCards] = useState(false)
+  const [movingSheets, setMovingSheets] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [trashed, setTrashed] = useState<string | null>(() => stateString(history.state, 'trashedCard'))
@@ -130,6 +131,11 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
     stateString(history.state, 'trashedSection'),
   )
   const [saved, setSaved] = useState(() => savedFrom(history.state))
+  // Another tab ends picking: its cards and its sheets never share a half-made choice.
+  const setTab = (next: Tab) => {
+    setPicked(null)
+    setChosenTab(next)
+  }
   const filesInput = useRef<HTMLInputElement>(null)
   const photoInput = useRef<HTMLInputElement>(null)
   const csvInput = useRef<HTMLInputElement>(null)
@@ -340,6 +346,11 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   const moveCards = (place: Place) =>
     rt.ws.atomic(() => {
       for (const id of pickedCards) moveItemTo(rt.ws, 'cards', id, place)
+    })
+  const pickedSheets = picked === null ? [] : fiches.filter((f) => picked.has(f.id)).map((f) => f.id)
+  const moveSheets = (place: Place) =>
+    rt.ws.atomic(() => {
+      for (const id of pickedSheets) moveItemTo(rt.ws, 'fiches', id, place)
     })
 
   const pasteText = () => {
@@ -682,7 +693,39 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
         </>
       )}
       {/* A study sheet sums up a topic: offered here, where sheets are read, written by hand or by AI. */}
-      {tab === 'fiches' && fiches.length > 0 && <div className={styles.actions}>{newSheet}</div>}
+      {tab === 'fiches' && fiches.length > 0 && picked !== null && (
+        <div className={styles.actions}>
+          <Button
+            variant="primary"
+            icon={<FolderInput size={18} aria-hidden="true" />}
+            disabled={pickedSheets.length === 0}
+            aria-haspopup="dialog"
+            onClick={() => setMovingSheets(true)}
+          >
+            {t('course.moveSheets', { count: pickedSheets.length })}
+          </Button>
+          {pickedSheets.length < fiches.length ? (
+            <Button variant="plain" onClick={() => setPicked(new Set(fiches.map((f) => f.id)))}>
+              {t('course.pickAll')}
+            </Button>
+          ) : (
+            <Button variant="plain" onClick={() => setPicked(new Set())}>
+              {t('course.pickNone')}
+            </Button>
+          )}
+          <Button variant="plain" onClick={() => setPicked(null)}>
+            {t('common.done')}
+          </Button>
+        </div>
+      )}
+      {tab === 'fiches' && fiches.length > 0 && picked === null && (
+        <div className={styles.actions}>
+          {newSheet}
+          <Button variant="plain" icon={<ListChecks size={18} aria-hidden="true" />} onClick={startPicking}>
+            {t('course.pickCards')}
+          </Button>
+        </div>
+      )}
       {tab === 'fiches' &&
         (fiches.length === 0 ? (
           <EmptyState
@@ -699,21 +742,31 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
           />
         ) : (
           <ListGroup title={t('course.tabSheets')} hideTitle>
-            {fiches.map((f) => (
-              <ListRow
-                key={f.id}
-                href={to.fiche(f.id)}
-                leading={<NotebookText size={20} />}
-                title={f.title}
-                trailing={
-                  <IconButton
-                    icon={FolderInput}
-                    label={t('course.moveNamed', { name: f.title })}
-                    onClick={() => setMoving({ kind: 'fiches', id: f.id, name: f.title })}
-                  />
-                }
-              />
-            ))}
+            {fiches.map((f) =>
+              picked === null ? (
+                <ListRow
+                  key={f.id}
+                  href={to.fiche(f.id)}
+                  leading={<NotebookText size={20} />}
+                  title={f.title}
+                  trailing={
+                    <IconButton
+                      icon={FolderInput}
+                      label={t('course.moveNamed', { name: f.title })}
+                      onClick={() => setMoving({ kind: 'fiches', id: f.id, name: f.title })}
+                    />
+                  }
+                />
+              ) : (
+                <ListRow
+                  key={f.id}
+                  leading={<NotebookText size={20} />}
+                  title={f.title}
+                  checked={picked.has(f.id)}
+                  onCheckedChange={(on) => pick(f.id, on)}
+                />
+              ),
+            )}
           </ListGroup>
         ))}
       <PracticeSheet open={practicing} scope={scope} onClose={() => setPracticing(false)} />
@@ -760,6 +813,17 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
         onMove={moveCards}
         onMoved={(path) => {
           setMoved(t('course.cardsMoved', { count: pickedCards.length, place: path }))
+          setPicked(null)
+        }}
+      />
+      <MoveSheet
+        open={movingSheets}
+        title={t('course.moveSheets', { count: pickedSheets.length })}
+        onClose={() => setMovingSheets(false)}
+        current={{ courseId, sectionId: here }}
+        onMove={moveSheets}
+        onMoved={(path) => {
+          setMoved(t('course.sheetsMoved', { count: pickedSheets.length, place: path }))
           setPicked(null)
         }}
       />
