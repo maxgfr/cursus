@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "generatedAt": "2026-10-16T17:42:38.213Z",
+  "generatedAt": "2026-10-19T11:26:18.472Z",
   "vendors": {
     "302ai": "302.AI",
     "abacus": "Abacus",
@@ -38,8 +38,8 @@
     "digitalocean": "DigitalOcean",
     "doctor-shotgun": "Doctor-shotgun",
     "dots-studio": "Dots-studio",
-    "echo": "Echo",
     "elevenlabs": "Elevenlabs",
+    "elorian": "Elorian",
     "empiriolabs": "EmpirioLabs AI",
     "eva-unit-01": "Eva-unit-01",
     "fal-ai": "Fal-ai",
@@ -79,6 +79,7 @@
     "meganova-ai": "Meganova-ai",
     "meituan": "Meituan",
     "meta": "Meta",
+    "meta-models": "Meta-models",
     "microsoft": "Microsoft",
     "mindai": "Mindai",
     "minimax": "Minimax",
@@ -90,7 +91,6 @@
     "morph": "Morph",
     "nano-gpt": "NanoGPT",
     "nanogpt": "Nanogpt",
-    "neosmith": "NeoSmith",
     "neuralwatt": "Neuralwatt",
     "neversleep": "Neversleep",
     "nex-agi": "Nex-agi",
@@ -118,7 +118,6 @@
     "rekaai": "Rekaai",
     "relace": "Relace",
     "requesty": "Requesty",
-    "routing-run": "routing.run",
     "runwayml": "Runwayml",
     "sakana": "Sakana",
     "sao10k": "Sao10k",
@@ -144,6 +143,7 @@
     "thinkingmachines": "Thinkingmachines",
     "tinfoil": "Tinfoil",
     "topazlabs-co": "Topazlabs-co",
+    "trustedrouter": "TrustedRouter",
     "trytako": "Trytako",
     "tts": "Tts",
     "unbiased": "Unbiased",
@@ -161,6 +161,7 @@
     "xiaomi": "Xiaomi",
     "xiaomi-token-plan-ams": "Xiaomi Token Plan (Europe)",
     "xiaomimimo": "Xiaomimimo",
+    "xingchen-agi": "Xingchen-agi",
     "xpersona": "Xpersona",
     "zai": "Z.ai",
     "zai-org": "Zai-org",
@@ -173,7 +174,7 @@
       "api": "https://api.302.ai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:13.508Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:25:59.928Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -182,7 +183,7 @@
       "api": "https://routellm.abacus.ai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:13.765Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:00.025Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -191,7 +192,7 @@
       "api": "https://agentrouter.org/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:24.912Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:11.192Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -200,7 +201,7 @@
       "api": "https://apihub.agnes-ai.com/v1",
       "baseUrlSource": "api",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:26.366Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:11.638Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -209,7 +210,7 @@
       "api": "https://api.ai21.com/studio/v1",
       "baseUrlSource": "api",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:27.276Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:13.974Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -218,7 +219,7 @@
       "api": "https://api.aimlapi.com/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:13.197Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:25:59.685Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -227,7 +228,7 @@
       "api": "https://microquickjs.com/v1",
       "baseUrlSource": "api",
       "kind": "host",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:28.332Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:14.559Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -236,7 +237,7 @@
       "api": "https://aki.io/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:23.253Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:09.657Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -245,7 +246,7 @@
       "api": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:14.921Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:00.970Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -254,7 +255,7 @@
       "api": "https://dashscope.aliyuncs.com/compatible-mode/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:14.042Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:00.138Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -263,7 +264,7 @@
       "api": "https://api.ambient.xyz/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:17.102Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:03.196Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -275,7 +276,7 @@
       "browser": {
         "verdict": "callable_with_header",
         "evidence": "preflight",
-        "checkedAt": "2026-10-16T17:42:15.475Z",
+        "checkedAt": "2026-10-19T11:26:01.448Z",
         "headers": { "anthropic-dangerous-direct-browser-access": "true" }
       },
       "npm": "@ai-sdk/anthropic"
@@ -286,7 +287,7 @@
       "api": "https://api.anyapi.ai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:15.717Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:01.852Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -295,7 +296,7 @@
       "api": "https://api.auriko.ai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:17.954Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:03.699Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -304,7 +305,7 @@
       "api": "https://api.tbox.cn/api/llm/v1",
       "baseUrlSource": "api",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:27.200Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:13.903Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -313,7 +314,7 @@
       "api": "https://inference.baseten.co/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:16.069Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:02.075Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -322,7 +323,7 @@
       "api": "https://api.berget.ai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:24.078Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:10.310Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -331,7 +332,7 @@
       "api": "https://openai.bothub.ru/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:21.999Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:07.846Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -340,7 +341,7 @@
       "api": "https://api.inference.boundless.network/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:16.619Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:02.525Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -352,7 +353,7 @@
       "browser": {
         "verdict": "callable",
         "evidence": "preflight",
-        "checkedAt": "2026-10-16T17:42:27.252Z",
+        "checkedAt": "2026-10-19T11:26:13.785Z",
         "limits": "unreadable_errors"
       },
       "npm": "@ai-sdk/openai-compatible"
@@ -363,7 +364,7 @@
       "api": "https://llm.chutes.ai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:18.094Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:03.857Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -372,7 +373,7 @@
       "api": "https://api.clarifai.com/v2/ext/openai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "unknown", "evidence": "none", "checkedAt": "2026-10-16T17:42:18.432Z" },
+      "browser": { "verdict": "unknown", "evidence": "none", "checkedAt": "2026-10-19T11:26:04.151Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -381,7 +382,7 @@
       "api": "https://api.claudin.io/v1",
       "baseUrlSource": "api",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:27.821Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:13.791Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -390,7 +391,7 @@
       "api": "https://api-sherlock.cloudferro.com/openai/v1/",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:24.578Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:11.069Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -399,7 +400,7 @@
       "api": "https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "unknown", "evidence": "none", "checkedAt": "2026-10-16T17:42:15.993Z" },
+      "browser": { "verdict": "unknown", "evidence": "none", "checkedAt": "2026-10-19T11:26:02.075Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -408,7 +409,7 @@
       "api": "https://api.cohere.ai/compatibility/v1",
       "baseUrlSource": "default",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:16.522Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:02.521Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -417,7 +418,7 @@
       "api": "https://api.commandcode.ai/provider/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:14.497Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:00.722Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -426,7 +427,7 @@
       "api": "https://api.cortecs.ai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:13.783Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:00.025Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -435,7 +436,7 @@
       "api": "https://api.crossmodel.ai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:14.534Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:00.762Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -444,7 +445,7 @@
       "api": "https://daoxe.com/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:21.326Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:06.189Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -453,7 +454,7 @@
       "api": "https://${DATABRICKS_HOST}/ai-gateway/mlflow/v1",
       "baseUrlSource": "api",
       "kind": "vendor",
-      "browser": { "verdict": "unknown", "evidence": "none", "checkedAt": "2026-10-16T17:42:15.553Z" },
+      "browser": { "verdict": "unknown", "evidence": "none", "checkedAt": "2026-10-19T11:26:01.680Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -462,7 +463,7 @@
       "api": "https://api.deepinfra.com/v1/openai",
       "baseUrlSource": "default",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:14.414Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:00.682Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -471,7 +472,7 @@
       "api": "https://api.deepseek.com",
       "baseUrlSource": "api",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:17.130Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:03.326Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -480,7 +481,7 @@
       "api": "https://inference.do-ai.run/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:13.816Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:00.083Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -489,7 +490,7 @@
       "api": "https://api.dinference.com/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:24.267Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:09.998Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -498,7 +499,7 @@
       "api": "https://chat.d.run/v1",
       "baseUrlSource": "api",
       "kind": "host",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:27.137Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:13.087Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -507,16 +508,7 @@
       "api": "https://maas-api.ebcloud.com/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:25.942Z" },
-      "npm": "@ai-sdk/openai-compatible"
-    },
-    {
-      "id": "echo",
-      "name": "Echo",
-      "api": "https://echo.tracerml.ai/v1",
-      "baseUrlSource": "api",
-      "kind": "vendor",
-      "browser": { "verdict": "unknown", "evidence": "none", "checkedAt": "2026-10-16T17:42:28.211Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:11.739Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -525,7 +517,7 @@
       "api": "https://api.edenai.run/v3",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:13.197Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:25:59.685Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -534,7 +526,7 @@
       "api": "https://api.empiriolabs.ai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:14.721Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:00.886Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -543,7 +535,7 @@
       "api": "https://api.engy.ai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:21.399Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:06.886Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -552,7 +544,7 @@
       "api": "https://go.fastrouter.ai/api/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:15.109Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:01.118Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -561,7 +553,7 @@
       "api": "https://api.fireworks.ai/inference/v1/",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:16.334Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:02.234Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -570,7 +562,7 @@
       "api": "https://app.frogbot.ai/api/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:15.993Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:02.172Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -579,7 +571,7 @@
       "api": "https://api.githubcopilot.com",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:15.319Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:01.398Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -588,7 +580,7 @@
       "api": "https://api.gmi-serving.com/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:17.042Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:03.088Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -597,7 +589,7 @@
       "api": "https://generativelanguage.googleapis.com/v1beta",
       "baseUrlSource": "default",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:14.854Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:00.954Z" },
       "npm": "@ai-sdk/google"
     },
     {
@@ -606,7 +598,7 @@
       "api": "https://api.groq.com/openai/v1",
       "baseUrlSource": "default",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:17.386Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:03.409Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -615,7 +607,7 @@
       "api": "https://router.huggingface.co/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:14.221Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:00.545Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -624,7 +616,7 @@
       "api": "https://apis.iflow.cn/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:18.053Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:03.777Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -633,7 +625,7 @@
       "api": "https://api.inceptionlabs.ai/v1/",
       "baseUrlSource": "api",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:26.633Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:12.632Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -642,7 +634,7 @@
       "api": "https://api.inco.ai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:22.908Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:09.606Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -651,7 +643,7 @@
       "api": "https://model.inferx.net/endpoints/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:18.432Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:04.054Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -660,7 +652,7 @@
       "api": "https://api.infomaniak.com/2/ai/${INFOMANIAK_PRODUCT_ID}/openai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "unknown", "evidence": "none", "checkedAt": "2026-10-16T17:42:19.652Z" },
+      "browser": { "verdict": "unknown", "evidence": "none", "checkedAt": "2026-10-19T11:26:04.507Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -669,7 +661,7 @@
       "api": "https://api.jiekou.ai/openai",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:14.841Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:00.954Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -678,7 +670,7 @@
       "api": "https://kenari.id/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:14.671Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:00.920Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -687,7 +679,7 @@
       "api": "https://api.llama.com/compat/v1/",
       "baseUrlSource": "api",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:22.277Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:09.560Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -696,7 +688,7 @@
       "api": "https://api.longcat.chat/openai",
       "baseUrlSource": "api",
       "kind": "host",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:28.509Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:14.611Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -705,7 +697,7 @@
       "api": "https://api.meganova.ai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:16.680Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:02.531Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -714,7 +706,7 @@
       "api": "https://api.meta.ai/v1",
       "baseUrlSource": "api",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:19.652Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:04.998Z" },
       "npm": "@ai-sdk/openai"
     },
     {
@@ -723,7 +715,7 @@
       "api": "https://api.mistral.ai/v1",
       "baseUrlSource": "default",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:15.168Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:01.157Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -732,7 +724,7 @@
       "api": "https://moark.com/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:19.082Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:04.477Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -741,7 +733,7 @@
       "api": "https://api.modeloracle.com/api/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:18.021Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:03.716Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -750,7 +742,7 @@
       "api": "https://api-inference.modelscope.cn/v1",
       "baseUrlSource": "api",
       "kind": "host",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:22.353Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:09.701Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -759,7 +751,7 @@
       "api": "https://api.moonshot.ai/v1",
       "baseUrlSource": "api",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:20.070Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:05.912Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -768,7 +760,7 @@
       "api": "https://api.moonshot.cn/v1",
       "baseUrlSource": "api",
       "kind": "host",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:25.505Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:12.349Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -777,7 +769,7 @@
       "api": "https://api.nan.builders/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:21.668Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:08.095Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -786,7 +778,7 @@
       "api": "https://nano-gpt.com/api/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:13.196Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:25:59.685Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -795,7 +787,7 @@
       "api": "https://cloud-api.near.ai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:15.079Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:01.094Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -804,17 +796,8 @@
       "api": "https://api.tokenfactory.nebius.com/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:16.300Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:02.251Z" },
       "npm": "@ai-sdk/openai-compatible"
-    },
-    {
-      "id": "neosmith",
-      "name": "NeoSmith",
-      "api": "https://router.neosmith.ai/v1",
-      "baseUrlSource": "api",
-      "kind": "vendor",
-      "browser": { "verdict": "unknown", "evidence": "none", "checkedAt": "2026-10-16T17:42:25.999Z" },
-      "npm": "@ai-sdk/openai"
     },
     {
       "id": "neuralwatt",
@@ -822,7 +805,7 @@
       "api": "https://api.neuralwatt.com/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:15.672Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:01.763Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -831,7 +814,7 @@
       "api": "https://api.nova.amazon.com/v1",
       "baseUrlSource": "api",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:27.449Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:14.054Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -840,7 +823,7 @@
       "api": "https://api.novita.ai/openai",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:14.167Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:00.514Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -849,7 +832,7 @@
       "api": "https://inference.generativeai.us-chicago-1.oci.oraclecloud.com/openai/v1",
       "baseUrlSource": "api",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:20.446Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:05.926Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -858,7 +841,7 @@
       "api": "https://api.openai.com/v1",
       "baseUrlSource": "default",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:13.562Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:25:59.961Z" },
       "npm": "@ai-sdk/openai"
     },
     {
@@ -867,7 +850,7 @@
       "api": "https://openrouter.ai/api/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:13.197Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:25:59.685Z" },
       "npm": "@openrouter/ai-sdk-provider"
     },
     {
@@ -876,7 +859,7 @@
       "api": "https://api.opper.ai/v3/compat",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:15.016Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:01.037Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -885,7 +868,7 @@
       "api": "https://api.orcarouter.ai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:13.591Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:00.009Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -894,7 +877,7 @@
       "api": "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:18.483Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:04.012Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -903,7 +886,7 @@
       "api": "https://api.perplexity.ai",
       "baseUrlSource": "default",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:24.436Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:10.712Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -912,7 +895,7 @@
       "api": "https://api.poe.com/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:13.287Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:25:59.825Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -921,7 +904,7 @@
       "api": "https://inference.poolside.ai/v1",
       "baseUrlSource": "api",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:22.257Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:09.073Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -930,7 +913,7 @@
       "api": "https://api.qhaigc.net/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:20.309Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:06.779Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -939,7 +922,7 @@
       "api": "https://api.qnaigc.com/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:14.037Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:00.220Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -948,7 +931,7 @@
       "api": "https://api.regolo.ai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:16.784Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:02.915Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -957,16 +940,7 @@
       "api": "https://router.requesty.ai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:13.197Z" },
-      "npm": "@ai-sdk/openai-compatible"
-    },
-    {
-      "id": "routing-run",
-      "name": "routing.run",
-      "api": "https://api.routing.run/v1",
-      "baseUrlSource": "api",
-      "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:17.729Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:25:59.685Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -975,7 +949,7 @@
       "api": "https://api.sarvam.ai/v1",
       "baseUrlSource": "api",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:27.424Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:13.969Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -984,7 +958,7 @@
       "api": "https://api.scaleway.ai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:16.891Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:02.611Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -993,7 +967,7 @@
       "api": "https://api.scnet.cn/api/llm/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:16.637Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:02.586Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1002,7 +976,7 @@
       "api": "https://api.siliconflow.com/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:14.963Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:01.064Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1011,7 +985,7 @@
       "api": "https://api.siliconflow.cn/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:15.151Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:01.151Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1020,7 +994,7 @@
       "api": "https://${SNOWFLAKE_ACCOUNT}.snowflakecomputing.com/api/v2/cortex/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "unknown", "evidence": "none", "checkedAt": "2026-10-16T17:42:16.017Z" },
+      "browser": { "verdict": "unknown", "evidence": "none", "checkedAt": "2026-10-19T11:26:02.234Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1028,8 +1002,8 @@
       "name": "Standard Compute",
       "api": "https://api.stdcmpt.com/v1",
       "baseUrlSource": "api",
-      "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:27.974Z" },
+      "kind": "aggregator",
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:01.303Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1038,7 +1012,7 @@
       "api": "https://api.stepfun.com/v1",
       "baseUrlSource": "api",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:19.845Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:05.137Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1047,7 +1021,7 @@
       "api": "https://api.stepfun.com/step_plan/v1",
       "baseUrlSource": "api",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:24.718Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:10.948Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1056,7 +1030,7 @@
       "api": "https://llm.submodel.ai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:21.253Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:06.038Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1065,7 +1039,7 @@
       "api": "https://api.synthetic.new/openai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:18.614Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:04.420Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1074,7 +1048,7 @@
       "api": "https://api.lkeap.cloud.tencent.com/coding/v3",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:22.223Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:08.753Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1083,7 +1057,7 @@
       "api": "https://api.lkeap.cloud.tencent.com/plan/v3",
       "baseUrlSource": "api",
       "kind": "host",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:27.663Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:13.971Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1092,7 +1066,7 @@
       "api": "https://api.tensorx.ai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:16.017Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:02.223Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1101,7 +1075,7 @@
       "api": "https://api.thegrid.ai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:17.461Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:03.610Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1110,7 +1084,7 @@
       "api": "https://inference.tinfoil.sh/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:21.402Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:09.005Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1119,7 +1093,7 @@
       "api": "https://api.together.xyz/v1",
       "baseUrlSource": "default",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:15.790Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:01.548Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1128,7 +1102,16 @@
       "api": "https://api.tokengo.com/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:18.359Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:03.987Z" },
+      "npm": "@ai-sdk/openai-compatible"
+    },
+    {
+      "id": "trustedrouter",
+      "name": "TrustedRouter",
+      "api": "https://api.trustedrouter.com/v1",
+      "baseUrlSource": "api",
+      "kind": "vendor",
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:09.535Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1137,7 +1120,7 @@
       "api": "https://api.unorouter.com/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:16.128Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:02.303Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1146,7 +1129,7 @@
       "api": "https://api.upstage.ai/v1/solar",
       "baseUrlSource": "api",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:23.542Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:09.723Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1155,7 +1138,7 @@
       "api": "https://vancine.com/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:22.044Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:08.589Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1164,7 +1147,7 @@
       "api": "https://api.lab.vispark.in/v1",
       "baseUrlSource": "api",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:26.760Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:12.970Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1173,7 +1156,7 @@
       "api": "https://api.vivgrid.com/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:15.286Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:01.382Z" },
       "npm": "@ai-sdk/openai"
     },
     {
@@ -1182,7 +1165,7 @@
       "api": "https://ark.cn-beijing.volces.com/api/v3",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:17.481Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:03.460Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1191,7 +1174,7 @@
       "api": "https://api.vultrinference.com/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:17.958Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:03.769Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1200,7 +1183,7 @@
       "api": "https://api.wallabytoken.com/v1",
       "baseUrlSource": "api",
       "kind": "host",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:28.428Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:14.802Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1209,7 +1192,7 @@
       "api": "https://api.inference.wandb.ai/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:16.424Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:02.334Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1218,7 +1201,7 @@
       "api": "https://api.x.ai/v1",
       "baseUrlSource": "default",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:18.314Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:03.916Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1227,7 +1210,7 @@
       "api": "https://api.xiaomimimo.com/v1",
       "baseUrlSource": "api",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:19.881Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:05.369Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1236,7 +1219,7 @@
       "api": "https://token-plan-ams.xiaomimimo.com/v1",
       "baseUrlSource": "api",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:20.385Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:06.277Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1245,7 +1228,7 @@
       "api": "https://token-plan-cn.xiaomimimo.com/v1",
       "baseUrlSource": "api",
       "kind": "host",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:20.149Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:07.123Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1254,7 +1237,7 @@
       "api": "https://token-plan-sgp.xiaomimimo.com/v1",
       "baseUrlSource": "api",
       "kind": "host",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:20.831Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:06.870Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1263,7 +1246,7 @@
       "api": "https://www.xpersona.co/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:18.166Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:03.923Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1272,7 +1255,7 @@
       "api": "https://api.zeldoc.ai/v1",
       "baseUrlSource": "api",
       "kind": "vendor",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:28.008Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:26:14.218Z" },
       "npm": "@ai-sdk/openai-compatible"
     },
     {
@@ -1281,25 +1264,7 @@
       "api": "https://zenmux.ai/api/v1",
       "baseUrlSource": "api",
       "kind": "aggregator",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:13.479Z" },
-      "npm": "@ai-sdk/openai-compatible"
-    },
-    {
-      "id": "zhipuai",
-      "name": "Zhipu AI",
-      "api": "https://open.bigmodel.cn/api/paas/v4",
-      "baseUrlSource": "api",
-      "kind": "host",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:17.122Z" },
-      "npm": "@ai-sdk/openai-compatible"
-    },
-    {
-      "id": "zhipuai-coding-plan",
-      "name": "Zhipu AI Coding Plan",
-      "api": "https://open.bigmodel.cn/api/coding/paas/v4",
-      "baseUrlSource": "api",
-      "kind": "host",
-      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-16T17:42:25.758Z" },
+      "browser": { "verdict": "callable", "evidence": "preflight", "checkedAt": "2026-10-19T11:25:59.827Z" },
       "npm": "@ai-sdk/openai-compatible"
     }
   ],
@@ -1826,7 +1791,7 @@
       "id": "alibaba/qwen3-8-27b-uncensored",
       "name": "Qwen 3.8 27B Uncensored",
       "vendor": "alibaba",
-      "context_length": 1010000,
+      "context_length": 1048576,
       "modalities": { "input": ["text", "image"] },
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
       "routes": [["nano-gpt", "qwen/qwen3.8-27b-uncensored", 1, 3]],
@@ -1850,7 +1815,7 @@
       "id": "alibaba/qwen3-8-27b-uncensored:thinking",
       "name": "Qwen 3.8 27B Uncensored Thinking",
       "vendor": "alibaba",
-      "context_length": 1010000,
+      "context_length": 1048576,
       "modalities": { "input": ["text", "image"] },
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
       "routes": [["nano-gpt", "qwen/qwen3.8-27b-uncensored:thinking", 1, 3]],
@@ -2208,7 +2173,7 @@
       "modalities": { "input": ["text"] },
       "capabilities": { "tool_call": true },
       "routes": [
-        ["nano-gpt", "qwen/qwen-2.5-72b-instruct", 0.357, 0.408],
+        ["nano-gpt", "qwen/qwen-2.5-72b-instruct", 0.36, 0.4],
         ["openrouter", "qwen/qwen-2.5-72b-instruct", 0.36, 0.4]
       ],
       "family": "qwen",
@@ -2469,7 +2434,7 @@
         ["alibaba", "qwen3-235b-a22b", 0.7, 2.8],
         ["alibaba-cn", "qwen3-235b-a22b", 0.287, 1.147],
         ["huggingface", "Qwen/Qwen3-235B-A22B", 0.2, 0.8],
-        ["nano-gpt", "qwen/qwen3-235b-a22b", 0.3, 0.5],
+        ["nano-gpt", "qwen/qwen3-235b-a22b", 0.0875, 0.35],
         ["qiniu-ai", "qwen3-235b-a22b"]
       ],
       "family": "qwen",
@@ -2490,7 +2455,7 @@
         ["modelscope", "Qwen/Qwen3-30B-A3B-Instruct-2507", 0, 0],
         ["nano-gpt", "qwen/qwen3-30b-a3b-instruct-2507", 0.2, 0.5],
         ["nebius", "Qwen/Qwen3-30B-A3B-Instruct-2507", 0.1, 0.3],
-        ["openrouter", "qwen/qwen3-30b-a3b-instruct-2507", 0.1, 0.3],
+        ["openrouter", "qwen/qwen3-30b-a3b-instruct-2507", 0.09, 0.3],
         ["qiniu-ai", "qwen3-30b-a3b-instruct-2507"],
         ["siliconflow", "Qwen/Qwen3-30B-A3B-Instruct-2507", 0.09, 0.3],
         ["siliconflow-cn", "Qwen/Qwen3-30B-A3B-Instruct-2507", 0.09, 0.3]
@@ -2681,10 +2646,10 @@
       "id": "alibaba/qwen-qwen3-coder-next",
       "name": "Qwen3 Coder Next (Amazon Bedrock)",
       "vendor": "alibaba",
-      "context_length": 262144,
+      "context_length": 256000,
       "modalities": { "input": ["text"] },
       "capabilities": { "tool_call": true, "structured_output": true },
-      "routes": [["edenai", "amazon/qwen.qwen3-coder-next", 0.6, 1.44]],
+      "routes": [["edenai", "amazon/qwen.qwen3-coder-next", 0.5, 1.2]],
       "family": "qwen",
       "output_limit": 65536,
       "release_date": "2026-02-03"
@@ -3197,7 +3162,7 @@
       "context_length": 262144,
       "modalities": { "input": ["text"] },
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true },
-      "routes": [["nano-gpt", "qwen/qwen3.5-122b-a10b:thinking", 0.437, 3.496]],
+      "routes": [["nano-gpt", "qwen/qwen3.5-122b-a10b:thinking", 0.26, 2.08]],
       "family": "qwen",
       "output_limit": 32768,
       "release_date": "2026-02-23"
@@ -3213,7 +3178,7 @@
         ["alibaba", "qwen3.5-122b-a10b", 0.4, 3.2],
         ["empiriolabs", "qwen3-5-122b-a10b", 0.115, 0.917],
         ["huggingface", "Qwen/Qwen3.5-122B-A10B", 0.4, 3.2],
-        ["nano-gpt", "qwen/qwen3.5-122b-a10b", 0.437, 3.496],
+        ["nano-gpt", "qwen/qwen3.5-122b-a10b", 0.26, 2.08],
         ["novita-ai", "qwen/qwen3.5-122b-a10b", 0.4, 3.2],
         ["openrouter", "qwen/qwen3.5-122b-a10b", 0.26, 2.08],
         ["orcarouter", "qwen/qwen3.5-122b-a10b", 0.115, 0.917],
@@ -3250,9 +3215,9 @@
         ["empiriolabs", "qwen3-5-27b", 0.086, 0.688],
         ["huggingface", "Qwen/Qwen3.5-27B", 0.3, 2.4],
         ["nano-gpt", "TEE/qwen3.5-27b", 0.3, 2.4],
-        ["nano-gpt", "qwen/qwen3.5-27b", 0.27, 2.16],
+        ["nano-gpt", "qwen/qwen3.5-27b", 0.25, 2],
         ["novita-ai", "qwen/qwen3.5-27b", 0.3, 2.4],
-        ["openrouter", "qwen/qwen3.5-27b", 0.26, 2.6],
+        ["openrouter", "qwen/qwen3.5-27b", 0.27, 2.16],
         ["orcarouter", "qwen/qwen3.5-27b", 0.086, 0.688],
         ["requesty", "qwen3.5-27b", 0.26, 2.6],
         ["siliconflow", "Qwen/Qwen3.5-27B", 0.25, 2],
@@ -3293,7 +3258,7 @@
       "context_length": 260096,
       "modalities": { "input": ["text", "image", "video"] },
       "capabilities": { "reasoning": true, "tool_call": true, "attachment": true },
-      "routes": [["nano-gpt", "qwen/qwen3.5-27b:thinking", 0.27, 2.16]],
+      "routes": [["nano-gpt", "qwen/qwen3.5-27b:thinking", 0.25, 2]],
       "family": "qwen",
       "output_limit": 65536,
       "release_date": "2026-02-23"
@@ -3305,7 +3270,7 @@
       "context_length": 260096,
       "modalities": { "input": ["text", "image", "video"] },
       "capabilities": { "reasoning": true, "tool_call": true, "attachment": true },
-      "routes": [["nano-gpt", "qwen/qwen3.5-35b-a3b:thinking", 0.225, 1.8]],
+      "routes": [["nano-gpt", "qwen/qwen3.5-35b-a3b:thinking", 0.14, 1]],
       "family": "qwen",
       "output_limit": 65536,
       "release_date": "2026-02-23"
@@ -3323,7 +3288,7 @@
         ["deepinfra", "Qwen/Qwen3.5-35B-A3B", 0.14, 1],
         ["empiriolabs", "qwen3-5-35b-a3b", 0.057, 0.459],
         ["huggingface", "Qwen/Qwen3.5-35B-A3B", 0.25, 2],
-        ["nano-gpt", "qwen/qwen3.5-35b-a3b", 0.225, 1.8],
+        ["nano-gpt", "qwen/qwen3.5-35b-a3b", 0.14, 1],
         ["novita-ai", "qwen/qwen3.5-35b-a3b", 0.25, 2],
         ["openrouter", "qwen/qwen3.5-35b-a3b", 0.15, 1],
         ["orcarouter", "qwen/qwen3.5-35b-a3b", 0.057, 0.459],
@@ -3354,7 +3319,7 @@
       "context_length": 262144,
       "modalities": { "input": ["text", "image", "video"] },
       "capabilities": { "reasoning": true, "tool_call": true, "attachment": true },
-      "routes": [["nano-gpt", "qwen/qwen3.5-397b-a17b:thinking", 0.6, 3.6]],
+      "routes": [["nano-gpt", "qwen/qwen3.5-397b-a17b:thinking", 0.39, 2.34]],
       "family": "qwen",
       "output_limit": 65536,
       "release_date": "2026-02-15"
@@ -3375,7 +3340,7 @@
         ["empiriolabs", "qwen3-5-397b-a17b", 0.172, 1.032],
         ["huggingface", "Qwen/Qwen3.5-397B-A17B", 0.6, 3.6],
         ["nano-gpt", "TEE/qwen3.5-397b-a17b", 0.55, 3.5],
-        ["nano-gpt", "qwen/qwen3.5-397b-a17b", 0.6, 3.6],
+        ["nano-gpt", "qwen/qwen3.5-397b-a17b", 0.39, 2.34],
         ["nearai", "qwen/qwen3.5-397b-a17b", 0.5, 3.3],
         ["nebius", "Qwen/Qwen3.5-397B-A17B", 0.6, 3.6],
         ["novita-ai", "qwen/qwen3.5-397b-a17b", 0.6, 3.6],
@@ -3443,7 +3408,6 @@
         ["openrouter", "qwen/qwen3.5-9b", 0.1, 0.15],
         ["ovhcloud", "qwen3.5-9b", 0.12, 0.18],
         ["regolo-ai", "qwen3.5-9b", 0.15, 0.6],
-        ["routing-run", "qwen3.5-9b", 0.16, 0.48],
         ["siliconflow", "Qwen/Qwen3.5-9B", 0.1, 0.15],
         ["siliconflow-cn", "Qwen/Qwen3.5-9B", 0.22, 1.74],
         ["tensorx", "qwen/qwen3.5-9b", 0.15, 0.2],
@@ -3856,7 +3820,8 @@
         ["empiriolabs", "qwen3-7-flash", 0.03, 0.13],
         ["nano-gpt", "qwen/qwen3.7-flash", 0.03, 0.13],
         ["openrouter", "qwen/qwen3.7-flash", 0.03, 0.13],
-        ["orcarouter", "qwen/qwen3.7-flash", 0.03, 0.13]
+        ["orcarouter", "qwen/qwen3.7-flash", 0.03, 0.13],
+        ["standardcompute", "qwen/qwen3.7-flash", 0.03, 0.13]
       ],
       "family": "qwen",
       "output_limit": 131072,
@@ -3890,12 +3855,13 @@
         ["deepinfra", "Qwen/Qwen3.7-Max", 2.5, 7.5],
         ["empiriolabs", "qwen3-7-max", 2.5, 7.5],
         ["gmicloud", "Qwen/Qwen3.7-Max", 2.5, 7.5],
-        ["nano-gpt", "qwen/qwen3.7-max", 2.5, 7.5],
+        ["nano-gpt", "qwen/qwen3.7-max", 1.475, 4.425],
         ["nearai", "qwen/qwen3.7-max", 2.8, 7.5],
         ["novita-ai", "qwen/qwen3.7-max", 1.25, 3.75],
         ["openrouter", "qwen/qwen3.7-max", 1.475, 4.425],
         ["orcarouter", "qwen/qwen3.7-max", 1.25, 3.75],
         ["requesty", "qwen3.7-max", 2.5, 7.5],
+        ["standardcompute", "qwen/qwen3.7-max", 1.475, 4.425],
         ["togetherai", "Qwen/Qwen3.7-Max", 1.25, 3.75],
         ["zenmux", "qwen/qwen3.7-max", 2.5, 7.5]
       ],
@@ -3910,7 +3876,7 @@
       "context_length": 1000000,
       "modalities": { "input": ["text"] },
       "capabilities": { "reasoning": true, "tool_call": true },
-      "routes": [["nano-gpt", "qwen/qwen3.7-max:thinking", 2.5, 7.5]],
+      "routes": [["nano-gpt", "qwen/qwen3.7-max:thinking", 1.475, 4.425]],
       "family": "qwen",
       "output_limit": 65536,
       "release_date": "2026-05-21"
@@ -3933,6 +3899,7 @@
         ["openrouter", "qwen/qwen3.7-plus", 0.32, 1.28],
         ["orcarouter", "qwen/qwen3.7-plus", 0.35, 1.42],
         ["requesty", "qwen3.7-plus", 0.32, 1.28],
+        ["standardcompute", "qwen/qwen3.7-plus", 0.32, 1.28],
         ["zenmux", "qwen/qwen3.7-plus", 0.4, 1.6]
       ],
       "family": "qwen",
@@ -4041,6 +4008,7 @@
         ["ovhcloud", "qwen3.8-27b", 0.47, 3.19],
         ["regolo-ai", "qwen3.8-27b", 0.58, 2.42],
         ["scaleway", "qwen3.8-27b", 0.684, 3.762],
+        ["standardcompute", "qwen/qwen3.8-27b", 0.425, 2.55],
         ["tensorx", "qwen/qwen3.8-27b", 0.4, 2.4],
         ["vultr", "qwen3.8-27b", 0.15, 1],
         ["wandb", "Qwen/Qwen3.8-27B", 0.4, 3]
@@ -4122,6 +4090,7 @@
         ["openrouter", "qwen/qwen3.8-flash", 0.15, 0.47],
         ["requesty", "qwen3.8-flash", 0.16, 0.47],
         ["scnet-token-plan", "Qwen3.8-Flash", 0, 0],
+        ["standardcompute", "qwen/qwen3.8-flash", 0.15, 0.47],
         ["vancine", "qwen3.8-flash", 0.12, 0.38]
       ],
       "family": "qwen",
@@ -4214,7 +4183,8 @@
         ["edenai", "qwen/qwen3.8-max-0902", 2, 6],
         ["empiriolabs", "qwen3-8-max-0902", 2, 6],
         ["nano-gpt", "qwen/qwen3.8-max-0902", 2, 6],
-        ["openrouter", "qwen/qwen3.8-max-0902", 2, 6]
+        ["openrouter", "qwen/qwen3.8-max-0902", 2, 6],
+        ["standardcompute", "qwen/qwen3.8-max-0902", 2, 6]
       ],
       "family": "qwen",
       "output_limit": 131072,
@@ -4289,7 +4259,7 @@
         ["jiekou", "qwen/qwen3-235b-a22b-instruct-2507", 0.15, 0.8],
         ["meganova", "Qwen/Qwen3-235B-A22B-Instruct-2507", 0.09, 0.6],
         ["modelscope", "Qwen/Qwen3-235B-A22B-Instruct-2507", 0, 0],
-        ["nano-gpt", "qwen/qwen3-235b-a22b-instruct-2507", 0.13, 0.5],
+        ["nano-gpt", "qwen/qwen3-235b-a22b-instruct-2507", 0.0875, 0.35],
         ["nebius", "Qwen/Qwen3-235B-A22B-Instruct-2507", 0.2, 0.6],
         ["qiniu-ai", "qwen3-235b-a22b-instruct-2507"],
         ["scaleway", "qwen3-235b-a22b-instruct-2507", 0.75, 2.25],
@@ -4769,66 +4739,6 @@
       "release_date": "2025-08-05"
     },
     {
-      "id": "anthropic/claude-sonnet-4:thinking",
-      "name": "Claude 4 Sonnet Thinking",
-      "vendor": "anthropic",
-      "context_length": 1000000,
-      "modalities": { "input": ["text", "image", "pdf"] },
-      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
-      "routes": [["nano-gpt", "anthropic/claude-sonnet-4:thinking", 3, 15]],
-      "family": "claude-sonnet",
-      "output_limit": 64000,
-      "release_date": "2025-02-24"
-    },
-    {
-      "id": "anthropic/claude-sonnet-4:thinking:1024",
-      "name": "Claude 4 Sonnet Thinking (1K)",
-      "vendor": "anthropic",
-      "context_length": 1000000,
-      "modalities": { "input": ["text", "image", "pdf"] },
-      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
-      "routes": [["nano-gpt", "anthropic/claude-sonnet-4:thinking:1024", 3, 15]],
-      "family": "claude-sonnet",
-      "output_limit": 64000,
-      "release_date": "2024-01-01"
-    },
-    {
-      "id": "anthropic/claude-sonnet-4:thinking:32768",
-      "name": "Claude 4 Sonnet Thinking (32K)",
-      "vendor": "anthropic",
-      "context_length": 1000000,
-      "modalities": { "input": ["text", "image", "pdf"] },
-      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
-      "routes": [["nano-gpt", "anthropic/claude-sonnet-4:thinking:32768", 3, 15]],
-      "family": "claude-sonnet",
-      "output_limit": 64000,
-      "release_date": "2024-01-01"
-    },
-    {
-      "id": "anthropic/claude-sonnet-4:thinking:64000",
-      "name": "Claude 4 Sonnet Thinking (64K)",
-      "vendor": "anthropic",
-      "context_length": 1000000,
-      "modalities": { "input": ["text", "image", "pdf"] },
-      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
-      "routes": [["nano-gpt", "anthropic/claude-sonnet-4:thinking:64000", 3, 15]],
-      "family": "claude-sonnet",
-      "output_limit": 64000,
-      "release_date": "2024-01-01"
-    },
-    {
-      "id": "anthropic/claude-sonnet-4:thinking:8192",
-      "name": "Claude 4 Sonnet Thinking (8K)",
-      "vendor": "anthropic",
-      "context_length": 1000000,
-      "modalities": { "input": ["text", "image", "pdf"] },
-      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
-      "routes": [["nano-gpt", "anthropic/claude-sonnet-4:thinking:8192", 3, 15]],
-      "family": "claude-sonnet",
-      "output_limit": 64000,
-      "release_date": "2024-01-01"
-    },
-    {
       "id": "anthropic/claude-4-0-opus",
       "name": "Claude 4.0 Opus",
       "vendor": "anthropic",
@@ -5029,6 +4939,7 @@
         ["orcarouter", "anthropic/claude-fable-5", 10, 50],
         ["requesty", "claude-fable-5", 11, 55],
         ["snowflake-cortex", "claude-fable-5"],
+        ["standardcompute", "anthropic/claude-fable-5", 10, 50],
         ["vivgrid", "claude-fable-5", 10, 50],
         ["xpersona", "claude-fable-5", 3, 18.5],
         ["zenmux", "anthropic/claude-fable-5", 10, 50]
@@ -5070,6 +4981,7 @@
         ["openrouter", "anthropic/claude-fable-5.1", 10, 50],
         ["opper", "claude-fable-5-1", 10, 50],
         ["requesty", "claude-fable-5.1", 10, 50],
+        ["standardcompute", "anthropic/claude-fable-5.1", 10, 50],
         ["vivgrid", "claude-fable-5-1", 10, 50],
         ["zenmux", "anthropic/claude-fable-5.1", 10, 50]
       ],
@@ -5202,6 +5114,7 @@
         ["nearai", "anthropic/claude-haiku-5-5", 0.1, 0.5],
         ["openrouter", "anthropic/claude-haiku-5.5", 0.1, 0.5],
         ["requesty", "claude-haiku-5-5", 0.1, 0.5],
+        ["standardcompute", "anthropic/claude-haiku-5.5", 0.1, 0.5],
         ["vivgrid", "claude-haiku-5-5", 0.1, 0.5]
       ],
       "family": "claude-haiku",
@@ -5476,7 +5389,6 @@
         ["orcarouter", "anthropic/claude-opus-4.8", 5, 25],
         ["poe", "anthropic/claude-opus-4.8", 4.2929, 21.4646],
         ["requesty", "claude-opus-4-8", 5, 25],
-        ["routing-run", "claude-opus-4-8", 5, 25],
         ["snowflake-cortex", "claude-opus-4-8"],
         ["unorouter", "claude-opus-4-8", 0.425, 2.125],
         ["xpersona", "claude-opus-4-8", 1.5, 9.25],
@@ -5549,6 +5461,7 @@
         ["orcarouter", "anthropic/claude-opus-5", 5, 25],
         ["requesty", "claude-opus-5", 5, 25],
         ["snowflake-cortex", "claude-opus-5"],
+        ["standardcompute", "anthropic/claude-opus-5", 5, 25],
         ["vivgrid", "claude-opus-5", 5, 25]
       ],
       "family": "claude-opus",
@@ -5588,6 +5501,7 @@
         ["nearai", "anthropic/claude-opus-5-5", 4, 20],
         ["openrouter", "anthropic/claude-opus-5.5", 4, 20],
         ["requesty", "claude-opus-5-5", 4, 20],
+        ["standardcompute", "anthropic/claude-opus-5.5", 4, 20],
         ["vivgrid", "claude-opus-5-5", 4, 20],
         ["zenmux", "anthropic/claude-opus-5.5", 4, 20]
       ],
@@ -5637,6 +5551,22 @@
       "release_date": "2025-02-19"
     },
     {
+      "id": "anthropic/claude-sonnet-4",
+      "name": "Claude Sonnet 4",
+      "vendor": "anthropic",
+      "context_length": 200000,
+      "modalities": { "input": ["text", "image", "pdf"] },
+      "capabilities": { "reasoning": true, "tool_call": true, "attachment": true },
+      "routes": [
+        ["fastrouter", "anthropic/claude-sonnet-4", 3, 15],
+        ["poe", "anthropic/claude-sonnet-4", 2.6, 13],
+        ["zenmux", "anthropic/claude-sonnet-4", 3, 15]
+      ],
+      "family": "claude-sonnet",
+      "output_limit": 64000,
+      "release_date": "2025-05-22"
+    },
+    {
       "id": "anthropic/claude-sonnet-4-20250514",
       "name": "Claude Sonnet 4",
       "vendor": "anthropic",
@@ -5647,24 +5577,6 @@
       "family": "claude-sonnet",
       "output_limit": 64000,
       "release_date": "2025-05-14"
-    },
-    {
-      "id": "anthropic/claude-sonnet-4",
-      "name": "Claude Sonnet 4 (latest)",
-      "vendor": "anthropic",
-      "context_length": 200000,
-      "modalities": { "input": ["text", "image", "pdf"] },
-      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
-      "routes": [
-        ["cortecs", "claude-sonnet-4", 2.989, 14.945],
-        ["fastrouter", "anthropic/claude-sonnet-4", 3, 15],
-        ["nano-gpt", "anthropic/claude-sonnet-4", 3, 15],
-        ["poe", "anthropic/claude-sonnet-4", 2.6, 13],
-        ["zenmux", "anthropic/claude-sonnet-4", 3, 15]
-      ],
-      "family": "claude-sonnet",
-      "output_limit": 65000,
-      "release_date": "2025-05-22"
     },
     {
       "id": "anthropic/claude-sonnet-4@eu",
@@ -5799,7 +5711,6 @@
         ["orcarouter", "anthropic/claude-sonnet-4.6", 3, 15],
         ["poe", "anthropic/claude-sonnet-4.6", 2.6, 13],
         ["requesty", "claude-sonnet-4-6", 3, 15],
-        ["routing-run", "claude-sonnet-4-6", 3, 15],
         ["snowflake-cortex", "claude-sonnet-4-6"],
         ["xpersona", "claude-sonnet-4-6", 0.9, 5.55],
         ["zenmux", "anthropic/claude-sonnet-4.6", 3, 15]
@@ -5858,6 +5769,7 @@
         ["orcarouter", "anthropic/claude-sonnet-5", 2, 10],
         ["requesty", "claude-sonnet-5", 2, 10],
         ["snowflake-cortex", "claude-sonnet-5"],
+        ["standardcompute", "anthropic/claude-sonnet-5", 2, 10],
         ["unorouter", "claude-sonnet-5", 1.44, 7.2],
         ["vivgrid", "claude-sonnet-5", 2, 10],
         ["zenmux", "anthropic/claude-sonnet-5", 2, 10]
@@ -5922,6 +5834,7 @@
         ["nearai", "anthropic/claude-sonnet-5-5", 2, 10],
         ["openrouter", "anthropic/claude-sonnet-5.5", 2, 10],
         ["requesty", "claude-sonnet-5-5", 2, 10],
+        ["standardcompute", "anthropic/claude-sonnet-5.5", 2, 10],
         ["vivgrid", "claude-sonnet-5-5", 2, 10]
       ],
       "family": "claude-sonnet",
@@ -7386,7 +7299,7 @@
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
       "routes": [
         ["fireworks-ai", "accounts/fireworks/routers/deepseek-flash-latest", 0.3, 1.2],
-        ["openrouter", "~deepseek/deepseek-flash-latest", 0.036, 0.6633]
+        ["openrouter", "~deepseek/deepseek-flash-latest", 0.05, 0.15]
       ],
       "family": "deepseek-flash",
       "output_limit": 384000,
@@ -7399,7 +7312,7 @@
       "context_length": 1048576,
       "modalities": { "input": ["text"] },
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true },
-      "routes": [["nano-gpt", "deepseek/deepseek-latest", 1.1, 2.5]],
+      "routes": [["nano-gpt", "deepseek/deepseek-latest", 0.66, 1.98]],
       "family": "deepseek",
       "output_limit": 384000,
       "release_date": "2026-05-03"
@@ -7437,10 +7350,7 @@
       "context_length": 1048576,
       "modalities": { "input": ["text"] },
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true },
-      "routes": [
-        ["openrouter", "~deepseek/deepseek-pro-latest", 0.24948, 0.74844],
-        ["the-grid-ai", "deepseek-pro-latest"]
-      ],
+      "routes": [["openrouter", "~deepseek/deepseek-pro-latest", 0.225, 8], ["the-grid-ai", "deepseek-pro-latest"]],
       "family": "deepseek",
       "output_limit": 393216,
       "release_date": "2026-09-14"
@@ -7897,10 +7807,10 @@
         ["opper", "deepseek-v4-flash", 0.25, 0.66],
         ["orcarouter", "deepseek/deepseek-v4-flash", 0.147, 0.295],
         ["requesty", "deepseek-v4-flash", 0.28, 0.56],
-        ["routing-run", "deepseek-v4-flash", 0.112, 0.224],
         ["scnet-token-plan", "DeepSeek-V4-Flash", 0, 0],
         ["siliconflow", "deepseek-ai/DeepSeek-V4-Flash", 0.13, 0.28],
         ["siliconflow-cn", "deepseek-ai/DeepSeek-V4-Flash", 0.14, 0.28],
+        ["standardcompute", "deepseek/deepseek-v4-flash", 0.0826, 0.1652],
         ["tokengo", "deepseek/deepseek-v4-flash", 0.098, 0.196],
         ["unorouter", "deepseek-v4-flash", 0.0625, 0.125],
         ["vivgrid", "deepseek-v4-flash", 0.15, 0.3],
@@ -8014,12 +7924,13 @@
         ["nano-gpt", "deepseek/deepseek-v4-flash-0731", 0.05, 0.16],
         ["nebius", "deepseek-ai/DeepSeek-V4-Flash-0731", 0.14, 0.28],
         ["novita-ai", "deepseek/deepseek-v4-flash-0731", 0.44, 1.32],
-        ["openrouter", "deepseek/deepseek-v4-flash-0731", 0.018, 1.28],
+        ["openrouter", "deepseek/deepseek-v4-flash-0731", 0.15, 0.15],
         ["orcarouter", "deepseek/deepseek-v4-flash-0731", 0.147, 0.295],
         ["requesty", "deepseek-v4-flash-0731", 0.28, 0.56],
         ["scaleway", "deepseek-v4-flash-0731", 0.468, 0.936],
         ["scnet-token-plan", "DeepSeek-V4-Flash-0731", 0, 0],
         ["siliconflow", "deepseek-ai/DeepSeek-V4-Flash-0731", 0.22, 0.66],
+        ["standardcompute", "deepseek/deepseek-v4-flash-0731", 0.44, 1.32],
         ["tensorx", "deepseek/deepseek-v4-flash-0731", 0.25, 0.3],
         ["togetherai", "deepseek-ai/DeepSeek-V4-Flash-0731", 0.14, 0.28],
         ["vultr", "deepseek-v4-flash-0731", 0.1, 0.25],
@@ -8108,15 +8019,15 @@
       "id": "deepseek/deepseek-v4-flash-latest",
       "name": "DeepSeek V4 Flash Latest",
       "vendor": "deepseek",
-      "context_length": 1000000,
-      "modalities": { "input": ["text"] },
-      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true },
+      "context_length": 1048576,
+      "modalities": { "input": ["text", "image"] },
+      "capabilities": { "reasoning": true, "tool_call": true, "attachment": true },
       "routes": [
-        ["nano-gpt", "deepseek/deepseek-v4-flash-latest", 0.05, 0.16],
-        ["openrouter", "~deepseek/deepseek-v4-flash-latest", 0.00441, 1.152]
+        ["nano-gpt", "deepseek/deepseek-v4-flash-latest", 0.1, 0.5],
+        ["openrouter", "~deepseek/deepseek-v4-flash-latest", 0.0065, 0.45]
       ],
       "family": "deepseek",
-      "output_limit": 131072,
+      "output_limit": 393216,
       "release_date": "2026-08-02"
     },
     {
@@ -8134,7 +8045,7 @@
         ["edenai", "deepseek-v4-flash-vision-exp", 0.15, 0.6],
         ["edenai", "deepseek/deepseek-v4-flash-vision-exp", 0.15, 0.6],
         ["huggingface", "deepseek-ai/DeepSeek-V4-Flash-Vision-Exp", 0.44, 1.32],
-        ["nano-gpt", "deepseek/deepseek-v4-flash-vision-exp", 0.22, 0.66],
+        ["nano-gpt", "deepseek/deepseek-v4-flash-vision-exp", 0.2156, 0.6468],
         ["openrouter", "deepseek/deepseek-v4-flash-vision-exp", 0.2156, 0.6468],
         ["orcarouter", "deepseek/deepseek-v4-flash-vision-exp", 0.147, 0.295],
         ["siliconflow", "deepseek-ai/DeepSeek-V4-Flash-Vision-Exp", 0.44, 1.32]
@@ -8174,7 +8085,7 @@
       "context_length": 1048576,
       "modalities": { "input": ["text"] },
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true },
-      "routes": [["nano-gpt", "deepseek/deepseek-v4-pro:thinking", 1.1, 2.2]],
+      "routes": [["nano-gpt", "deepseek/deepseek-v4-pro:thinking", 0.7, 1.4]],
       "family": "deepseek-thinking",
       "output_limit": 384000,
       "release_date": "2026-04-24"
@@ -8209,17 +8120,17 @@
         ["kenari", "deepseek-v4-pro", 0, 0],
         ["moark", "DeepSeek-V4-Pro", 1.8, 3.6],
         ["model-oracle-ai", "deepseek-v4-pro"],
-        ["nano-gpt", "deepseek/deepseek-v4-pro", 1.1, 2.2],
+        ["nano-gpt", "deepseek/deepseek-v4-pro", 0.7, 1.4],
         ["nebius", "deepseek-ai/DeepSeek-V4-Pro", 1.75, 3.5],
         ["novita-ai", "deepseek/deepseek-v4-pro", 1.6, 3.2],
-        ["openrouter", "deepseek/deepseek-v4-pro", 0.31755, 0.6351],
+        ["openrouter", "deepseek/deepseek-v4-pro", 0.95526, 1.91052],
         ["opper", "deepseek-v4-pro", 1.78812, 3.57624],
         ["orcarouter", "deepseek/deepseek-v4-pro", 0.442, 0.884],
         ["requesty", "deepseek-v4-pro", 1.32, 3.96],
-        ["routing-run", "deepseek-v4-pro", 0.348, 0.696],
         ["scnet-token-plan", "DeepSeek-V4-Pro", 0, 0],
         ["siliconflow", "deepseek-ai/DeepSeek-V4-Pro", 1.50162, 3.135],
         ["siliconflow-cn", "deepseek-ai/DeepSeek-V4-Pro", 1.74, 3.48],
+        ["standardcompute", "deepseek/deepseek-v4-pro", 1.044, 2.088],
         ["tensorx", "deepseek/deepseek-v4-pro", 1.75, 3.5],
         ["tokengo", "deepseek/deepseek-v4-pro", 0.435, 0.87],
         ["unorouter", "deepseek-v4-pro", 0.8999, 1.7999],
@@ -8255,7 +8166,7 @@
         ["edenai", "together_ai/deepseek-ai/DeepSeek-V4-Pro-0813", 1.32, 3.96],
         ["empiriolabs", "deepseek-v4-pro-0813", 1.32, 3.96],
         ["huggingface", "deepseek-ai/DeepSeek-V4-Pro-0813", 1.32, 3.96],
-        ["nano-gpt", "deepseek/deepseek-v4-pro-0813", 1.1, 2.5],
+        ["nano-gpt", "deepseek/deepseek-v4-pro-0813", 0.66, 1.98],
         ["nebius", "deepseek-ai/DeepSeek-V4-Pro-0813", 1.32, 3.96],
         ["novita-ai", "deepseek/deepseek-v4-pro-0813", 1.32, 3.96],
         ["openrouter", "deepseek/deepseek-v4-pro-0813", 0.66, 1.98],
@@ -8263,6 +8174,7 @@
         ["requesty", "deepseek-v4-pro-0813", 1.32, 3.96],
         ["scnet-token-plan", "DeepSeek-V4-Pro-0813", 0, 0],
         ["siliconflow", "deepseek-ai/DeepSeek-V4-Pro-0813", 1.32, 3.96],
+        ["standardcompute", "deepseek/deepseek-v4-pro-0813", 1.122, 3.366],
         ["tensorx", "deepseek/deepseek-v4-pro-0813", 2, 4],
         ["togetherai", "deepseek-ai/DeepSeek-V4-Pro-0813", 1.32, 3.96],
         ["vivgrid", "deepseek-v4-pro-0813", 1.35, 3],
@@ -8303,22 +8215,10 @@
       "context_length": 1048576,
       "modalities": { "input": ["text"] },
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true },
-      "routes": [["nano-gpt", "deepseek/deepseek-v4-pro-0813:thinking", 1.1, 2.5]],
+      "routes": [["nano-gpt", "deepseek/deepseek-v4-pro-0813:thinking", 0.66, 1.98]],
       "family": "deepseek-thinking",
       "output_limit": 384000,
       "release_date": "2026-08-12"
-    },
-    {
-      "id": "deepseek/deepseek-flash",
-      "name": "DeepSeek V4.1 Flash",
-      "vendor": "deepseek",
-      "context_length": 1000000,
-      "modalities": { "input": ["text", "image"] },
-      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
-      "routes": [["302ai", "deepseek-flash", 0.15, 0.6], ["deepseek", "deepseek-flash", 0.15, 0.6]],
-      "family": "deepseek-flash",
-      "output_limit": 393216,
-      "release_date": "2026-09-10"
     },
     {
       "id": "deepseek/deepseek-v4-1-flash",
@@ -8352,15 +8252,15 @@
         ["huggingface", "deepseek-ai/DeepSeek-V4.1-Flash", 0.3, 1.2],
         ["kenari", "deepseek-v4-1-flash", 0, 0],
         ["nano-gpt", "TEE/deepseek-v4.1-flash", 0.65, 1.45],
-        ["nano-gpt", "deepseek/deepseek-v4.1-flash", 0.13, 0.52],
-        ["nearai", "deepseek/deepseek-v4.1-flash", 0.3, 1.2],
+        ["nano-gpt", "deepseek/deepseek-v4.1-flash", 0.14, 0.42],
         ["nebius", "deepseek-ai/DeepSeek-V4.1-Flash", 0.3, 1.2],
         ["neuralwatt", "deepseek-v4.1-flash", 0.15, 0.6],
         ["novita-ai", "deepseek/deepseek-v4.1-flash", 0.3, 1.2],
-        ["openrouter", "deepseek/deepseek-v4.1-flash", 0.036, 0.6633],
+        ["openrouter", "deepseek/deepseek-v4.1-flash", 0.044, 0.08],
         ["requesty", "deepseek-v4.1-flash", 0.5, 1.5],
         ["scaleway", "deepseek-v4.1-flash", 0.672, 2.016],
         ["scnet-token-plan", "DeepSeek-V4.1-Flash", 0, 0],
+        ["standardcompute", "deepseek/deepseek-v4.1-flash", 0.14, 0.42],
         ["synthetic", "hf:deepseek-ai/DeepSeek-V4.1-Flash", 0.6, 1.2],
         ["tensorx", "deepseek/deepseek-v4.1-flash", 0.5, 1.5],
         ["tinfoil", "deepseek-v4-1-flash", 0.65, 1.45],
@@ -8424,6 +8324,92 @@
       "release_date": "2026-09-10"
     },
     {
+      "id": "deepseek/deepseek-flash",
+      "name": "DeepSeek V4.1 Flash 1017",
+      "vendor": "deepseek",
+      "context_length": 1000000,
+      "modalities": { "input": ["text", "image"] },
+      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
+      "routes": [["302ai", "deepseek-flash", 0.15, 0.6], ["deepseek", "deepseek-flash", 0.15, 0.6]],
+      "family": "deepseek-flash",
+      "output_limit": 393216,
+      "release_date": "2026-10-17"
+    },
+    {
+      "id": "deepseek/deepseek-v4-1-flash-1017",
+      "name": "DeepSeek V4.1 Flash 1017",
+      "vendor": "deepseek",
+      "context_length": 1048576,
+      "modalities": { "input": ["text", "image"] },
+      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
+      "routes": [
+        ["baseten", "deepseek-ai/DeepSeek-V4.1-Flash-1017", 0.3, 1.2],
+        ["cortecs", "deepseek-v4.1-flash-1017", 0.511, 1.534],
+        ["deepinfra", "deepseek-ai/DeepSeek-V4.1-Flash-1017", 0.2, 0.6],
+        ["edenai", "deepinfra/deepseek-ai/DeepSeek-V4.1-Flash-1017", 0.2, 0.6],
+        ["edenai", "qwen/deepseek-v4.1-flash-1017", 0.15, 0.6],
+        ["edenai", "tensorx/deepseek/deepseek-v4.1-flash-1017", 0.5, 1.5],
+        ["edenai", "together_ai/deepseek-ai/DeepSeek-V4.1-Flash-1017", 0.3, 1.2],
+        ["empiriolabs", "deepseek-v4-1-flash-1017", 0.3, 1.2],
+        ["engy", "deepseek-v4.1-flash-1017", 0.04, 0.08],
+        ["nano-gpt", "deepseek/deepseek-v4.1-flash-1017", 0.1, 0.5],
+        ["novita-ai", "deepseek/deepseek-v4.1-flash-1017", 0.3, 1.2],
+        ["openrouter", "deepseek/deepseek-v4.1-flash-1017", 0.15, 0.6],
+        ["requesty", "deepseek-v4.1-flash-1017", 0.5, 1.5]
+      ],
+      "family": "deepseek-flash",
+      "output_limit": 262144,
+      "release_date": "2026-10-17"
+    },
+    {
+      "id": "deepseek/deepseek-v4p1-flash-1017",
+      "name": "DeepSeek V4.1 Flash 1017",
+      "vendor": "deepseek",
+      "context_length": 1000000,
+      "modalities": { "input": ["text", "image"] },
+      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
+      "routes": [["fireworks-ai", "accounts/fireworks/models/deepseek-v4p1-flash-1017", 0.3, 1.2]],
+      "family": "deepseek-flash",
+      "output_limit": 384000,
+      "release_date": "2026-10-17"
+    },
+    {
+      "id": "deepseek/deepseek-v4-1-flash-1017@eu",
+      "name": "DeepSeek V4.1 Flash 1017 (EU)",
+      "vendor": "deepseek",
+      "context_length": 1048576,
+      "modalities": { "input": ["text", "image"] },
+      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
+      "routes": [["requesty", "deepseek-v4.1-flash-1017@eu", 0.5, 1.5]],
+      "family": "deepseek-flash",
+      "output_limit": 393216,
+      "release_date": "2026-10-17"
+    },
+    {
+      "id": "deepseek/deepseek-v4-1-flash-1017-fast",
+      "name": "DeepSeek V4.1 Flash 1017 Fast",
+      "vendor": "deepseek",
+      "context_length": 1048576,
+      "modalities": { "input": ["text", "image"] },
+      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
+      "routes": [["baseten", "deepseek-ai/DeepSeek-V4.1-Flash-1017-Fast", 0.6, 2.4]],
+      "family": "deepseek-flash",
+      "output_limit": 262144,
+      "release_date": "2026-10-17"
+    },
+    {
+      "id": "deepseek/deepseek-v4-1-flash-1017:thinking",
+      "name": "DeepSeek V4.1 Flash 1017 Thinking",
+      "vendor": "deepseek",
+      "context_length": 1048576,
+      "modalities": { "input": ["text", "image"] },
+      "capabilities": { "reasoning": true, "tool_call": true, "attachment": true },
+      "routes": [["nano-gpt", "deepseek/deepseek-v4.1-flash-1017:thinking", 0.1, 0.5]],
+      "family": "deepseek-flash",
+      "output_limit": 393216,
+      "release_date": "2026-10-17"
+    },
+    {
       "id": "deepseek/deepseek-v4-1-flash-fast",
       "name": "DeepSeek V4.1 Flash Fast",
       "vendor": "deepseek",
@@ -8457,7 +8443,7 @@
       "context_length": 1000000,
       "modalities": { "input": ["text", "image"] },
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
-      "routes": [["nano-gpt", "deepseek/deepseek-v4.1-flash:thinking", 0.13, 0.52]],
+      "routes": [["nano-gpt", "deepseek/deepseek-v4.1-flash:thinking", 0.14, 0.42]],
       "family": "deepseek-flash",
       "output_limit": 384000,
       "release_date": "2026-09-10"
@@ -8583,7 +8569,7 @@
         ["nano-gpt", "TEE/deepseek-v3.2", 0.5, 1],
         ["nano-gpt", "deepseek/deepseek-v3.2", 0.2088, 0.3096],
         ["nearai", "deepseek/deepseek-v3.2", 1.1, 1.1],
-        ["openrouter", "deepseek/deepseek-v3.2", 0.259, 0.8],
+        ["openrouter", "deepseek/deepseek-v3.2", 0.28, 0.42],
         ["poe", "novita/deepseek-v3.2", 0.27, 0.4],
         ["siliconflow", "deepseek-ai/DeepSeek-V3.2", 0.27, 0.42],
         ["siliconflow-cn", "Pro/deepseek-ai/DeepSeek-V3.2", 0.27, 0.42],
@@ -9360,17 +9346,6 @@
       "release_date": "2026-08-14"
     },
     {
-      "id": "echo/echo",
-      "name": "Echo",
-      "vendor": "echo",
-      "context_length": 262144,
-      "modalities": { "input": ["text"] },
-      "capabilities": { "reasoning": true, "tool_call": true },
-      "routes": [["echo", "echo", 10, 50]],
-      "output_limit": 65536,
-      "release_date": "2026-07-19"
-    },
-    {
       "id": "elevenlabs/elevenlabs-music",
       "name": "ElevenLabs-Music",
       "vendor": "elevenlabs",
@@ -9405,6 +9380,17 @@
       "family": "elevenlabs",
       "output_limit": 0,
       "release_date": "2025-06-05"
+    },
+    {
+      "id": "elorian/glimpse",
+      "name": "Elorian Glimpse",
+      "vendor": "elorian",
+      "context_length": 262144,
+      "modalities": { "input": ["text", "image", "video"] },
+      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
+      "routes": [["nano-gpt", "elorian/glimpse", 0.63, 3.15], ["openrouter", "elorian/glimpse", 0.6, 3]],
+      "output_limit": 256000,
+      "release_date": "2026-10-17"
     },
     {
       "id": "empiriolabs/fugu-ultra-v1-0",
@@ -10218,6 +10204,7 @@
         ["opper", "gemini-3.1-pro-preview", 2, 12],
         ["orcarouter", "google/gemini-3.1-pro-preview", 2, 12],
         ["requesty", "gemini-3.1-pro-preview", 2, 12],
+        ["standardcompute", "google/gemini-3.1-pro-preview", 2, 12],
         ["vivgrid", "gemini-3.1-pro-preview", 2, 12],
         ["zenmux", "google/gemini-3.1-pro-preview", 2, 12]
       ],
@@ -10323,7 +10310,8 @@
         ["opper", "gemini-3.5-flash-lite", 0.3, 2.5],
         ["orcarouter", "google/gemini-3.5-flash-lite", 0.3, 2.5],
         ["poe", "google/gemini-3.5-flash-lite", 0.303, 2.5253],
-        ["requesty", "gemini-3.5-flash-lite", 0.3, 2.5]
+        ["requesty", "gemini-3.5-flash-lite", 0.3, 2.5],
+        ["standardcompute", "google/gemini-3.5-flash-lite", 0.3, 2.5]
       ],
       "family": "gemini-flash-lite",
       "output_limit": 65536,
@@ -10487,6 +10475,7 @@
         ["opper", "gemini-3.8-flash", 0.825, 4.125],
         ["poe", "google/gemini-3.8-flash", 0.7576, 3.7879],
         ["requesty", "gemini-3.8-flash", 0.75, 3.75],
+        ["standardcompute", "google/gemini-3.8-flash", 0.75, 3.75],
         ["vivgrid", "gemini-3.8-flash", 0.75, 3.75]
       ],
       "family": "gemini-flash",
@@ -10768,7 +10757,7 @@
         ["nano-gpt", "unsloth/gemma-3-27b-it", 0.2992, 0.2992],
         ["nebius", "google/gemma-3-27b-it", 0.1, 0.3],
         ["novita-ai", "google/gemma-3-27b-it", 0.119, 0.2],
-        ["openrouter", "google/gemma-3-27b-it", 0.08, 0.45]
+        ["openrouter", "google/gemma-3-27b-it", 0.08, 0.35]
       ],
       "family": "gemma",
       "output_limit": 117964,
@@ -10843,7 +10832,7 @@
         ["deepinfra", "google/gemma-4-26B-A4B-it", 0.07, 0.34],
         ["google", "gemma-4-26b-a4b-it", 0.09, 0.3],
         ["huggingface", "google/gemma-4-26B-A4B-it", 0.13, 0.4],
-        ["nano-gpt", "google/gemma-4-26b-a4b-it", 0.12, 0.38],
+        ["nano-gpt", "google/gemma-4-26b-a4b-it", 0.09, 0.3],
         ["novita-ai", "google/gemma-4-26b-a4b-it", 0.13, 0.4],
         ["openrouter", "google/gemma-4-26b-a4b-it", 0.09, 0.3],
         ["orcarouter", "google/gemma-4-26b-a4b-it", 0.06, 0.33],
@@ -10947,7 +10936,7 @@
       "context_length": 262144,
       "modalities": { "input": ["text", "image", "video"] },
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
-      "routes": [["nano-gpt", "google/gemma-4-26b-a4b-it:thinking", 0.13, 0.4]],
+      "routes": [["nano-gpt", "google/gemma-4-26b-a4b-it:thinking", 0.09, 0.3]],
       "family": "gemma",
       "output_limit": 131072,
       "release_date": "2026-04-02"
@@ -11008,7 +10997,7 @@
         ["infomaniak", "google/gemma-4-31B-it", 0.25, 0.5],
         ["kenari", "gemma-4-31b-it", 0, 0],
         ["nano-gpt", "TEE/gemma-4-31b-it", 0.15, 0.46],
-        ["nano-gpt", "google/gemma-4-31b-it", 0.1, 0.45],
+        ["nano-gpt", "google/gemma-4-31b-it", 0.14, 0.4],
         ["novita-ai", "google/gemma-4-31b-it", 0.14, 0.4],
         ["openrouter", "google/gemma-4-31b-it", 0.2, 0.4],
         ["opper", "gemma-4-31b-it", 0.46488, 2.44062],
@@ -11180,7 +11169,7 @@
       "context_length": 262144,
       "modalities": { "input": ["text", "image", "video"] },
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
-      "routes": [["nano-gpt", "google/gemma-4-31b-it:thinking", 0.1, 0.35]],
+      "routes": [["nano-gpt", "google/gemma-4-31b-it:thinking", 0.1, 0.34]],
       "family": "gemma",
       "output_limit": 131072,
       "release_date": "2026-04-02"
@@ -11756,6 +11745,7 @@
         ["poe", "google/gemini-2.5-flash", 0.21, 1.8],
         ["qihang-ai", "gemini-2.5-flash", 0.09, 0.71],
         ["qiniu-ai", "gemini-2.5-flash"],
+        ["standardcompute", "google/gemini-2.5-flash", 0.3, 2.5],
         ["zenmux", "google/gemini-2.5-flash", 0.3, 2.5]
       ],
       "family": "gemini-flash",
@@ -11856,6 +11846,7 @@
         ["orcarouter", "google/gemini-2.5-pro", 1.25, 10],
         ["poe", "google/gemini-2.5-pro", 0.87, 7],
         ["qiniu-ai", "gemini-2.5-pro"],
+        ["standardcompute", "google/gemini-2.5-pro", 1.25, 10],
         ["zenmux", "google/gemini-2.5-pro", 1.25, 10]
       ],
       "family": "gemini-pro",
@@ -12845,7 +12836,7 @@
       "routes": [
         ["cloudflare-workers-ai", "@cf/meta/llama-3.2-3b-instruct", 0.0509, 0.335],
         ["nano-gpt", "meta-llama/llama-3.2-3b-instruct", 0.0306, 0.0493],
-        ["openrouter", "meta-llama/llama-3.2-3b-instruct", 0.05, 0.33]
+        ["openrouter", "meta-llama/llama-3.2-3b-instruct", 0.0509, 0.335]
       ],
       "family": "llama",
       "output_limit": 80000,
@@ -13114,7 +13105,7 @@
       "capabilities": { "tool_call": true, "structured_output": true },
       "routes": [
         ["huggingface", "meta-llama/Llama-3.1-8B-Instruct", 0.06, 0.06],
-        ["nano-gpt", "meta-llama/llama-3.1-8b-instruct", 0.0544, 0.085],
+        ["nano-gpt", "meta-llama/llama-3.1-8b-instruct", 0.02, 0.04],
         ["novita-ai", "meta-llama/llama-3.1-8b-instruct", 0.02, 0.05],
         ["openrouter", "meta-llama/llama-3.1-8b-instruct", 0.05, 0.08],
         ["wandb", "meta-llama/Llama-3.1-8B-Instruct", 0.22, 0.22]
@@ -13394,6 +13385,18 @@
       "release_date": "2025-05-29"
     },
     {
+      "id": "meta-models/muse-spark-open-816b-a42b",
+      "name": "Muse Spark Open",
+      "vendor": "meta-models",
+      "context_length": 1048576,
+      "modalities": { "input": ["text", "image", "video"] },
+      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
+      "routes": [["togetherai", "meta-models/Muse-Spark-Open-816B-A42B", 1.25, 4.25]],
+      "family": "muse",
+      "output_limit": 131072,
+      "release_date": "2026-10-15"
+    },
+    {
       "id": "microsoft/phi-4",
       "name": "Phi 4",
       "vendor": "microsoft",
@@ -13464,7 +13467,7 @@
       "capabilities": { "reasoning": true, "tool_call": true },
       "routes": [
         ["fireworks-ai", "accounts/fireworks/routers/minimax-latest", 0.3, 1.2],
-        ["nano-gpt", "minimax/minimax-latest", 0.3, 1.2],
+        ["nano-gpt", "minimax/minimax-latest", 0.23, 0.96],
         ["the-grid-ai", "minimax-latest"]
       ],
       "family": "minimax",
@@ -13516,7 +13519,7 @@
       "context_length": 512000,
       "modalities": { "input": ["text", "image"] },
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
-      "routes": [["nano-gpt", "minimax/minimax-m3:thinking", 0.3, 1.2]],
+      "routes": [["nano-gpt", "minimax/minimax-m3:thinking", 0.23, 0.96]],
       "family": "minimax",
       "output_limit": 80000,
       "release_date": "2026-06-01"
@@ -13602,7 +13605,7 @@
         ["frogbot", "minimax-m2-5", 0.3, 1.2],
         ["huggingface", "MiniMaxAI/MiniMax-M2.5", 0.3, 1.2],
         ["meganova", "MiniMaxAI/MiniMax-M2.5", 0.3, 1.2],
-        ["nano-gpt", "minimax/minimax-m2.5", 0.3, 1.2],
+        ["nano-gpt", "minimax/minimax-m2.5", 0.27, 1.08],
         ["novita-ai", "minimax/minimax-m2.5", 0.3, 1.2],
         ["openrouter", "minimax/minimax-m2.5", 0.27, 0.95],
         ["orcarouter", "minimax/minimax-m2.5", 0.3, 1.2],
@@ -13656,7 +13659,7 @@
         ["huggingface", "MiniMaxAI/MiniMax-M2.7", 0.3, 1.2],
         ["kenari", "minimax-m2-7", 0, 0],
         ["moark", "MiniMax-M2.7", 0.29, 1.2],
-        ["nano-gpt", "minimax/minimax-m2.7", 0.315, 1.26],
+        ["nano-gpt", "minimax/minimax-m2.7", 0.21, 0.84],
         ["novita-ai", "minimax/minimax-m2.7", 0.3, 1.2],
         ["openrouter", "minimax/minimax-m2.7", 0.3, 1.2],
         ["opper", "minimax-m2.7", 0.69732, 2.78928],
@@ -13715,7 +13718,7 @@
         ["huggingface", "MiniMaxAI/MiniMax-M3", 0.3, 1.2],
         ["inco", "minimax-m3", 0.3, 1.2],
         ["kenari", "minimax-m3", 0, 0],
-        ["nano-gpt", "minimax/minimax-m3", 0.3, 1.2],
+        ["nano-gpt", "minimax/minimax-m3", 0.23, 0.96],
         ["nebius", "MiniMaxAI/MiniMax-M3", 0.3, 1.2],
         ["novita-ai", "minimax/minimax-m3", 0.3, 1.2],
         ["openrouter", "minimax/minimax-m3", 0.3, 1.2],
@@ -13724,6 +13727,7 @@
         ["requesty", "minimax-m3", 0.3, 1.2],
         ["scnet-token-plan", "MiniMax-M3", 0, 0],
         ["siliconflow", "MiniMaxAI/MiniMax-M3", 0.3, 1.2],
+        ["standardcompute", "minimax/minimax-m3", 0.3, 1.2],
         ["synthetic", "hf:MiniMaxAI/MiniMax-M3", 0.6, 1.2],
         ["tensorx", "minimax/minimax-m3", 0.4, 2],
         ["togetherai", "MiniMaxAI/MiniMax-M3", 0.3, 1.2],
@@ -14104,6 +14108,18 @@
       "release_date": "2024-10-01"
     },
     {
+      "id": "mistral/mistral-7b-instruct-v0-3",
+      "name": "Mistral 7B Instruct v0.3",
+      "vendor": "mistral",
+      "context_length": 32768,
+      "modalities": { "input": ["text"] },
+      "capabilities": { "tool_call": true },
+      "routes": [["digitalocean", "mistral-7b-instruct-v0.3"]],
+      "family": "mistral",
+      "output_limit": 32768,
+      "release_date": "2024-05-22"
+    },
+    {
       "id": "mistral/mistral-code-agent-latest",
       "name": "Mistral Code Agent Latest",
       "vendor": "mistral",
@@ -14233,7 +14249,8 @@
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
       "routes": [
         ["cortecs", "mistral-large-4-0", 0.765, 2.351],
-        ["openrouter", "mistralai/mistral-large-4-0", 0.68, 2.09]
+        ["openrouter", "mistralai/mistral-large-4-0", 0.68, 2.09],
+        ["standardcompute", "mistralai/mistral-large-4-0", 0.68, 2.09]
       ],
       "family": "mistral-large",
       "output_limit": 262144,
@@ -14769,17 +14786,6 @@
       "release_date": "2025-05-26"
     },
     {
-      "id": "mistral/mistral-7b-instruct-v0-3",
-      "name": "mistral-7b-instruct-v0.3",
-      "vendor": "mistral",
-      "context_length": 127000,
-      "modalities": { "input": ["text"] },
-      "capabilities": { "tool_call": true, "structured_output": true },
-      "routes": [["cortecs", "mistral-7b-instruct-v0.3", 0.111, 0.111], ["digitalocean", "mistral-7b-instruct-v0.3"]],
-      "output_limit": 127000,
-      "release_date": "2025-05-26"
-    },
-    {
       "id": "mistral/mistral-large-2402",
       "name": "mistral-large-2402",
       "vendor": "mistral",
@@ -15079,14 +15085,13 @@
         ["moonshotai", "kimi-k2.6", 0.95, 4],
         ["moonshotai-cn", "kimi-k2.6", 0.95, 4],
         ["nano-gpt", "TEE/kimi-k2.6", 1.5, 5.25],
-        ["nano-gpt", "moonshotai/kimi-k2.6", 0.5, 2.6],
+        ["nano-gpt", "moonshotai/kimi-k2.6", 0.45, 1.95],
         ["nearai", "moonshotai/kimi-k2.6", 0.81, 3.85],
         ["novita-ai", "moonshotai/kimi-k2.6", 0.8, 3.4],
         ["openrouter", "moonshotai/kimi-k2.6", 0.65, 3.41],
         ["orcarouter", "kimi/kimi-k2.6", 0.95, 4],
         ["poe", "novita/kimi-k2.6", 0.96, 4.04],
         ["requesty", "kimi-k2.6", 0.95, 4],
-        ["routing-run", "kimi-k2.6", 0.275, 1.1],
         ["scnet-token-plan", "Kimi-K2.6", 0, 0],
         ["siliconflow", "moonshotai/Kimi-K2.6", 0.77, 3.4],
         ["siliconflow-cn", "Pro/moonshotai/Kimi-K2.6", 0.95, 4],
@@ -15125,18 +15130,6 @@
       "release_date": "2026-04-21"
     },
     {
-      "id": "moonshotai/kimi-k2-6-nitro",
-      "name": "Kimi K2.6 Nitro",
-      "vendor": "moonshotai",
-      "context_length": 200000,
-      "modalities": { "input": ["text", "image", "video"] },
-      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
-      "routes": [["routing-run", "kimi-k2.6-nitro", 0.275, 1.1]],
-      "family": "kimi-k2",
-      "output_limit": 32000,
-      "release_date": "2026-04-21"
-    },
-    {
       "id": "moonshotai/kimi-k2-6-tee",
       "name": "Kimi K2.6 TEE",
       "vendor": "moonshotai",
@@ -15155,7 +15148,7 @@
       "context_length": 262144,
       "modalities": { "input": ["text", "image"] },
       "capabilities": { "reasoning": true, "tool_call": true, "attachment": true },
-      "routes": [["nano-gpt", "moonshotai/kimi-k2.6:thinking", 0.5, 2.6]],
+      "routes": [["nano-gpt", "moonshotai/kimi-k2.6:thinking", 0.45, 1.95]],
       "family": "kimi-k2",
       "output_limit": 65536,
       "release_date": "2026-04-21"
@@ -15191,7 +15184,6 @@
         ["openrouter", "moonshotai/kimi-k2.7-code", 0.6712, 3.35],
         ["orcarouter", "kimi/kimi-k2.7-code", 0.95, 4],
         ["requesty", "kimi-k2.7-code", 0.95, 4],
-        ["routing-run", "kimi-k2.7-code", 0.275, 1.1],
         ["scnet-token-plan", "Kimi-K2.7-Code", 0, 0],
         ["siliconflow", "moonshotai/Kimi-K2.7-Code", 0.85916, 3.8],
         ["synthetic", "hf:moonshotai/Kimi-K2.7-Code", 0.95, 4],
@@ -15285,18 +15277,6 @@
       "release_date": "2026-06-12"
     },
     {
-      "id": "moonshotai/kimi-k2-7-code-nitro",
-      "name": "Kimi K2.7 Code Nitro",
-      "vendor": "moonshotai",
-      "context_length": 200000,
-      "modalities": { "input": ["text", "image", "video"] },
-      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
-      "routes": [["routing-run", "kimi-k2.7-code-nitro", 0.275, 1.1]],
-      "family": "kimi-k2",
-      "output_limit": 32000,
-      "release_date": "2026-06-12"
-    },
-    {
       "id": "moonshotai/kimi-k3",
       "name": "Kimi K3",
       "vendor": "moonshotai",
@@ -15329,17 +15309,18 @@
         ["moonshotai", "kimi-k3", 3, 15],
         ["moonshotai-cn", "kimi-k3", 3, 15],
         ["nano-gpt", "TEE/kimi-k3", 3, 15],
-        ["nano-gpt", "moonshotai/kimi-k3", 2, 10],
+        ["nano-gpt", "moonshotai/kimi-k3", 1.65, 8.25],
         ["nearai", "moonshotai/kimi-k3", 3.3, 16.5],
         ["nebius", "moonshotai/Kimi-K3", 3, 15],
         ["neuralwatt", "kimi-k3", 3, 15],
         ["novita-ai", "moonshotai/kimi-k3", 3, 15],
-        ["openrouter", "moonshotai/kimi-k3", 0.304, 12.533],
+        ["openrouter", "moonshotai/kimi-k3", 0.239, 11.936],
         ["opper", "kimi-k3", 3, 15],
         ["orcarouter", "kimi/kimi-k3", 3.3, 16.5],
         ["requesty", "kimi-k3", 3, 15],
         ["scnet-token-plan", "Kimi-K3", 0, 0],
         ["siliconflow", "moonshotai/Kimi-K3", 2.7, 13.5],
+        ["standardcompute", "moonshotai/kimi-k3", 3, 15],
         ["synthetic", "hf:moonshotai/Kimi-K3", 3, 15],
         ["tensorx", "moonshotai/kimi-k3", 3, 15],
         ["tinfoil", "kimi-k3", 4, 20],
@@ -15438,8 +15419,8 @@
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
       "routes": [
         ["fireworks-ai", "accounts/fireworks/routers/kimi-latest", 3, 15],
-        ["nano-gpt", "moonshotai/kimi-latest", 2, 10],
-        ["openrouter", "~moonshotai/kimi-latest", 0.294, 28]
+        ["nano-gpt", "moonshotai/kimi-latest", 1.65, 8.25],
+        ["openrouter", "~moonshotai/kimi-latest", 0.239, 11.936]
       ],
       "family": "kimi-k3",
       "output_limit": 131072,
@@ -15976,50 +15957,6 @@
       "release_date": "2026-05-12"
     },
     {
-      "id": "neosmith/neosmith-intelligent-basic",
-      "name": "NeoSmith Basic",
-      "vendor": "neosmith",
-      "context_length": 1000000,
-      "modalities": { "input": ["text", "image"] },
-      "capabilities": { "reasoning": true, "tool_call": true, "attachment": true },
-      "routes": [["neosmith", "neosmith.intelligent-basic", 1.17, 4.37]],
-      "output_limit": 128000,
-      "release_date": "2026-04-26"
-    },
-    {
-      "id": "neosmith/neosmith-intelligent-maestro",
-      "name": "NeoSmith Maestro",
-      "vendor": "neosmith",
-      "context_length": 1000000,
-      "modalities": { "input": ["text", "image"] },
-      "capabilities": { "reasoning": true, "tool_call": true, "attachment": true },
-      "routes": [["neosmith", "neosmith.intelligent-maestro", 2.4, 12]],
-      "output_limit": 128000,
-      "release_date": "2026-08-03"
-    },
-    {
-      "id": "neosmith/neosmith-neolite",
-      "name": "NeoSmith NeoLite",
-      "vendor": "neosmith",
-      "context_length": 512000,
-      "modalities": { "input": ["text", "image"] },
-      "capabilities": { "reasoning": true, "tool_call": true, "attachment": true },
-      "routes": [["neosmith", "neosmith.neolite", 0.6, 2.4]],
-      "output_limit": 64000,
-      "release_date": "2026-06-20"
-    },
-    {
-      "id": "neosmith/neosmith-intelligent-pro",
-      "name": "NeoSmith Pro",
-      "vendor": "neosmith",
-      "context_length": 1000000,
-      "modalities": { "input": ["text", "image"] },
-      "capabilities": { "reasoning": true, "tool_call": true, "attachment": true },
-      "routes": [["neosmith", "neosmith.intelligent-pro", 1.81, 8.39]],
-      "output_limit": 128000,
-      "release_date": "2026-04-26"
-    },
-    {
       "id": "neuralwatt/mimo-v2-6-pro-flex",
       "name": "MiMo-V2.6-Pro Flex",
       "vendor": "neuralwatt",
@@ -16181,12 +16118,12 @@
       "vendor": "nvidia",
       "context_length": 1048576,
       "modalities": { "input": ["text", "image"] },
-      "capabilities": { "tool_call": true, "attachment": true },
+      "capabilities": { "reasoning": true, "tool_call": true, "attachment": true },
       "routes": [
         ["digitalocean", "nemotron-3.5-super-vl", 0.3, 0.65],
         ["nano-gpt", "nvidia/nemotron-3.5-super-vl", 0.15, 0.5],
         ["nebius", "nvidia/Nemotron-3.5-Super-VL", 0.3, 0.9],
-        ["openrouter", "nvidia/nemotron-3.5-super-vl", 0.15, 0.5]
+        ["openrouter", "nvidia/nemotron-3.5-super-vl", 0.1, 0.4]
       ],
       "family": "nemotron",
       "output_limit": 1048576,
@@ -16247,6 +16184,26 @@
       "release_date": "2026-03-11"
     },
     {
+      "id": "nvidia/nemotron-3-super-120b-a12b",
+      "name": "Nemotron 3 Super 120B A12B (Deep Infra)",
+      "vendor": "nvidia",
+      "context_length": 262144,
+      "modalities": { "input": ["text"] },
+      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true },
+      "routes": [
+        ["edenai", "deepinfra/nemotron-3-super-120b-a12b", 0.085, 0.4],
+        ["edenai", "nebius/nvidia/nemotron-3-super-120b-a12b", 0.3, 0.9],
+        ["kenari", "nemotron-3-super-120b-a12b", 0, 0],
+        ["nano-gpt", "nvidia/nemotron-3-super-120b-a12b", 0.05, 0.25],
+        ["nebius", "nvidia/nemotron-3-super-120b-a12b", 0.3, 0.9],
+        ["openrouter", "nvidia/nemotron-3-super-120b-a12b", 0.08, 0.45],
+        ["requesty", "nemotron-3-super-120b-a12b", 0, 0]
+      ],
+      "family": "nemotron",
+      "output_limit": 262144,
+      "release_date": "2026-03-11"
+    },
+    {
       "id": "nvidia/nemotron-3-super-120b-a12b:free",
       "name": "Nemotron 3 Super 120B A12B (Free)",
       "vendor": "nvidia",
@@ -16256,25 +16213,6 @@
       "routes": [
         ["kenari", "nemotron-3-super-120b-a12b:free", 0, 0],
         ["openrouter", "nvidia/nemotron-3-super-120b-a12b:free", 0, 0]
-      ],
-      "family": "nemotron",
-      "output_limit": 262144,
-      "release_date": "2026-03-11"
-    },
-    {
-      "id": "nvidia/nemotron-3-super-120b-a12b",
-      "name": "Nemotron 3 Super 120B A12B (Nebius)",
-      "vendor": "nvidia",
-      "context_length": 262144,
-      "modalities": { "input": ["text"] },
-      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true },
-      "routes": [
-        ["edenai", "nebius/nvidia/nemotron-3-super-120b-a12b", 0.3, 0.9],
-        ["kenari", "nemotron-3-super-120b-a12b", 0, 0],
-        ["nano-gpt", "nvidia/nemotron-3-super-120b-a12b", 0.05, 0.25],
-        ["nebius", "nvidia/nemotron-3-super-120b-a12b", 0.3, 0.9],
-        ["openrouter", "nvidia/nemotron-3-super-120b-a12b", 0.08, 0.45],
-        ["requesty", "nemotron-3-super-120b-a12b", 0, 0]
       ],
       "family": "nemotron",
       "output_limit": 262144,
@@ -16378,7 +16316,7 @@
       "context_length": 1048576,
       "modalities": { "input": ["text", "image"] },
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
-      "routes": [["wandb", "nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B", 0.15, 0.75]],
+      "routes": [["wandb", "nvidia/NVIDIA-Nemotron-3.5-Super-VL-120B-A12B", 0.15, 0.5]],
       "family": "nemotron",
       "output_limit": 1048576,
       "release_date": "2026-10-15"
@@ -16393,6 +16331,18 @@
       "routes": [["openrouter", "nvidia/nemotron-3.5-super-vl:free", 0, 0]],
       "family": "nemotron",
       "output_limit": 131072,
+      "release_date": "2026-10-15"
+    },
+    {
+      "id": "nvidia/nvidia-nemotron-3-5-super-vl",
+      "name": "Nemotron 3.5 Super VL 120B A12B",
+      "vendor": "nvidia",
+      "context_length": 262144,
+      "modalities": { "input": ["text", "image", "video"] },
+      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
+      "routes": [["togetherai", "nvidia/NVIDIA-Nemotron-3.5-Super-VL", 0.15, 0.5]],
+      "family": "nemotron",
+      "output_limit": 262144,
       "release_date": "2026-10-15"
     },
     {
@@ -16729,7 +16679,7 @@
         ["huggingface", "openai/gpt-oss-120b", 0.25, 0.69],
         ["kenari", "gpt-oss-120b", 0, 0],
         ["nano-gpt", "TEE/gpt-oss-120b", 2, 2],
-        ["nano-gpt", "openai/gpt-oss-120b", 0.35, 0.75],
+        ["nano-gpt", "openai/gpt-oss-120b", 0.03, 0.15],
         ["nebius", "openai/gpt-oss-120b", 0.15, 0.6],
         ["novita-ai", "openai/gpt-oss-120b", 0.05, 0.25],
         ["openrouter", "openai/gpt-oss-120b", 0.15, 0.6],
@@ -16786,7 +16736,7 @@
         ["groq", "openai/gpt-oss-20b", 0.075, 0.3],
         ["huggingface", "openai/gpt-oss-20b", 0.1, 0.5],
         ["kenari", "gpt-oss-20b", 0, 0],
-        ["nano-gpt", "openai/gpt-oss-20b", 0.2, 0.3],
+        ["nano-gpt", "openai/gpt-oss-20b", 0.02, 0.1],
         ["openrouter", "openai/gpt-oss-20b", 0.018, 0.09],
         ["opper", "gpt-oss-20b", 0.11622, 0.488124],
         ["ovhcloud", "gpt-oss-20b", 0.05, 0.18],
@@ -18023,7 +17973,7 @@
         ["opper", "gpt-5.6-luna", 0.2, 1.2],
         ["orcarouter", "openai/gpt-5.6-luna", 0.2, 1.2],
         ["requesty", "gpt-5.6-luna", 0.2, 1.2],
-        ["routing-run", "gpt-5.6-luna", 0.7, 4.2],
+        ["standardcompute", "openai/gpt-5.6-luna", 0.2, 1.2],
         ["vivgrid", "gpt-5.6-luna", 1, 6],
         ["zenmux", "openai/gpt-5.6-luna", 1, 6]
       ],
@@ -18069,7 +18019,7 @@
         ["opper", "gpt-5.6-sol", 5, 30],
         ["orcarouter", "openai/gpt-5.6-sol", 4, 20],
         ["requesty", "gpt-5.6-sol", 4, 20],
-        ["routing-run", "gpt-5.6-sol", 2.5, 15],
+        ["standardcompute", "openai/gpt-5.6-sol", 4, 20],
         ["vivgrid", "gpt-5.6-sol", 5, 30],
         ["xpersona", "gpt-5.6-sol", 1.5, 12],
         ["zenmux", "openai/gpt-5.6-sol", 5, 30]
@@ -18113,7 +18063,7 @@
         ["opper", "gpt-5.6-terra", 2, 12],
         ["orcarouter", "openai/gpt-5.6-terra", 2, 12],
         ["requesty", "gpt-5.6-terra", 2, 12],
-        ["routing-run", "gpt-5.6-terra", 1.5, 9],
+        ["standardcompute", "openai/gpt-5.6-terra", 2, 12],
         ["vivgrid", "gpt-5.6-terra", 2.5, 15],
         ["xpersona", "gpt-5.6-terra", 1.5, 2],
         ["zenmux", "openai/gpt-5.6-terra", 2.5, 15]
@@ -18154,6 +18104,7 @@
         ["openrouter", "openai/gpt-6-astra", 10, 50],
         ["opper", "gpt-6-astra", 10, 50],
         ["requesty", "gpt-6-astra", 10, 50],
+        ["standardcompute", "openai/gpt-6-astra", 10, 50],
         ["vivgrid", "gpt-6-astra", 10, 50],
         ["zenmux", "openai/gpt-6-astra", 10, 50]
       ],
@@ -18182,6 +18133,7 @@
         ["openai", "gpt-6-luna", 0.1, 0.5],
         ["openrouter", "openai/gpt-6-luna", 0.1, 0.5],
         ["requesty", "gpt-6-luna", 0.1, 0.5],
+        ["standardcompute", "openai/gpt-6-luna", 0.1, 0.5],
         ["vivgrid", "gpt-6-luna", 0.1, 0.5]
       ],
       "family": "gpt-luna",
@@ -18793,7 +18745,8 @@
       "routes": [
         ["model-oracle-ai", "auto"],
         ["openrouter", "openrouter/auto"],
-        ["orcarouter", "orcarouter/auto", 0, 0]
+        ["orcarouter", "orcarouter/auto", 0, 0],
+        ["trustedrouter", "trustedrouter/auto"]
       ],
       "family": "auto",
       "output_limit": 2000000,
@@ -19227,13 +19180,25 @@
       "release_date": "2025-12-08"
     },
     {
+      "id": "reflection/beam",
+      "name": "Beam 1.0 501B A23B",
+      "vendor": "reflection",
+      "context_length": 1048576,
+      "modalities": { "input": ["text"] },
+      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true },
+      "routes": [["nebius", "reflection/beam", 0.25, 1]],
+      "family": "beam",
+      "output_limit": 131072,
+      "release_date": "2026-10-05"
+    },
+    {
       "id": "reflection/beam-1-0",
       "name": "Beam 1.0 501B A23B",
       "vendor": "reflection",
       "context_length": 1048576,
       "modalities": { "input": ["text"] },
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true },
-      "routes": [["nano-gpt", "reflection/beam-1.0", 1.3, 4.3]],
+      "routes": [["nano-gpt", "reflection/beam-1.0", 0.5, 1.5]],
       "family": "beam",
       "output_limit": 131072,
       "release_date": "2026-10-16"
@@ -19245,9 +19210,13 @@
       "context_length": 1048576,
       "modalities": { "input": ["text"] },
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true },
-      "routes": [["openrouter", "reflection/beam-1.0-501b-a23b", 0.25, 1]],
+      "routes": [
+        ["openrouter", "reflection/beam-1.0-501b-a23b", 1, 3],
+        ["togetherai", "reflection/Beam-1.0-501B-A23B", 0.4, 1.2],
+        ["wandb", "reflection/Beam-1.0-501B-A23B", 1, 3]
+      ],
       "family": "beam",
-      "output_limit": 131072,
+      "output_limit": 943718,
       "release_date": "2026-10-16"
     },
     {
@@ -19529,18 +19498,6 @@
       "release_date": "2026-05-27"
     },
     {
-      "id": "routing-run/nemotron-3-ultra",
-      "name": "Nemotron 3 Ultra 550B A55B",
-      "vendor": "routing-run",
-      "context_length": 131072,
-      "modalities": { "input": ["text"] },
-      "capabilities": { "reasoning": true, "tool_call": true },
-      "routes": [["routing-run", "nemotron-3-ultra", 0.1, 0.1]],
-      "family": "nemotron",
-      "output_limit": 32000,
-      "release_date": "2026-06-04"
-    },
-    {
       "id": "runwayml/runway",
       "name": "Runway",
       "vendor": "runwayml",
@@ -19708,10 +19665,7 @@
       "context_length": 131072,
       "modalities": { "input": ["text"] },
       "capabilities": { "structured_output": true },
-      "routes": [
-        ["aimlapi", "sao10k/l3.3-euryale-70b", 0.89401, 1.03155],
-        ["openrouter", "sao10k/l3.3-euryale-70b", 0.65, 0.75]
-      ],
+      "routes": [["aimlapi", "sao10k/l3.3-euryale-70b", 0.89401, 1.03155]],
       "family": "llama",
       "output_limit": 16384,
       "release_date": "2024-12-18"
@@ -19913,7 +19867,7 @@
       "context_length": 1000000,
       "modalities": { "input": ["text", "image"] },
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
-      "routes": [["standardcompute", "standardcompute", 0, 0]],
+      "routes": [["standardcompute", "standardcompute"]],
       "family": "auto",
       "output_limit": 50000,
       "release_date": "2026-03-01"
@@ -20232,7 +20186,7 @@
         ["kenari", "hy3", 0, 0],
         ["nano-gpt", "tencent/hy3", 0.066, 0.26],
         ["novita-ai", "tencent/hy3", 0.14, 0.58],
-        ["openrouter", "tencent/hy3", 0.0825, 0.33],
+        ["openrouter", "tencent/hy3", 0.132, 0.528],
         ["orcarouter", "tencent/hy3", 0.18, 0.59],
         ["requesty", "hy3", 0.14, 0.58],
         ["siliconflow", "tencent/Hy3", 0.132, 0.528],
@@ -20295,7 +20249,7 @@
         ["huggingface", "tencent/Hy4-preview", 0.834, 2.501],
         ["nano-gpt", "tencent/hy4-preview", 0.834, 2.501],
         ["novita-ai", "tencent/hy4-preview", 0.834, 2.501],
-        ["openrouter", "tencent/hy4-preview", 0.7506, 2.2509],
+        ["openrouter", "tencent/hy4-preview", 0.834, 2.501],
         ["tencent-token-plan", "hy4-preview", 0.834, 2.501],
         ["vancine", "hy4-preview", 0.67, 2]
       ],
@@ -20504,7 +20458,7 @@
       "capabilities": { "structured_output": true },
       "routes": [
         ["aimlapi", "thedrummer/cydonia-24b-v4.1", 0.41262, 0.6877],
-        ["nano-gpt", "TheDrummer/Cydonia-24B-v4.1", 0.35, 0.55],
+        ["nano-gpt", "TheDrummer/Cydonia-24B-v4.1", 0.3, 0.5],
         ["openrouter", "thedrummer/cydonia-24b-v4.1", 0.3, 0.5]
       ],
       "output_limit": 131072,
@@ -20645,7 +20599,7 @@
         ["edenai", "together_ai/thinkingmachines/Inkling", 1, 4.05],
         ["fireworks-ai", "accounts/fireworks/models/inkling", 1, 4.05],
         ["huggingface", "thinkingmachines/Inkling", 1, 4.05],
-        ["nano-gpt", "thinkingmachines/inkling", 1, 4.05],
+        ["nano-gpt", "thinkingmachines/inkling", 0.95, 4.05],
         ["openrouter", "thinkingmachines/inkling", 1, 4.05],
         ["requesty", "inkling", 1.87, 4.68],
         ["togetherai", "thinkingmachines/Inkling", 1, 4.05]
@@ -20680,7 +20634,7 @@
         ["deepinfra", "thinkingmachines/Inkling-Small", 0.45, 1.2],
         ["edenai", "deepinfra/thinkingmachines/Inkling-Small", 0.45, 1.2],
         ["huggingface", "thinkingmachines/Inkling-Small", 0.5, 1.2],
-        ["nano-gpt", "thinkingmachines/Inkling-Small", 0.5, 1.2],
+        ["nano-gpt", "thinkingmachines/Inkling-Small", 0.45, 1.2],
         ["openrouter", "thinkingmachines/inkling-small", 0.45, 1.2]
       ],
       "family": "ling",
@@ -20706,7 +20660,7 @@
       "context_length": 524288,
       "modalities": { "input": ["text", "image", "audio"] },
       "capabilities": { "reasoning": true, "tool_call": true, "attachment": true },
-      "routes": [["nano-gpt", "thinkingmachines/Inkling-Small:thinking", 0.5, 1.2]],
+      "routes": [["nano-gpt", "thinkingmachines/Inkling-Small:thinking", 0.45, 1.2]],
       "family": "ling",
       "output_limit": 32768,
       "release_date": "2026-07-30"
@@ -20718,7 +20672,7 @@
       "context_length": 1048000,
       "modalities": { "input": ["text", "image", "audio"] },
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
-      "routes": [["nano-gpt", "thinkingmachines/inkling:thinking", 1, 4.05]],
+      "routes": [["nano-gpt", "thinkingmachines/inkling:thinking", 0.95, 4.05]],
       "family": "ling",
       "output_limit": 32768,
       "release_date": "2026-07-15"
@@ -20745,6 +20699,72 @@
       "family": "topazlabs",
       "output_limit": 0,
       "release_date": "2024-12-03"
+    },
+    {
+      "id": "trustedrouter/cheap",
+      "name": "Cheap",
+      "vendor": "trustedrouter",
+      "context_length": 1000000,
+      "modalities": { "input": ["text", "image", "pdf"] },
+      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
+      "routes": [["trustedrouter", "trustedrouter/cheap"]],
+      "output_limit": 131072,
+      "release_date": "2026-05-01"
+    },
+    {
+      "id": "trustedrouter/e2e",
+      "name": "End-to-End Encrypted",
+      "vendor": "trustedrouter",
+      "context_length": 1000000,
+      "modalities": { "input": ["text", "image", "pdf"] },
+      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
+      "routes": [["trustedrouter", "trustedrouter/e2e"]],
+      "output_limit": 131072,
+      "release_date": "2026-06-01"
+    },
+    {
+      "id": "trustedrouter/fast",
+      "name": "Fast",
+      "vendor": "trustedrouter",
+      "context_length": 1000000,
+      "modalities": { "input": ["text", "image", "pdf"] },
+      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
+      "routes": [["trustedrouter", "trustedrouter/fast"]],
+      "output_limit": 131072,
+      "release_date": "2026-06-01"
+    },
+    {
+      "id": "trustedrouter/synth",
+      "name": "Synth",
+      "vendor": "trustedrouter",
+      "context_length": 1000000,
+      "modalities": { "input": ["text", "image", "pdf"] },
+      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
+      "routes": [["trustedrouter", "trustedrouter/synth"]],
+      "output_limit": 131072,
+      "release_date": "2026-06-20"
+    },
+    {
+      "id": "trustedrouter/synth-code",
+      "name": "Synth Code",
+      "vendor": "trustedrouter",
+      "context_length": 1000000,
+      "modalities": { "input": ["text", "image", "pdf"] },
+      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
+      "routes": [["trustedrouter", "trustedrouter/synth-code"]],
+      "output_limit": 131072,
+      "release_date": "2026-06-20"
+    },
+    {
+      "id": "trustedrouter/zdr",
+      "name": "Zero Data Retention",
+      "vendor": "trustedrouter",
+      "context_length": 1000000,
+      "modalities": { "input": ["text", "image", "pdf"] },
+      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
+      "routes": [["trustedrouter", "trustedrouter/zdr"]],
+      "output_limit": 131072,
+      "release_date": "2026-06-01"
     },
     {
       "id": "trytako/tako",
@@ -20782,13 +20802,13 @@
       "release_date": "2026-09-17"
     },
     {
-      "id": "unbiased/pareto-26-10-preview",
-      "name": "Pareto 26.10 Preview",
+      "id": "unbiased/pareto-26-10",
+      "name": "Pareto 26.10",
       "vendor": "unbiased",
       "context_length": 1048576,
       "modalities": { "input": ["text", "image"] },
       "capabilities": { "tool_call": true, "attachment": true },
-      "routes": [["nano-gpt", "unbiased/pareto-26.10-preview", 0.8, 3.2]],
+      "routes": [["nano-gpt", "unbiased/pareto-26.10", 0.8, 3.2], ["openrouter", "unbiased/pareto-26.10", 0.8, 3.2]],
       "output_limit": 131072,
       "release_date": "2026-10-01"
     },
@@ -20807,10 +20827,10 @@
       "id": "unbiased/pareto-latest",
       "name": "Pareto Latest",
       "vendor": "unbiased",
-      "context_length": 262144,
+      "context_length": 1048576,
       "modalities": { "input": ["text", "image"] },
       "capabilities": { "tool_call": true, "attachment": true },
-      "routes": [["openrouter", "~unbiased/pareto-latest", 2.5, 7.5]],
+      "routes": [["openrouter", "~unbiased/pareto-latest", 0.8, 3.2]],
       "output_limit": 131072,
       "release_date": "2026-10-13"
     },
@@ -20847,11 +20867,15 @@
       "vendor": "upstage",
       "context_length": 524288,
       "modalities": { "input": ["text"] },
-      "capabilities": { "tool_call": true, "structured_output": true },
-      "routes": [["nano-gpt", "upstage/solar-mini4", 0.05, 0.2], ["openrouter", "upstage/solar-mini4", 0.05, 0.2]],
-      "family": "solar",
+      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true },
+      "routes": [
+        ["nano-gpt", "upstage/solar-mini4", 0.05, 0.2],
+        ["openrouter", "upstage/solar-mini4", 0.05, 0.2],
+        ["upstage", "solar-mini4", 0.1, 0.4]
+      ],
+      "family": "solar-mini",
       "output_limit": 131072,
-      "release_date": "2026-09-23"
+      "release_date": "2026-09-22"
     },
     {
       "id": "upstage/solar-mini4:thinking",
@@ -20861,9 +20885,9 @@
       "modalities": { "input": ["text"] },
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true },
       "routes": [["nano-gpt", "upstage/solar-mini4:thinking", 0.05, 0.2]],
-      "family": "solar",
+      "family": "solar-mini",
       "output_limit": 131072,
-      "release_date": "2026-09-23"
+      "release_date": "2026-09-22"
     },
     {
       "id": "upstage/solar-pro-3",
@@ -21309,7 +21333,7 @@
       "context_length": 2000000,
       "modalities": { "input": ["text", "image"] },
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
-      "routes": [["nano-gpt", "x-ai/grok-4.20", 2, 6], ["openrouter", "x-ai/grok-4.20", 1.25, 2.5]],
+      "routes": [["nano-gpt", "x-ai/grok-4.20", 1.25, 2.5], ["openrouter", "x-ai/grok-4.20", 1.25, 2.5]],
       "family": "grok",
       "output_limit": 131072,
       "release_date": "2026-03-31"
@@ -21350,7 +21374,7 @@
       "modalities": { "input": ["text", "image"] },
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
       "routes": [
-        ["nano-gpt", "x-ai/grok-4.20-multi-agent", 2, 6],
+        ["nano-gpt", "x-ai/grok-4.20-multi-agent", 1.25, 2.5],
         ["openrouter", "x-ai/grok-4.20-multi-agent", 1.25, 2.5],
         ["poe", "xai/grok-4.20-multi-agent", 2, 6]
       ],
@@ -21392,6 +21416,7 @@
         ["opper", "grok-4.3", 1.25, 2.5],
         ["orcarouter", "grok/grok-4.3", 1.25, 2.5],
         ["requesty", "grok-4.3", 1.25, 2.5],
+        ["standardcompute", "x-ai/grok-4.3", 1.25, 2.5],
         ["xai", "grok-4.3", 1.25, 2.5],
         ["zenmux", "x-ai/grok-4.3", 1.25, 2.5]
       ],
@@ -21756,6 +21781,7 @@
         ["novita-ai", "xiaomimimo/mimo-v2.5", 0.168, 0.336],
         ["openrouter", "xiaomi/mimo-v2.5", 0.14, 0.28],
         ["requesty", "mimo-v2.5", 0.14, 0.28],
+        ["standardcompute", "xiaomi/mimo-v2.5", 0.14, 0.28],
         ["zenmux", "xiaomi/mimo-v2.5", 0.4, 2]
       ],
       "family": "mimo",
@@ -21780,6 +21806,7 @@
         ["novita-ai", "xiaomimimo/mimo-v2.5-pro", 0.522, 1.044],
         ["openrouter", "xiaomi/mimo-v2.5-pro", 0.435, 0.87],
         ["requesty", "mimo-v2.5-pro", 0.435, 0.87],
+        ["standardcompute", "xiaomi/mimo-v2.5-pro", 0.435, 0.87],
         ["zenmux", "xiaomi/mimo-v2.5-pro", 1, 3]
       ],
       "family": "mimo",
@@ -21875,6 +21902,7 @@
         ["novita-ai", "xiaomimimo/mimo-v2.6-flash", 0.14, 0.28],
         ["openrouter", "xiaomi/mimo-v2.6-flash", 0.14, 0.28],
         ["requesty", "mimo-v2.6-flash", 0.14, 0.28],
+        ["standardcompute", "xiaomi/mimo-v2.6-flash", 0.14, 0.28],
         ["xiaomi", "mimo-v2.6-flash", 0.14, 0.28],
         ["xiaomi-token-plan-ams", "mimo-v2.6-flash", 0, 0],
         ["xiaomi-token-plan-cn", "mimo-v2.6-flash", 0, 0],
@@ -21901,6 +21929,7 @@
         ["novita-ai", "xiaomimimo/mimo-v2.6-pro", 0.435, 0.87],
         ["openrouter", "xiaomi/mimo-v2.6-pro", 0.435, 0.87],
         ["requesty", "mimo-v2.6-pro", 0.43, 0.87],
+        ["standardcompute", "xiaomi/mimo-v2.6-pro", 0.43, 0.87],
         ["xiaomi", "mimo-v2.6-pro", 0.435, 0.87],
         ["xiaomi-token-plan-ams", "mimo-v2.6-pro", 0, 0],
         ["xiaomi-token-plan-cn", "mimo-v2.6-pro", 0, 0],
@@ -22010,6 +22039,18 @@
       "family": "mimo",
       "output_limit": 4096,
       "release_date": "2025-12-16"
+    },
+    {
+      "id": "xingchen-agi/xing4-0-29b-a4b:free",
+      "name": "Xing4.0 29B A4B (free)",
+      "vendor": "xingchen-agi",
+      "context_length": 262144,
+      "modalities": { "input": ["text"] },
+      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true },
+      "routes": [["openrouter", "xingchen-agi/xing4.0-29b-a4b:free", 0, 0]],
+      "family": "agi",
+      "output_limit": 235929,
+      "release_date": "2026-10-16"
     },
     {
       "id": "xpersona/xpersona-gpt-5-5",
@@ -22173,7 +22214,7 @@
       "context_length": 200000,
       "modalities": { "input": ["text"] },
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true },
-      "routes": [["empiriolabs", "glm-4-5-flash", 0, 0], ["zhipuai", "glm-4.5-flash", 0, 0]],
+      "routes": [["empiriolabs", "glm-4-5-flash", 0, 0]],
       "family": "glm-flash",
       "output_limit": 98304,
       "release_date": "2025-07-28"
@@ -22260,8 +22301,7 @@
       "routes": [
         ["empiriolabs", "glm-4-6v-flash", 0, 0],
         ["huggingface", "zai-org/GLM-4.6V-Flash", 0.3, 0.9],
-        ["zenmux", "z-ai/glm-4.6v-flash", 0.0218, 0.2184],
-        ["zhipuai", "glm-4.6v-flash", 0, 0]
+        ["zenmux", "z-ai/glm-4.6v-flash", 0.0218, 0.2184]
       ],
       "family": "glm-flash",
       "output_limit": 32768,
@@ -22311,8 +22351,7 @@
         ["novita-ai", "zai-org/glm-4.7-flash", 0.07, 0.4],
         ["openrouter", "z-ai/glm-4.7-flash", 0.0605, 0.4],
         ["poe", "novita/glm-4.7-flash"],
-        ["synthetic", "hf:zai-org/GLM-4.7-Flash", 0.1, 0.5],
-        ["zhipuai", "glm-4.7-flash", 0, 0]
+        ["synthetic", "hf:zai-org/GLM-4.7-Flash", 0.1, 0.5]
       ],
       "family": "glm-flash",
       "output_limit": 16384,
@@ -22349,7 +22388,7 @@
       "context_length": 200000,
       "modalities": { "input": ["text"] },
       "capabilities": { "reasoning": true, "tool_call": true },
-      "routes": [["zenmux", "z-ai/glm-4.7-flashx", 0.0728, 0.4367], ["zhipuai", "glm-4.7-flashx", 0.07, 0.4]],
+      "routes": [["zenmux", "z-ai/glm-4.7-flashx", 0.0728, 0.4367]],
       "family": "glm-flash",
       "output_limit": 128000,
       "release_date": "2026-01-19"
@@ -22488,18 +22527,6 @@
       ],
       "family": "glm",
       "output_limit": 262144,
-      "release_date": "2026-06-13"
-    },
-    {
-      "id": "zai/glm-5-2-nitro",
-      "name": "GLM 5.2 Nitro",
-      "vendor": "zai",
-      "context_length": 200000,
-      "modalities": { "input": ["text"] },
-      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true },
-      "routes": [["routing-run", "glm-5.2-nitro", 0.8, 2.4]],
-      "family": "glm",
-      "output_limit": 32000,
       "release_date": "2026-06-13"
     },
     {
@@ -22679,7 +22706,7 @@
       "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true, "attachment": true },
       "routes": [
         ["fireworks-ai", "accounts/fireworks/routers/glm-flash-latest", 0.15, 0.5],
-        ["openrouter", "~z-ai/glm-flash-latest", 0.0244, 0.6872]
+        ["openrouter", "~z-ai/glm-flash-latest", 0.048, 0.16]
       ],
       "family": "glm-flash",
       "output_limit": 131072,
@@ -22695,7 +22722,7 @@
       "routes": [
         ["fireworks-ai", "accounts/fireworks/routers/glm-latest", 1.4, 4.4],
         ["nano-gpt", "z-ai/glm-latest", 0.6, 1.1],
-        ["openrouter", "~z-ai/glm-latest", 0.0608, 4.4],
+        ["openrouter", "~z-ai/glm-latest", 0.042, 6],
         ["the-grid-ai", "glm-latest"]
       ],
       "family": "glm",
@@ -22755,8 +22782,7 @@
         ["openrouter", "z-ai/glm-4.5", 0.6, 2.2],
         ["orcarouter", "z-ai/glm-4.5", 0.6, 2.2],
         ["qiniu-ai", "glm-4.5"],
-        ["zenmux", "z-ai/glm-4.5", 0.2911, 1.1645],
-        ["zhipuai", "glm-4.5", 0.6, 2.2]
+        ["zenmux", "z-ai/glm-4.5", 0.2911, 1.1645]
       ],
       "family": "glm",
       "output_limit": 98304,
@@ -22779,8 +22805,7 @@
         ["siliconflow", "zai-org/GLM-4.5-Air", 0.14, 0.86],
         ["siliconflow-cn", "zai-org/GLM-4.5-Air", 0.14, 0.86],
         ["submodel", "zai-org/GLM-4.5-Air", 0.1, 0.5],
-        ["zenmux", "z-ai/glm-4.5-air", 0.1165, 0.2911],
-        ["zhipuai", "glm-4.5-air", 0.2, 1.1]
+        ["zenmux", "z-ai/glm-4.5-air", 0.1165, 0.2911]
       ],
       "family": "glm-air",
       "output_limit": 98304,
@@ -22812,8 +22837,7 @@
         ["jiekou", "zai-org/glm-4.5v", 0.6, 1.8],
         ["nano-gpt", "z-ai/glm-4.5v", 0.6, 1.8],
         ["novita-ai", "zai-org/glm-4.5v", 0.6, 1.8],
-        ["openrouter", "z-ai/glm-4.5v", 0.6, 1.8],
-        ["zhipuai", "glm-4.5v", 0.6, 1.8]
+        ["openrouter", "z-ai/glm-4.5v", 0.6, 1.8]
       ],
       "family": "glm",
       "output_limit": 16384,
@@ -22834,9 +22858,7 @@
         ["novita-ai", "zai-org/glm-4.6v", 0.3, 0.9],
         ["openrouter", "z-ai/glm-4.6v", 0.3, 0.9],
         ["poe", "novita/glm-4.6v"],
-        ["zenmux", "z-ai/glm-4.6v", 0.1456, 0.4367],
-        ["zhipuai", "glm-4.6v", 0.3, 0.9],
-        ["zhipuai-coding-plan", "glm-4.6v", 0.3, 0.9]
+        ["zenmux", "z-ai/glm-4.6v", 0.1456, 0.4367]
       ],
       "family": "glm",
       "output_limit": 32768,
@@ -22912,8 +22934,7 @@
         ["siliconflow-cn", "Pro/zai-org/GLM-5.1", 1.4, 4.4],
         ["tensorx", "z-ai/glm-5.1", 1.4, 4.4],
         ["tokengo", "z-ai/glm-5.1", 1.4, 4.4],
-        ["zenmux", "z-ai/glm-5.1", 0.8781, 3.5126],
-        ["zhipuai", "glm-5.1", 1.4, 4.4]
+        ["zenmux", "z-ai/glm-5.1", 0.8781, 3.5126]
       ],
       "family": "glm",
       "output_limit": 131072,
@@ -22969,11 +22990,11 @@
         ["opper", "glm-5.2", 1.62708, 5.811],
         ["orcarouter", "z-ai/glm-5.2", 1.4, 4.4],
         ["requesty", "glm-5.2", 0.8, 2.55],
-        ["routing-run", "glm-5.2", 0.8, 2.4],
         ["scaleway", "glm-5.2", 1.8, 5.5],
         ["scnet-token-plan", "GLM-5.2", 0, 0],
         ["siliconflow", "zai-org/GLM-5.2", 1.302, 4.092],
         ["siliconflow-cn", "zai-org/GLM-5.2", 1.4, 4.4],
+        ["standardcompute", "z-ai/glm-5.2", 0.5625, 1.8],
         ["synthetic", "hf:zai-org/GLM-5.2", 1.4, 4.4],
         ["tensorx", "z-ai/glm-5.2", 1.5, 4.5],
         ["togetherai", "zai-org/GLM-5.2", 1.4, 4.4],
@@ -22982,8 +23003,7 @@
         ["vivgrid", "glm-5.2", 1.2, 4.2],
         ["vultr", "glm-5.2", 0.75, 3],
         ["wandb", "zai-org/GLM-5.2", 0.62, 2.42],
-        ["zenmux", "z-ai/glm-5.2", 0.98, 3.08],
-        ["zhipuai", "glm-5.2", 1.4, 4.4]
+        ["zenmux", "z-ai/glm-5.2", 0.98, 3.08]
       ],
       "family": "glm",
       "output_limit": 131072,
@@ -23083,13 +23103,14 @@
         ["nebius", "zai-org/GLM-5.3", 1.4, 4.4],
         ["neuralwatt", "glm-5.3", 1.45, 4.5],
         ["novita-ai", "zai-org/glm-5.3", 1.4, 4.4],
-        ["openrouter", "z-ai/glm-5.3", 0.079, 4.8],
+        ["openrouter", "z-ai/glm-5.3", 0.079, 1.4],
         ["opper", "glm-5.3", 1.75, 4.6488],
         ["orcarouter", "z-ai/glm-5.3", 1.26, 3.96],
         ["requesty", "glm-5.3", 1.2, 4.2],
         ["scaleway", "glm-5.3", 2.01, 6.15],
         ["scnet-token-plan", "GLM-5.3", 0, 0],
         ["siliconflow", "zai-org/GLM-5.3", 1.4, 4.4],
+        ["standardcompute", "z-ai/glm-5.3", 1.4, 4.4],
         ["synthetic", "hf:zai-org/GLM-5.3", 1.4, 4.4],
         ["tensorx", "z-ai/glm-5.3", 1.75, 4.5],
         ["tinfoil", "glm-5-3", 1.8, 5.75],
@@ -23099,9 +23120,7 @@
         ["vivgrid", "glm-5.3", 1.2, 4.2],
         ["vultr", "glm-5.3", 0.75, 3],
         ["wandb", "zai-org/GLM-5.3", 1.2, 4],
-        ["zenmux", "z-ai/glm-5.3", 1.4, 4.4],
-        ["zhipuai", "glm-5.3", 1.4, 4.4],
-        ["zhipuai-coding-plan", "glm-5.3", 0, 0]
+        ["zenmux", "z-ai/glm-5.3", 1.4, 4.4]
       ],
       "family": "glm",
       "output_limit": 131072,
@@ -23168,18 +23187,6 @@
       "release_date": "2026-08-26"
     },
     {
-      "id": "zai/glm-5-3-highspeed",
-      "name": "GLM-5.3 Highspeed",
-      "vendor": "zai",
-      "context_length": 1000000,
-      "modalities": { "input": ["text"] },
-      "capabilities": { "reasoning": true, "tool_call": true, "structured_output": true },
-      "routes": [["zhipuai-coding-plan", "glm-5.3-highspeed", 0, 0]],
-      "family": "glm",
-      "output_limit": 131072,
-      "release_date": "2026-08-14"
-    },
-    {
       "id": "zai/glm-5-3-flash",
       "name": "GLM-5.3-Flash",
       "vendor": "zai",
@@ -23210,12 +23217,13 @@
         ["nebius", "zai-org/GLM-5.3-Flash", 0.15, 0.5],
         ["neuralwatt", "glm-5.3-flash", 0.15, 0.5],
         ["novita-ai", "zai-org/glm-5.3-flash", 0.15, 0.5],
-        ["openrouter", "z-ai/glm-5.3-flash", 0.0244, 0.6872],
+        ["openrouter", "z-ai/glm-5.3-flash", 0.048, 0.16],
         ["opper", "glm-5.3-flash", 0.2, 0.5],
         ["orcarouter", "z-ai/glm-5.3-flash", 0.075, 0.25],
         ["requesty", "glm-5.3-flash", 0.2, 0.6],
         ["scnet-token-plan", "GLM-5.3-Flash", 0, 0],
         ["siliconflow", "zai-org/GLM-5.3-Flash", 0.15, 0.5],
+        ["standardcompute", "z-ai/glm-5.3-flash", 0.08, 0.5],
         ["synthetic", "hf:zai-org/GLM-5.3-Flash", 0.15, 0.5],
         ["tensorx", "z-ai/glm-5.3-flash", 0.2, 0.5],
         ["togetherai", "zai-org/GLM-5.3-Flash", 0.15, 0.5],
@@ -23224,9 +23232,7 @@
         ["vivgrid", "glm-5.3-flash", 0.15, 0.5],
         ["vultr", "glm-5.3-flash", 0.1, 0.35],
         ["wandb", "zai-org/GLM-5.3-Flash", 0.15, 0.5],
-        ["zenmux", "z-ai/glm-5.3-flash", 0.15, 0.5],
-        ["zhipuai", "glm-5.3-flash", 0.15, 0.5],
-        ["zhipuai-coding-plan", "glm-5.3-flash", 0, 0]
+        ["zenmux", "z-ai/glm-5.3-flash", 0.15, 0.5]
       ],
       "family": "glm-flash",
       "output_limit": 131072,
@@ -23302,8 +23308,7 @@
       "routes": [
         ["commandcode", "z-ai/glm-5.3-flashx", 0.37, 1.25],
         ["openrouter", "z-ai/glm-5.3-flashx", 0.37, 1.25],
-        ["zenmux", "z-ai/glm-5.3-flashx", 0.375, 1.25],
-        ["zhipuai", "glm-5.3-flashx", 0.37, 1.25]
+        ["zenmux", "z-ai/glm-5.3-flashx", 0.375, 1.25]
       ],
       "family": "glm-flash",
       "output_limit": 131072,
@@ -23324,8 +23329,7 @@
         ["openrouter", "z-ai/glm-5v-turbo", 1.2, 4],
         ["siliconflow", "zai-org/GLM-5V-Turbo", 1.2, 4],
         ["tensorx", "z-ai/glm-5v-turbo", 1.2, 4],
-        ["zenmux", "z-ai/glm-5v-turbo", 0.726, 3.1946],
-        ["zhipuai", "glm-5v-turbo", 5, 22]
+        ["zenmux", "z-ai/glm-5v-turbo", 0.726, 3.1946]
       ],
       "family": "glm",
       "output_limit": 131072,
@@ -23371,12 +23375,11 @@
         ["modelscope", "ZhipuAI/GLM-4.6", 0, 0],
         ["nano-gpt", "z-ai/glm-4.6", 0.5, 2],
         ["novita-ai", "zai-org/glm-4.6", 0.55, 2.2],
-        ["openrouter", "z-ai/glm-4.6", 0.5, 2],
+        ["openrouter", "z-ai/glm-4.6", 0.55, 2.2],
         ["orcarouter", "z-ai/glm-4.6", 0.6, 2.2],
         ["poe", "novita/glm-4.6"],
         ["qiniu-ai", "z-ai/glm-4.6"],
-        ["zenmux", "z-ai/glm-4.6", 0.2911, 1.1645],
-        ["zhipuai", "glm-4.6", 0.6, 2.2]
+        ["zenmux", "z-ai/glm-4.6", 0.2911, 1.1645]
       ],
       "family": "glm",
       "output_limit": 131072,
@@ -23403,11 +23406,10 @@
         ["moark", "GLM-4.7", 0.42, 2.2],
         ["nano-gpt", "z-ai/glm-4.7", 0.4004, 1.9292],
         ["novita-ai", "zai-org/glm-4.7", 0.6, 2.2],
-        ["openrouter", "z-ai/glm-4.7", 0.6, 2.2],
+        ["openrouter", "z-ai/glm-4.7", 0.54, 1.98],
         ["orcarouter", "z-ai/glm-4.7", 0.6, 2.2],
         ["qiniu-ai", "z-ai/glm-4.7"],
-        ["zenmux", "z-ai/glm-4.7", 0.2911, 1.1645],
-        ["zhipuai", "glm-4.7", 0.6, 2.2]
+        ["zenmux", "z-ai/glm-4.7", 0.2911, 1.1645]
       ],
       "family": "glm",
       "output_limit": 131072,
@@ -23455,8 +23457,7 @@
         ["tencent-coding-plan", "glm-5", 0, 0],
         ["tensorx", "z-ai/glm-5", 1, 3.2],
         ["tokengo", "z-ai/glm-5", 0.89, 3.2647],
-        ["zenmux", "z-ai/glm-5", 0.58, 2.6],
-        ["zhipuai", "glm-5", 1, 3.2]
+        ["zenmux", "z-ai/glm-5", 0.58, 2.6]
       ],
       "family": "glm",
       "output_limit": 131072,
@@ -23528,6 +23529,7 @@
     "coralbricks": "https://inference.coralbricks.ai/v1",
     "crof": "https://crof.ai/v1",
     "crusoe": "https://api.inference.crusoecloud.com/v1",
+    "echo": "https://echo.tracerml.ai/v1",
     "evroc": "https://models.think.evroc.com/v1",
     "freemodel": "https://cc.freemodel.dev/v1",
     "friendli": "https://api.friendli.ai/serverless/v1",
@@ -23565,6 +23567,7 @@
     "modal": "https://inference.us-west.modal.direct/v1",
     "modelis": "https://modelishub.com/v1",
     "morph": "https://api.morphllm.com/v1",
+    "neosmith": "https://router.neosmith.ai/v1",
     "nvidia": "https://integrate.api.nvidia.com/v1",
     "ofox": "https://api.ofox.ai/v1",
     "ollama-cloud": "https://ollama.com/v1",
@@ -23577,6 +23580,7 @@
     "pioneer": "https://api.fastino.ai/v1",
     "prime": "https://api.pinference.ai/api/v1",
     "reflection": "https://api.reflection.ai/openai/v1",
+    "routing-run": "https://api.routing.run/v1",
     "runinfra": "https://api.runinfra.ai/v1",
     "sakana": "https://api.sakana.ai/v1",
     "sambanova": "https://api.sambanova.ai/v1",
@@ -23590,13 +23594,14 @@
     "tencent-tokenhub": "https://tokenhub.tencentmaas.com/v1",
     "thinkingmachines": "https://tinker.thinkingmachines.dev/services/tinker-prod/anthropic/api/v1",
     "tokenrouter": "https://api.tokenrouter.com/v1",
-    "trustedrouter": "https://api.trustedrouter.com/v1",
     "umans-ai": "https://api.code.umans.ai/v1",
     "umans-ai-coding-plan": "https://api.code.umans.ai/v1",
     "volcengine-coding-plan": "https://ark.cn-beijing.volces.com/api/coding/v3",
     "wafer.ai": "https://pass.wafer.ai/v1",
     "zai": "https://api.z.ai/api/paas/v4",
     "zai-coding-plan": "https://api.z.ai/api/coding/paas/v4",
-    "zenifra": "https://ai.zenifra.com/v1"
+    "zenifra": "https://ai.zenifra.com/v1",
+    "zhipuai": "https://open.bigmodel.cn/api/paas/v4",
+    "zhipuai-coding-plan": "https://open.bigmodel.cn/api/coding/paas/v4"
   }
 }
