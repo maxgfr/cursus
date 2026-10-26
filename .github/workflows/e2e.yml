@@ -1,5 +1,6 @@
 name: E2E
-# Playwright on every device class, one job per project in parallel. Not a release gate: a red run is
+# Playwright on every device class, each project split into shards that run in parallel (a WebKit project in one
+# job takes a quarter of an hour). Not a release gate: a red run is
 # reported here and fixed, but it does not hold back a release or a deploy.
 on:
   push:
@@ -16,6 +17,7 @@ jobs:
       fail-fast: false
       matrix:
         project: [chromium-desktop, webkit-desktop, webkit-iphone, webkit-ipad]
+        shard: [1, 2, 3]
     steps:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
@@ -26,10 +28,10 @@ jobs:
       - run: bunx playwright install --with-deps chromium webkit
       - run: docker version
       - run: bun run build
-      - run: bun run test:e2e --project=${{ matrix.project }}
+      - run: bun run test:e2e --project=${{ matrix.project }} --shard=${{ matrix.shard }}/3
       - if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: report-${{ matrix.project }}
+          name: report-${{ matrix.project }}-${{ matrix.shard }}
           path: playwright-report/
           if-no-files-found: ignore
