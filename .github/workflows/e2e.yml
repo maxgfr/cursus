@@ -1,7 +1,8 @@
 name: E2E
 # Playwright on every device class, each project split into shards that run in parallel (a WebKit project in one
-# job takes a quarter of an hour). Not a release gate: a red run is
-# reported here and fixed, but it does not hold back a release or a deploy.
+# job takes a quarter of an hour). The tests run in Playwright's own image, browsers and their system libraries
+# included: installing those libraries from the runner's apt mirror took up to an hour. Not a release gate: a red
+# run is reported here and fixed, but it does not hold back a release or a deploy.
 on:
   push:
     branches: [main]
@@ -24,11 +25,19 @@ jobs:
         with:
           bun-version: 1.4.3
       - run: bun install --frozen-lockfile
-      # Both engines in every job: some specs pair a Chromium device with a WebKit one.
-      - run: bunx playwright install --with-deps chromium webkit
       - run: docker version
       - run: bun run build
-      - run: bun run test:e2e --project=${{ matrix.project }} --shard=${{ matrix.shard }}/3
+      # The image of the Playwright version in the lockfile; the S3 emulator runs beside it, on the runner's
+      # network. The runner's Bun runs inside (as `bun` and as `bunx`).
+      - run: |
+          version=$(bun -e "console.log(require('@playwright/test/package.json').version)")
+          bun_bin=$(command -v bun)
+          bun scripts/with-s3.ts docker run --rm --init --ipc=host --network=host \
+            --user "$(id -u):$(id -g)" -e HOME=/tmp -e CI \
+            -v "$PWD:$PWD" -w "$PWD" \
+            -v "$bun_bin:/usr/local/bin/bun:ro" -v "$bun_bin:/usr/local/bin/bunx:ro" \
+            "mcr.microsoft.com/playwright:v$version-noble" \
+            bunx playwright test --project=${{ matrix.project }} --shard=${{ matrix.shard }}/3
       - if: always()
         uses: actions/upload-artifact@v7
         with:

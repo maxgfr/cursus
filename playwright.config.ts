@@ -2,6 +2,8 @@ import { defineConfig, devices } from '@playwright/test'
 
 const port = 4173
 const base = process.env.VITE_BASE ?? '/cursus/'
+/** Specs that launch their own Chromium and WebKit devices, whatever the project: run once, with the first one. */
+const ownDevices = ['sync-two-devices.spec.ts']
 
 export default defineConfig({
   testDir: 'e2e',
@@ -26,8 +28,8 @@ export default defineConfig({
       name: 'chromium-desktop',
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
-    { name: 'webkit-desktop', use: { ...devices['Desktop Safari'] } },
-    { name: 'webkit-iphone', use: { ...devices['iPhone 15'] } },
-    { name: 'webkit-ipad', use: { ...devices['iPad Pro 11 landscape'] } },
+    { name: 'webkit-desktop', use: { ...devices['Desktop Safari'] }, testIgnore: ownDevices },
+    { name: 'webkit-iphone', use: { ...devices['iPhone 15'] }, testIgnore: ownDevices },
+    { name: 'webkit-ipad', use: { ...devices['iPad Pro 11 landscape'] }, testIgnore: ownDevices },
   ],
 })
