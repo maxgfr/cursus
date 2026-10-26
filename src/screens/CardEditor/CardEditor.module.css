@@ -1,6 +1,7 @@
 .side {
   display: grid;
   gap: var(--space-2);
+  scroll-margin-top: var(--space-4);
 }
 
 .label {
@@ -75,7 +76,8 @@
   font-size: var(--text-footnote);
 }
 
-/* Save: top right on iPad and Mac, in the thumb zone at the bottom on iPhone. */
+/* Save: top right on Mac, in the thumb zone at the bottom on iPhone and iPad (a touch screen, in a window of any
+   width), above the keyboard while it is up. */
 .top {
   display: flex;
   gap: var(--space-2);
@@ -85,7 +87,7 @@
   display: none;
 }
 
-@media (max-width: 599px) {
+@media (max-width: 599px), (any-pointer: coarse) {
   .top {
     display: none;
   }
@@ -96,17 +98,45 @@
     z-index: 2;
     display: flex;
     flex-wrap: wrap;
+    justify-content: flex-end;
     gap: var(--space-2);
-  }
-
-  /* Side by side when both fit, else « Save and add another » under Save, nearest the thumb. */
-  .bottom > button {
-    flex: 1 1 auto;
   }
 
   /* Two buttons: one block, the text scrolling under it never shows between them. */
   .pair {
     border-radius: var(--radius-control);
     background: var(--bg);
+  }
+}
+
+@media (max-width: 599px) {
+  /* Side by side when both fit, else « Save and add another » under Save, nearest the thumb. */
+  .bottom > button {
+    flex: 1 1 auto;
+  }
+}
+
+/* No tab bar beside the sidebar. */
+@media (min-width: 1000px) {
+  .bottom {
+    bottom: calc(env(safe-area-inset-bottom) + var(--space-3));
+  }
+}
+
+/* The tab bar steps aside for the keyboard: the buttons sit on top of it instead. */
+:global(html[data-keyboard]) .bottom {
+  bottom: calc(var(--kb-inset) + var(--space-3));
+}
+
+/* Room under the card on a touch screen: the keyboard covers the bottom of the screen, and the back must still
+   scroll above it. An iPad window does not always say the keyboard is up, so this room is always there. */
+.room {
+  display: none;
+}
+
+@media (any-pointer: coarse) {
+  .room {
+    display: block;
+    height: 40dvh;
   }
 }

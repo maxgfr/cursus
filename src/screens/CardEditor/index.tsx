@@ -1,5 +1,5 @@
 import { FolderInput, History, Share, Trash2, Wand2 } from 'lucide-react'
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type FocusEvent, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'wouter'
 import * as Y from 'yjs'
 import { lazyChunk, nothing } from '../../app/lazyChunk.tsx'
@@ -68,6 +68,18 @@ function scratch(f: CardFields): Draft {
 }
 
 const MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.userAgent)
+const TOUCH = typeof matchMedia !== 'undefined' && matchMedia('(any-pointer: coarse)').matches
+
+/**
+ * A face taken low on a touch screen comes up to its top: the keyboard is about to cover the bottom of the screen,
+ * and an iPad window does not always say so (nothing would then bring the caret above it).
+ */
+function raise(e: FocusEvent<HTMLElement>) {
+  if (!TOUCH || !(e.target instanceof HTMLElement) || !e.target.isContentEditable) return
+  const side = e.currentTarget
+  const visible = window.visualViewport?.height ?? window.innerHeight
+  if (side.getBoundingClientRect().top > visible / 2) side.scrollIntoView({ block: 'start' })
+}
 
 /** The next new card after « Save and add another »: written in the same place, of the same kind. */
 interface Next {
@@ -504,7 +516,7 @@ function Editor({ id, next, onNext }: { id: string; next: Next | null; onNext: (
                 { value: 'cloze', label: t('course.kindCloze') },
               ]}
             />
-            <section className={styles.side} aria-labelledby="card-front">
+            <section className={styles.side} aria-labelledby="card-front" onFocus={raise}>
               <h2 id="card-front" className={styles.label}>
                 {kind === 'cloze' ? t('course.clozeText') : t('course.front')}
               </h2>
@@ -526,7 +538,7 @@ function Editor({ id, next, onNext }: { id: string; next: Next | null; onNext: (
               />
             </section>
             {kind === 'cloze' && <ClozePreview value={fields.front} />}
-            <section className={styles.side} aria-labelledby="card-back">
+            <section className={styles.side} aria-labelledby="card-back" onFocus={raise}>
               <h2 id="card-back" className={styles.label}>
                 {kind === 'cloze' ? t('course.extra') : t('course.back')}
               </h2>
@@ -585,6 +597,7 @@ function Editor({ id, next, onNext }: { id: string; next: Next | null; onNext: (
           </div>
         )}
         <div className={cx(styles.bottom, newCourse !== null && styles.pair)}>{saveButtons}</div>
+        <div className={styles.room} aria-hidden="true" />
         {improving && (
           <Suspense fallback={null}>
             <ImproveSheet cardId={id} revealed onClose={() => setImproving(false)} onUsed={setRewritten} />

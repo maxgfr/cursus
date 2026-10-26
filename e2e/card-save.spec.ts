@@ -339,3 +339,86 @@ test('« Save and add another » writes cards on the fly: each one saved, the ne
   await expect(page.getByRole('heading', { level: 1, name: 'Anatomy' })).toBeVisible()
   expect(page.url()).toBe(course)
 })
+
+/** Where the back face starts, in viewport pixels, and the viewport's height. */
+const backTop = (page: Page) =>
+  page.evaluate(() => ({
+    top: document.querySelector('[aria-labelledby="card-back"]')?.getBoundingClientRect().top ?? -1,
+    height: window.innerHeight,
+  }))
+
+test('on a touch screen, Save sits at the bottom and the back comes up above where the keyboard rises', async ({
+  page,
+}, info) => {
+  const touch = info.project.use.hasTouch === true
+  // An iPad in a half-screen window: wider than a phone, a touch screen all the same.
+  if (info.project.name === 'webkit-ipad') await page.setViewportSize({ width: 680, height: 1000 })
+  await createCourse(page, 'Psychology')
+  await page.getByRole('radio', { name: 'Cards' }).check()
+  await newCard(page).click()
+  const saveNext = page.getByRole('button', { name: 'Save and add another', exact: true })
+  const front = page.getByRole('textbox', { name: 'Front' })
+  await expect(front).toBeFocused()
+  const below = async () => {
+    const [button, editor] = await Promise.all([saveNext.boundingBox(), front.boundingBox()])
+    return (button?.y ?? 0) > (editor?.y ?? 0)
+  }
+  // At the bottom of the screen on a touch screen (in reach once the back is written), in the header on a Mac.
+  expect(await below()).toBe(touch)
+
+  // The back, low on the screen as the keyboard is about to cover it: once focused, it comes up (on a touch
+  // screen), though nothing says a keyboard rose.
+  await page.evaluate(() => {
+    const side = document.querySelector('[aria-labelledby="card-back"]')
+    if (side) window.scrollBy(0, side.getBoundingClientRect().top - window.innerHeight * 0.75)
+  })
+  const before = await backTop(page)
+  expect(before.top).toBeGreaterThan(before.height / 2)
+  await page.getByRole('textbox', { name: 'Back' }).focus()
+  await page.keyboard.type('Anna O.')
+  await expect(page.getByRole('textbox', { name: 'Back' })).toHaveText('Anna O.')
+  if (touch) {
+    const after = await backTop(page)
+    expect(after.top).toBeLessThan(after.height * 0.4)
+    await expect(saveNext).toBeInViewport()
+  }
+})
+
+test('on a touch screen, Save stays above the keyboard while it is up', async ({ page }, info) => {
+  test.skip(info.project.use.hasTouch !== true, 'the buttons are in the header without a touch screen')
+  // The on-screen keyboard, simulated: the visual viewport shrinks while the layout one keeps its height.
+  await page.addInitScript(() => {
+    const target = new EventTarget()
+    let inset = 0
+    const vv = Object.defineProperties(target, {
+      height: { get: () => window.innerHeight - inset },
+      width: { get: () => window.innerWidth },
+      offsetTop: { value: 0 },
+      offsetLeft: { value: 0 },
+      pageTop: { get: () => window.scrollY },
+      pageLeft: { get: () => window.scrollX },
+      scale: { value: 1 },
+    })
+    Object.defineProperty(window, 'visualViewport', { get: () => vv, configurable: true })
+    Object.defineProperty(window, '__keyboard', {
+      value: (px: number) => {
+        inset = px
+        target.dispatchEvent(new Event('resize'))
+      },
+    })
+  })
+  await createCourse(page, 'Psychology')
+  await page.getByRole('radio', { name: 'Cards' }).check()
+  await newCard(page).click()
+  await expect(page.getByRole('textbox', { name: 'Front' })).toBeFocused()
+  const keyboard = Math.round((page.viewportSize()?.height ?? 800) * 0.4)
+  await page.evaluate((px) => (window as unknown as { __keyboard: (px: number) => void }).__keyboard(px), keyboard)
+  const saveNext = page.getByRole('button', { name: 'Save and add another', exact: true })
+  await expect
+    .poll(async () => {
+      const box = await saveNext.boundingBox()
+      const top = (page.viewportSize()?.height ?? 800) - keyboard
+      return box !== null && box.y + box.height <= top && box.y + box.height > top - 80
+    })
+    .toBe(true)
+})
