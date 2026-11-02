@@ -32,9 +32,9 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: Refresh the AI model catalog from llm-models
         # Fresh at every deploy, no weekly PR. If llm-models or an API is down, or the
-        # new catalog fails its check, the committed snapshot ships unchanged.
+        # new catalog fails a unit test, the committed snapshot ships unchanged.
         run: |
-          if bun run catalog && bun test src/core/ai/catalog.test.ts; then
+          if bun run catalog && bun test src; then
             echo "Catalog refreshed." >> "$GITHUB_STEP_SUMMARY"
           else
             git checkout -- src/core/ai/catalog.json
