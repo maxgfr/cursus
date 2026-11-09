@@ -1,6 +1,8 @@
 import { execSync } from 'node:child_process'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { pwaOptions } from './pwa.config.ts'
 import { FORMAT_VERSION, READABLE_VERSIONS } from './src/core/log/codec.ts'
@@ -56,6 +58,49 @@ const version = process.env.APP_VERSION || git('describe --tags --abbrev=0')?.re
 /** The short commit built: CI's `GITHUB_SHA`, else git's HEAD, else `dev`. */
 const commit = process.env.GITHUB_SHA?.slice(0, 7) || git('rev-parse --short HEAD') || 'dev'
 
+/**
+ * What pdf.js fetches for the PDFs that need it: image decoders (JPEG 2000, JBIG2 and CCITT scans), character maps
+ * and standard fonts (fonts a PDF does not embed), ICC profiles. pdf.js joins a folder's URL with fixed file names,
+ * so these keep their names, in a folder named after the pdf.js version (`openPdf` points at it); the service worker
+ * precaches them.
+ */
+const PDFJS_DIST = 'node_modules/pdfjs-dist'
+const PDFJS_VERSION: string = JSON.parse(readFileSync(join(PDFJS_DIST, 'package.json'), 'utf8')).version
+const PDFJS_PUBLIC = `assets/pdfjs/${PDFJS_VERSION}/`
+const PDFJS_ASSETS: Readonly<Record<string, RegExp>> = {
+  cmaps: /\.bcmap$/,
+  standard_fonts: /\.(pfb|ttf)$/,
+  wasm: /^(jbig2|openjpeg|qcms_bg)[._]/,
+  iccs: /\.icc$/,
+}
+
+function pdfjsAssets(): Plugin {
+  const files = new Map<string, string>(
+    Object.entries(PDFJS_ASSETS).flatMap(([dir, keep]) =>
+      readdirSync(join(PDFJS_DIST, dir))
+        .filter((name) => keep.test(name))
+        .map((name) => [`${dir}/${name}`, join(PDFJS_DIST, dir, name)] as const),
+    ),
+  )
+  return {
+    name: 'cursus-pdfjs-assets',
+    configureServer(server) {
+      const root = `${base}${PDFJS_PUBLIC}`
+      server.middlewares.use((req, res, next) => {
+        const path = req.url?.split('?')[0] ?? ''
+        const file = path.startsWith(root) ? files.get(path.slice(root.length)) : undefined
+        if (file === undefined) return next()
+        res.end(readFileSync(file))
+      })
+    },
+    generateBundle() {
+      for (const [path, file] of files) {
+        this.emitFile({ type: 'asset', fileName: `${PDFJS_PUBLIC}${path}`, source: readFileSync(file) })
+      }
+    },
+  }
+}
+
 export default defineConfig({
   base,
   // What Settings › General shows as this build (src/app/buildInfo.ts); the sync format comes from the codec.
@@ -65,6 +110,6 @@ export default defineConfig({
     __APP_BUILT_AT__: JSON.stringify(new Date().toISOString()),
     __APP_FORMAT__: JSON.stringify({ writes: FORMAT_VERSION, reads: READABLE_VERSIONS }),
   },
-  plugins: [react(), VitePWA(withLocalEngineAtRuntime(pwaOptions(base)))],
+  plugins: [react(), pdfjsAssets(), VitePWA(withLocalEngineAtRuntime(pwaOptions(base)))],
   build: { target: 'es2022' },
 })

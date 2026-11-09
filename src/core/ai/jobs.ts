@@ -107,8 +107,16 @@ export interface JobsDeps {
   network: { online(): boolean; subscribe?(fn: () => void): () => void }
   /** The configured model, or null when none is set up (or not usable on this device). */
   model(): Promise<JobModel | null>
-  /** The source's units (decks, documents, PDFs, notes, a photo) the options cover; null when it cannot be read here. */
-  content(source: SourceRecord, signal: AbortSignal, options?: JobOptions): Promise<SourceContent | null>
+  /**
+   * The source's units (decks, documents, PDFs, notes, a photo) the options cover; null when it cannot be read here.
+   * For an `estimate`, pictures only need counting: nothing has to be drawn.
+   */
+  content(
+    source: SourceRecord,
+    signal: AbortSignal,
+    options: JobOptions | undefined,
+    purpose: 'estimate' | 'run',
+  ): Promise<SourceContent | null>
   /** Generators by source kind (e.g. `image`: a `photoToCards` adapter); `deckQuestions` otherwise. */
   generators?: Partial<Record<SourceRecord['kind'], QuestionGenerator>>
 }
@@ -458,7 +466,7 @@ class JobQueue implements AiJobs {
     if (plan === 'source-gone') return { kind: 'source-gone' }
     const model = await this.deps.model()
     if (!model) return { kind: 'needs-model' }
-    const prepared = await this.prepare(plan, model, [], new AbortController().signal, chosen)
+    const prepared = await this.prepare(plan, model, [], new AbortController().signal, 'estimate', chosen)
     if (!prepared) return { kind: 'empty' }
     return { kind: 'ok', estimate: prepared.estimate, local: model.local }
   }
@@ -470,9 +478,10 @@ class JobQueue implements AiJobs {
     model: JobModel,
     done: readonly number[],
     signal: AbortSignal,
+    purpose: 'estimate' | 'run',
     options?: JobOptions,
   ): Promise<Prepared | null> {
-    const read = await this.deps.content(plan.source, signal, options)
+    const read = await this.deps.content(plan.source, signal, options, purpose)
     // Only the units asked for, whatever the reader gave.
     const asked = options?.units === undefined ? null : new Set(options.units)
     const content = read && asked ? { ...read, units: read.units.filter((u) => asked.has(u.index)) } : read
@@ -514,7 +523,7 @@ class JobQueue implements AiJobs {
     let total = job.progress.total
     try {
       await set({ status: 'running', model: modelName(model.info), error: undefined })
-      const prepared = await this.prepare(plan, model, [...done], controller.signal, job.options)
+      const prepared = await this.prepare(plan, model, [...done], controller.signal, 'run', job.options)
       if (!prepared) {
         await set({ status: 'done', outcome: 'empty' })
         return

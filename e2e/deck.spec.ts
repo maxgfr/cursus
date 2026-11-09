@@ -16,6 +16,7 @@ const DECKS = join(import.meta.dirname, '..', 'tests', 'fixtures', 'content')
 interface Part {
   type: string
   text?: string
+  image_url?: { url: string }
 }
 interface Body {
   messages: { role: string; content: string | Part[] }[]
@@ -73,7 +74,7 @@ interface Calls {
 }
 
 /** An OpenAI-compatible provider answering the deck-questions call; `hold` keeps those calls pending. */
-async function mockProvider(page: Page, o: { hold?: Promise<void> } = {}): Promise<Calls> {
+async function mockProvider(page: Page, o: { hold?: Promise<void>; vision?: boolean } = {}): Promise<Calls> {
   const calls: Calls = { questions: [] }
   await page.route(`${LLM}/**`, async (route: Route) => {
     const req = route.request()
@@ -110,7 +111,7 @@ async function mockProvider(page: Page, o: { hold?: Promise<void> } = {}): Promi
               name: 'Claude Haiku 5.5',
               limit: { context: 1_000_000, output: 128_000 },
               cost: { input: 0.1, output: 0.5 },
-              modalities: { input: ['text'] },
+              modalities: { input: o.vision ? ['text', 'image'] : ['text'] },
               structured_output: true,
               release_date: '2026-10-07',
             },
@@ -349,6 +350,41 @@ test('a PDF of slides with a text-only model: notice, offline state, stop and re
     await page.getByRole('button', { name: 'Dismiss' }).click()
   }
   await expect(page.getByRole('heading', { name: 'No suggested cards' })).toBeVisible()
+})
+
+test('a PDF of JPEG 2000, CCITT and JBIG2 scans and an unembedded font: read, and every page drawn for the model', async ({
+  page,
+}) => {
+  const calls = await mockProvider(page, { vision: true })
+  await configureAi(page, LLM)
+  await page.getByRole('button', { name: 'Refresh catalog' }).click()
+  await expect(page.getByText('Catalog updated.')).toBeVisible()
+  await openImport(page, 'Scans')
+
+  await page.getByLabel('Add files').setInputFiles(join(import.meta.dirname, 'fixtures', 'hard-pdf.pdf'))
+  await expect(page.getByText('日本語の講義').first()).toBeVisible()
+  await page.getByRole('main').getByRole('button', { name: 'Create cards' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Create cards' })
+  await sheet.getByRole('button', { name: 'Create cards' }).click()
+  await expect.poll(() => calls.questions.length).toBe(1)
+
+  const urls = (calls.questions[0] as Body).messages.flatMap((m) =>
+    typeof m.content === 'string' ? [] : m.content.flatMap((c) => (c.image_url ? [c.image_url.url] : [])),
+  )
+  expect(urls).toHaveLength(4)
+  for (const url of urls) {
+    const ink = await page.evaluate(async (src) => {
+      const bitmap = await createImageBitmap(await (await fetch(src)).blob())
+      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
+      const context = canvas.getContext('2d') as OffscreenCanvasRenderingContext2D
+      context.drawImage(bitmap, 0, 0)
+      const { data } = context.getImageData(0, 0, bitmap.width, bitmap.height)
+      let dark = 0
+      for (let i = 0; i < data.length; i += 4) if ((data[i] ?? 255) < 128) dark++
+      return dark / (data.length / 4)
+    }, url)
+    expect(ink).toBeGreaterThan(0.002)
+  }
 })
 
 test('a PDF kept as a mere file is read in the app in place: same source, notes kept', async ({ page }) => {

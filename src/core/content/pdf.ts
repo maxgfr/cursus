@@ -26,6 +26,20 @@ function loadPdfJs(): Promise<PdfJs> {
   return pdfjsPromise
 }
 
+/**
+ * Where pdf.js fetches what only some PDFs need: without these, scans in JPEG 2000, JBIG2 or CCITT draw blank and
+ * text in fonts the PDF does not embed is lost. Served by the build (`pdfjsAssets` in vite.config.ts).
+ */
+function assetUrls(version: string) {
+  const root = `${import.meta.env.BASE_URL}assets/pdfjs/${version}/`
+  return {
+    cMapUrl: `${root}cmaps/`,
+    standardFontDataUrl: `${root}standard_fonts/`,
+    wasmUrl: `${root}wasm/`,
+    iccUrl: `${root}iccs/`,
+  }
+}
+
 async function sha256Hex(data: Uint8Array): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new Uint8Array(data))
   return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('')
@@ -154,7 +168,11 @@ export async function openPdf(data: Uint8Array, options: OpenPdfOptions = {}): P
   signal?.throwIfAborted()
   // pdf.js transfers the buffer to its worker: hand it a copy so the caller keeps its bytes.
   // pdf.js 6 removed its eval/`new Function` font path, and with it the `isEvalSupported` option.
-  const task = pdfjs.getDocument({ data: new Uint8Array(data), verbosity: pdfjs.VerbosityLevel.ERRORS })
+  const task = pdfjs.getDocument({
+    data: new Uint8Array(data),
+    verbosity: pdfjs.VerbosityLevel.ERRORS,
+    ...(options.pdfjs ? {} : assetUrls(pdfjs.version)),
+  })
   const abort = (): void => {
     void task.destroy()
   }
@@ -215,6 +233,11 @@ export async function openPdf(data: Uint8Array, options: OpenPdfOptions = {}): P
         const target = (o.canvas ?? offscreenCanvas)(w, h)
         await page.render({ canvas: null, canvasContext: target.context, viewport }).promise
         return await target.toBlob(o.mime ?? 'image/jpeg', o.quality ?? 0.85)
+      } catch (cause) {
+        // Stopped on purpose, or already typed; anything else is a page this browser cannot draw.
+        signal?.throwIfAborted()
+        if (cause instanceof DeckError) throw cause
+        throw new DeckError('unsupported', `cannot draw page ${n}: ${cause instanceof Error ? cause.message : cause}`)
       } finally {
         page.cleanup()
       }

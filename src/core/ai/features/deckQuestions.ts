@@ -257,9 +257,16 @@ function pending(input: DeckQuestionsInput): DeckUnitInput[] {
   return input.units.filter((u) => input.resume?.done[u.index] === undefined)
 }
 
+/** Whether the model has anything to read in this unit: a scanned page is empty to one that sees no pictures. */
+function hasMaterial(u: DeckUnitInput, vision: boolean): boolean {
+  const written = [u.title, u.text, u.notes ?? '', ...(u.imageAlts ?? [])].some((s) => s.trim() !== '')
+  return written || (vision && (u.images?.length ?? 0) > 0)
+}
+
 function questionPlan(info: CatalogModel, input: DeckQuestionsInput): { vision: boolean; batches: DeckBatch[] } {
   const vision = input.images !== false && supportsImages(info)
-  const batches = planDeckBatches(pending(input), info, {
+  const material = pending(input).filter((u) => hasMaterial(u, vision))
+  const batches = planDeckBatches(material, info, {
     overheadTokens: estimateTokens(questionSystem(input, 'English') + questionHead(input)),
     // Room for the most a unit may get, so a dense unit is never cut short.
     outputTokensPerUnit: perUnitCap(input) * QUESTION_OUTPUT_TOKENS,

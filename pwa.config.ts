@@ -27,8 +27,8 @@ export function pwaOptions(base: string): Partial<VitePWAOptions> {
       file_handlers: [{ action: './', accept: { 'application/x-cursus': ['.cursus'] } }],
     },
     workbox: {
-      // App shell, workers (pdf.js, sql.js wasm), KaTeX fonts, pdf.js cmaps and standard fonts.
-      globPatterns: ['**/*.{js,mjs,css,html,svg,png,ico,woff,woff2,ttf,wasm,bcmap,pfb}'],
+      // App shell, workers (pdf.js, sql.js wasm), KaTeX fonts, pdf.js cmaps, standard fonts and ICC profiles.
+      globPatterns: ['**/*.{js,mjs,css,html,svg,png,ico,woff,woff2,ttf,wasm,bcmap,pfb,icc}'],
       // Splash screens are fetched by iOS at install, not by the app: no point precaching ~50 large PNGs.
       globIgnores: ['**/apple-splash-*.png'],
       maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,

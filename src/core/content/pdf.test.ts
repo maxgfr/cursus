@@ -136,6 +136,26 @@ describe('pdf', () => {
     expect(sizes).toEqual([[360, 203]])
   })
 
+  test('a page the browser cannot draw is a typed error; a stopped one stays a stop', async () => {
+    const failing = () => {
+      throw new Error('canvas out of memory')
+    }
+    expect(await kindOf(renderPdfPage(slidesPdf(), 1, { pdfjs, canvas: failing }))).toBe('unsupported')
+    const stop = new AbortController()
+    const handle = await openPdf(slidesPdf(), { pdfjs, signal: stop.signal })
+    try {
+      const stopped = handle.render(1, {
+        canvas: () => {
+          stop.abort(new Error('stopped'))
+          throw new Error('canvas gone')
+        },
+      })
+      await expect(stopped).rejects.toThrow('stopped')
+    } finally {
+      await handle.close()
+    }
+  })
+
   test('extractPdfText reads every page and uses the cache', async () => {
     const store = new Map<string, readonly string[]>()
     const cache: PdfTextCache = {

@@ -302,6 +302,20 @@ describe('a refused answer is still billed', () => {
 })
 
 describe('deckQuestions', () => {
+  test('a scanned page is not sent to a model that sees no pictures, and costs nothing', async () => {
+    const scan = unit(1, '', { title: '', images: [PNG] })
+    const input = { sourceId: 'src-deck', units: [scan], perUnit: 2 }
+    const blind = seqModel([])
+    const out = await deckQuestions(ctx(blind), input)
+    expect(blind.doGenerateCalls).toHaveLength(0)
+    expect(out.questions).toEqual([])
+    expect(estimateDeckQuestionsCost(INFO, input)).toMatchObject({ batches: 0, cost: 0 })
+    // A model that reads images does get it.
+    const seeing = seqModel([{ questions: [] }])
+    await deckQuestions(ctx(seeing, VISION), input)
+    expect(seeing.doGenerateCalls).toHaveLength(1)
+  })
+
   test('questions cite their unit; malformed ones and invalid units are dropped, quotes verified', async () => {
     const events: AiUsageEvent[] = []
     const model = seqModel([

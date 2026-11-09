@@ -9,7 +9,7 @@ import { LOCAL_PROVIDER } from '../../core/ai/local'
 import type { SourceRecord } from '../../core/model/schema'
 import { secretsVault } from '../../core/storage/secrets'
 import { loadDeck } from '../DeckImport/deckSource.ts'
-import { runInputs } from '../Generate/deckInputs.ts'
+import { estimateInputs, runInputs } from '../Generate/deckInputs.ts'
 import { CUSTOM_PROVIDER, loadAiSettings, recordUsage, resolveRoute } from '../Understand/shared/aiConfig.ts'
 import { photoText } from '../Understand/shared/readable.ts'
 import { PHOTO_UNIT, photoGenerator } from './photoGenerator.ts'
@@ -53,16 +53,17 @@ export function createRunner(rt: Runtime): AiJobs {
     return last
   }
 
-  // A deck read for the estimate is read again for the run: the last ones stay (pages rendered included).
+  // The last decks read stay (pages rendered included); an estimate draws nothing, it counts the pictures.
   const decks = new Map<string, Promise<SourceContent>>()
   const readDeck = (
     source: SourceRecord,
     vision: boolean,
     signal: AbortSignal,
-    options?: JobOptions,
+    options: JobOptions | undefined,
+    purpose: 'estimate' | 'run',
   ): Promise<SourceContent> => {
     const asked = options?.units === undefined ? null : new Set(options.units)
-    const key = `${source.id}:${source.blobId ?? ''}:${vision ? 'images' : 'text'}:${[...(asked ?? [])].join(',')}:${options?.hidden === true}`
+    const key = `${purpose}:${source.id}:${source.blobId ?? ''}:${vision ? 'images' : 'text'}:${[...(asked ?? [])].join(',')}:${options?.hidden === true}`
     const hit = decks.get(key)
     if (hit) return hit
     const read = (async () => {
@@ -71,7 +72,10 @@ export function createRunner(rt: Runtime): AiJobs {
       const indexes = loaded.deck.units
         .filter((u) => (asked === null || asked.has(u.index)) && (options?.hidden === true || u.hidden !== true))
         .map((u) => u.index)
-      const { units } = await runInputs(loaded, indexes, vision, signal)
+      const units =
+        purpose === 'estimate' && vision
+          ? estimateInputs(loaded, indexes)
+          : (await runInputs(loaded, indexes, vision, signal)).units
       return { title: loaded.deck.title.trim() || source.title, units }
     })()
     decks.set(key, read)
@@ -88,7 +92,8 @@ export function createRunner(rt: Runtime): AiJobs {
   const content = async (
     source: SourceRecord,
     signal: AbortSignal,
-    options?: JobOptions,
+    options: JobOptions | undefined,
+    purpose: 'estimate' | 'run',
   ): Promise<SourceContent | null> => {
     if (source.kind === 'image') {
       // What is written about it (caption, notes) and what a model read on it, kept on this device.
@@ -101,7 +106,7 @@ export function createRunner(rt: Runtime): AiJobs {
       }
     }
     if (source.kind === 'pdf' || source.support !== undefined) {
-      return readDeck(source, last !== null && supportsImages(last.info), signal, options)
+      return readDeck(source, last !== null && supportsImages(last.info), signal, options, purpose)
     }
     const body = rt.ws.text({ id: source.id, field: 'body' }).toString()
     return { title: source.title, units: noteUnits(source.title, body) }

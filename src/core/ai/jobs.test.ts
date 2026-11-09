@@ -253,6 +253,23 @@ describe('auto-question jobs', () => {
     expect(ids.map((id) => job(h, id).status)).toEqual(['done', 'done', 'done'])
   })
 
+  test('an estimate only counts the pictures; the run asks for them drawn', async () => {
+    const h = harness()
+    const s = source(h, 'Heart', 2)
+    const purposes: string[] = []
+    const read = h.deps.content
+    h.deps.content = (src, signal, options, purpose) => {
+      purposes.push(purpose)
+      return read(src, signal, options, purpose)
+    }
+    await h.jobs.estimate(s)
+    expect(purposes).toEqual(['estimate'])
+    await h.jobs.enqueue(s)
+    await h.jobs.start()
+    await h.jobs.idle()
+    expect(purposes).toEqual(['estimate', 'run'])
+  })
+
   test('what the student chose: only the units asked for, in the language and place asked for; same choices, same job', async () => {
     const h = harness()
     const s = source(h, 'Heart', 4)

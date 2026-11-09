@@ -164,6 +164,3 @@ export function needsIosInstallHint(): boolean {
     (navigator as Navigator & { standalone?: boolean }).standalone === true
   return ios && !standalone && /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua)
 }
-
-/** URLs of pdf.js cmaps and standard fonts, emitted (and so precached) by the build; loaded on demand. */
-export const loadPdfAssets = () => import('./pdfAssets.ts')
