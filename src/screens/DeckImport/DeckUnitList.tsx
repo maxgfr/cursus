@@ -1,5 +1,5 @@
 import { EyeOff, Image as ImageIcon } from 'lucide-react'
-import { useEffect, useRef } from 'react'
+import { type ReactNode, useEffect, useRef } from 'react'
 import type { Deck, DeckUnit } from '../../core/content/deck'
 import { useT } from '../../i18n/react.tsx'
 import { Sanitized } from '../../ui/render/Sanitized.tsx'
@@ -18,10 +18,12 @@ export interface DeckUnitListProps {
   cited?: number
   /** Only these units (default: all). */
   only?: ReadonlySet<number>
+  /** What can be done from a unit, shown under its content. */
+  action?: (unit: DeckUnit) => ReactNode
 }
 
 /** A deck's slides, pages or sections in order, with their picture, text and speaker notes. */
-export function DeckUnitList({ deck, thumbs, detail, level = 3, cited, only }: DeckUnitListProps) {
+export function DeckUnitList({ deck, thumbs, detail, level = 3, cited, only, action }: DeckUnitListProps) {
   const t = useT()
   const citedRef = useRef<HTMLLIElement>(null)
   useEffect(() => {
@@ -89,6 +91,7 @@ export function DeckUnitList({ deck, thumbs, detail, level = 3, cited, only }: D
                     {t('ai.deckNotesInline', { notes: u.notes })}
                   </p>
                 ))}
+              {action?.(u)}
             </div>
           </li>
         )

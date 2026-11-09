@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'wouter'
 import { to } from '../../app/routes.ts'
 import { useRuntime } from '../../app/workspaceContext.tsx'
+import type { DeckUnit } from '../../core/content/deck'
 import type { SourceRecord } from '../../core/model/schema'
 import { useT } from '../../i18n/react.tsx'
 import { useAiReady } from '../../ui/ai/ready.ts'
@@ -11,7 +12,7 @@ import base from '../DeckImport/DeckImport.module.css'
 import { DeckUnitList } from '../DeckImport/DeckUnitList.tsx'
 import { deckErrorMessage, type LoadedDeck, loadDeck, unitCount, unitName } from '../DeckImport/deckSource.ts'
 import { useUnitThumbs } from '../DeckImport/thumbs.ts'
-import { GENERATE_QUERY } from '../Generate/open.tsx'
+import { GENERATE_QUERY, generateUnitQuery } from '../Generate/open.tsx'
 import { noteError } from '../settings/Diagnostic/recent.ts'
 
 /**
@@ -80,7 +81,30 @@ export function DeckView({ source, cited }: { source: SourceRecord; cited: numbe
         (loaded.deck.units.length === 0 ? (
           <p className={base.hint}>{t('ai.deckEmpty')}</p>
         ) : (
-          <DeckUnitList deck={loaded.deck} thumbs={thumbs} detail="full" level={2} cited={citedUnit?.index} />
+          <DeckUnitList
+            deck={loaded.deck}
+            thumbs={thumbs}
+            detail="full"
+            level={2}
+            cited={citedUnit?.index}
+            {...(ready
+              ? {
+                  action: (u: DeckUnit) => (
+                    <div>
+                      <Button
+                        variant="plain"
+                        icon={<Sparkles size={18} aria-hidden="true" />}
+                        onClick={() =>
+                          navigate(`${to.source(source.id)}?${generateUnitQuery(u.index)}`, { replace: true })
+                        }
+                      >
+                        {t('ai.deckCardsFor', { name: unitName(t, u) })}
+                      </Button>
+                    </div>
+                  ),
+                }
+              : {})}
+          />
         ))}
     </div>
   )

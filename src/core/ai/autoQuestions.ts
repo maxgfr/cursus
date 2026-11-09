@@ -181,7 +181,7 @@ export interface JobOptions {
   sectionId?: Id
 }
 
-const DIFFICULTY_MIXES: readonly DifficultyMix[] = ['easy', 'mixed', 'hard']
+const DIFFICULTY_MIXES: readonly DifficultyMix[] = ['auto', 'easy', 'mixed', 'hard']
 const isUnit = (u: unknown): u is number => Number.isInteger(u) && (u as number) >= 0
 
 /** Stored options as this version reads them: what it cannot read is left to the default; null when nothing is left. */

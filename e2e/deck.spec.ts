@@ -135,6 +135,43 @@ async function openImport(page: Page, course: string) {
   await page.keyboard.press('Escape')
 }
 
+test('slides: cards from one slide, or with some slides skipped, at a difficulty following the content', async ({
+  page,
+}) => {
+  const calls = await mockProvider(page)
+  await configureAi(page, LLM)
+  await openImport(page, 'Biology')
+  await page.getByLabel('Add files').setInputFiles(join(DECKS, 'slides.pptx'))
+  await expect(page.getByRole('heading', { level: 1, name: 'Cell Biology 101' })).toBeVisible()
+
+  // From the slide itself: that slide alone, everything else left to the content.
+  await page.getByRole('main').getByRole('button', { name: 'Cards: Slide 2' }).click()
+  const sheet = page.getByRole('dialog', { name: 'Create cards' })
+  await expect(sheet.getByText('1 selected')).toBeVisible()
+  await expect(sheet.getByRole('radio', { name: 'Auto', exact: true })).toBeChecked()
+
+  await sheet.getByRole('button', { name: 'Select all' }).click()
+  await expect(sheet.getByText('3 selected')).toBeVisible()
+  await sheet.getByText('Choose one by one').click()
+  await sheet.getByRole('button', { name: 'Only Slide 1' }).click()
+  await expect(sheet.getByText('1 selected')).toBeVisible()
+  await sheet.getByRole('button', { name: 'Select all' }).click()
+
+  // A slide skipped is neither priced nor sent.
+  await sheet.getByRole('checkbox', { name: 'Slide 3 · Transport compared' }).uncheck()
+  await expect(sheet.getByText('2 selected')).toBeVisible()
+  await expect(sheet.getByTestId('deck-estimate')).toHaveText(/ · 2 slides · /)
+  await sheet.getByRole('button', { name: 'Create cards' }).click()
+
+  await expect(page.getByRole('heading', { level: 1, name: 'Suggested cards' })).toBeVisible()
+  await expect(page.getByRole('main').getByRole('region', { name: /^Slide 2 \(2\)$/ })).toBeVisible()
+  expect(calls.questions).toHaveLength(1)
+  const sent = textOf(calls.questions.at(-1) as Body)
+  expect(sent).toContain('Title: Osmosis')
+  expect(sent).not.toContain('Title: Transport compared')
+  expect(sent).toContain('cover both ends')
+})
+
 test('slides: preview, cards for a range of slides, reviewed by slide in Suggested cards, then added with their citations', async ({
   page,
 }) => {

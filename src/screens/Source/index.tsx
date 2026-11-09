@@ -15,7 +15,7 @@ import { MarkdownEditor } from '../../ui/editor/MarkdownEditor.tsx'
 import { MoveSheet, moveItemTo } from '../../ui/MoveSheet.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { deckErrorMessage } from '../DeckImport/deckSource.ts'
-import { Generate } from '../Generate/open.tsx'
+import { Generate, generateUnit } from '../Generate/open.tsx'
 import NotFound from '../NotFound/index.tsx'
 import AttachedPhotos from '../Photos/Attached.tsx'
 import { loadFile } from '../Photos/files.ts'
@@ -234,6 +234,7 @@ export default function Source() {
   const notes = rt.ws.text({ id: source.id, field: 'body' })
   // Photos added from the editor are kept with the source's own.
   const photos = { courseId: source.courseId, ...(sectionId === null ? {} : { sectionId }) }
+  const unit = generateUnit(search)
   const remove = () => {
     rt.ws.sources.trash(source.id)
     leaveTo(home)
@@ -287,7 +288,7 @@ export default function Source() {
         </p>
       )}
       <Generate
-        at={generating ? { sourceIds: [source.id] } : null}
+        at={generating ? { sourceIds: [source.id], ...(unit === undefined ? {} : { unit }) } : null}
         onClose={() => navigate(to.source(id), { replace: true })}
       />
       <MoveSheet

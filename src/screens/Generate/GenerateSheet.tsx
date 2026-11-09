@@ -28,6 +28,8 @@ export interface GenerateAt {
   courseId?: Id
   sectionId?: Id
   sourceIds?: readonly Id[]
+  /** The slide, page or section of a deck to open on, alone. */
+  unit?: number
 }
 
 const PER_UNIT = ['auto', '1', '2', '3', '5'] as const
@@ -46,12 +48,31 @@ interface Range {
   from: number
   to: number
   hidden: boolean
+  /** Units of the range left out one by one. */
+  skipped: ReadonlySet<number>
+}
+
+const wholeDeck = (units: readonly DeckUnit[]): Range => ({
+  from: units[0]?.index ?? 1,
+  to: units.at(-1)?.index ?? 1,
+  hidden: false,
+  skipped: new Set(),
+})
+const onlyUnit = (u: DeckUnit): Range => ({ from: u.index, to: u.index, hidden: u.hidden === true, skipped: new Set() })
+
+/** The units of a range, those that can be picked (hidden slides only when asked for), and those picked. */
+function pickUnits(units: readonly DeckUnit[], range: Range | null) {
+  const inRange = range ? units.filter((u) => u.index >= range.from && u.index <= range.to) : []
+  const pickable = inRange.filter((u) => range?.hidden === true || !u.hidden)
+  return { inRange, pickable, selected: pickable.filter((u) => !range?.skipped.has(u.index)) }
 }
 
 /**
  * « Create cards »: the course or section, its sources (some of them only if wished), for one slide deck or document
- * the slides or sections to read, how many cards per unit, their kinds, difficulty and language, and what it would
- * cost. Create queues one job per source and opens « Suggested cards », where they arrive and are reviewed.
+ * the slides or sections to read (a range, some skipped, or just one), how many cards per unit, their kinds,
+ * difficulty and language, and what it would cost. Left as they open, the number and the difficulty of the cards
+ * follow the content. Create queues one job per source and opens « Suggested cards », where they arrive and are
+ * reviewed.
  */
 export default function GenerateSheet({ at, onClose }: { at: GenerateAt; onClose: () => void }) {
   const t = useT()
@@ -115,7 +136,7 @@ function GenerateForm({ at, onDone }: { at: GenerateAt; onDone: () => void }) {
 
   const [perUnit, setPerUnit] = useState<PerUnit>('auto')
   const [types, setTypes] = useState<readonly QuestionType[]>(['qa', 'cloze'])
-  const [difficulty, setDifficulty] = useState<DifficultyMix>('mixed')
+  const [difficulty, setDifficulty] = useState<DifficultyMix>('auto')
   const [language, setLanguage] = useState('')
   const [range, setRange] = useState<Range | null>(null)
   const [deck, setDeck] = useState<LoadedDeck | null>(null)
@@ -123,6 +144,7 @@ function GenerateForm({ at, onDone }: { at: GenerateAt; onDone: () => void }) {
   const [error, setError] = useState<string | null>(null)
 
   // One deck or document chosen: its slides or sections, to read only some of them.
+  const openedOn = at.unit
   useEffect(() => {
     setDeck(null)
     setRange(null)
@@ -133,7 +155,8 @@ function GenerateForm({ at, onDone }: { at: GenerateAt; onDone: () => void }) {
       (l) => {
         if (!live) return
         setDeck(l)
-        setRange({ from: l.deck.units[0]?.index ?? 1, to: l.deck.units.at(-1)?.index ?? 1, hidden: false })
+        const unit = l.deck.units.find((u) => u.index === openedOn)
+        setRange(unit ? onlyUnit(unit) : wholeDeck(l.deck.units))
       },
       (e: unknown) => {
         noteError('generate.deck', e)
@@ -143,24 +166,21 @@ function GenerateForm({ at, onDone }: { at: GenerateAt; onDone: () => void }) {
     return () => {
       live = false
     }
-  }, [rt, deckSource, t])
+  }, [rt, deckSource, t, openedOn])
 
   const deckUnits = useMemo((): readonly DeckUnit[] => deck?.deck.units ?? [], [deck])
-  const inRange = range ? deckUnits.filter((u) => u.index >= range.from && u.index <= range.to) : []
-  const selected = inRange.filter((u) => range?.hidden === true || !u.hidden)
+  const { inRange, pickable, selected } = useMemo(() => pickUnits(deckUnits, range), [deckUnits, range])
   const kind = deckUnits[0]?.kind
 
   const options = useMemo(() => {
     const o: JobOptions = { perUnit: perUnit === 'auto' ? 'auto' : Number(perUnit), types: [...types], difficulty }
     if (language !== '') o.language = language
     if (range) {
-      o.units = deckUnits
-        .filter((u) => u.index >= range.from && u.index <= range.to && (range.hidden || !u.hidden))
-        .map((u) => u.index)
+      o.units = selected.map((u) => u.index)
       if (range.hidden) o.hidden = true
     }
     return o
-  }, [perUnit, types, difficulty, language, range, deckUnits])
+  }, [perUnit, types, difficulty, language, range, selected])
   const deckId = deckSource?.id
   const optionsFor = (id: Id): JobOptions => (id === deckId ? options : general(options))
 
@@ -221,6 +241,14 @@ function GenerateForm({ at, onDone }: { at: GenerateAt; onDone: () => void }) {
     if (next.length > 0) setTypes(next)
   }
   const hiddenInRange = inRange.filter((u) => u.hidden).length
+  const toggleUnit = (index: number, on: boolean) => {
+    if (!range) return
+    const skipped = new Set(range.skipped)
+    if (on) skipped.delete(index)
+    else skipped.add(index)
+    setRange({ ...range, skipped })
+  }
+  const everyUnit = pickUnits(deckUnits, wholeDeck(deckUnits)).selected.length
 
   const create = async () => {
     setError(null)
@@ -345,7 +373,40 @@ function GenerateForm({ at, onDone }: { at: GenerateAt; onDone: () => void }) {
               {t('ai.deckIncludeHidden', { count: hiddenInRange })}
             </label>
           )}
-          <p className={shared.hint}>{t('ai.deckSelected', { count: selected.length })}</p>
+          <details className={shared.disclosure}>
+            <summary className={shared.disclosureSummary}>
+              <span className={shared.disclosureLabel}>{t('ai.deckPickUnits')}</span>
+            </summary>
+            <div className={`${shared.disclosureBody} ${styles.units}`}>
+              {pickable.map((u) => (
+                <div key={u.index} className={styles.unit}>
+                  <label className={shared.check}>
+                    <input
+                      type="checkbox"
+                      checked={!range.skipped.has(u.index)}
+                      onChange={(e) => toggleUnit(u.index, e.target.checked)}
+                    />
+                    {option(u)}
+                  </label>
+                  <Button
+                    variant="plain"
+                    aria-label={t('ai.deckOnlyUnit', { name: unitName(t, u) })}
+                    onClick={() => setRange(onlyUnit(u))}
+                  >
+                    {t('ai.deckOnly')}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </details>
+          <div className={styles.picked}>
+            <p className={shared.hint}>{t('ai.deckSelected', { count: selected.length })}</p>
+            {selected.length < everyUnit && (
+              <Button variant="plain" onClick={() => setRange(wholeDeck(deckUnits))}>
+                {t('ai.deckSelectAll')}
+              </Button>
+            )}
+          </div>
         </fieldset>
       )}
       <Segmented<PerUnit>
@@ -373,11 +434,13 @@ function GenerateForm({ at, onDone }: { at: GenerateAt; onDone: () => void }) {
         value={difficulty}
         onChange={setDifficulty}
         options={[
+          { value: 'auto', label: t('ai.deckDifficultyAuto') },
           { value: 'easy', label: t('ai.deckEasy') },
           { value: 'mixed', label: t('ai.deckMixed') },
           { value: 'hard', label: t('ai.deckHard') },
         ]}
       />
+      {difficulty === 'auto' && <p className={shared.hint}>{t('ai.deckDifficultyAutoHint')}</p>}
       <div className={shared.field}>
         <label className={shared.label} htmlFor={languageId}>
           {t('ai.deckLanguage')}

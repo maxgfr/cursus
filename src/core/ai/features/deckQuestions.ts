@@ -34,7 +34,8 @@ import {
 
 export type QuestionType = 'qa' | 'cloze' | 'explain'
 export type QuestionDifficulty = 'easy' | 'medium' | 'hard'
-export type DifficultyMix = 'easy' | 'mixed' | 'hard'
+/** `auto`: the model sets each question's level by what the unit offers, simple and harder ones alike. */
+export type DifficultyMix = 'auto' | 'easy' | 'mixed' | 'hard'
 
 export const QUESTION_TYPES: readonly QuestionType[] = ['qa', 'cloze', 'explain']
 export const MAX_QUESTIONS_PER_UNIT = 10
@@ -189,6 +190,11 @@ const TYPE_RULES: Readonly<Record<QuestionType, string>> = {
 }
 
 const DIFFICULTY_RULES: Readonly<Record<DifficultyMix, string>> = {
+  auto:
+    'Set each question\'s difficulty by what the unit offers, and cover both ends: "easy" for the facts and ' +
+    'definitions to memorise, "medium" for understanding (why, how), "hard" for applying, comparing or reasoning. ' +
+    'A dense unit gets simple and harder questions alike; a unit holding a single definition stays "easy": never ' +
+    'force a hard question the unit cannot support.',
   easy: 'Every question is "easy": recall of one fact or definition.',
   hard: 'Every question is "hard": application, comparison or reasoning across the unit.',
   mixed: 'Mix difficulties: about a third "easy" (recall), a third "medium" (understanding), a third "hard".',

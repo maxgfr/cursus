@@ -409,6 +409,20 @@ describe('deckQuestions', () => {
     expect(system).not.toContain('"qa":')
   })
 
+  test('auto difficulty asks for simple and harder questions by what the unit offers', async () => {
+    const model = seqModel([{ questions: [q(1, 'qa', 'What crosses the membrane?')] }])
+    await deckQuestions(ctx(model), {
+      sourceId: 's',
+      units: [UNITS[0] ?? unit(1, '')],
+      perUnit: 'auto',
+      difficulty: 'auto',
+    })
+    const { system } = sent(model)
+    expect(system).toContain('cover both ends')
+    expect(system).toContain('never force a hard question')
+    expect(system).not.toContain('Mix difficulties')
+  })
+
   test('near-duplicates of existing cards, of rejected drafts and of each other are dropped', async () => {
     const model = seqModel([
       {
