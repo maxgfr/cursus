@@ -332,6 +332,39 @@ test('Card editor: Hide turns the word at the caret or the selection into a blan
   expect(errors).toEqual([])
 })
 
+test('Card editor: tapping the words hides them, no selection and no syntax, and a tap shows them again', async ({
+  page,
+}) => {
+  const errors = watchErrors(page)
+  await openToday(page)
+  await createCourse(page, 'Cells')
+  await page.getByRole('radio', { name: 'Cards' }).check()
+  await page.getByRole('button', { name: 'New card' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Card' })).toBeVisible()
+  await page.getByRole('radio', { name: 'Fill in the blank' }).check()
+  await typeInto(page, 'Text', 'The cell wall holds the DNA.')
+
+  const words = page.getByRole('region', { name: 'Tap the words to hide' })
+  await words.getByRole('button', { name: 'DNA' }).click()
+  await words.getByRole('button', { name: 'cell' }).click()
+  // The next word joins the blank beside it: one card for « cell wall ».
+  await words.getByRole('button', { name: 'wall', exact: true }).click()
+  const text = page.getByRole('textbox', { name: 'Text' })
+  await expect(text.locator('.cm-md-cloze')).toHaveText(['cell wall', 'DNA'])
+  await expect(page.getByRole('list', { name: '2 cards from this text' }).getByRole('listitem')).toHaveText([
+    '1The cell wall holds the [...].',
+    '2The [...] holds the DNA.',
+  ])
+  await expect(words.getByRole('button', { name: 'cell wall' })).toHaveAttribute('aria-pressed', 'true')
+  expect(await seriousViolations(page)).toEqual([])
+
+  await words.getByRole('button', { name: 'DNA' }).click()
+  await expect(text.locator('.cm-md-cloze')).toHaveText(['cell wall'])
+  await page.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(page.getByText('Card added.')).toBeVisible()
+  expect(errors).toEqual([])
+})
+
 test('Trash: restore, then delete forever with the history caveat explained', async ({ page }) => {
   const errors = watchErrors(page)
   await openToday(page)

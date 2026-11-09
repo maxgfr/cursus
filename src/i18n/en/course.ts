@@ -56,6 +56,7 @@ export const course = {
   clozeText: 'Text',
   extra: 'Extra (shown with the answer)',
   clozeHelp: 'Select a word or phrase in the text, then tap Hide. Each hidden part becomes its own card.',
+  clozePick: 'Tap the words to hide',
   clozePreview: { one: '{count} card from this text', other: '{count} cards from this text' },
   trashFooter:
     'Restoring brings an item back everywhere. “Delete forever” hides it on every device, but your sync history still keeps a copy.',

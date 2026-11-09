@@ -61,6 +61,7 @@ export const course = {
   clozeText: 'Text',
   extra: 'Zusatz (mit der Antwort gezeigt)',
   clozeHelp: 'Markiere ein Wort oder eine Wendung im Text und tippe auf Ausblenden. Jede Lücke wird eine eigene Karte.',
+  clozePick: 'Tippe auf die Wörter, die du ausblenden willst',
   clozePreview: { one: '{count} Karte aus diesem Text', other: '{count} Karten aus diesem Text' },
   trashFooter:
     'Wiederherstellen holt ein Element überall zurück. „Endgültig löschen“ blendet es auf allen Geräten aus, doch dein Sync-Verlauf behält eine Kopie.',

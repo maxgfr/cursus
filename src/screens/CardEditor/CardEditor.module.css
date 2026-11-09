@@ -29,6 +29,39 @@
   font-size: var(--text-footnote);
 }
 
+.picker {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* A word to tap, as tall as any control: the text stays readable, the finger finds it. */
+.word {
+  display: inline-block;
+  min-height: 2.75rem;
+  padding: 0.5rem 0.05rem;
+  border: 0;
+  border-radius: var(--radius-small);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.word:hover {
+  background: var(--surface-pressed);
+}
+
+.word:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 0;
+}
+
+.word[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
 .preview {
   display: grid;
   gap: var(--space-2);

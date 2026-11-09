@@ -61,6 +61,7 @@ export const course = {
   extra: 'En plus (montré avec la réponse)',
   clozeHelp:
     'Sélectionnez un mot ou une expression dans le texte, puis touchez Masquer. Chaque partie masquée devient une carte.',
+  clozePick: 'Touchez les mots à masquer',
   clozePreview: { one: '{count} carte tirée de ce texte', other: '{count} cartes tirées de ce texte' },
   trashFooter:
     'Restaurer ramène l’élément partout. « Supprimer définitivement » le masque sur tous vos appareils, mais l’historique de sync en garde une copie.',

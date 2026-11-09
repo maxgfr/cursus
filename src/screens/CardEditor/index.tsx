@@ -537,7 +537,9 @@ function Editor({ id, next, onNext }: { id: string; next: Next | null; onNext: (
                 side={kind === 'cloze' ? t('course.clozeText') : t('course.front')}
               />
             </section>
-            {kind === 'cloze' && <ClozePreview value={fields.front} />}
+            {kind === 'cloze' && (
+              <ClozePreview value={fields.front} onChange={(next) => applyForward(draft.front, next)} />
+            )}
             <section className={styles.side} aria-labelledby="card-back" onFocus={raise}>
               <h2 id="card-back" className={styles.label}>
                 {kind === 'cloze' ? t('course.extra') : t('course.back')}
