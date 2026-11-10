@@ -389,6 +389,25 @@ test('a PDF of slides with a text-only model: notice, offline state, stop and re
   await expect(page.getByRole('heading', { name: 'No suggested cards' })).toBeVisible()
 })
 
+test('a PDF reads in a browser without the newest JavaScript APIs, as in shipping Safari', async ({ page }) => {
+  // What pdf.js 6 calls that shipping Safari may lack: async iteration of a ReadableStream, Map upsert, sumPrecise.
+  await page.addInitScript(() => {
+    const drop = (target: object, key: PropertyKey) => Reflect.deleteProperty(target, key)
+    drop(ReadableStream.prototype, Symbol.asyncIterator)
+    drop(ReadableStream.prototype, 'values')
+    drop(Map.prototype, 'getOrInsertComputed')
+    drop(Map.prototype, 'getOrInsert')
+    drop(WeakMap.prototype, 'getOrInsertComputed')
+    drop(WeakMap.prototype, 'getOrInsert')
+    drop(Math, 'sumPrecise')
+  })
+  await openImport(page, 'Cells')
+  await page.getByLabel('Add files').setInputFiles(join(DECKS, 'slides.pdf'))
+  await expect(page.getByRole('heading', { level: 1, name: 'Cell Biology slides' })).toBeVisible()
+  await expect(page.getByText('3 slides')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Slide 3 Active transport' })).toBeVisible()
+})
+
 test('a PDF of JPEG 2000, CCITT and JBIG2 scans and an unembedded font: read, and every page drawn for the model', async ({
   page,
 }) => {

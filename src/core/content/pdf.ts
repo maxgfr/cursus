@@ -11,18 +11,23 @@ export interface PdfTextCache {
   set(sha256: string, pages: readonly string[]): Promise<void>
 }
 
-type PdfJs = typeof import('pdfjs-dist')
+type PdfJs = typeof import('pdfjs-dist/legacy/build/pdf.mjs')
 /** How pdf.js is obtained; the default loads it with its worker, tests inject one. */
 export type PdfJsLoader = () => Promise<PdfJs>
 let pdfjsPromise: Promise<PdfJs> | null = null
 
+/**
+ * The legacy build: the modern one calls APIs Safari lacks or only ships in its latest releases (`Map` upsert,
+ * `Math.sumPrecise`…), which the legacy build polyfills, in the page and in the worker alike.
+ */
 function loadPdfJs(): Promise<PdfJs> {
-  pdfjsPromise ??= Promise.all([import('pdfjs-dist'), import('pdfjs-dist/build/pdf.worker.min.mjs?url')]).then(
-    ([mod, worker]) => {
-      mod.GlobalWorkerOptions.workerSrc = worker.default
-      return mod
-    },
-  )
+  pdfjsPromise ??= Promise.all([
+    import('pdfjs-dist/legacy/build/pdf.mjs'),
+    import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url'),
+  ]).then(([mod, worker]) => {
+    mod.GlobalWorkerOptions.workerSrc = worker.default
+    return mod
+  })
   return pdfjsPromise
 }
 
@@ -120,8 +125,27 @@ function offscreenCanvas(width: number, height: number): RenderTarget {
   }
 }
 
-type ContentItem = Awaited<ReturnType<import('pdfjs-dist').PDFPageProxy['getTextContent']>>['items'][number]
+type PdfPage = import('pdfjs-dist/legacy/build/pdf.mjs').PDFPageProxy
+type ContentItem = Awaited<ReturnType<PdfPage['getTextContent']>>['items'][number]
 type TextLike = Extract<ContentItem, { str: string }>
+
+/**
+ * A page's text items, read from pdf.js's stream with a reader: `getTextContent` iterates that stream with
+ * `for await`, which Safari does not support on a `ReadableStream` ("undefined is not a function").
+ */
+async function textItems(page: PdfPage): Promise<ContentItem[]> {
+  const reader = page.streamTextContent().getReader()
+  const items: ContentItem[] = []
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) return items
+      for (const item of (value as { items: readonly ContentItem[] }).items) items.push(item)
+    }
+  } finally {
+    reader.releaseLock()
+  }
+}
 
 function isTextItem(item: ContentItem): item is TextLike {
   return 'str' in item
@@ -209,8 +233,7 @@ export async function openPdf(data: Uint8Array, options: OpenPdfOptions = {}): P
       const page = await doc.getPage(n)
       try {
         const viewport = page.getViewport({ scale: 1 })
-        const content = await page.getTextContent()
-        const items = content.items.filter(isTextItem)
+        const items = (await textItems(page)).filter(isTextItem)
         let text = ''
         for (const item of items) {
           text += item.str
