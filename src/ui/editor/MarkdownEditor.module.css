@@ -48,6 +48,23 @@
   color: var(--accent-ink);
 }
 
+/* The highlight buttons show their colour behind the icon. */
+.swatchHighlight svg,
+.swatchImportant svg {
+  padding: 1px;
+  border-radius: var(--radius-small);
+}
+
+.swatchHighlight svg {
+  background: var(--highlight);
+  color: var(--highlight-ink);
+}
+
+.swatchImportant svg {
+  background: var(--important);
+  color: var(--important-ink);
+}
+
 /* On a phone the formats scroll sideways in one row instead of taking a third of the screen. */
 @media (max-width: 599px) {
   .formats {

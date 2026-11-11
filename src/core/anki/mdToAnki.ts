@@ -1,9 +1,20 @@
 import { Marked } from 'marked'
+import { highlightExtension } from '../content/highlight'
 
 /** Maps a blob id to the media file name used in the exported package, or null when unavailable. */
 export type MediaNamer = (blobId: string) => string | null
 
+/** The background of an important passage in an exported note. */
+export const IMPORTANT_COLOR = '#ffc9c9'
+
 const marked = new Marked({ gfm: true, breaks: false, async: false })
+// Anki shows a note without the app's styles: an important passage carries its colour with it.
+marked.use({
+  extensions: [
+    highlightExtension('highlight', '<mark>'),
+    highlightExtension('important', `<mark class="important" style="background-color: ${IMPORTANT_COLOR}">`),
+  ],
+})
 const BLOB = /cursus-blob:([0-9a-f]{64})/g
 const AUDIO = /<audio\b[^>]*?\bsrc\s*=\s*["']cursus-blob:([0-9a-f]{64})["'][^>]*>\s*(?:<\/audio>)?/gi
 

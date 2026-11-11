@@ -1,6 +1,7 @@
 import DOMPurify from 'dompurify'
 import katex from 'katex'
 import { Marked, type TokenizerAndRendererExtension, type Tokens } from 'marked'
+import { highlightExtension } from './highlight'
 
 /** Maps the sha256 of a `cursus-blob:<sha256>` reference to a displayable URL (usually an object URL). */
 export type BlobResolver = (sha256: string) => string | null
@@ -54,14 +55,21 @@ const mathInline: TokenizerAndRendererExtension = {
 }
 
 const marked = new Marked({ gfm: true, breaks: false, async: false })
-marked.use({ extensions: [mathBlock, mathInline] })
+marked.use({
+  extensions: [
+    mathBlock,
+    mathInline,
+    highlightExtension('highlight', '<mark>'),
+    highlightExtension('important', '<mark class="important">'),
+  ],
+})
 
 /** Class of the box a rendered table scrolls in (styled by the renderer). */
 const TABLE_SCROLL = 'table-scroll'
 const TABLE_OPEN = /<table(?=[\s>])[^>]*>/g
 const TABLE_CLOSE = /<\/table>/g
 
-/** Renders untrusted Markdown (with `$…$` / `$$…$$` maths) to sanitized HTML. */
+/** Renders untrusted Markdown (with `$…$` / `$$…$$` maths, `==…==` and `!!…!!` highlights) to sanitized HTML. */
 export function renderMarkdown(source: string, options: RenderOptions = {}): string {
   return sanitize(marked.parse(source, { async: false, breaks: options.lineBreaks === true }), options)
 }

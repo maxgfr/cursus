@@ -457,3 +457,33 @@ describe('bold on a selection, by the parsed text', () => {
     expect(after(bold, toggleMarker(bold, '**'))).toBe('a [word] b')
   })
 })
+
+describe('highlight and important', () => {
+  test('on a selection: wrapped, then unwrapped', () => {
+    expect(mark('key', 0, 3, '==')).toBe('==[key]==')
+    expect(mark('==key==', 2, 5, '==')).toBe('[key]')
+    expect(mark('==key==', 0, 7, '==')).toBe('[key]')
+    expect(mark('key', 0, 3, '!!')).toBe('!![key]!!')
+    expect(mark('!!key!!', 2, 5, '!!')).toBe('[key]')
+  })
+
+  test('the toolbar shows them on between their markers', () => {
+    const on = (doc: string, pos: number) => [...activeFormats(parsed(doc, pos))].sort()
+    expect(on('a ==key== b', 5)).toEqual(['highlight'])
+    expect(on('a !!key!! b', 5)).toEqual(['important'])
+    expect(on('**==both==**', 6)).toEqual(['bold', 'highlight'])
+    expect(on('a ==key== b', 9)).toEqual([])
+  })
+
+  test('at a caret, the format waits for what is typed', () => {
+    const s = EditorState.create({
+      doc: 'ab',
+      selection: EditorSelection.cursor(1),
+      extensions: [liveMarkdown(), pendingFormat],
+    })
+    const on = s.update(toggleMarker(s, '==')).state
+    expect(on.doc.toString()).toBe('ab')
+    const typed = on.update(typePending(on, 1, 1, 'x') ?? {}).state
+    expect(typed.doc.toString()).toBe('a==x==b')
+  })
+})

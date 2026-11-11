@@ -97,6 +97,8 @@ export const common = {
   edBold: 'Gras',
   edItalic: 'Italique',
   edStrike: 'Barré',
+  edHighlight: 'Surligner',
+  edImportant: 'Important',
   edH1: 'Titre 1',
   edH2: 'Titre 2',
   edH3: 'Titre 3',

@@ -255,6 +255,8 @@ export default function MarkdownEditorImpl({
     bold: (v) => apply(v, toggleMarker(v.state, '**')),
     italic: (v) => apply(v, toggleMarker(v.state, '*')),
     strike: (v) => apply(v, toggleMarker(v.state, '~~')),
+    highlight: (v) => apply(v, toggleMarker(v.state, '==')),
+    important: (v) => apply(v, toggleMarker(v.state, '!!')),
     code: (v) => apply(v, toggleMarker(v.state, '`')),
     h1: (v) => apply(v, setHeading(v.state, 1)),
     h2: (v) => apply(v, setHeading(v.state, 2)),

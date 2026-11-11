@@ -91,6 +91,8 @@ export const common = {
   edBold: 'Bold',
   edItalic: 'Italic',
   edStrike: 'Strikethrough',
+  edHighlight: 'Highlight',
+  edImportant: 'Important',
   edH1: 'Heading 1',
   edH2: 'Heading 2',
   edH3: 'Heading 3',

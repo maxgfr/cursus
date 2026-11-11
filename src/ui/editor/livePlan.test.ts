@@ -502,3 +502,27 @@ describe('a setext underline being typed', () => {
     expect(lineClasses(plan('Para\n-', 0), 'Para\n-')).toContainEqual(['Para', 'cm-md-h cm-md-h2'])
   })
 })
+
+describe('highlights', () => {
+  const doc = 'A ==key idea== and !!must know!!, not a == b.'
+
+  test('styled in their colour, markers hidden', () => {
+    const items = plan(doc, 0)
+    expect(marked(items, doc, 'cm-md-highlight')).toEqual(['==key idea=='])
+    expect(marked(items, doc, 'cm-md-important')).toEqual(['!!must know!!'])
+    expect(hidden(items, doc)).toEqual(['==', '==', '!!', '!!'])
+  })
+
+  test('Markdown inside, and around', () => {
+    const text = '**==b==** ==*i*=='
+    const items = plan(text, 0)
+    expect(marked(items, text, 'cm-md-strong')).toEqual(['**==b==**'])
+    expect(marked(items, text, 'cm-md-highlight')).toEqual(['==b==', '==*i*=='])
+    expect(marked(items, text, 'cm-md-em')).toEqual(['*i*'])
+  })
+
+  test('an image is not an important mark', () => {
+    const text = `!![p](cursus-blob:${SHA})`
+    expect(marked(plan(text, 0), text, 'cm-md-important')).toEqual([])
+  })
+})

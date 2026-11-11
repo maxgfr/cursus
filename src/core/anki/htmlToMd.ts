@@ -1,4 +1,5 @@
 import TurndownService from 'turndown'
+import { HIGHLIGHT_MARKERS } from '../content/highlight'
 
 /** Converts an HTML fragment to Markdown. Injectable so callers without a DOM-capable turndown can swap it. */
 export type HtmlConverter = (html: string) => string
@@ -6,7 +7,19 @@ export type HtmlConverter = (html: string) => string
 let service: TurndownService | null = null
 
 export const turndownConverter: HtmlConverter = (html) => {
-  service ??= new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced', emDelimiter: '*' })
+  service ??= new TurndownService({ headingStyle: 'atx', codeBlockStyle: 'fenced', emDelimiter: '*' }).addRule(
+    'highlight',
+    {
+      // A highlighted passage stays highlighted, an important one (as Cursus exports it) stays important.
+      filter: 'mark',
+      replacement: (content, node) => {
+        const [, lead = '', text = '', trail = ''] = /^(\s*)([\s\S]*?)(\s*)$/.exec(content) ?? []
+        if (text === '' || node.classList.contains('cloze')) return content
+        const marker = HIGHLIGHT_MARKERS[node.classList.contains('important') ? 'important' : 'highlight']
+        return `${lead}${marker}${text}${marker}${trail}`
+      },
+    },
+  )
   return service.turndown(html)
 }
 

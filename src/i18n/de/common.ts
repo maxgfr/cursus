@@ -96,6 +96,8 @@ export const common = {
   edBold: 'Fett',
   edItalic: 'Kursiv',
   edStrike: 'Durchgestrichen',
+  edHighlight: 'Hervorheben',
+  edImportant: 'Wichtig',
   edH1: 'Überschrift 1',
   edH2: 'Überschrift 2',
   edH3: 'Überschrift 3',

@@ -4,11 +4,15 @@ import type { ChangeSpec, EditorState, Extension } from '@codemirror/state'
 import type { SyntaxNode, Tree } from '@lezer/common'
 import { GFM } from '@lezer/markdown'
 import { clozeSpans } from '../../core/model/cloze'
+import { highlightSyntax } from './highlightSyntax.ts'
 import { mathSyntax } from './mathSyntax.ts'
 
-/** The Markdown the renderer reads: CommonMark, GFM (tables, task lists, ~~strikethrough~~, autolinks) and maths. */
+/**
+ * The Markdown the renderer reads: CommonMark, GFM (tables, task lists, ~~strikethrough~~, autolinks), maths and
+ * highlights.
+ */
 export function liveMarkdown(): Extension {
-  return markdown({ base: commonmarkLanguage, extensions: [GFM, mathSyntax] })
+  return markdown({ base: commonmarkLanguage, extensions: [GFM, mathSyntax, highlightSyntax] })
 }
 
 /** A stored photo in the text (`![caption](cursus-blob:<sha256>)`). */
@@ -74,6 +78,8 @@ const NOT_PENDING = new Set([
   'Emphasis',
   'StrongEmphasis',
   'Strikethrough',
+  'Highlight',
+  'Important',
   'Link',
   'URL',
   'Autolink',
@@ -220,6 +226,14 @@ export function planInline(state: EditorState, focused: boolean, options: PlanOp
         case 'Strikethrough':
           mark(from, to, 'cm-md-strike')
           children(node, 'StrikethroughMark')
+          return
+        case 'Highlight':
+          mark(from, to, 'cm-md-highlight')
+          children(node, 'HighlightMark')
+          return
+        case 'Important':
+          mark(from, to, 'cm-md-important')
+          children(node, 'ImportantMark')
           return
         case 'InlineCode':
           verbatim.push([from, to])
@@ -469,8 +483,10 @@ const PAIR_STYLE: Readonly<Record<string, readonly string[]>> = {
   '***': ['cm-md-em', 'cm-md-strong'],
   ___: ['cm-md-em', 'cm-md-strong'],
   '~~': ['cm-md-strike'],
+  '==': ['cm-md-highlight'],
+  '!!': ['cm-md-important'],
 }
-const PAIR_MARKER = /^(?:\*{1,3}|_{1,3}|~~)$/
+const PAIR_MARKER = /^(?:\*{1,3}|_{1,3}|~~|==|!!)$/
 
 /**
  * A pair the caret is typing into that Markdown does not read yet, the caret right before its closing marker: an
@@ -482,7 +498,7 @@ const PAIR_MARKER = /^(?:\*{1,3}|_{1,3}|~~)$/
 export function pendingPair(state: EditorState, head: number): PendingPair | null {
   const { doc } = state
   const l = doc.lineAt(head)
-  const close = /^(?:\*{1,3}|_{1,3}|~~)/.exec(doc.sliceString(head, l.to))?.[0]
+  const close = /^(?:\*{1,3}|_{1,3}|~~|==|!!)/.exec(doc.sliceString(head, l.to))?.[0]
   if (close === undefined) return null
   const c = close.charAt(0)
   // The whole run: `**` followed by another `*` is a different marker.
@@ -585,7 +601,7 @@ export function tableCellOffset(source: string, row: number, col: number): numbe
   return offset + cell
 }
 
-const MARKERS = /[*_~`[\]$]/
+const MARKERS = /[*_~`[\]$=!]/
 
 /**
  * The word a double click means at `pos`: the word there, or across the Markdown markers next to it (`**`, `[`…),

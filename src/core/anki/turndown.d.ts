@@ -5,8 +5,13 @@ declare module 'turndown' {
     codeBlockStyle?: 'indented' | 'fenced'
     emDelimiter?: '_' | '*'
   }
+  interface Rule {
+    filter: string | string[]
+    replacement: (content: string, node: HTMLElement) => string
+  }
   export default class TurndownService {
     constructor(options?: Options)
+    addRule(key: string, rule: Rule): this
     turndown(html: string): string
   }
 }

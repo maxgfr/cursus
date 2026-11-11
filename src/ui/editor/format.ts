@@ -14,13 +14,15 @@ import { clozeIndexes, clozeSpans } from '../../core/model/cloze'
 import { pendingPair, type Span, tidyPair } from './livePlan.ts'
 
 /** Inline formats the toolbar toggles, by their Markdown marker. */
-export type Marker = '**' | '*' | '~~' | '`' | '$'
+export type Marker = '**' | '*' | '~~' | '==' | '!!' | '`' | '$'
 
 /** Everything the toolbar applies, and shows as on (`aria-pressed`) where the caret is. */
 export type Format =
   | 'bold'
   | 'italic'
   | 'strike'
+  | 'highlight'
+  | 'important'
   | 'h1'
   | 'h2'
   | 'h3'
@@ -50,7 +52,7 @@ function run(state: EditorState, pos: number, c: string, dir: -1 | 1): number {
 function applies(marker: Marker, n: number): boolean {
   if (marker === '**') return n >= 2
   if (marker === '*') return n === 1 || n >= 3
-  if (marker === '~~') return n === 2
+  if (marker === '~~' || marker === '==' || marker === '!!') return n === 2
   return n === 1
 }
 
@@ -79,6 +81,8 @@ const FORMAT_OF: Readonly<Record<Marker, Format>> = {
   '**': 'bold',
   '*': 'italic',
   '~~': 'strike',
+  '==': 'highlight',
+  '!!': 'important',
   '`': 'code',
   $: 'math',
 }
@@ -88,6 +92,8 @@ const NODE_OF: Readonly<Record<Marker, { node: string; mark: string }>> = {
   '**': { node: 'StrongEmphasis', mark: 'EmphasisMark' },
   '*': { node: 'Emphasis', mark: 'EmphasisMark' },
   '~~': { node: 'Strikethrough', mark: 'StrikethroughMark' },
+  '==': { node: 'Highlight', mark: 'HighlightMark' },
+  '!!': { node: 'Important', mark: 'ImportantMark' },
   '`': { node: 'InlineCode', mark: 'CodeMark' },
   $: { node: 'InlineMath', mark: 'InlineMathMark' },
 }
@@ -510,6 +516,8 @@ const NODE_FORMATS: Readonly<Record<string, Format>> = {
   StrongEmphasis: 'bold',
   Emphasis: 'italic',
   Strikethrough: 'strike',
+  Highlight: 'highlight',
+  Important: 'important',
   InlineCode: 'code',
   InlineMath: 'math',
   BlockMath: 'math',
@@ -523,7 +531,16 @@ const NODE_FORMATS: Readonly<Record<string, Format>> = {
   Blockquote: 'quote',
 }
 
-const INLINE_FORMATS: ReadonlySet<Format> = new Set(['bold', 'italic', 'strike', 'code', 'math', 'link'])
+const INLINE_FORMATS: ReadonlySet<Format> = new Set([
+  'bold',
+  'italic',
+  'strike',
+  'highlight',
+  'important',
+  'code',
+  'math',
+  'link',
+])
 
 /** The formats in effect where the caret is (at the selection's start). */
 export function activeFormats(state: EditorState): Set<Format> {

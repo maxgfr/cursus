@@ -86,6 +86,11 @@
   --course-red: #d93f4c;
   --course-purple: #7a52d6;
   --course-graphite: #6b7280;
+  /* Highlighted text (`==…==`) and important text (`!!…!!`): a background behind the text's own ink. */
+  --highlight: #fff1a8;
+  --highlight-ink: #3d3000;
+  --important: #ffd9dc;
+  --important-ink: #8a1621;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -124,6 +129,10 @@
     --course-red: #ff6b78;
     --course-purple: #a88bff;
     --course-graphite: #9aa3b2;
+    --highlight: #4a3f0c;
+    --highlight-ink: #fff3c2;
+    --important: #4d1b22;
+    --important-ink: #ffd0d5;
   }
 }
 
@@ -162,6 +171,10 @@
   --course-red: #ff6b78;
   --course-purple: #a88bff;
   --course-graphite: #9aa3b2;
+  --highlight: #4a3f0c;
+  --highlight-ink: #fff3c2;
+  --important: #4d1b22;
+  --important-ink: #ffd0d5;
 }
 
 @media (prefers-reduced-motion: reduce) {

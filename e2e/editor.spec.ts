@@ -134,6 +134,36 @@ test('formatted text pasted from a page arrives as Markdown; « Show Markdown »
   expect(errors).toEqual([])
 })
 
+test('the toolbar highlights the selection, and marks what is typed next as important, each in its colour', async ({
+  page,
+}) => {
+  const errors = watchErrors(page)
+  const editor = await newNote(page, 'Highlights')
+  const toolbar = page.getByRole('toolbar', { name: 'Formatting' })
+  const button = (name: string) => toolbar.getByRole('button', { name, exact: true })
+  await editor.click()
+  await page.keyboard.type('Key idea')
+  await page.keyboard.press('Shift+Home')
+  await button('Highlight').click()
+  await expect(button('Highlight')).toHaveAttribute('aria-pressed', 'true')
+  await page.keyboard.press('End')
+  await page.keyboard.type(' then ')
+  await button('Important').click()
+  await page.keyboard.type('the rule')
+  await expect(editor.locator('.cm-md-highlight')).toHaveText('Key idea')
+  await expect(editor.locator('.cm-md-important')).toHaveText('the rule')
+  await expect(editor).toHaveText('Key idea then the rule')
+  const colours = await editor.evaluate((el) =>
+    ['.cm-md-highlight', '.cm-md-important'].map(
+      (s) => getComputedStyle(el.querySelector(s) as Element).backgroundColor,
+    ),
+  )
+  expect(colours[0]).not.toBe(colours[1])
+  expect(colours).not.toContain('rgba(0, 0, 0, 0)')
+  expect(await sourceText(page, editor)).toBe('==Key idea== then !!the rule!!')
+  expect(errors).toEqual([])
+})
+
 test('the toolbar: buttons show what is in effect, tables and formulas are added from it', async ({ page }) => {
   const errors = watchErrors(page)
   const editor = await newNote(page, 'Toolbar')

@@ -299,6 +299,26 @@
   overflow-x: auto;
 }
 
+/* Highlighted and important text, alike in the editor and wherever the text is read. */
+.prose mark,
+.live :global(.cm-md-highlight) {
+  border-radius: var(--radius-small);
+  background: var(--highlight);
+  color: var(--highlight-ink);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.prose :global(mark.important),
+.live :global(.cm-md-important) {
+  border-radius: var(--radius-small);
+  background: var(--important);
+  color: var(--important-ink);
+  font-weight: 600;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
 /* Cloze deletions, marked alike in a cloze card's editor and in its review (`clozeFaces`). */
 .prose :global(mark.cloze),
 .live :global(.cm-md-cloze) {

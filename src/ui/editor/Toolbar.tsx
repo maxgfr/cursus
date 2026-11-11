@@ -1,11 +1,13 @@
 import {
   Bold,
+  CircleAlert,
   Code,
   Ellipsis,
   EyeOff,
   Heading1,
   Heading2,
   Heading3,
+  Highlighter,
   ImagePlus,
   Italic,
   Link,
@@ -33,6 +35,8 @@ type Label =
   | 'common.edBold'
   | 'common.edItalic'
   | 'common.edStrike'
+  | 'common.edHighlight'
+  | 'common.edImportant'
   | 'common.edCode'
   | 'common.edLink'
   | 'common.edMath'
@@ -53,6 +57,8 @@ const GROUPS: readonly (readonly Button[])[] = [
     ['bold', Bold, 'common.edBold', 'Mod-B'],
     ['italic', Italic, 'common.edItalic', 'Mod-I'],
     ['strike', Strikethrough, 'common.edStrike'],
+    ['highlight', Highlighter, 'common.edHighlight'],
+    ['important', CircleAlert, 'common.edImportant'],
     ['code', Code, 'common.edCode'],
     ['link', Link, 'common.edLink', 'Mod-K'],
     ['math', Sigma, 'common.edMath'],
@@ -68,6 +74,12 @@ const GROUPS: readonly (readonly Button[])[] = [
   ],
   [['table', Table, 'common.edTable']],
 ]
+
+/** The buttons drawn in the colour they apply. */
+const SWATCH: Partial<Record<Format, string>> = {
+  highlight: styles.swatchHighlight,
+  important: styles.swatchImportant,
+}
 
 /**
  * Whether the editor's `Mod` is Meta, by CodeMirror's own test: a Mac, or Safari on an iPhone or an iPad (known by
@@ -144,6 +156,7 @@ export function Toolbar({ source, photo = false, cloze = false, live }: ToolbarP
                 key={format}
                 icon={icon}
                 label={t(label)}
+                className={SWATCH[format]}
                 disabled={idle || source}
                 aria-pressed={live?.active.has(format) ?? false}
                 aria-keyshortcuts={keys ? ariaKeys(keys, apple) : undefined}
