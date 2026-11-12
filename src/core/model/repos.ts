@@ -64,6 +64,11 @@ export class EntityRepo<T extends Meta, In extends object> implements Repo<T, In
     this.cache = null
   }
 
+  /** Final order of `all()`, given the entities sorted; a subclass may deal them out again (cards, see cardOrder.ts). */
+  protected arrange(sorted: T[]): T[] {
+    return sorted
+  }
+
   get yRoot(): Y.Map<Y.Map<unknown>> {
     return this.root
   }
@@ -94,9 +99,10 @@ export class EntityRepo<T extends Meta, In extends object> implements Repo<T, In
     } else {
       out.sort((a, b) => cmp(a.id, b.id))
     }
+    const arranged = this.arrange(out)
     this.byId = byId
-    this.cache = out
-    return out
+    this.cache = arranged
+    return arranged
   }
 
   list(f?: { courseId?: Id; trashed?: boolean }): readonly T[] {

@@ -1,5 +1,5 @@
-import { ChevronRight } from 'lucide-react'
-import { type ReactNode, useId } from 'react'
+import { ChevronRight, GripVertical } from 'lucide-react'
+import { type ComponentProps, type ReactNode, useId } from 'react'
 import { Link } from 'wouter'
 import { cx } from '../cx.ts'
 import styles from './List.module.css'
@@ -42,6 +42,8 @@ export interface ListRowProps {
   /** Set with `onCheckedChange`: the row is a checkbox named by its title (for picking several rows). */
   checked?: boolean
   onCheckedChange?: (checked: boolean) => void
+  /** Props of the row's `<li>` (a sortable list's handlers, see useSortable). */
+  item?: ComponentProps<'li'>
 }
 
 export function ListRow({
@@ -55,6 +57,7 @@ export function ListRow({
   wrap,
   checked,
   onCheckedChange,
+  item,
 }: ListRowProps) {
   const showChevron = chevron ?? href !== undefined
   const checkId = useId()
@@ -92,7 +95,7 @@ export function ListRow({
     wrap === true && styles.wrap,
   )
   return (
-    <li className={styles.item}>
+    <li {...item} className={cx(styles.item, item?.className)}>
       {onCheckedChange ? (
         <label htmlFor={checkId} className={cls}>
           {body}
@@ -109,5 +112,23 @@ export function ListRow({
         <div className={cls}>{body}</div>
       )}
     </li>
+  )
+}
+
+/**
+ * A sortable row's grip (useSortable's `handle`): pressing it lifts the row at once. Pointer only, so hidden from
+ * assistive technologies: the row's move buttons do the same from the keyboard.
+ */
+export function ListGrip({
+  label,
+  onPointerDown,
+}: {
+  label: string
+  onPointerDown: (e: React.PointerEvent<HTMLElement>) => void
+}) {
+  return (
+    <span className={styles.grip} title={label} aria-hidden="true" data-grip onPointerDown={onPointerDown}>
+      <GripVertical size={20} strokeWidth={1.75} />
+    </span>
   )
 }

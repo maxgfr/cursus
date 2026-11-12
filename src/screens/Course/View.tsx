@@ -1,4 +1,7 @@
 import {
+  ArrowUpDown,
+  ChevronDown,
+  ChevronUp,
   Download,
   Ellipsis,
   FileText,
@@ -37,10 +40,11 @@ import { courseHue } from '../../ui/components/Badges.tsx'
 import { Button, buttonClass } from '../../ui/components/Button.tsx'
 import { EmptyState } from '../../ui/components/EmptyState.tsx'
 import { IconButton } from '../../ui/components/IconButton.tsx'
-import { ListGroup, ListRow } from '../../ui/components/List.tsx'
+import { ListGrip, ListGroup, ListRow } from '../../ui/components/List.tsx'
 import { Segmented } from '../../ui/components/Segmented.tsx'
 import { Sheet } from '../../ui/components/Sheet.tsx'
 import { Toast } from '../../ui/components/Toast.tsx'
+import { useSortable } from '../../ui/data/useSortable.ts'
 import { MoveSheet, moveItemTo, type Place } from '../../ui/MoveSheet.tsx'
 import { Screen } from '../../ui/shell/Screen.tsx'
 import { newCardId } from '../CardEditor/draft.ts'
@@ -122,6 +126,9 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   const [moved, setMoved] = useState<string | null>(null)
   // Picking cards, sources or study sheets, to move them together: `null` when not picking.
   const [picked, setPicked] = useState<ReadonlySet<Id> | null>(null)
+  // Ordering this place's cards by hand (grips and arrows); a long press drags a row in any mode but picking.
+  const [reordering, setReordering] = useState(false)
+  const [placed, setPlaced] = useState('')
   const [movingCards, setMovingCards] = useState(false)
   const [movingSources, setMovingSources] = useState(false)
   const [movingSheets, setMovingSheets] = useState(false)
@@ -135,6 +142,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   // Another tab ends picking: its cards and its sheets never share a half-made choice.
   const setTab = (next: Tab) => {
     setPicked(null)
+    setReordering(false)
     setChosenTab(next)
   }
   const filesInput = useRef<HTMLInputElement>(null)
@@ -207,6 +215,36 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   )
   // Opens on the cards when there are some, else on the sources to add the first one.
   const tab: Tab = chosenTab ?? (data !== null && data.cards.length > 0 ? 'cards' : 'sources')
+  const cardIds = data?.cards.map((c) => c.id) ?? []
+  const childIds = data?.children.map((s) => s.id) ?? []
+  const nameOf = (id: Id): string => {
+    const c = data?.cards.find((x) => x.id === id)
+    return c ? c.front || t('course.emptyCard') : (data?.children.find((x) => x.id === id)?.name ?? '')
+  }
+  const announce = (id: Id, position: number, total: number) =>
+    setPlaced(t('course.movedToPosition', { name: nameOf(id), position: position + 1, total }))
+  const cardSort = useSortable({
+    ids: cardIds,
+    onMove: (id, beforeId, position) => {
+      rt.ws.cards.reorder(id, beforeId)
+      announce(id, position, cardIds.length)
+    },
+  })
+  const sectionSort = useSortable({
+    ids: childIds,
+    onMove: (id, beforeId, position) => {
+      rt.ws.sections.reorder(id, beforeId)
+      announce(id, position, childIds.length)
+    },
+  })
+  /** The arrows of reorder mode: one step up or down. */
+  const stepCard = (id: Id, delta: -1 | 1) => {
+    const at = cardIds.indexOf(id)
+    const to = at + delta
+    if (at < 0 || to < 0 || to >= cardIds.length) return
+    rt.ws.cards.reorder(id, delta < 0 ? (cardIds[to] as Id) : (cardIds[to + 1] ?? null))
+    announce(id, to, cardIds.length)
+  }
 
   /** Adds a source and opens it (cards are suggested only when the student asks, from the source). */
   const run = async (work: () => Promise<string>) => {
@@ -339,6 +377,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
   const pickedCards = picked === null ? [] : cards.filter((c) => picked.has(c.id)).map((c) => c.id)
   // The « Card added » notice would sit over the last rows to pick: it has been read.
   const startPicking = () => {
+    setReordering(false)
     if (saved !== null) {
       setSaved(null)
       clearEntryState()
@@ -517,6 +556,7 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
           {children.map((s) => (
             <ListRow
               key={s.id}
+              item={sectionSort.row(s.id)}
               href={to.section(courseId, s.id)}
               leading={<Folder size={20} />}
               title={s.name}
@@ -590,7 +630,14 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
               </Button>
             </div>
           )}
-          {cards.length > 0 && picked === null && (
+          {reordering && picked === null && (
+            <div className={styles.actions}>
+              <Button variant="primary" onClick={() => setReordering(false)}>
+                {t('common.done')}
+              </Button>
+            </div>
+          )}
+          {cards.length > 0 && picked === null && !reordering && (
             <div className={styles.actions}>
               <Button variant="primary" icon={<Plus size={18} aria-hidden="true" />} onClick={newCard}>
                 {t('course.addCard')}
@@ -603,6 +650,15 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
               <Button variant="plain" icon={<ListChecks size={18} aria-hidden="true" />} onClick={startPicking}>
                 {t('course.pickCards')}
               </Button>
+              {cards.length > 1 && (
+                <Button
+                  variant="plain"
+                  icon={<ArrowUpDown size={18} aria-hidden="true" />}
+                  onClick={() => setReordering(true)}
+                >
+                  {t('course.reorderCards')}
+                </Button>
+              )}
               <IconButton icon={Ellipsis} label={t('course.moreCardWays')} onClick={() => setMoreCards(true)} />
             </div>
           )}
@@ -634,16 +690,46 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
               title={t('course.tabCards')}
               hideTitle
               footer={
-                // The cards of this level; the header counts those of its sections too: say both.
-                data.total > cards.length
-                  ? t('course.cardsHere', { count: cards.length, total: data.total })
-                  : t('course.cardCount', { count: cards.length })
+                reordering
+                  ? t('course.reorderHint')
+                  : // The cards of this level; the header counts those of its sections too: say both.
+                    data.total > cards.length
+                    ? t('course.cardsHere', { count: cards.length, total: data.total })
+                    : t('course.cardCount', { count: cards.length })
               }
             >
-              {cards.map((c) =>
-                picked === null ? (
+              {cards.map((c, i) =>
+                picked === null && reordering ? (
                   <ListRow
                     key={c.id}
+                    item={cardSort.row(c.id)}
+                    title={c.front || t('course.emptyCard')}
+                    subtitle={c.kind === 'cloze' ? t('course.kindCloze') : undefined}
+                    trailing={
+                      <>
+                        <IconButton
+                          icon={ChevronUp}
+                          label={t('course.moveUpNamed', { name: c.front || t('course.emptyCard') })}
+                          disabled={i === 0}
+                          onClick={() => stepCard(c.id, -1)}
+                        />
+                        <IconButton
+                          icon={ChevronDown}
+                          label={t('course.moveDownNamed', { name: c.front || t('course.emptyCard') })}
+                          disabled={i === cards.length - 1}
+                          onClick={() => stepCard(c.id, 1)}
+                        />
+                        <ListGrip
+                          label={t('course.dragNamed', { name: c.front || t('course.emptyCard') })}
+                          {...cardSort.handle(c.id)}
+                        />
+                      </>
+                    }
+                  />
+                ) : picked === null ? (
+                  <ListRow
+                    key={c.id}
+                    item={cardSort.row(c.id)}
                     href={to.card(c.id)}
                     title={c.front || t('course.emptyCard')}
                     subtitle={c.kind === 'cloze' ? t('course.kindCloze') : undefined}
@@ -945,6 +1031,9 @@ export function CourseView({ courseId, sectionId }: { courseId: Id; sectionId?: 
         at={generating ? (sectionId === undefined ? { courseId } : { courseId, sectionId }) : null}
         onClose={() => setGenerating(false)}
       />
+      <p className="sr-only" aria-live="polite">
+        {placed}
+      </p>
     </Screen>
   )
 }

@@ -138,3 +138,53 @@ button.row:focus-visible {
 .chevron {
   color: var(--ink-3);
 }
+
+/* Sortable rows (useSortable): no callout or text selection on a long press, the others make room smoothly. */
+.item[data-sortable] {
+  -webkit-touch-callout: none;
+}
+
+@media (pointer: coarse) {
+  .item[data-sortable] {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}
+
+.item[data-sorting] {
+  position: relative;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+
+.item[data-lifted] {
+  z-index: 1;
+  background: var(--surface-pressed);
+  box-shadow: inset 0 0 0 1px var(--hairline-strong);
+  transition: none;
+}
+
+.item[data-lifted] .row::before,
+.item[data-lifted] + .item .row::before {
+  border-top-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .item[data-sorting] {
+    transition: none;
+  }
+}
+
+.grip {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-inline-end: calc(-1 * var(--space-2));
+  color: var(--ink-3);
+  cursor: grab;
+  touch-action: none;
+}
+
+[data-lifted] .grip {
+  cursor: grabbing;
+}

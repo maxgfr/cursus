@@ -54,6 +54,8 @@ export interface CardInput extends Placed {
   courseId: Id
   ficheId?: Id
   kind: 'basic' | 'cloze'
+  /** Fractional index among the cards of its place (course and section); absent: after those with one, by creation. */
+  order?: string
 }
 export interface Card extends EntityMeta, CardInput {}
 export type Rating = 1 | 2 | 3 | 4
@@ -153,7 +155,8 @@ export interface Workspace {
   courses: Repo<Course, CourseInput>
   sources: Repo<Source, SourceInput>
   fiches: Repo<Fiche, FicheInput>
-  cards: Repo<Card, CardInput> & { move(id: Id, courseId: Id): void }
+  /** `reorder` puts a card just before another card of its place, or last in it with null. */
+  cards: Repo<Card, CardInput> & { move(id: Id, courseId: Id): void; reorder(id: Id, beforeId: Id | null): void }
   /**
    * Subsets. `move` refuses a parent inside the section's own subtree or in another course; `path` is the chain
    * from the course root down to the section (itself included); `subtree` is the section and every descendant.

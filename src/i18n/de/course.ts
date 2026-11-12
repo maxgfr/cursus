@@ -176,6 +176,13 @@ export const course = {
   purgeSectionBody: 'Alles, was darin abgelegt ist, geht mit: {contents}.',
   moveUp: 'Nach oben',
   moveDown: 'Nach unten',
+  reorderCards: 'Sortieren',
+  reorderHint:
+    'Zieh eine Karte an ihrem Griff oder nutze die Pfeile. Auf einem Touchscreen verschiebst du eine Karte jederzeit, indem du sie gedrückt hältst.',
+  moveUpNamed: '„{name}“ nach oben',
+  moveDownNamed: '„{name}“ nach unten',
+  dragNamed: '„{name}“ ziehen',
+  movedToPosition: '„{name}“ an Position {position} von {total} verschoben.',
   sectionExamHint:
     'Eine Kapitelprüfung plant nur die Karten dieses Abschnitts. „Heute“ nennt sie, wenn sie als Nächstes ansteht.',
   trashSection: 'Abschnitt in den Papierkorb',

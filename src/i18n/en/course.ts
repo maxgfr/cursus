@@ -166,6 +166,13 @@ export const course = {
   purgeSectionBody: 'Everything filed in it goes with it: {contents}.',
   moveUp: 'Move up',
   moveDown: 'Move down',
+  reorderCards: 'Reorder',
+  reorderHint:
+    'Drag a card by its handle, or use the arrows. On a touch screen, press and hold a card to move it at any time.',
+  moveUpNamed: 'Move “{name}” up',
+  moveDownNamed: 'Move “{name}” down',
+  dragNamed: 'Drag “{name}”',
+  movedToPosition: '“{name}” moved to position {position} of {total}.',
   sectionExamHint: 'A chapter exam plans only this section’s cards. Today names it when it comes first.',
   trashSection: 'Move section to the trash',
   trashSectionNote: 'Its sources, cards and study sheets leave with it and come back if you restore it.',

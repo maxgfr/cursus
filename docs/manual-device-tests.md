@@ -78,6 +78,11 @@ destinations. Record the date, devices and OS versions with each run.
   edit a card. Expected: every action reachable; focus visible.
 - [ ] **Scribble.** On iPad with Apple Pencil, write into a card field and the search box. Expected:
   handwriting is converted to text in place.
+- [ ] **Card order by touch.** On iPad, in a section with 15+ cards: tap Reorder and drag a card by its grip
+  past the bottom of the screen; leave Reorder, then press and hold a card and drag it. Expected: the row
+  follows the finger and the list scrolls near the edges; no link preview, menu or text selection appears; a
+  swipe on a row scrolls the list and a quick tap opens the card; the new order shows on the other devices
+  after sync, and new cards are studied in that order.
 
 ## AI with real keys
 

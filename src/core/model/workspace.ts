@@ -2,13 +2,13 @@ import * as Y from 'yjs'
 import type { Clock, Rng } from '../contracts/ports'
 import type { Id, ItemKind, Prefs, Scope, StudyScope, Workspace } from '../contracts/workspace'
 import { REMOTE } from '../log/origins'
+import { CardRepo, placeOf } from './cardOrder'
 import { type DeletionReport, deletionsBetween, track } from './deletions'
 import { DraftRepo } from './drafts'
 import { EntityNotFoundError, EntityRepo } from './repos'
 import { ReviewSettingsStore } from './reviewSettings'
 import { AiUsageLog, ReviewLog } from './reviews'
 import {
-  type CardFields,
   type CardRecord,
   type CourseFields,
   type CourseRecord,
@@ -45,7 +45,7 @@ export interface ModelWorkspace extends Workspace {
   courses: EntityRepo<CourseRecord, CourseFields>
   sources: EntityRepo<SourceRecord, SourceFields>
   fiches: EntityRepo<FicheRecord, FicheFields>
-  cards: EntityRepo<CardRecord, CardFields> & { move(id: Id, courseId: Id): void }
+  cards: CardRepo & { move(id: Id, courseId: Id): void }
   sections: SectionRepo
   /** Live entities of a course or subset (descendants included), those hidden in a trashed section excluded. */
   scoped<K extends ItemKind>(kind: K, scope: StudyScope): readonly ItemRecord[K][]
@@ -101,12 +101,17 @@ export function createWorkspace(doc: Y.Doc, deps: WorkspaceDeps): ModelWorkspace
   const courses = new EntityRepo<CourseRecord, CourseFields>(rd, 'courses', true)
   const sources = new EntityRepo<SourceRecord, SourceFields>(rd, 'sources')
   const fiches = new EntityRepo<FicheRecord, FicheFields>(rd, 'fiches')
-  const cardRepo = new EntityRepo<CardRecord, CardFields>(rd, 'cards')
+  const cardRepo = new CardRepo(rd)
   const sections = new SectionRepo(rd)
-  // Moving a card to another course takes it out of its section there.
+  // Moving a card to another course takes it out of its section there; a card that changes place goes last there.
   const cards = Object.assign(cardRepo, {
     move(id: Id, courseId: Id): void {
-      cardRepo.update(id, { courseId, sectionId: undefined })
+      const c = cardRepo.get(id)
+      const moved = c === undefined || placeOf(c) !== placeOf({ id, courseId })
+      cardRepo.update(
+        id,
+        moved ? { courseId, sectionId: undefined, order: undefined } : { courseId, sectionId: undefined },
+      )
     },
   })
   const items = { sources, fiches, cards: cardRepo }
@@ -179,14 +184,19 @@ export function createWorkspace(doc: Y.Doc, deps: WorkspaceDeps): ModelWorkspace
   }
 
   function moveItem(kind: ItemKind, id: Id, sectionId: Id | null): void {
-    const repo: { update(id: Id, p: { courseId?: Id; sectionId?: Id }): void } = items[kind]
-    if (sectionId === null) {
-      repo.update(id, { sectionId: undefined })
-      return
+    const repo: { update(id: Id, p: { courseId?: Id; sectionId?: Id; order?: string }): void } = items[kind]
+    const target = sectionId === null ? null : sections.tree().get(sectionId)
+    if (sectionId !== null && !target) throw new EntityNotFoundError('sections', sectionId)
+    const p: { courseId?: Id; sectionId?: Id; order?: string } = target
+      ? { courseId: target.courseId, sectionId: target.id }
+      : { sectionId: undefined }
+    // A card that changes place goes last in its new place (its key was among the cards of the old one).
+    if (kind === 'cards') {
+      const c = cardRepo.get(id)
+      if (c === undefined || placeOf(c) !== placeOf({ id, courseId: p.courseId ?? c.courseId, sectionId: p.sectionId }))
+        p.order = undefined
     }
-    const target = sections.tree().get(sectionId)
-    if (!target) throw new EntityNotFoundError('sections', sectionId)
-    repo.update(id, { courseId: target.courseId, sectionId })
+    repo.update(id, p)
   }
 
   function scoped<K extends ItemKind>(kind: K, scope: StudyScope): readonly ItemRecord[K][] {

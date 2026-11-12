@@ -173,6 +173,13 @@ export const course = {
   purgeSectionBody: 'Tout ce qui y est rangé part avec : {contents}.',
   moveUp: 'Monter',
   moveDown: 'Descendre',
+  reorderCards: 'Réordonner',
+  reorderHint:
+    'Faites glisser une carte par sa poignée, ou utilisez les flèches. Sur écran tactile, un appui long sur une carte la déplace à tout moment.',
+  moveUpNamed: 'Monter « {name} »',
+  moveDownNamed: 'Descendre « {name} »',
+  dragNamed: 'Faire glisser « {name} »',
+  movedToPosition: '« {name} » déplacé en position {position} sur {total}.',
   sectionExamHint:
     'Un partiel de chapitre ne planifie que les cartes de cette section. Aujourd’hui le cite quand il arrive en premier.',
   trashSection: 'Mettre la section à la corbeille',
