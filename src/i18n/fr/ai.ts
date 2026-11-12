@@ -392,6 +392,10 @@ export const ai = {
   inboxRunning: 'Questions en cours de proposition…',
   inboxRunningProgress: 'Questions en cours de proposition… {done} sur {total} lus',
   inboxWaiting: 'En attente de connexion : les questions arriveront dès que vous serez en ligne.',
+  inboxReconnecting:
+    'La connexion au modèle d’IA a été coupée : nouvel essai dans un instant, là où elle s’était arrêtée.',
+  inboxConnectionLost:
+    'La connexion au modèle d’IA a été coupée à plusieurs reprises. Réessayez quand votre connexion est stable : les questions déjà proposées sont gardées.',
   inboxNeedsModelLine: 'En attente d’un modèle d’IA.',
   inboxCancel: 'Arrêter',
   inboxCancelled: 'Arrêté.',

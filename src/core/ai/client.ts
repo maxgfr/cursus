@@ -104,6 +104,12 @@ export interface FeatureCtx {
    * validation and the usage reported are the same either way.
    */
   onPartial?: (partial: unknown) => void
+  /**
+   * Structured calls stream even with no `onPartial`, so the answer arrives as it is written. A long call that sends
+   * nothing until it is done can be cut by the browser (Safari ends such a request with « Load failed »); a
+   * streamed one keeps the connection busy. The result and the usage reported are the same.
+   */
+  stream?: boolean
 }
 
 /** A structured call: a text prompt, or messages (to attach images). */
@@ -155,6 +161,7 @@ export async function billed<T>(
 
 export function generateStructured<T>(ctx: FeatureCtx, req: StructuredRequest<T>): Promise<T> {
   const onPartial = ctx.onPartial
+  if (!onPartial && ctx.stream) return streamStructured(ctx, req).output
   if (onPartial) {
     const s = streamStructured(ctx, req)
     return (async () => {
@@ -185,19 +192,27 @@ export interface StructuredStream<T> {
 }
 
 export function streamStructured<T>(ctx: FeatureCtx, req: StructuredRequest<T>): StructuredStream<T> {
+  // The stream's own failure (the provider's, or the connection's: « Load failed »): the SDK otherwise only says
+  // that no output came, and that is what the caller would see and tell apart.
+  const failure: { seen: boolean; error?: unknown } = { seen: false }
   const res = streamText({
     model: ctx.model,
     system: req.system,
     ...input(req),
     output: Output.object({ schema: req.schema }),
     abortSignal: ctx.signal,
+    onError: ({ error }) => {
+      if (failure.seen) return
+      failure.seen = true
+      failure.error = error
+    },
   })
   const output = (async () => {
     let value: T
     try {
       value = await res.output
     } catch (e) {
-      recordFailure(ctx, req.feature, e)
+      recordFailure(ctx, req.feature, failure.seen ? failure.error : e)
     }
     record(ctx, req.feature, tokens(await res.totalUsage))
     return value

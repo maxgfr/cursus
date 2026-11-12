@@ -391,6 +391,10 @@ export const ai = {
   inboxRunning: 'Fragen werden vorgeschlagen …',
   inboxRunningProgress: 'Fragen werden vorgeschlagen … {done} von {total} gelesen',
   inboxWaiting: 'Wartet auf eine Verbindung: Die Fragen kommen, sobald du wieder online bist.',
+  inboxReconnecting:
+    'Die Verbindung zum KI-Modell wurde unterbrochen: Gleich gibt es einen neuen Versuch, ab der Stelle, an der sie abbrach.',
+  inboxConnectionLost:
+    'Die Verbindung zum KI-Modell wurde mehrmals unterbrochen. Versuch es erneut, sobald deine Verbindung stabil ist: Die bereits vorgeschlagenen Fragen bleiben erhalten.',
   inboxNeedsModelLine: 'Wartet auf ein KI-Modell.',
   inboxCancel: 'Anhalten',
   inboxCancelled: 'Angehalten.',

@@ -60,7 +60,7 @@ export function JobLine({ job, actions }: { job: AiJob; actions?: JobActions }) 
       buttons = stop
       break
     case 'waiting':
-      text = t('ai.inboxWaiting')
+      text = job.waitReason === 'connection' ? t('ai.inboxReconnecting') : t('ai.inboxWaiting')
       buttons = stop
       break
     case 'needs-model':
@@ -69,7 +69,8 @@ export function JobLine({ job, actions }: { job: AiJob; actions?: JobActions }) 
       break
     case 'failed':
       tone = 'error'
-      text = t('ai.inboxFailed', { reason: job.error ?? '' })
+      text =
+        job.failure === 'connection' ? t('ai.inboxConnectionLost') : t('ai.inboxFailed', { reason: job.error ?? '' })
       buttons = actions && (
         <Button variant="secondary" onClick={() => actions.retry(job.id)}>
           {t('ai.inboxRetry')}

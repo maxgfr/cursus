@@ -1,6 +1,6 @@
 import { join } from 'node:path'
 import { expect, type Page, type Route, test } from '@playwright/test'
-import { configureAi } from './support/ai'
+import { completionReply, configureAi } from './support/ai'
 import { createHarness } from './support/harness.ts'
 import { createCourse, seriousViolations, watchErrors } from './support/page.ts'
 
@@ -54,19 +54,10 @@ async function mockProvider(page: Page): Promise<string[]> {
       }
       content = JSON.stringify({ questions })
     }
-    return route.fulfill({
-      status: 200,
-      headers: CORS,
-      contentType: 'application/json',
-      json: {
-        id: 'cmpl-1',
-        object: 'chat.completion',
-        created: 1,
-        model: 'claude-haiku-5-5',
-        choices: [{ index: 0, message: { role: 'assistant', content }, finish_reason: 'stop' }],
-        usage: { prompt_tokens: 1200, completion_tokens: 400 },
-      },
-    })
+    // Streamed when asked: the suggestions of an online model stream (see FeatureCtx.stream).
+    return route.fulfill(
+      completionReply(req, content, CORS, 'claude-haiku-5-5', { prompt_tokens: 1200, completion_tokens: 400 }),
+    )
   })
   return asked
 }
@@ -120,6 +111,39 @@ async function suggest(page: Page) {
   await expect(page.getByText('Why does Transport matter?')).toBeVisible()
   expect(asked).toHaveLength(1)
 }
+
+test('a connection cut while cards are suggested is tried again on its own, with no raw error shown', async ({
+  page,
+}) => {
+  await harness.seed(page, {
+    courses: [{ title: 'Biology', notes: [{ title: 'Cells', body: '# Membranes\n\nA bilayer of lipids.' }] }],
+  })
+  const asked = await mockProvider(page)
+  // The first questions call is cut (the browser's own network error: « Load failed » in WebKit).
+  let cut = 0
+  await page.route(`${LLM}/**`, (route) => {
+    const req = route.request()
+    if (req.method() === 'POST' && (req.postData() ?? '').includes('spaced-repetition questions') && cut++ === 0)
+      return route.abort('failed')
+    return route.fallback()
+  })
+  await configureAi(page, LLM)
+  await page.goto('./#/courses')
+  await page
+    .getByRole('main')
+    .getByRole('link', { name: /Biology/ })
+    .click()
+  await page.getByRole('radio', { name: 'Sources' }).check({ force: true })
+  await page.getByRole('main').getByRole('link', { name: /Cells/ }).click()
+  await page.getByRole('main').getByRole('button', { name: 'Suggest cards' }).click()
+  await page.getByRole('dialog', { name: 'Create cards' }).getByRole('button', { name: 'Create cards' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Suggested cards' })).toBeVisible()
+  await expect(page.getByText(/connection to the AI model was cut/)).toBeVisible()
+  await expect(page.getByText('What is Membranes?')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText(/couldn’t be suggested|Load failed|Failed to fetch/i)).toHaveCount(0)
+  expect(cut).toBe(2)
+  expect(asked).toHaveLength(1)
+})
 
 test('adding a PDF or a photo asks no model and queues nothing', async ({ page }) => {
   const errors = watchErrors(page)

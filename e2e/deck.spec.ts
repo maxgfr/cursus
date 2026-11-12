@@ -20,6 +20,7 @@ interface Part {
 }
 interface Body {
   messages: { role: string; content: string | Part[] }[]
+  stream?: boolean
 }
 
 const textOf = (body: Body) =>
@@ -86,12 +87,12 @@ async function mockProvider(page: Page, o: { hold?: Promise<void>; vision?: bool
     }
     calls.questions.push(body)
     if (o.hold) await o.hold
-    return route.fulfill({
-      status: 200,
-      headers: CORS,
-      contentType: 'application/json',
-      json: completion(JSON.stringify(questionsFor(text))),
-    })
+    const out = JSON.stringify(questionsFor(text))
+    // Streamed when asked: the suggestions of an online model stream (see FeatureCtx.stream).
+    if (body.stream) {
+      return route.fulfill({ status: 200, headers: { ...CORS, 'content-type': 'text/event-stream' }, body: sse(out) })
+    }
+    return route.fulfill({ status: 200, headers: CORS, contentType: 'application/json', json: completion(out) })
   })
   // A refreshed catalog where this route reads text only.
   await page.route('https://models.dev/api.json', (route) =>

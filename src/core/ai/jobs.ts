@@ -7,6 +7,9 @@
  * - Drafts are written to the workspace batch by batch, so they sync as they come and nothing read is lost.
  * - Never runs without a configured model (`needs-model`), nor offline with an online model (`waiting`,
  *   `waitReason: 'offline'`). What a run costs is recorded with the usage, against its source.
+ * - An online model's calls stream, so the browser never cuts a long call that sends nothing; a connection lost
+ *   anyway (the device asleep, the network gone) waits a moment and resumes on its own (`waitReason: 'connection'`),
+ *   up to `RETRY_DELAYS_MS.length` times in a row with nothing read in between, then fails (`failure`).
  * - Cancellable (`cancel`), retryable (`retry`); `stop` interrupts the running job without cancelling it.
  * - Only the student starts a job: a job queued on its own by an earlier version (when a source was added) is
  *   cancelled when the queue is read, never run.
@@ -63,7 +66,11 @@ export interface AiJob {
   status: JobStatus
   createdAt: number
   updatedAt: number
-  waitReason?: 'offline'
+  waitReason?: 'offline' | 'connection'
+  /** Connections lost in a row with nothing read in between (cleared once a run ends). */
+  tries?: number
+  /** Why a failed job failed, when it is known: its connection kept being lost. */
+  failure?: 'connection'
   estimate?: JobEstimate
   /** USD this job spent on its source so far. */
   spent: number
@@ -119,6 +126,29 @@ export interface JobsDeps {
   ): Promise<SourceContent | null>
   /** Generators by source kind (e.g. `image`: a `photoToCards` adapter); `deckQuestions` otherwise. */
   generators?: Partial<Record<SourceRecord['kind'], QuestionGenerator>>
+  /** How long a job whose connection was lost waits before each new try (`RETRY_DELAYS_MS` by default). */
+  retryDelaysMs?: readonly number[]
+}
+
+/** Waits before the 1st, 2nd and 3rd new try after a lost connection; one more loss and the job fails. */
+export const RETRY_DELAYS_MS: readonly number[] = [5_000, 20_000, 60_000]
+
+/**
+ * The request never got its answer: the connection failed or was cut (WebKit « Load failed », Chromium « Failed to
+ * fetch », Firefox « NetworkError… », the AI SDK's « Cannot connect to API »), in the error, its cause or the last
+ * attempt the SDK retried. An error of the code itself (« undefined is not a function ») is not one.
+ */
+export function connectionLost(err: unknown, depth = 0): boolean {
+  if (typeof err !== 'object' || err === null || depth > 4) return false
+  const message = err instanceof Error ? err.message : ''
+  if (
+    /load failed|failed to fetch|networkerror|network connection was lost|cannot connect|internet connection appears to be offline|request timed out/i.test(
+      message,
+    )
+  )
+    return true
+  const e = err as { cause?: unknown; lastError?: unknown }
+  return connectionLost(e.cause, depth + 1) || connectionLost(e.lastError, depth + 1)
 }
 
 /** What running a source would cost now, for the « coût estimé » before anything runs. */
@@ -263,6 +293,7 @@ class JobQueue implements AiJobs {
   private again = false
   private current: { id: string; controller: AbortController } | null = null
   private offNetwork: (() => void) | null = null
+  private retryTimer: ReturnType<typeof setTimeout> | null = null
 
   constructor(private readonly deps: JobsDeps) {}
 
@@ -339,8 +370,19 @@ class JobQueue implements AiJobs {
     void this.pump()
   }
 
+  /** Puts jobs waiting for their connection back in the queue after `ms` (sooner if the network comes back). */
+  private retryIn(ms: number): void {
+    if (this.retryTimer !== null) clearTimeout(this.retryTimer)
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null
+      if (!this.stopped) this.kick().catch((e: unknown) => this.fail(e))
+    }, ms)
+  }
+
   stop(): void {
     this.stopped = true
+    if (this.retryTimer !== null) clearTimeout(this.retryTimer)
+    this.retryTimer = null
     this.offNetwork?.()
     this.offNetwork = null
     this.current?.controller.abort(new JobAbort('stop'))
@@ -439,6 +481,8 @@ class JobQueue implements AiJobs {
       reason: 'manual',
       status: 'queued',
       waitReason: undefined,
+      tries: undefined,
+      failure: undefined,
       error: undefined,
       outcome: undefined,
     }
@@ -538,6 +582,8 @@ class JobQueue implements AiJobs {
       const base = await model.context(controller.signal, language)
       const ctx: FeatureCtx = {
         ...base,
+        // An online model streams: a long call keeps its connection busy instead of being cut (see FeatureCtx).
+        stream: !model.local,
         signal: controller.signal,
         onUsage: (e) => {
           // Recorded with the source it was spent on.
@@ -572,6 +618,7 @@ class JobQueue implements AiJobs {
       await chain
       await set({
         status: 'done',
+        tries: undefined,
         outcome: 'proposed',
         duplicates: job.duplicates + res.duplicates,
         spent: job.spent + spentNow,
@@ -585,7 +632,23 @@ class JobQueue implements AiJobs {
       if (why === 'cancel') await set({ spent })
       else if (why === 'stop') await set({ status: 'queued', spent })
       else if (!model.local && !network.online()) await set({ status: 'waiting', waitReason: 'offline', spent })
-      else await set({ status: 'failed', spent, error: e instanceof Error ? e.message : String(e) })
+      else if (!model.local && connectionLost(e)) {
+        // Units read in this run reset the count: only losses in a row with nothing read make it fail.
+        const tries = done.size > job.progress.done.length ? 1 : (job.tries ?? 0) + 1
+        const delays = this.deps.retryDelaysMs ?? RETRY_DELAYS_MS
+        const wait = delays[tries - 1]
+        if (wait !== undefined) {
+          await set({ status: 'waiting', waitReason: 'connection', tries, spent })
+          this.retryIn(wait)
+        } else
+          await set({
+            status: 'failed',
+            spent,
+            tries: undefined,
+            failure: 'connection',
+            error: e instanceof Error ? e.message : String(e),
+          })
+      } else await set({ status: 'failed', spent, error: e instanceof Error ? e.message : String(e) })
     } finally {
       this.current = null
       this.publish({ running: null })

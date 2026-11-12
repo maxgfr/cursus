@@ -373,6 +373,9 @@ export const ai = {
   inboxRunning: 'Suggesting cards…',
   inboxRunningProgress: 'Suggesting cards… {done} of {total} read',
   inboxWaiting: 'Waiting for a connection: the cards come once you’re back online.',
+  inboxReconnecting: 'The connection to the AI model was cut: trying again in a moment, from where it stopped.',
+  inboxConnectionLost:
+    'The connection to the AI model kept being cut. Try again once your connection is steady: the questions already proposed are kept.',
   inboxNeedsModelLine: 'Waiting for an AI model.',
   inboxCancel: 'Stop',
   inboxCancelled: 'Stopped.',

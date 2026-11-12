@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { NoObjectGeneratedError } from 'ai'
+import { MockLanguageModelV4 } from 'ai/test'
 import { z } from 'zod'
 import type { CatalogProvider } from './catalogTrim'
 import { AiConfigError, createModel, generateStructured, outputLanguage, streamStructured } from './client'
@@ -114,6 +115,31 @@ describe('client', () => {
     expect(partials.length).toBeGreaterThan(1)
     expect(model.doStreamCalls).toHaveLength(1)
     expect(events).toEqual([expect.objectContaining({ feature: 'quiz', inputTokens: 12, outputTokens: 6 })])
+  })
+
+  test('with stream, generateStructured streams with no partials asked: the same result and usage', async () => {
+    const events: AiUsageEvent[] = []
+    const model = streamModel(['{"answer":"he', 'llo","n":', '7}'], 12, 6)
+    const out = await generateStructured(
+      { ...ctxFor(model, events), stream: true },
+      { feature: 'quiz', system: 'S', prompt: 'P', schema },
+    )
+    expect(out).toEqual({ answer: 'hello', n: 7 })
+    expect(model.doStreamCalls).toHaveLength(1)
+    expect(events).toEqual([expect.objectContaining({ feature: 'quiz', inputTokens: 12, outputTokens: 6 })])
+  })
+
+  test('a streamed call that fails rejects with its own error, not the SDK’s « no output »', async () => {
+    const model = new MockLanguageModelV4({
+      doStream: async () => {
+        throw new TypeError('Load failed')
+      },
+    })
+    const call = generateStructured(
+      { ...ctxFor(model), stream: true },
+      { feature: 'quiz', system: 'S', prompt: 'P', schema },
+    )
+    await expect(call).rejects.toThrow('Load failed')
   })
 
   test('with onPartial, an answer that does not parse is refused and still billed', async () => {

@@ -13,11 +13,11 @@
  * during calls. The caller shows `estimateReadDeckCost` before running and resolves `ctx.language` to the
  * course's language (`outputLanguage`). Usage is reported as `understand` unless `feature` says otherwise.
  */
-import { generateText, type ModelMessage, Output, type UserContent } from 'ai'
+import type { ModelMessage, UserContent } from 'ai'
 import type { z } from 'zod'
 import { type Deck, isVisionImage, type UnitKind, unitImages } from '../../content/deck'
 import type { CatalogModel } from '../catalogTrim'
-import { billed, type FeatureCtx } from '../client'
+import { type FeatureCtx, generateStructured } from '../client'
 import { type CostEstimate, estimateCost } from '../cost'
 import { contextBudget, estimateTokens } from '../retrieval'
 import { deckReadingSchema, deckSynthesisSchema } from '../schemas'
@@ -184,15 +184,16 @@ export async function askDeck<T>(ctx: FeatureCtx, req: DeckRequest<T>): Promise<
       content.push({ type: 'file', data: img.bytes, mediaType: img.mediaType })
   }
   const messages: ModelMessage[] = [{ role: 'user', content }]
-  // Billed whether the answer parses or not (a truncated or invalid JSON answer costs its tokens too).
-  return billed(ctx, req.feature, () =>
-    generateText({
-      model: ctx.model,
+  // Billed whether the answer parses or not (a truncated or invalid JSON answer costs its tokens too). Streamed when
+  // the caller asks (`ctx.stream`); a screen's `onPartial` is not meant for these objects.
+  return generateStructured(
+    { ...ctx, onPartial: undefined },
+    {
+      feature: req.feature,
       system: req.system,
       messages,
-      output: Output.object({ schema: req.schema }),
-      abortSignal: ctx.signal,
-    }),
+      schema: req.schema,
+    },
   )
 }
 

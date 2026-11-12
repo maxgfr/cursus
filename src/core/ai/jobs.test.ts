@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test'
+import { simulateReadableStream } from 'ai'
 import { MockLanguageModelV4 } from 'ai/test'
 import * as Y from 'yjs'
 import type { LocalStore } from '../contracts/ports'
@@ -15,6 +16,7 @@ import type { DeckUnitInput } from './features/readDeck'
 import {
   type AiJob,
   type AiJobs,
+  connectionLost,
   createJobs,
   JOBS_KEY,
   type JobModel,
@@ -92,29 +94,50 @@ function harness(o: { model?: 'online' | 'local' | 'none'; online?: boolean; see
     jobs: null as unknown as AiJobs,
     courseId: '',
   }
+  /** One call: the questions `answer` gives for the units asked about (or its error), as JSON text. */
+  const respond = async (prompt: unknown, abortSignal: AbortSignal | undefined): Promise<string> => {
+    const units = unitsOf(prompt)
+    const call = h.calls.length
+    h.calls.push({ units })
+    h.inFlight++
+    h.maxInFlight = Math.max(h.maxInFlight, h.inFlight)
+    try {
+      const questions = await Promise.race([
+        Promise.resolve(h.answer(units, call)),
+        new Promise<never>((_, reject) => {
+          if (abortSignal?.aborted) reject(abortSignal.reason)
+          abortSignal?.addEventListener('abort', () => reject(abortSignal.reason))
+        }),
+      ])
+      return JSON.stringify({ questions })
+    } finally {
+      h.inFlight--
+    }
+  }
   h.model = new MockLanguageModelV4({
-    doGenerate: async ({ prompt, abortSignal }) => {
-      const units = unitsOf(prompt)
-      const call = h.calls.length
-      h.calls.push({ units })
-      h.inFlight++
-      h.maxInFlight = Math.max(h.maxInFlight, h.inFlight)
-      try {
-        const questions = await Promise.race([
-          Promise.resolve(h.answer(units, call)),
-          new Promise<never>((_, reject) => {
-            if (abortSignal?.aborted) reject(abortSignal.reason)
-            abortSignal?.addEventListener('abort', () => reject(abortSignal.reason))
-          }),
-        ])
-        return {
-          content: [{ type: 'text', text: JSON.stringify({ questions }) }],
-          finishReason: { unified: 'stop', raw: undefined },
-          usage: tokens(h.perCall[0], h.perCall[1]),
-          warnings: [],
-        }
-      } finally {
-        h.inFlight--
+    doGenerate: async ({ prompt, abortSignal }) => ({
+      content: [{ type: 'text', text: await respond(prompt, abortSignal) }],
+      finishReason: { unified: 'stop', raw: undefined },
+      usage: tokens(h.perCall[0], h.perCall[1]),
+      warnings: [],
+    }),
+    // An online model's job streams (see FeatureCtx.stream): the same answer, in one delta.
+    doStream: async ({ prompt, abortSignal }) => {
+      const text = await respond(prompt, abortSignal)
+      return {
+        stream: simulateReadableStream({
+          chunks: [
+            { type: 'stream-start' as const, warnings: [] },
+            { type: 'text-start' as const, id: 't' },
+            { type: 'text-delta' as const, id: 't', delta: text },
+            { type: 'text-end' as const, id: 't' },
+            {
+              type: 'finish' as const,
+              finishReason: { unified: 'stop' as const, raw: undefined },
+              usage: tokens(h.perCall[0], h.perCall[1]),
+            },
+          ],
+        }),
       }
     },
   })
@@ -137,6 +160,8 @@ function harness(o: { model?: 'online' | 'local' | 'none'; online?: boolean; see
     ws,
     store,
     locks: memoryLocks(),
+    // A lost connection is tried again at once here (the app waits 5 s, 20 s, then 60 s).
+    retryDelaysMs: [0, 0, 0],
     clock,
     rng,
     network: {
@@ -231,7 +256,9 @@ describe('auto-question jobs', () => {
     expect(h.ws.drafts.list()[0]).toMatchObject({ sourceId: s, courseId: h.courseId, model: 'mockai/mock-1' })
     expect(h.ws.drafts.summary()).toMatchObject({ total: 6, sources: [{ sourceId: s, count: 6 }] })
     expect(h.ws.cards.all()).toEqual([])
-    const call = h.model.doGenerateCalls[0]
+    // An online model streams: a long call is never cut for sending nothing (Safari « Load failed »).
+    expect(h.model.doGenerateCalls).toEqual([])
+    const call = h.model.doStreamCalls[0]
     expect(JSON.stringify(call?.prompt)).toContain('in German')
     // Usage went to the workspace (synced), with the source it was spent on.
     expect(h.ws.aiUsage.list()).toHaveLength(1)
@@ -294,7 +321,7 @@ describe('auto-question jobs', () => {
     await h.jobs.idle()
     expect(h.calls.map((c) => c.units.map((u) => u.n))).toEqual([[2, 3]])
     expect(job(h, id)).toMatchObject({ status: 'done', progress: { done: [2, 3], total: 2 } })
-    const prompt = JSON.stringify(h.model.doGenerateCalls[0]?.prompt)
+    const prompt = JSON.stringify(h.model.doStreamCalls[0]?.prompt)
     expect(prompt).toContain('in French')
     expect(new Set(h.ws.drafts.list().map((d) => d.sectionId))).toEqual(new Set([sectionId]))
     // Options this version cannot read fall back to the defaults.
@@ -538,6 +565,90 @@ describe('auto-question jobs', () => {
     await h.jobs.idle()
     expect(job(h, id)).toMatchObject({ status: 'done', proposed: 3 })
     expect(job(h, id).error).toBeUndefined()
+  })
+
+  test('a connection cut mid-run resumes on its own from where it stopped (Safari « Load failed »)', async () => {
+    const h = harness()
+    const s = source(h, 'Heart', 12)
+    h.answer = (us, call) => {
+      if (call === 1) throw new TypeError('Load failed')
+      return defaultAnswer(us)
+    }
+    await h.jobs.start()
+    const id = await h.jobs.enqueue(s)
+    await until(() => job(h, id).status === 'done', 'resumed after the lost connection')
+    const all = [...Array(12).keys()].map((i) => i + 1)
+    expect(job(h, id)).toMatchObject({ status: 'done', outcome: 'proposed', progress: { done: all } })
+    expect(job(h, id).tries).toBeUndefined()
+    expect(job(h, id).error).toBeUndefined()
+    // What was read before the cut is not read again; every unit got its questions once.
+    const asked = h.calls.map((c) => c.units.map((u) => u.n))
+    const first = asked[0] ?? []
+    expect(first.length).toBeGreaterThan(0)
+    expect(asked.slice(1).some((us) => us.some((u) => first.includes(u)))).toBe(false)
+    expect(h.ws.drafts.all()).toHaveLength(36)
+  })
+
+  test('a connection lost again and again, with nothing read, fails and says so; a retry starts afresh', async () => {
+    const h = harness()
+    const s = source(h, 'Heart', 1)
+    h.answer = () => {
+      throw new Error('Cannot connect to API: Load failed', { cause: new TypeError('Load failed') })
+    }
+    await h.jobs.start()
+    const id = await h.jobs.enqueue(s)
+    await until(() => job(h, id).status === 'failed', 'gave up after the last try')
+    expect(job(h, id)).toMatchObject({ status: 'failed', failure: 'connection' })
+    expect(job(h, id).tries).toBeUndefined()
+    // The first call, then one per delay.
+    expect(h.calls).toHaveLength(4)
+    h.answer = (us) => defaultAnswer(us)
+    await h.jobs.retry(id)
+    await h.jobs.idle()
+    expect(job(h, id)).toMatchObject({ status: 'done', proposed: 3 })
+    expect(job(h, id).failure).toBeUndefined()
+  })
+
+  test('an error of the code itself, or a model on this device, fails at once', async () => {
+    const h = harness()
+    const s = source(h, 'Heart', 1)
+    h.answer = () => {
+      throw new TypeError('undefined is not a function')
+    }
+    await h.jobs.start()
+    const id = await h.jobs.enqueue(s)
+    await h.jobs.idle()
+    expect(job(h, id)).toMatchObject({ status: 'failed', error: 'undefined is not a function' })
+    expect(job(h, id).failure).toBeUndefined()
+    expect(h.calls).toHaveLength(1)
+
+    const local = harness({ model: 'local' })
+    const ls = source(local, 'Heart', 1)
+    local.answer = () => {
+      throw new TypeError('Load failed')
+    }
+    await local.jobs.start()
+    const lid = await local.jobs.enqueue(ls)
+    await local.jobs.idle()
+    expect(job(local, lid)).toMatchObject({ status: 'failed' })
+    expect(local.calls).toHaveLength(1)
+    // A model on this device does not stream: nothing to keep busy.
+    expect(local.model.doStreamCalls).toEqual([])
+  })
+
+  test("connectionLost knows the browsers' messages, through causes and retries, and nothing else", () => {
+    for (const m of ['Load failed', 'Failed to fetch', 'NetworkError when attempting to fetch resource.']) {
+      expect(connectionLost(new TypeError(m))).toBe(true)
+    }
+    expect(connectionLost(new Error('Cannot connect to API: x'))).toBe(true)
+    expect(
+      connectionLost(Object.assign(new Error('Failed after 3 attempts'), { lastError: new Error('Load failed') })),
+    ).toBe(true)
+    expect(connectionLost(new Error('wrapped', { cause: new TypeError('Failed to fetch') }))).toBe(true)
+    expect(connectionLost(new TypeError('undefined is not a function'))).toBe(false)
+    expect(connectionLost(new Error('provider exploded'))).toBe(false)
+    expect(connectionLost('Load failed')).toBe(false)
+    expect(connectionLost(null)).toBe(false)
   })
 
   test('only the student starts a job: what an earlier version queued on its own, or held by a cost cap, is cancelled', async () => {

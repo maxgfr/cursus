@@ -31,8 +31,12 @@ export function completionReply(
   content: string,
   headers: Record<string, string>,
   model = 'claude-haiku-5-5',
+  usage: { prompt_tokens: number; completion_tokens: number; total_tokens?: number } = {
+    prompt_tokens: 120,
+    completion_tokens: 40,
+    total_tokens: 160,
+  },
 ): { status: number; headers: Record<string, string>; contentType: string; body: string } {
-  const usage = { prompt_tokens: 120, completion_tokens: 40, total_tokens: 160 }
   const streamed = (request.postDataJSON() as { stream?: boolean } | null)?.stream === true
   if (!streamed) {
     const json = {
