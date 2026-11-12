@@ -51,6 +51,20 @@ describe('rng', () => {
     const x = r.u32()
     expect(Number.isInteger(x) && x >= 0 && x < 2 ** 32).toBe(true)
   })
+  test('cryptoRng ids grow within a millisecond and when the clock goes back, in creation order', () => {
+    const clock = virtualClock(1_700_000_000_000)
+    const r = cryptoRng(clock)
+    const ids = Array.from({ length: 50 }, () => r.id())
+    clock.set(1_699_999_999_000)
+    ids.push(r.id())
+    clock.set(1_700_000_000_005)
+    ids.push(r.id())
+    for (const id of ids) expect(id).toMatch(ULID)
+    expect([...ids].sort()).toEqual(ids)
+    expect(new Set(ids).size).toBe(ids.length)
+    // The first id of a new millisecond is random again, with that millisecond's time.
+    expect(ids.at(-1)?.slice(0, 10)).toBe(seededRng(1, virtualClock(1_700_000_000_005)).id().slice(0, 10))
+  })
 })
 
 describe('locks', () => {
