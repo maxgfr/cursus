@@ -18,7 +18,7 @@ import { Generate } from '../Generate/open.tsx'
 import { useScopeOnce } from '../Section/scope.ts'
 import { type ScopeOption, scopeOptions, scopeValue } from '../SessionSetup/draft.ts'
 import { noteError } from '../settings/Diagnostic/recent.ts'
-import { DraftCard } from './DraftCard.tsx'
+import { DraftCard, type DraftCardEdit } from './DraftCard.tsx'
 import styles from './Inbox.module.css'
 import { type JobActions, JobLine, jobWorthShowing } from './JobLine.tsx'
 
@@ -54,7 +54,7 @@ interface Pending {
   ids: readonly Id[]
   to?: StudyScope
   /** Cards edited before being added. */
-  edits?: ReadonlyMap<Id, { front: string; back: string }>
+  edits?: ReadonlyMap<Id, DraftCardEdit>
   /** What the toast says. */
   message: string
 }
@@ -248,7 +248,7 @@ export default function Inbox() {
     // Only when the card leaving had the focus (a key, or its own button): moved once the list is drawn again.
     if (next && document.activeElement?.closest('[data-draft]')) setRefocus(next.id)
   }
-  const add = (entry: Entry, ids: readonly Id[], edit?: { id: Id; front: string; back: string }) => {
+  const add = (entry: Entry, ids: readonly Id[], edit?: { id: Id } & DraftCardEdit) => {
     setError(null)
     const to = destinationOf(entry)
     const p: Pending = {
@@ -257,7 +257,10 @@ export default function Inbox() {
       to,
       message: t('ai.inboxAddedTo', { count: ids.length, place: placeName(to) }),
     }
-    if (edit) p.edits = new Map([[edit.id, { front: edit.front, back: edit.back }]])
+    if (edit) {
+      const { id, ...changes } = edit
+      p.edits = new Map([[id, changes]])
+    }
     if (ids.length === 1 && ids[0]) focusNext(ids[0])
     setEditing(null)
     act(p)
@@ -447,7 +450,7 @@ function SourceBlock({
   editing: Id | null
   onFocus(id: Id): void
   onEdit(id: Id, on: boolean): void
-  onAdd(ids: readonly Id[], edit?: { id: Id; front: string; back: string }): void
+  onAdd(ids: readonly Id[], edit?: { id: Id } & DraftCardEdit): void
   onReject(ids: readonly Id[]): void
 }) {
   const t = useT()
@@ -548,6 +551,7 @@ function SourceBlock({
                     where={t('ai.deckWhere', { n: i + 1, name })}
                     current={d.id === current}
                     editing={editing === d.id}
+                    place={destination}
                     onFocus={() => onFocus(d.id)}
                     onEdit={(on) => onEdit(d.id, on)}
                     onAdd={(edit) => onAdd([d.id], edit && { id: d.id, ...edit })}

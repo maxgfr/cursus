@@ -262,6 +262,43 @@ test('keys on a focused card: A adds, R rejects, E edits in the editor, ↓ move
   expect(errors).toEqual([])
 })
 
+test('a suggested card is edited as a new card is written: a photo on it, its kind, then added', async ({ page }) => {
+  const errors = watchErrors(page)
+  await suggest(page)
+  const main = page.getByRole('main')
+  const membranes = main.getByRole('region', { name: /^Section 1 \(2\)$/ })
+  const question = (await membranes.locator('[data-draft]').first().locator('[id$="-q"]').textContent())
+    ?.replace(/^Question:\s*/, '')
+    .trim()
+  await membranes.getByRole('button', { name: 'Edit card 1, Section 1' }).click()
+  await expect(main.getByRole('textbox', { name: 'Question' })).toBeVisible()
+
+  // A fill-in-the-blank needs a blank: offered, refused without one, then back to a question and answer.
+  await main.getByRole('radio', { name: 'Fill in the blank' }).check({ force: true })
+  await expect(main.getByRole('textbox', { name: 'Sentence with blanks' })).toBeVisible()
+  await main.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(main.getByRole('alert')).toBeVisible()
+  await main.getByRole('radio', { name: 'Question and answer' }).check({ force: true })
+
+  // A photo on the question: taken here, shown on the card, kept in the course.
+  const [chooser] = await Promise.all([
+    page.waitForEvent('filechooser'),
+    main.getByRole('button', { name: 'Add photo', exact: true }).first().click(),
+  ])
+  await chooser.setFiles(PHOTO)
+  await expect(main.getByTestId('card-photo')).toHaveCount(1)
+  await main.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(page.getByRole('status').getByText('1 card added to Biology.')).toBeVisible()
+  await page.getByRole('button', { name: 'Dismiss' }).click()
+
+  await page.goto('./#/courses')
+  await main.getByRole('link', { name: /Biology/ }).click()
+  await main.getByRole('link', { name: new RegExp(question ?? '') }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'Card' })).toBeVisible()
+  await expect(page.getByTestId('card-photo')).toHaveCount(1)
+  expect(errors).toEqual([])
+})
+
 test('the inbox in dark mode and in German on a phone: readable, nothing cut off', async ({ page }, _info) => {
   await suggest(page)
   await page.emulateMedia({ colorScheme: 'dark' })
