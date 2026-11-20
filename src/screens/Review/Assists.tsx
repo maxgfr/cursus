@@ -74,10 +74,13 @@ export function Assists({
   const answer = usePartial<CardExplanation>()
   const abort = useRef<AbortController | null>(null)
   useEffect(() => () => abort.current?.abort(), [])
-  // The reveal changes what is offered: a panel open is closed (opened again, it shows in full what it said).
-  useEffect(() => {
+  // The reveal changes what is offered: a panel open is closed (opened again, it shows in full what it said). Closed
+  // in the render that reveals, so what it said never shows twice, here and on the card, even for a frame.
+  const [wasRevealed, setWasRevealed] = useState(revealed)
+  if (revealed !== wasRevealed) {
+    setWasRevealed(revealed)
     if (revealed) setOpen(null)
-  }, [revealed])
+  }
   const load = useMemo(() => chunkLoader(rt.ws, rt), [rt])
   const deps: AssistDeps | null = ai.status === 'ready' ? { ws: rt.ws, ai, load } : null
   const faces = { front: card.front, back: card.back }
