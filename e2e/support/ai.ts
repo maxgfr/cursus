@@ -90,10 +90,14 @@ export async function configureAi(page: Page, baseUrl: string, key = 'sk-test-12
   await openModels(page)
   await aiSearch(page).fill('302 haiku 5.5')
   const row = providerGroup(page, '302.AI').getByRole('button', { name: /^Claude Haiku 5\.5 claude-haiku-5-5/ })
-  // Typed at once, as a user would: the key must survive the route's saved key loading.
-  await row.click()
-  await page.getByLabel('API key').fill(key)
-  await expect(row).toHaveAttribute('aria-pressed', 'true')
+  // Typed at once, as a user would: the key must survive the route's saved key loading. The page above may still be
+  // settling (the on-device section measures this device): a click that a shift sent elsewhere is tried again, the
+  // key still typed right after it.
+  await expect(async () => {
+    await row.click()
+    await page.getByLabel('API key').fill(key)
+    expect(await row.getAttribute('aria-pressed')).toBe('true')
+  }).toPass({ timeout: 10_000 })
   await expect(providerPicker(page)).toHaveValue('302ai')
   await openConnection(page)
   await page.getByLabel('Base URL').fill(baseUrl)
